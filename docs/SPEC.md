@@ -11,83 +11,90 @@ choices, guided by [DESIGN.md](DESIGN.md) and the invariants in
 
 A single-user, local-first tool for planning the **cost** and the
 **people capacity** of "initiatives" (projects) as they run through a
-configurable approval process. Cost and capacity are co-equal outputs:
-the tool answers both "what will this initiative cost, and what was it
-approved at?" and "who is committed to what, and by how much?".
+stage-gate process. Cost and capacity are co-equal outputs: the tool
+answers both "what will this initiative cost, and what was it approved
+at?" and "who is committed to what, and by how much?".
 
-Every initiative passes through two costed, gated phases — **Validation**
-and **Development** — optionally followed by any number of user-defined
-status stages. People are allocated to initiatives as a percentage of
-their capacity, and a person may belong to more than one team.
+The process itself — which phases exist, which of them carry cost, what
+each gate requires — is **fixed when the tool is built**, not configured
+by the person using it. A stage-gate process is a governance decision an
+organisation makes once; the end user is presented with it and works
+within it. See §2.
 
-There is no server, authentication, multi-user editing, FX conversion,
-time tracking, or vacation modelling. Sharing happens through full JSON
-export/import. Everything else lives only in the browser's `localStorage`
-until exported.
+People are allocated to initiatives as a percentage of their capacity,
+and a person may belong to more than one team.
 
 ### Non-goals (explicitly out of scope)
 
+- Editing the process at runtime. Phases, gates, checklist definitions
+  and approval tracks are compiled in (§2). Changing them means a new
+  build.
 - Variable monthly allocations (an allocation is one percentage for the
   whole phase, not a per-month schedule). This applies equally to how a
   person's capacity is split across teams (§3): one static share per
   membership, never a schedule.
-- Cost or capacity on status stages. Only Validation and Development are
-  costed and consume capacity — see the note below.
+- Cost or capacity on non-costed phases. A phase either carries the full
+  cost model or nothing at all — never something in between.
 - Multi-team initiatives (one initiative belongs to exactly one team).
 - Scenario comparison / what-if modelling.
 - Bulk actual-cost entry (actuals are entered one month at a time).
 - Audit identity (the tool does not track *who* made a change).
 
-**On status stages carrying no capacity.** An initiative sitting in a
-post-Development stage — a rollout, a benefits review — draws zero
-capacity and shows nothing in any team grid, even though people may still
-be working on it. This is a deliberate trade, not an oversight: effort
-after Development is ongoing work rather than initiative delivery, and it
-already has a home in **non-initiative work** (§7.2). Attributing it per
-initiative would require a third allocation surface with no gate, no
-band, and no approval to hang it from.
+## 2. What the build fixes, and what the user changes
 
-## 2. Brand-pack surface
+This is the central distinction in the product, and every other section
+depends on it.
 
-The following are **placeholder content**, not fixed product behavior —
-see [DESIGN.md](DESIGN.md) for the exact contract:
+**Fixed by the build** (the brand pack — see [DESIGN.md](DESIGN.md) §4):
 
-- The **seeded process**: the labels of every stage in the progression,
-  including the two costed phases and their gates. These are ordinary
-  editable data (§7.7) that the brand pack merely supplies a default for
-  — this spec calls them **Validation**, **Development**, **Gate 1** and
-  **Gate 2** throughout, but a real build may call them anything.
-- Approval-track ("budget band") names and abbreviations.
-- Role names, country names, day rates, team names, and people.
-- All colors and the typeface.
+- **The process**: an ordered list of phases, each with a display label
+  and a flag saying whether it is **costed**. Each phase has exactly one
+  **exit gate**, with its own label, whether it requires cost estimates,
+  whether it may be **skipped**, and its **checklist item** definitions.
+- **Approval tracks** (budget bands): name, abbreviation, bounds,
+  requirement text and severity.
+- **The currency symbol.**
+- **A process identity** — an id and a version — so a dataset can never
+  be read by a build whose process disagrees with it (§8).
+- All colours and the typeface.
+- Placeholder seed data for roles, countries, teams and people.
 
-Everything else in this document is durable product behavior.
+**Editable by the user**, in Settings (§7.8):
+
+- Roles: name, abbreviation, cost factor, active.
+- Countries: name, and a day rate and holiday reductions **per year**.
+- Teams and people, with their memberships and shares.
+- The export-reminder threshold.
+- Export, import and reset.
+
+The process is visible but not editable, on its own page (§7.7).
+
+Everything in this document other than the fixed items above is durable
+product behaviour, identical in every build.
 
 ## 3. Core definitions
 
-- **Stage:** one linear progression, configured once for the whole tool
-  (§7.7) and shared by every initiative:
-
-  ```text
-  Draft → Validation → Development → [status stages…] → Closed
-          └─ costed, gated ──┘        └── status only ──┘
-  ```
-
-  `Draft`, `Validation`, `Development` and `Closed` always exist, always
-  in that order, and cannot be removed. Between Development and Closed
-  the user may define any number of **status stages** (including none).
-  Every stage's display label is editable; its internal identity is not.
-  A stage is never skipped except when backfilling an initiative that
-  already existed when the tool was adopted.
-- **Costed phase:** `Validation` or `Development` — the only two stages
-  that carry a period, allocations, cost items, actuals, a gate and an
-  approval. Referred to as a **phase** throughout.
-- **Status stage:** a user-defined stage after Development. It records
-  only that the initiative reached it, and when. No period, no
-  allocations, no cost, no capacity, no gate, no approval.
-- **State:** `Active`, `On Hold`, or `Cancelled` — independent of stage.
-  On Hold and Cancelled initiatives are excluded from team capacity
-  accounting but keep their cost calculations.
+- **Phase:** where an initiative currently is. The process defines an
+  ordered list of them — for example *Discovery → Validation →
+  Development → Rollout* — shared by every initiative. A phase is
+  **costed** or not; only a costed phase carries a period, allocations,
+  cost items and actuals. A non-costed phase records only that the
+  initiative reached it.
+- **Gate:** the transition out of one phase. Every phase has exactly one,
+  including the last, whose gate is what **closes** the initiative. A
+  gate defines what an initiative must satisfy to move on: cost figures,
+  checklist items, or both.
+- **Status:** `Active`, `On Hold`, `Cancelled` or `Closed` — independent
+  of phase, and not to be confused with it. An initiative in the
+  Development phase may be on hold; a closed initiative stays in whatever
+  phase it reached. On Hold and Cancelled initiatives are excluded from
+  team capacity accounting but keep their cost calculations. Closed and
+  Cancelled both freeze the initiative (§6).
+- **Checklist item:** a named condition on a gate, defined by the build
+  with a name and a description. Against each initiative it carries a
+  **status** — red, amber or green, starting red — and a free-text
+  **note**, both set by the user. Red blocks the gate; amber lets it pass
+  with a warning; green passes cleanly.
 - **Approval track:** the budget band resolved from an initiative's
   blended grand estimate (see §5.5).
 - **Estimate:** every relevant month is a forward projection (no actuals
@@ -95,9 +102,12 @@ Everything else in this document is durable product behavior.
 - **Forecast:** some months have recorded actuals and the rest use
   estimates.
 - **Actual:** every relevant month has a recorded actual.
-- **Backfilled phase:** a phase whose gate was skipped because the
-  initiative already existed when it was entered into the tool. It has no
-  approval record and stays editable until the initiative closes.
+- **Skipped gate:** a gate passed over rather than satisfied, with a
+  **reason** the user must supply. It records that it was skipped and
+  why, approves nothing, and freezes nothing — so the phase it exits
+  stays editable. Entering an initiative that already existed when the
+  tool was adopted skips every gate behind it, for the same reason and by
+  the same mechanism.
 - **Person:** someone who can be allocated to initiatives. A person has a
   country, a **capacity %** ceiling, and either a standard role or a
   custom role (§4). People exist independently of teams — a person with
@@ -116,6 +126,9 @@ Everything else in this document is durable product behavior.
 (Full field-level shape is in [DESIGN.md](DESIGN.md) §2 — this section
 describes the concepts, not the JSON shape.)
 
+- **Process**: the ordered phases and their gates, fixed by the build
+  (§2). Phase and gate **identifiers** are permanent and never shown; the
+  labels beside them are what a user reads.
 - **Role**: a job function with a cost-multiplying **factor** (1.00 = no
   overhead/uplift). A role carries no rate of its own — the rate comes
   from the person's country.
@@ -123,8 +136,8 @@ describes the concepts, not the JSON shape.)
   day rate and its monthly working-day reduction table (holidays). Years
   are tracked for the previous year, the current year, and the next two,
   rolling forward automatically. The previous year is tracked so that
-  backfilled phases (§3) reaching into last year cost against that year's
-  own rate and holidays.
+  work entered retrospectively costs against that year's own rate and
+  holidays.
 - **Person**: a name, a country, an **active** flag, a **capacity %**
   ceiling (0–100%, defaults to 100%), and exactly one of a **role** or a
   **custom role** (a free-text label plus its own per-year day rate). A
@@ -147,16 +160,15 @@ describes the concepts, not the JSON shape.)
   bounds, so a low-cost band can still carry heavy approval, and it is
   the only thing compared when deciding whether one band is worse than
   another.
-- **Initiative**: belongs to one team, has a stage and a state, and has
-  exactly two costed **phases** — Validation and Development — plus a
-  record of when it entered each status stage it has reached.
-- **Phase**: an estimated period (start/end date), a set of per-person
-  allocations (the allocation % committed to this phase), a set of
-  non-labour cost items, an optional actual period, and a map of recorded
-  actual costs by month.
-- **Process**: the ordered stage progression (§3) and every stage's
-  editable label, including the two phases and their gate names. One
-  process, shared by every initiative.
+- **Initiative**: belongs to one team, sits in one phase, has a status,
+  and carries one record per phase it has reached and one per gate it has
+  passed or skipped.
+- **Phase record** (costed phases only): an estimated period (start/end
+  date), a set of per-person allocations, a set of non-labour cost items,
+  an optional actual period, and a map of recorded actual costs by month.
+- **Gate record**: how a gate was left — **passed** or **skipped** — the
+  date, the grand total and resolved band at that moment, the per-phase
+  costs, and, for a skip, the reason.
 
 ## 5. Calculation contract
 
@@ -176,9 +188,8 @@ person-days = working-days-in-period * allocation-percent * factor
 labour-cost = person-days * day-rate
 ```
 
-Both phases use per-person allocations (no team-level shortcut). Only
-Validation and Development are costed; status stages contribute nothing
-(§1).
+Every costed phase uses per-person allocations (no team-level shortcut).
+Non-costed phases contribute nothing (§1).
 
 **Rate resolution.** `factor` and `day-rate` depend on how the person is
 configured, and both are read for the *month's own year* (`y`):
@@ -223,12 +234,13 @@ affected initiatives.
 
 ```text
 phase estimate = labour cost + non-labour cost items
-grand estimate = Validation estimate + Development estimate
+grand estimate = the sum of every costed phase's estimate
 ```
 
 A cost item counts toward the total even if its date falls outside the
 phase's period — it's marked "out of period" rather than silently
-dropped.
+dropped. Every monthly view must therefore include that month, or the
+month-by-month figures would not sum to the phase total.
 
 ### 5.4 Actual tracking
 
@@ -260,93 +272,111 @@ total; an initiative with a total of zero resolves to "Not yet known"
 only if no band covers zero.
 
 A later total that resolves to a band of **higher severity** than the one
-snapshotted at the initiative's last passed gate raises an escalation
-warning; lower severity raises a de-escalation note. The comparison is on
-severity alone (§4), read from the approval's snapshot, so it survives a
-band being renamed, re-bounded, or deleted afterwards.
+snapshotted at the initiative's last **passed** gate raises an escalation
+warning; lower severity raises a de-escalation note. A skipped gate
+approved nothing, so it never sets that baseline. The comparison is on
+severity alone (§4), read from the gate record's snapshot, so it survives
+a band being changed in a later build.
 
 ## 6. Lifecycle contract
 
-- **Gate 1** (Validation's gate) requires a complete Validation period
-  *and* a complete Development period, each with at least one person
-  allocated above 0%.
-- **Gate 2** (Development's gate) requires a complete Development period
-  with at least one person allocated above 0%.
-- Passing a gate asks for the gate date (defaulting to today) and, on
-  confirmation:
-  - Freezes that phase's estimate (labour, monthly costs, and the
-    role/country data used to calculate them — later master-data changes
-    never move an approved figure).
-  - Records an approval: the grand total, a *snapshot* of the resolved
-    band (§5.5), the per-phase costs, and the gate date. Gate 1's record
-    uses both phases' *estimates*; Gate 2's uses Validation's *forecast*
-    (actuals where known, estimates for the rest) plus Development's
-    *estimate*.
-  - Advances the stage.
-- **Reopening** reverses exactly one stage transition — always the most
-  recent one, never an earlier one still buried under it. It undoes
-  whichever transition produced the current stage: clears that gate's
-  approval record, discards that phase's frozen estimate, and returns
-  the phase to editable. It never touches recorded actuals. Gate 1
-  therefore cannot be reopened while Gate 2 is passed — reopen Gate 2
-  first. Reopening from `Closed` returns the initiative to the stage it
-  was closed from and unlocks every phase and actual that closing
-  locked, without clearing any approval, since closing records none of
-  its own.
-- **Closing** is the last action on an initiative, whatever the process
-  looks like. It is explicit, available from the stage banner at any stage
-  past `Draft`, has no gate, and is never automatic — no gate and no stage
-  advance will ever enter `Closed` on its own.
+An initiative moves through the phases in order. Each phase is left by
+its gate, and the last phase's gate is what closes the initiative.
 
-  Closing freezes the **whole initiative**, not only its numbers: both
-  phases, every actual, and every field on the initiative — name,
-  description, team, state. The single exception is **notes**, which stays
-  writable, because recording why something closed, or what happened
-  afterwards, is exactly what a closed initiative still needs to accept.
-  Reopening unlocks everything closing locked.
+### 6.1 Passing a gate
 
-  Missing actuals are a warning, not a blocking condition; unfilled months
-  stay at their estimate. Closing from `Validation` (abandoning work before
-  Development) is allowed. Closing a `Draft` is not — a draft has no
-  estimate, no approval and no capacity drawn, so abandoning one is a
-  `Cancelled` state, not a close.
-- **A gate never advances an initiative into `Closed`.** Passing a gate
-  moves it to the next stage unless that stage is `Closed`, in which case
-  it stays where it is with its approval recorded. With no status stages
-  configured, passing the final gate therefore leaves the initiative in
-  Development, gated and awaiting an explicit close — because closing is
-  always a decision someone makes, never a side effect of approving a
-  budget.
-- **Advancing through a status stage** needs no gate, no estimate and no
-  approval. The initiative moves to the next stage in the configured
-  progression and records the date it got there. Nothing is frozen or
-  locked, because a status stage owns nothing to freeze.
-- **Reopening a status stage** simply steps back one stage and discards
-  that entry date. The rule is the same as everywhere else — only the
-  most recent transition can be reversed — so reaching Closed and then
-  reopening walks back one stage at a time.
-- A backfilled phase (§3) has no approval record and stays editable until
-  close, regardless of stage.
-- Editing the process (§7.7) while initiatives are in flight is allowed:
-  stages can be renamed and reordered freely. A status stage that any
-  initiative currently sits in cannot be deleted, the same rule that
-  protects a team still referenced by an initiative.
+A gate can be passed when both hold:
 
-## 7. Screens & flows
+- **Cost.** If the gate requires estimates, every costed phase in the
+  process must have a complete period and at least one person allocated
+  above 0%. Passing a gate approves the whole initiative's budget, not
+  just the phase behind it, which is why the requirement looks forward as
+  well as back. Phases already underway contribute their **forecast** —
+  actuals where recorded, estimates for the rest — and phases still ahead
+  contribute their estimate. A gate that does not require estimates skips
+  this check entirely.
+- **Checklist.** No item may be **red**. Amber items let the gate pass
+  and are listed as a warning at the point of passing. Items start red,
+  so a gate with a checklist is blocked until someone has actually looked
+  at each item.
+
+Missing actuals never block a gate; they only warn.
+
+Passing asks for the gate date (defaulting to today) and, on
+confirmation:
+
+- **Freezes** the exited phase's estimate, if it is costed — labour,
+  monthly costs, and the role, country and person data used to calculate
+  them, so later master-data changes never move an approved figure.
+- **Records a gate record**: passed, the date, the grand total, a
+  *snapshot* of the resolved band (§5.5), and the per-phase costs. Every
+  gate records one, whether or not it required cost; a gate passed before
+  the estimate is complete simply snapshots a band of "Not yet known".
+- **Advances** to the next phase — or, at the last gate, sets the status
+  to **Closed**.
+
+### 6.2 Skipping a gate
+
+A gate the build marks as skippable can be passed over instead. Skipping
+**requires a reason**, which is recorded and shown wherever the gate
+record appears.
+
+A skip bypasses both the cost and checklist checks, **approves nothing**
+and **freezes nothing** — so the phase it exits stays editable for as long
+as the initiative is open. It records that it was skipped, when, and why,
+and it advances the phase exactly as passing does. It never becomes the
+baseline for an escalation comparison (§5.5).
+
+Entering an initiative that already existed when the tool was adopted
+uses this same mechanism: creating it at a later phase records every gate
+behind it as skipped, with a reason saying so. There is no separate
+concept for it.
+
+### 6.3 Reopening
+
+Reopening reverses exactly one transition — always the most recent, never
+an earlier one still buried under it. It clears that gate's record,
+discards the frozen estimate if there was one, and returns to the
+previous phase. Checklist statuses and notes are **kept**: what someone
+assessed is a record, not a side effect of the gate, and re-passing is
+quick if nothing has changed.
+
+Reopening never touches recorded actuals. Reopening a closed initiative
+reverses its final gate, which returns the status to Active and leaves it
+in the last phase.
+
+### 6.4 Closing and cancelling
+
+**Closed** is reached only by passing or skipping the final gate. It is
+never automatic and never a bare status change: finishing an initiative
+is a governed act, and the last gate is what governs it.
+
+**Cancelled** is for work abandoned before the process is finished. It is
+a plain status change, available at any point.
+
+Both freeze the whole initiative — every phase, every actual, and every
+field on the initiative: name, description, team, status. The single
+exception is **notes**, which stays writable, because recording why
+something ended, or what happened afterwards, is exactly what a finished
+initiative still needs to accept. Missing actuals are a warning, not a
+blocking condition; unfilled months stay at their estimate.
+
+## 7. Pages & flows
 
 Every page shares one live data model; a change made on one is visible
 immediately on any other. The shell (always visible) has a wordmark, top
-navigation (Portfolio / Initiatives / Teams / People / Settings), an
-Export/Import pair, and a theme toggle (System / Light / Dark, remembered
-across reloads).
+navigation (Portfolio / Initiatives / Teams / People / Process /
+Settings), an Export/Import pair, and a theme toggle (System / Light /
+Dark, remembered across reloads). A dismissable-by-action banner appears
+once too long has passed since the last export, escalating in urgency the
+longer it's been ignored.
 
 Page kinds are named consistently throughout this document and in
 [DESIGN.md](DESIGN.md) §5: an **overview** lists one entity type, a
 **detail** page shows one instance of it, a **dashboard** is read-only and
 cross-entity (Portfolio), **settings** is configuration organised in
 sections, and a **flow** is a resumable multi-step task (the creation
-wizard). A dismissable-by-action banner appears once too long has passed
-since the last export, escalating in urgency the longer it's been ignored.
+wizard).
 
 ### 7.1 Portfolio (read-only, cross-team)
 
@@ -358,13 +388,12 @@ since the last export, escalating in urgency the longer it's been ignored.
   (previous/current/next, plus a "jump to today" control), one colored
   segment per active initiative, current month highlighted, hovering a
   segment shows its name and cost.
-- A filtered table of initiatives (name, team, stage, state, period,
+- A filtered table of initiatives (name, team, phase, status, period,
   approval track, approved total, effective total, variance), sortable by
   several columns.
 - No creation, no editing, no capacity information here — purely a
   read-only cross-cutting view of cost. Capacity is a per-team and
   per-person question and lives on those pages (§7.2, §7.3).
-
 ### 7.2 Teams
 
 - A card grid of teams (name, active member count, total share held,
@@ -446,72 +475,95 @@ copied or downloaded as CSV, like every other major table (§8).
 
 ### 7.4 Initiatives (registry)
 
-- A searchable, filterable (team / stage / state / approval track), sortable
-  table of every initiative, with row actions: open, duplicate (copies
-  descriptions/estimates, never actuals/approvals; always restarts at
-  Draft), and a quick state change (Active/On Hold/Cancelled).
+- A searchable, filterable (team / phase / status / approval track),
+  sortable table of every initiative, with row actions: open, duplicate
+  (copies descriptions and estimates, never actuals, gate records or
+  checklist statuses; always restarts at the first phase), and a quick
+  status change.
 - "New initiative" launches the creation wizard (§7.6).
 
 ### 7.5 Initiative detail
 
-- A stepper showing every stage in the configured progression (§3), with
-  the current one highlighted and passed ones marked done. Passed phases
-  show their gate date, taken from the approval; passed status stages
-  show the date the initiative reached them.
-- A stage banner: plain-language state of what's approved/locked, what's
-  still needed, and the primary action for this stage — a gate, if the
-  current stage is a phase, otherwise simply advancing to the next status
-  stage. A gate action is disabled with an explanation until its
-  precondition is met; advancing a status stage has no precondition.
-  Includes a "reopen previous stage" action once past Draft, and a
-  "close" action at every stage past Draft (§6).
+- A stepper showing every phase in the process, with the current one
+  highlighted and completed ones marked. A phase left by a **passed**
+  gate and one left by a **skipped** gate must be visually distinct — the
+  difference is the whole point of recording a skip — and each shows its
+  date. Hovering or opening a skipped gate shows its reason.
+- A gate banner: plain-language state of what's approved or frozen, what
+  the current phase's gate still needs, and the primary action. The gate
+  action is disabled with an explanation until its preconditions are met
+  (§6.1). Where the gate is skippable, a secondary "skip this gate"
+  action sits beside it and requires a reason before it will complete.
+  Includes a "reopen previous phase" action once past the first phase.
+- A **checklist panel** for the current phase's gate, one row per item:
+  its name and description, a red/amber/green control, and a note field.
+  Red items are called out as blocking; amber ones as passable with a
+  warning. Items with no checklist show no panel.
 - A band panel: the grand total (labelled Estimate/Forecast/Actual per
   §3), the resolved approval track with its requirement text, a
   proportionally-scaled threshold bar showing where the total sits among
   all configured bands, and — once a gate has been passed — the variance
   since that approval plus an escalation/de-escalation callout if the
   live band has moved.
-- Two phase panels (Validation, Development), each with: the estimated
-  period, a per-person allocation table (person, role or custom-role
-  label, country, day rate, factor, allocation %, computed person-days
-  and cost), a non-labour cost-item table, and a results summary. Only
-  people holding an active membership in the initiative's team can be
-  added; a person already allocated through a since-deactivated
-  membership stays listed, with a warning (§5.2). A locked phase shows
-  read-only frozen figures; an open phase is fully editable.
-- No panel for status stages. They carry nothing to show beyond the date
-  in the stepper.
-- A month-by-month table blending estimate and actual across both phases,
-  with a legend distinguishing editable / gap (in-period but nothing
-  recorded) / current-month cells.
-- Once at least one gate has been passed, a gate-comparison table:
-  Validation, Development, approval track, and grand total at each passed
-  gate plus the current live figures, side by side.
-- Both the month table and the gate-comparison table (plus each phase's
-  allocation table) can be copied to the clipboard (as both plain text and
-  rich HTML, for pasting into a spreadsheet or document) or downloaded as
-  CSV, per named table.
+- One phase panel per **costed** phase, each with: the estimated period,
+  a per-person allocation table (person, role or custom-role label,
+  country, day rate, factor, allocation %, computed person-days and
+  cost), a non-labour cost-item table, and a results summary. Only people
+  holding an active membership in the initiative's team can be added; a
+  person already allocated through a since-deactivated membership stays
+  listed, with a warning (§5.2). A locked phase shows read-only frozen
+  figures; an open phase is fully editable. Non-costed phases have no
+  panel — they carry nothing to show beyond the stepper.
+- A month-by-month table blending estimate and actual across every costed
+  phase, with a legend distinguishing editable / gap (in-period but
+  nothing recorded) / current-month cells.
+- Once at least one gate has been left, a gate-comparison table: each
+  costed phase, the approval track, and the grand total at every gate
+  passed or skipped, plus the current live figures, side by side. Skipped
+  gates are marked as such, with their reason.
+- The month table, the gate-comparison table and each phase's allocation
+  table can be copied to the clipboard (as both plain text and rich HTML,
+  for pasting into a spreadsheet or document) or downloaded as CSV, per
+  named table.
 
 ### 7.6 Creation wizard
 
 Two steps, resumable — leaving and returning never loses progress:
 
-1. **General**: name, description, team, and a starting stage — `Draft`,
-   or any later stage in the configured progression for backfilling work
-   that already existed when the tool was adopted. Saving here creates
-   the initiative immediately.
-2. **Estimates**: the same Validation/Development phase panels used on the
-   detail page. A running grand total and resolved approval track update
+1. **General**: name, description, team, and a starting phase. Starting
+   anywhere but the first phase records every gate behind it as skipped,
+   with a reason defaulting to something like "already in progress", which
+   the user can edit (§6.2). Saving here creates the initiative
+   immediately.
+2. **Estimates**: the same phase panels used on the detail page, one per
+   costed phase. A running grand total and resolved approval track update
    live as the estimate is filled in. Finishing is allowed even if the
    estimate isn't complete yet — an unmet gate precondition is only
    surfaced as guidance, never as a block; the gate itself is what
    actually blocks progress later, not the wizard.
 
-### 7.7 Settings
+### 7.7 Process (read-only)
+
+The process is fixed by the build (§2), and this page is where a user
+sees the rules they are working within — and where a wrong build becomes
+obvious immediately.
+
+- The phases in order, each marked costed or not, with its gate: the
+  gate's name, whether it requires cost estimates, whether it may be
+  skipped, and its checklist items with their descriptions.
+- The approval tracks: name, abbreviation, bounds, requirement text and
+  severity, shown against the same proportionally-scaled threshold bar
+  used on an initiative, so the thresholds are legible rather than a list
+  of numbers.
+- The process identity and version, and the currency symbol.
+- Nothing on this page is editable, and it offers no controls that
+  suggest otherwise.
+
+### 7.8 Settings
 
 - **Overview**: summary tiles (team count, people count with active
-  subset, active role count, active country count with rate range,
-  approval-track count, stage count, days since last export).
+  subset, active role count, active country count with rate range, days
+  since last export).
 - **Roles**: name, abbreviation, and factor, each independently
   add/edit/deactivate-able (never hard-deleted once referenced).
 - **Countries & rates**: name, plus one record **per year** over the
@@ -519,41 +571,29 @@ Two steps, resumable — leaving and returning never loses progress:
   expandable per-month working-day-reduction table. A rate is always read
   for the year of the month being costed, so a rate rise next year
   affects next year's months only.
-- **Budget bands ("approval tracks")**: name, abbreviation (shown on the
-  threshold bar), lower/upper bound, requirement text, and severity
-  (§4) — fully add/edit/delete-able. A warning surfaces any gap or
-  overlap across the full range. A band may declare no upper limit, which
-  closes the range upward; the gap warning treats such a band as covering
-  everything above its lower bound, and flags a second unbounded band as
-  an overlap.
-- **Process**: the stage progression (§3). `Draft`, `Validation`,
-  `Development` and `Closed` are listed but cannot be removed or
-  reordered; the user adds, renames, reorders and deletes **status
-  stages** between Development and Closed, and may rename any stage in
-  the list including the four fixed ones. The two phases additionally
-  carry their **gate names**. A status stage that any initiative
-  currently sits in cannot be deleted, and the attempt says which
-  initiatives are blocking it. Zero status stages is a valid process.
-- **General**: currency symbol, and the number of days of inactivity
-  before the export-reminder banner appears.
-- **Data**: export (full JSON: master data, the process, every person,
-  every initiative, every actual, every approval) and import, with a
-  **Replace all** vs **Merge** choice and a preview of what would change
-  (and which approval records a Merge would overwrite) before committing.
-  A Merge replaces a person's record **wholesale**, memberships included,
-  rather than reconciling memberships one by one — the preview says which
-  people that affects.
+- **General**: the number of days of inactivity before the export-reminder
+  banner appears. The currency symbol is fixed by the build (§2) and
+  shown on the Process page, not here.
+- **Data**: export (full JSON: master data, every person, initiative,
+  actual and gate record) and import, with a **Replace all** vs **Merge**
+  choice and a preview of what would change (and which gate records a
+  Merge would overwrite) before committing. A Merge replaces a person's
+  record **wholesale**, memberships included, rather than reconciling
+  memberships one by one — the preview says which people that affects.
 - **Danger zone**: reset to a fresh installation (clears all local
   storage), irreversible.
 
 ## 8. Cross-cutting behavior
 
 - **Theming**: System (follows OS preference), Light, or Dark, cycled by
-  one control and remembered across reloads. Every screen must repaint
+  one control and remembered across reloads. Every page must repaint
   correctly under all three without needing a page reload.
 - **Import/export**: the export file is the entire data model plus a
-  schema version number. An import with an unrecognized schema version is
-  rejected outright — there is no migration path for an incompatible file.
+  schema version and the **process identity and version** (§2). An import
+  is rejected outright if either disagrees with this build — there is no
+  migration path for an incompatible file, and a dataset whose phases and
+  gates mean something different is worse than no dataset at all. The
+  rejection says which of the two failed.
 - **Copy/CSV export**: available on every major table (month-by-month,
   each phase's allocations, the gate comparison, the People overview, a
   person's initiative and capacity tables) — see §7.5 and §7.3.
@@ -562,8 +602,11 @@ Two steps, resumable — leaving and returning never loses progress:
 
 | Term | Meaning |
 |---|---|
-| Stage | Draft → Validation → Development → [status stages…] → Closed (§3) |
-| State | Active, On Hold, or Cancelled |
+| Phase | Where an initiative is in the process; costed or not (§3) |
+| Gate | The transition out of a phase; the last one closes the initiative |
+| Status | Active, On Hold, Cancelled or Closed — independent of phase |
+| Checklist item | A named red/amber/green condition on a gate (§3) |
+| Skipped gate | A gate passed over with a recorded reason; approves and freezes nothing |
 | Approval track | The budget band resolved from the grand estimate |
 | Severity | A band's integer oversight rank; higher is stricter (§4) |
 | Not yet known | A total no configured band covers (§5.5) |
@@ -573,8 +616,5 @@ Two steps, resumable — leaving and returning never loses progress:
 | Person | Someone allocatable to initiatives; exists independently of teams |
 | Membership | A person's link to one team, carrying a share % |
 | Custom role | A per-person role label with its own absolute day rate (§5.2) |
-| Costed phase | Validation or Development — the only stages carrying cost and capacity |
-| Status stage | A user-defined stage after Development; records only that it was reached |
 | Non-initiative work | The share of a person a team holds but hasn't allocated, costed the same as initiative work |
 | Estimate / Forecast / Actual | See §3 |
-| Backfilled phase | A phase whose gate was skipped when entering pre-existing work |

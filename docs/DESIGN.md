@@ -26,18 +26,8 @@ choices, guided by the invariants in [AGENTS.md](../AGENTS.md).
 ```text
 APP = {
   schemaVersion: <int>,
-  GENERAL: { currency, lastExportAt, exportReminderDays },
-
-  PROCESS: {
-    // Fixed ids, editable labels -- see "Stage identifiers vs display
-    // names" below. `stages` is ordered and sits between development
-    // and closed; it may be empty.
-    draft:       { label },
-    validation:  { label, gateLabel },
-    development: { label, gateLabel },
-    stages:      [ { id, label } ],
-    closed:      { label }
-  },
+  processId, processVersion,   // copied from the build, checked on import
+  GENERAL: { lastExportAt, exportReminderDays },
 
   ROLES: { [roleId]: { id, name, abbr, factor, active } },
   //  A role carries no rate. The rate comes from the person's country.
@@ -60,7 +50,6 @@ APP = {
       //   so switching back restores it rather than reassigning them.
       memberships: [ { teamId, sharePct, active } ]
       // capacityPct  -- ceiling on total concurrent commitment (0-100).
-      //                 Never an allocation.
       // sharePct     -- how much of that ceiling one team holds. Active
       //                 shares should sum to <= capacityPct; over that
       //                 warns, never blocks.
@@ -71,25 +60,15 @@ APP = {
   //  A team owns no people. Its roster is every person with a
   //  membership pointing here.
 
-  BANDS: [
-    { id, name, abbr, lower, upper /* or null = no upper limit */, req,
-      severity /* integer rank, higher = stricter -- see below */ }
-  ],
-
   INITIATIVES: [
     {
-      id, name, description, teamId, stage, state,
-      notes,          // free-text, user-facing only; never parsed or costed
-      validation: <Phase>, development: <Phase>,
-      gateAApproval: <Approval|null>, gateBApproval: <Approval|null>,
-      stageHistory: { [stageId]: <ISO date> }
-      // stage        -- "draft" | "validation" | "development"
-      //                 | <status stage id> | "closed"
-      // stageHistory -- status stages and `closed`. A costed phase's date
-      //                 lives on its approval and is never recorded twice;
-      //                 `closed` has no approval, so its date lives here.
-      // closedFrom   -- the stage closing was invoked from, so reopening
-      //                 returns there (SPEC §6).
+      id, name, description, teamId, notes,
+      phaseId,                 // which phase it is in
+      status,          // active | on-hold | cancelled | closed
+      phases: { [phaseId]: <Phase> },   // costed phases only
+      gates:  { [gateId]: <GateRecord> },
+      checklist: { [gateId]: { [itemId]: { status, note } } }
+      //   status -- "red" | "amber" | "green", starting "red"
     }
   ]
 }
@@ -102,33 +81,43 @@ Phase = {
   actualMonths: { [YYYY-MM]: number },
   frozen: null | { estimatedPhaseCost, estLabourTotal, estOtherTotal,
                    perMonth, period, rolesCopy, countriesCopy,
-                   peopleCopy },
-  backfilled: boolean
+                   peopleCopy }
 }
 
-Approval = { takenAt, grandTotal,
-             band: { id, name, abbr, severity },  // snapshot -- see below
-             validationCost, developmentCost }
+GateRecord = {
+  outcome,        // "passed" | "skipped"
+  takenAt,        // ISO date
+  reason,         // required when skipped, otherwise null
+  grandTotal,
+  band: { id, name, abbr, severity } | null,   // snapshot -- see below
+  phaseCosts: { [phaseId]: number }
+}
 ```
 
-Only `validation` and `development` are `Phase` objects. Status stages
-hold no data beyond their entry date in `stageHistory` — there is no
-third phase shape, and adding one would contradict SPEC §1.
+Only costed phases appear in `phases`. A non-costed phase holds nothing
+but its gate record — there is no second phase shape, and adding one
+would contradict SPEC §1.
+
+`PROCESS` and `BANDS` are deliberately **absent** from `APP`: they are
+compiled in, not stored (§4). What the dataset does keep is
+`processId`/`processVersion`, purely so an import can refuse a file whose
+phases and gates mean something else (SPEC §8).
 
 A frozen phase snapshots `peopleCopy` alongside `rolesCopy` and
 `countriesCopy`, because a person's custom rate is as capable of moving
-an approved figure as a country rate is.
+an approved figure as a country rate is. **A skipped gate freezes
+nothing** — it approved nothing, so the phase it exits stays editable
+(SPEC §6.2).
 
 Per-year records — country `byYear` and a person's `customRole.byYear` —
 cover a **rolling four-year window**: the previous year, the current year,
 and the next two, recomputed on every load so there's never a year to
-remember to add. The previous year is included because backfilling an
-initiative that started before the tool was adopted (SPEC §3) is a
-first-class flow, and clamping those months to a different year's rate or
-holidays would misstate already-spent money. A month outside the tracked
-window clamps to the nearest tracked year's record rather than defaulting
-to zero. Rolling the window forward never discards a year that any
-initiative's costed months still reference.
+remember to add. The previous year is included because entering work
+retrospectively is a first-class flow, and clamping those months to a
+different year's rate or holidays would misstate already-spent money. A
+month outside the tracked window clamps to the nearest tracked year's
+record rather than defaulting to zero. Rolling the window forward never
+discards a year that any initiative's costed months still reference.
 
 ### Rate resolution
 
@@ -174,66 +163,99 @@ ordered independently of the monetary bounds, so a band can be cheap and
 still demand heavy approval. Comparing two bands means comparing this
 integer and nothing else — never a name, an abbreviation, or a bound.
 
-Because bands are freely editable and deletable at any time (SPEC §7.7),
-an `Approval` **snapshots** the resolved band (`id`, `name`, `abbr`,
-`severity`) at the moment the gate is passed rather than storing a
-reference. The escalation/de-escalation comparison in SPEC §7.5 reads the
-snapshot's `severity` against the live resolution's, so it stays correct
-after a band is renamed, re-bounded, or removed. Resolve the snapshot's
-`id` back to a live band only to link to it; never to re-derive severity.
+Bands are compiled in rather than edited at runtime (§4), but they still
+change **between builds**. A `GateRecord` therefore **snapshots** the
+resolved band (`id`, `name`, `abbr`, `severity`) at the moment the gate is
+left, rather than storing a reference. The escalation comparison in SPEC
+§5.5 reads the snapshot's `severity` against the live resolution's, so a
+figure approved under last year's thresholds still reads correctly under
+this year's. Resolve the snapshot's `id` back to a live band only to link
+to it; never to re-derive severity.
 
-### Stage identifiers vs. display names
+Only a **passed** gate sets that baseline. A skipped gate records a
+snapshot for the history, but never becomes the figure an initiative is
+held to.
 
-Every stage has a **fixed internal id** and a **user-editable label**, and
-the two must never be confused. The ids of the four permanent stages —
-`draft`, `validation`, `development`, `closed` — are wired into the
-schema: they are `INITIATIVE.stage` values, the `Phase` field names, the
-parameter threaded through gate-related functions, and part of internal
-function names. Status-stage ids are generated once at creation and are
-equally immutable thereafter. **No id is ever shown to a user, and no id
-ever changes — including when its label is renamed.**
+### Process identifiers vs. display names
 
-Every place stage or gate text is *displayed* goes through one small
-lookup (a `stageTerm(id)` / `gateTerm(phaseId)`-style helper reading
-`APP.PROCESS`) — never a literal string, and never the id itself. Sorting
-and progression always work on the configured order, never on label text.
+The process is a compiled-in constant (§4): an ordered list of phases,
+each with a gate. Both carry a **fixed internal id** and a
+**user-facing label**, and the two must never be confused. Ids are what
+the dataset stores — `INITIATIVE.phaseId`, the keys of `phases`, `gates`
+and `checklist` — and they are never shown to a user. Labels are what a
+user reads, and are never stored, compared or sorted on.
 
-This split is what lets stage names be freely renamed without touching
-the data schema, and what lets the brand pack ship a default vocabulary
-(§4) without owning it. Labels are ordinary user data seeded by
-`masterData.js`; there is no separate terms module.
+Every place phase, gate or checklist text is *displayed* goes through one
+small lookup against the process constant — never a literal string, and
+never the id itself. Ordering and progression always work on the
+process's declared order, never on label text.
+
+Because ids are baked into stored data, **changing a phase or gate id in
+a new build is a breaking change**, which is what `processVersion` exists
+to catch (SPEC §8). Renaming a *label* is free and breaks nothing.
 
 ## 3. Persistence & schema versioning
 
 - The entire `APP` object is the unit of persistence: serialized to
   `localStorage` under one versioned key, debounced (e.g. ~200ms after the
   last change) rather than saved synchronously on every keystroke.
-- On load: missing or unparsable storage falls back to seed data; a
-  stored `schemaVersion` that doesn't match the current version also
-  falls back to seed data (no migration).
+- On load: missing or unparsable storage falls back to seed data. So does
+  a stored `schemaVersion` that doesn't match this build's, and so does a
+  stored `processId` that doesn't match — a dataset written against a
+  different process would put initiatives in phases this build has never
+  heard of. `processVersion` moving forward is not by itself fatal on
+  load; a mismatched `processId` is.
 - Export produces the entire `APP` object as pretty-printed JSON, named
-  with today's date. Import validates required top-level keys and the
-  schema version *before* offering a Replace-all/Merge choice, and shows a
-  diff summary (added/changed/removed per entity type) plus which
-  approval records a Merge would overwrite.
+  with today's date. It carries `processId` and `processVersion` so the
+  file says which process it means.
+- Import validates required top-level keys, the schema version, **and the
+  process identity** before offering a Replace-all/Merge choice. Any of
+  the three failing rejects the file outright, and the message says which
+  — "this export was taken from a different process" is a different
+  problem from "this export is too old", and telling someone the wrong
+  one wastes their time. It then shows a diff summary (added/changed/
+  removed per entity type) plus which gate records a Merge would
+  overwrite.
 
 ## 4. Module boundaries & the brand-pack contract
 
-**Two** things are ever brand-specific; everything else must not depend on
-their concrete values, only on their shape:
+**Three** things are ever brand-specific. Everything else must not depend
+on their concrete values, only on their shape:
 
-1. **`src/masterData.js`** exports a factory (e.g.
-   `createMasterData(currencyDefault)`) returning a
-   **freshly-constructed** seed object every call — never a shared
-   mutable module-level constant, since repeated seeding (across tests,
-   say) must not leak mutations between calls. It supplies
-   `{ PROCESS, ROLES, COUNTRIES, PEOPLE, TEAMS, BANDS, GENERAL }`.
+1. **`src/process.js`** exports the compiled-in process and the approval
+   tracks — the governance the build fixes (SPEC §2):
 
-   `PROCESS` is seeded here rather than hardcoded because stage and gate
-   labels are brand-specific — but once seeded they are ordinary user
-   data, editable in Settings like any other master data. The brand pack
-   supplies a *starting point*, not a fixed vocabulary.
-2. **CSS custom properties** in `src/styles.css`'s `:root` — a `--brand`
+   ```text
+   PROCESS = {
+     id, version,          // identity, checked on import (SPEC §8)
+     currency,
+     phases: [
+       {
+         id, label, costed,
+         gate: {
+           id, label,
+           requiresEstimates,   // boolean
+           skippable,           // boolean
+           checklist: [ { id, name, description } ]
+         }
+       }
+     ],
+     bands: [ { id, name, abbr, lower, upper, req, severity } ]
+   }
+   ```
+
+   Every phase has a gate, including the last, whose gate closes the
+   initiative (SPEC §6). Ids here are permanent: they end up in stored
+   data, so changing one is a breaking change and must come with a
+   `version` bump. Labels may change freely.
+
+2. **`src/masterData.js`** exports a factory (e.g.
+   `createMasterData()`) returning a **freshly-constructed** seed object
+   every call — never a shared mutable module-level constant, since
+   repeated seeding (across tests, say) must not leak mutations between
+   calls. It supplies `{ ROLES, COUNTRIES, PEOPLE, TEAMS, GENERAL }`.
+
+3. **CSS custom properties** in `src/styles.css`'s `:root` — a `--brand`
    family of colors and a `--brand-font` variable that a font-embedding
    `@font-face` block (if any) feeds into. Every other rule in the
    stylesheet reads colors/fonts through these properties, never a literal
@@ -248,12 +270,16 @@ Mark each brand-pack file with a short header comment stating its
 downstream brand build can detect drift instead of silently applying
 stale data.
 
+The split between (1) and (2) is the split SPEC §2 draws: `process.js`
+is governance the user may not change, `masterData.js` is a starting
+point they may edit freely afterwards. Never seed one from the other.
+
 The engine and every render function must be fully agnostic to the actual
-values these two provide: no string comparisons against real names, no
-assumptions about how many roles, countries, teams, people, bands or
-stages exist beyond what the shape guarantees. Stage *ids* are the one
-exception — `draft`, `validation`, `development` and `closed` are schema,
-not brand content, and may be compared directly (§2).
+values these provide: no string comparisons against real names, no
+assumptions about how many roles, countries, teams, people, phases, gates
+or bands exist beyond what the shape guarantees. In particular, **nothing
+may assume a fixed number of phases**, that any particular phase is
+costed, or that a gate has a checklist.
 
 ## 5. Rendering architecture
 
@@ -323,8 +349,9 @@ src/
                     size; split further only if it grows unwieldy)
   main.js        -- bootstrap: theme toggle, top-level event wiring,
                     initial load + render
-  masterData.js  -- brand pack: seed data factory (placeholder values),
-                    including the default PROCESS labels
+  process.js     -- brand pack: the compiled-in process and approval
+                    tracks (placeholder values)
+  masterData.js  -- brand pack: seed data factory (placeholder values)
   styles.css     -- all styling, brand tokens isolated per §4
 index.html       -- shell markup (nav, containers), no inline brand content
 scripts/
@@ -361,15 +388,23 @@ testable. A test asserts `engine.js` never names `document`, `window` or
   allocation surviving a deactivated membership too.
 - **Lifecycle integration tests**: build a minimal initiative through the
   real exported functions (create team and person, add a membership, set
-  phase periods and allocations, pass gates, advance status stages,
-  close, reopen, duplicate) and assert on the resulting numbers/state —
-  not a parallel reimplementation of the logic being tested. Include both
-  a process with zero status stages and one with several, so the
-  progression is never assumed to have a fixed length.
+  phase periods and allocations, pass gates, skip gates, set checklist
+  statuses, close, reopen, duplicate) and assert on the resulting
+  numbers/state — not a parallel reimplementation of the logic being
+  tested. Cover a gate blocked by a red checklist item, one passed with
+  an amber warning, a skip recording its reason and freezing nothing, and
+  an initiative entered at a later phase whose earlier gates are skipped
+  automatically.
 - Tests must never hardcode a specific master-data value (a team name, a
-  role id, a stage label) beyond what the shape guarantees — look values
+  role id, a phase label) beyond what the shape guarantees — look values
   up dynamically (e.g. `Object.keys(APP.ROLES)[0]`) so the same tests
   work unchanged against any brand pack.
+- **Process-shape tests**: the lifecycle must be exercised against more
+  than one process, built in the test rather than taken from the brand
+  pack — at minimum a two-phase process and one with four phases where
+  some are uncosted and one gate carries a checklist. Anything that
+  assumes two phases, or that every phase is costed, is a bug this catches
+  and nothing else will.
 - UI/interaction correctness has no unit-test coverage. How to verify it
   anyway is stated once, in [AGENTS.md](../AGENTS.md) under "Testing
   expectations", and is not repeated here. The one detail that belongs

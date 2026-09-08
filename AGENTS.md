@@ -27,44 +27,54 @@ exists to protect.
   only sharing and backup mechanism.
 - Single-user. No authentication, multi-user editing, FX conversion, time
   tracking, or vacation modelling.
-- Cost and capacity attach to exactly two stages, Validation and
-  Development. Status stages record only that they were reached. Adding
-  a third costed phase means changing [SPEC.md](docs/SPEC.md) first.
+- The process — which phases exist, which carry cost, what each gate
+  requires — is **fixed at build time**, never edited by the user. Adding
+  a runtime process editor means changing [SPEC.md](docs/SPEC.md) first.
+- Nothing may assume a fixed number of phases, that a particular phase is
+  costed, or that a gate has a checklist. The process is data the build
+  supplies; the code reads its shape.
 
 ## Brand-pack contract
 
-Exactly one source file and one CSS block are ever brand-specific:
+Two source files and one CSS block are ever brand-specific:
 
-- `src/masterData.js` — the seed factory: roles, countries, people, teams,
-  approval-track ("budget band") definitions, and the default process
-  labels. Ships with fictional placeholder values here.
+- `src/process.js` — the compiled-in process: phases, their gates,
+  checklist definitions, approval tracks, the currency, and a process
+  id/version. **Governance the user cannot change.**
+- `src/masterData.js` — the seed factory: roles, countries, people and
+  teams. **A starting point the user edits freely afterwards.**
 - The `--brand*` and `--brand-font` custom properties in `src/styles.css`'s
   `:root`, plus an optional `@font-face` block. Ships with a generic
   placeholder color and no embedded font here.
 
-Stage and gate names are **not** a third brand surface. They are seeded by
-`masterData.js` and are thereafter ordinary user data, editable in
-Settings — there is no `terms.js`.
+Never seed one of the first two from the other; the whole point of the
+split is that one is fixed and the other is not.
 
 Everything else — every render function, every calculation, every piece of
-copy that isn't a stage name or a band name — must be brand-agnostic.
+copy that isn't a phase, gate or band name — must be brand-agnostic.
 Never hardcode a brand string, color, or master-data value anywhere else.
-Route stage and gate display text through a single `stageTerm(id)`-style
-helper and band abbreviations through a `BANDS[].abbr`-style field,
-exactly as described in [DESIGN.md](docs/DESIGN.md) — don't invent a
-second way to express the same thing. Stage *ids* (`draft`, `validation`,
-`development`, `closed`) are schema, not brand content, and may be
-compared directly. There is no automated check for any of this; changes
-are reviewed manually.
+Route phase, gate and checklist display text through a single lookup
+against the process constant, and band abbreviations through a
+`bands[].abbr`-style field, exactly as described in
+[DESIGN.md](docs/DESIGN.md) — don't invent a second way to express the
+same thing. Phase and gate **ids** are stored in the dataset and are
+therefore permanent: changing one in a later build is a breaking change,
+caught by `processVersion`. There is no automated check for any of this;
+changes are reviewed manually.
 
 ## Product terminology
 
-Use these terms consistently in user-facing text: **approval track**,
-**stage**, **state**, **person**, **membership**, **capacity %**,
-**share %**, **allocation %**, **non-initiative work**, and
-**Estimate / Forecast / Actual**. See [SPEC.md](docs/SPEC.md) for their
-definitions — §4 in particular, for why the three percentages are never
-interchangeable.
+Use these terms consistently in user-facing text: **phase**, **gate**,
+**status**, **checklist item**, **approval track**, **person**,
+**membership**, **capacity %**, **share %**, **allocation %**,
+**non-initiative work**, and **Estimate / Forecast / Actual**. See
+[SPEC.md](docs/SPEC.md) for their definitions — §4 in particular, for why
+the three percentages are never interchangeable.
+
+**Phase is not status.** A phase is where an initiative is in the
+process; status is Active / On Hold / Cancelled / Closed alongside it.
+The two were once called "stage" and "state", one letter apart, which is
+exactly the confusion this vocabulary exists to prevent.
 
 For pages, use the vocabulary in [DESIGN.md](docs/DESIGN.md) §5:
 **overview**, **detail**, **dashboard**, **settings**, **flow**, and
@@ -137,6 +147,12 @@ order it's built in:
 - People are top-level and teams own none of them; a person may hold
   several memberships, and membership carries the share of that person's
   capacity the team holds. Ceilings warn; they never block.
+- A dataset records the `processId` and `processVersion` it was written
+  against. An import disagreeing with this build is refused — data whose
+  phases mean something else is worse than no data.
+- Skipping a gate requires a reason, approves nothing, and freezes
+  nothing. Entering pre-existing work uses that same mechanism rather
+  than a concept of its own.
 - [SPEC.md](docs/SPEC.md) §1 lists the non-goals. They are not a backlog.
   Anything on that list is out of scope until SPEC.md itself is changed —
   and changing it is a decision to bring to the repo owner, not one to

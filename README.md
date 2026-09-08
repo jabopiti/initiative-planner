@@ -6,11 +6,12 @@ self-contained HTML file with no runtime dependencies or network calls.
 Data lives in the browser's `localStorage`; JSON export/import is the
 sharing and backup mechanism.
 
-Initiatives run through a configurable stage progression. Two of those
-stages — Validation and Development — are gated and carry cost and
-capacity; any stages after them record only that they were reached.
-People exist independently of teams, so one person can be split across
-several, and each team draws only on the share it holds.
+Initiatives run through a stage-gate process that is **fixed when the
+tool is built**, not configured by the person using it: which phases
+exist, which of them carry cost, and what each gate requires — estimates,
+a checklist, or both. People exist independently of teams, so one person
+can be split across several, and each team draws only on the share it
+holds.
 
 This repository is being built **spec-first**: there is no reference
 implementation to copy from. Everything needed to build it correctly
@@ -49,7 +50,12 @@ browser checks.
 
 ## Brand pack
 
-`src/masterData.js` ships with fictional placeholder content here,
-including the default stage and gate labels (see AGENTS.md). A separate,
-private repository overlays real branding and master data at build time —
-nothing in this repo should ever need to change to support that.
+`src/process.js` (the process, gates, checklists and approval tracks) and
+`src/masterData.js` (roles, countries, teams, people) ship with fictional
+placeholder content here — see AGENTS.md. A separate, private repository
+overlays a real process, branding and master data at build time; nothing
+in this repo should ever need to change to support that.
+
+The two are deliberately different in kind: the process is governance the
+end user cannot change, while the seed master data is only a starting
+point they edit freely afterwards.

@@ -57,7 +57,7 @@ is a line of code.
 - `bo-skills:issue-tracker` — before creating, picking up, or closing a
   GitHub issue, and whenever a phase turns up deferred work or a gap
   worth recording rather than fixing inline.
-- `frontend-design` — when shaping the visual language in Phase 10, so the
+- `frontend-design` — when shaping the visual language in Phase 11, so the
   result doesn't read as unstyled defaults. The brand-pack contract
   (`AGENTS.md`) still binds: tokens only, no literal colors.
 - `dataviz` — before building the Portfolio and run-rate stacked bar
@@ -69,6 +69,10 @@ is a line of code.
 Pages are **overviews**, **details**, a **dashboard** (Portfolio),
 **settings** with sections, or a **flow** (the wizard); inside them,
 **panels** and **regions**. DESIGN §5 has the table. Don't write
-"screen", "view" or "tab" — and don't conflate **capacity %** (a person's
-ceiling), **share %** (what one team holds of them) and **allocation %**
-(what one phase commits). SPEC §4 says why.
+"screen", "view" or "tab".
+
+Don't conflate **capacity %** (a person's ceiling), **share %** (what one
+team holds of them) and **allocation %** (what one phase commits) — SPEC
+§4 says why. And don't conflate **phase** (where an initiative is in the
+process) with **status** (Active / On Hold / Cancelled / Closed). Those
+were once "stage" and "state"; the rename exists to stop that.
