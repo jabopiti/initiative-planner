@@ -8,6 +8,29 @@
  */
 
 /* ------------------------------------------------------------------ *
+ * Text
+ * ------------------------------------------------------------------ */
+
+const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+/**
+ * Escape a value for interpolation into markup. Every user-controlled string
+ * goes through this before reaching `innerHTML` (AGENTS.md) — in practice via
+ * the `html` tagged template in app.js, which applies it automatically so it
+ * cannot be forgotten.
+ * @param {unknown} value
+ */
+export function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ESCAPES[char]);
+}
+
+/** Format a number as currency for display. */
+export function formatMoney(amount, currency) {
+  const rounded = Math.round(amount ?? 0);
+  return `${currency}${rounded.toLocaleString('en-GB')}`;
+}
+
+/* ------------------------------------------------------------------ *
  * Months and years
  * ------------------------------------------------------------------ */
 
@@ -332,9 +355,18 @@ export function compareBands(snapshot, live) {
 export function bandCoverageIssues(bands) {
   const sorted = [...bands].sort((a, b) => a.lower - b.lower);
   const issues = [];
+  if (sorted.length === 0) return issues;
+
   const unbounded = sorted.filter((band) => band.upper === null || band.upper === undefined);
   if (unbounded.length > 1) {
     issues.push({ type: 'overlap', message: 'more than one band has no upper limit' });
+  }
+
+  // Anything below the lowest bound is uncovered too, and resolves to "Not
+  // yet known" exactly as a gap between bands does (§5.5). Reporting only the
+  // gaps *between* bands would hide it.
+  if (sorted[0].lower > 0) {
+    issues.push({ type: 'gap', from: 0, to: sorted[0].lower });
   }
   for (let i = 0; i < sorted.length - 1; i += 1) {
     const current = sorted[i];

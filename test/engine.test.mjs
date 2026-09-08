@@ -467,3 +467,32 @@ test('seeding twice cannot leak mutations between calls', () => {
   assert.notEqual(second.ROLES[Object.keys(second.ROLES)[0]].factor, 99);
   assert.equal(second.BANDS.find((b) => b.id === 'injected'), undefined);
 });
+
+test('escaping neutralises every character that could break out of markup', () => {
+  assert.equal(E.escapeHtml('<script>alert(1)</script>'), '&lt;script&gt;alert(1)&lt;/script&gt;');
+  assert.equal(E.escapeHtml('a & b'), 'a &amp; b');
+  assert.equal(E.escapeHtml('say "hi"'), 'say &quot;hi&quot;');
+  assert.equal(E.escapeHtml("it's"), 'it&#39;s');
+  assert.equal(E.escapeHtml(null), '');
+  assert.equal(E.escapeHtml(42), '42');
+
+  // Ampersand must be escaped first, or the others get double-escaped.
+  assert.equal(E.escapeHtml('&lt;'), '&amp;lt;');
+});
+
+test('an uncovered floor below the lowest band is reported like any other gap', () => {
+  const a = app();
+  const sorted = [...a.BANDS].sort((x, y) => x.lower - y.lower);
+  assert.deepEqual(E.bandCoverageIssues(sorted), [], 'the seed data covers from zero');
+
+  sorted[0].lower = 5000;
+  const issues = E.bandCoverageIssues(sorted);
+  assert.equal(issues.length, 1);
+  assert.deepEqual(issues[0], { type: 'gap', from: 0, to: 5000 });
+  assert.equal(E.resolveBand(sorted, 2500), null, 'and a total there really is unbanded');
+});
+
+test('no bands at all is reported as no issues, not a crash', () => {
+  assert.deepEqual(E.bandCoverageIssues([]), []);
+  assert.equal(E.resolveBand([], 100), null);
+});

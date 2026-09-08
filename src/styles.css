@@ -33,14 +33,31 @@
   --color-accent-contrast: var(--brand-contrast);
   --color-accent-tint: var(--brand-tint);
 
+  --color-line-soft: hsl(220 14% 92%);
+  --color-danger: hsl(354 62% 44%);
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.375rem;
+  --tracking-wide: 0.04em;
+  --measure: 62ch;
+
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
 
   --size-border: 1px;
+  --size-thick: 2px;
   --radius-none: 0;
   --radius-round: 50%;
+
+  --field-min: 6rem;
+  --field-short: 5rem;
+  --field-tiny: 3rem;
+  --tile-min: 9rem;
+  --opacity-disabled: 0.55;
 }
 
 * {
@@ -56,8 +73,9 @@ body {
 
 .shell-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-2) var(--space-4);
   padding: var(--space-3) var(--space-4);
   border-bottom: var(--size-border) solid var(--color-line);
 }
@@ -69,6 +87,7 @@ body {
 
 .shell-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-1);
 }
 
@@ -97,4 +116,265 @@ body {
 
 #root {
   padding: var(--space-4);
+}
+
+/* ---- typography & shared text ---- */
+
+h1 {
+  font-size: var(--text-lg);
+  margin: 0 0 var(--space-3);
+}
+
+h2 {
+  font-size: var(--text-md);
+  margin: 0 0 var(--space-2);
+}
+
+.muted {
+  color: var(--color-muted);
+  max-width: var(--measure);
+}
+
+.micro {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+/* ---- tabs ---- */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  border-bottom: var(--size-border) solid var(--color-line);
+  margin-bottom: var(--space-4);
+}
+
+.tabs button {
+  font: inherit;
+  color: var(--color-muted);
+  background: none;
+  border: none;
+  border-bottom: var(--size-thick) solid transparent;
+  border-radius: var(--radius-none);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+
+.tabs button:hover {
+  color: var(--color-fg);
+}
+
+.tabs button[aria-selected='true'] {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/* ---- tables ---- */
+
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-3) 0;
+}
+
+/* Cells declare their own color so a theme change repaints reliably, rather
+   than relying on an ancestor's color cascading (AGENTS.md). */
+.grid th,
+.grid td {
+  color: var(--color-fg);
+  text-align: left;
+  padding: var(--space-2);
+  border-bottom: var(--size-border) solid var(--color-line);
+  vertical-align: top;
+}
+
+.grid thead th {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
+.grid .fixed,
+.grid .muted {
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
+.row--inactive td,
+.row--inactive th {
+  color: var(--color-muted);
+}
+
+.cell--action {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.months {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.months td {
+  padding: 0 var(--space-1) 0 0;
+  border: none;
+  color: var(--color-fg);
+}
+
+.grid--nested th,
+.grid--nested td {
+  border-bottom-color: var(--color-line-soft);
+}
+
+/* ---- fields ---- */
+
+.field {
+  font: inherit;
+  color: var(--color-fg);
+  background: var(--color-bg);
+  border: var(--size-border) solid var(--color-line);
+  border-radius: var(--radius-none);
+  padding: var(--space-1) var(--space-2);
+  width: 100%;
+  min-width: var(--field-min);
+}
+
+.field:focus-visible {
+  outline: var(--size-thick) solid var(--color-accent);
+  outline-offset: var(--size-border);
+}
+
+.field--num {
+  text-align: right;
+  font-family: var(--font-num);
+}
+
+.field--short {
+  min-width: 0;
+  width: var(--field-short);
+}
+
+.field--tiny {
+  min-width: 0;
+  width: var(--field-tiny);
+}
+
+/* Wide content scrolls inside its own container. The page body must never
+   scroll horizontally. */
+.scroller {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.fields {
+  display: grid;
+  gap: var(--space-3);
+  max-width: var(--measure);
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+/* ---- buttons ---- */
+
+.btn,
+.cell--action button {
+  font: inherit;
+  color: var(--color-fg);
+  background: var(--color-bg);
+  border: var(--size-border) solid var(--color-line);
+  border-radius: var(--radius-none);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled),
+.cell--action button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.btn:disabled,
+.cell--action button:disabled {
+  color: var(--color-muted);
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+
+.btn--primary {
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.btn--danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.btn--file {
+  display: inline-block;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+/* ---- panels, tiles, messages ---- */
+
+.panel--inset {
+  border: var(--size-border) solid var(--color-line);
+  padding: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--tile-min), 1fr));
+  gap: var(--space-3);
+}
+
+.tile {
+  border: var(--size-border) solid var(--color-line);
+  padding: var(--space-3);
+}
+
+.tile__value {
+  font-family: var(--font-num);
+  font-size: var(--text-lg);
+  color: var(--color-fg);
+}
+
+.tile__label {
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+}
+
+.tile__note {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.issues p {
+  margin: var(--space-2) 0;
+  max-width: var(--measure);
+}
+
+.warn {
+  color: var(--color-danger);
+}
+
+.ok {
+  color: var(--color-muted);
 }
