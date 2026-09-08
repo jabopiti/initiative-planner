@@ -199,3 +199,90 @@ test('an explicit role still wins over the remembered one', () => {
   P.useStandardRole(person, other);
   assert.equal(person.roleId, other);
 });
+
+/* -------------------------------------------------- teams */
+
+test('a team can be created, renamed and deactivated', () => {
+  const app = setup();
+  const team = P.createTeam(app, 'Platform Enablement');
+
+  assert.equal(app.TEAMS[team.id], team);
+  assert.equal(team.active, true);
+  P.renameTeam(team, 'Enablement');
+  assert.equal(team.name, 'Enablement');
+  P.setTeamActive(team, false);
+  assert.equal(team.active, false);
+});
+
+test('a team referenced by an initiative cannot be deleted, and says which', () => {
+  const app = setup();
+  const teamId = Object.keys(app.TEAMS)[0];
+  L.createInitiative(app, SIMPLE, { name: 'Payments migration', teamId });
+
+  const check = P.canDeleteTeam(app, teamId);
+  assert.equal(check.ok, false);
+  assert.deepEqual(check.blockers, ['Payments migration']);
+  assert.throws(() => P.deleteTeam(app, teamId), /Payments migration/);
+  assert.ok(app.TEAMS[teamId], 'and it is still there');
+});
+
+test('deleting an unreferenced team takes its memberships with it', () => {
+  const app = setup();
+  const team = P.createTeam(app, 'Doomed');
+  const person = Object.values(app.PEOPLE)[0];
+  P.addMembership(person, team.id, 20);
+
+  P.deleteTeam(app, team.id);
+
+  assert.equal(app.TEAMS[team.id], undefined);
+  assert.equal(
+    person.memberships.some((m) => m.teamId === team.id),
+    false,
+    'a membership of a team that no longer exists describes nothing',
+  );
+});
+
+test('the roster is everyone pointing at the team, seen from the other side', () => {
+  const app = setup();
+  const teamId = Object.keys(app.TEAMS)[0];
+  const roster = P.teamRoster(app, teamId);
+
+  assert.ok(roster.length > 0);
+  for (const row of roster) {
+    assert.equal(row.membership.teamId, teamId);
+    assert.equal(
+      row.membership,
+      row.person.memberships.find((m) => m.teamId === teamId),
+      'the same record, not a copy — editing a share here edits it on the person',
+    );
+  }
+});
+
+test('a leaver stays on the roster, marked inactive rather than removed', () => {
+  const app = setup();
+  const teamId = Object.keys(app.TEAMS)[0];
+  const person = P.teamRoster(app, teamId)[0].person;
+  const before = P.teamRoster(app, teamId).length;
+
+  P.setMembershipActive(app, person, teamId, false);
+
+  assert.equal(P.teamRoster(app, teamId).length, before, 'never a hard delete');
+  assert.equal(P.teamRoster(app, teamId).find((r) => r.person.id === person.id).membership.active, false);
+  assert.equal(P.teamSummary(app, teamId).activeMembers, before - 1, 'but out of the count');
+});
+
+test('a team summary counts only what is active', () => {
+  const app = setup();
+  const teamId = Object.keys(app.TEAMS)[0];
+  const roster = P.teamRoster(app, teamId).filter((r) => r.membership.active);
+  const expected = roster.reduce((t, r) => t + r.membership.sharePct, 0);
+
+  const summary = P.teamSummary(app, teamId);
+  assert.equal(summary.totalSharePct, expected);
+  assert.equal(summary.activeInitiatives, 0);
+
+  L.createInitiative(app, SIMPLE, { name: 'Live', teamId });
+  const held = L.createInitiative(app, SIMPLE, { name: 'Paused', teamId });
+  L.setStatus(held, 'on-hold');
+  assert.equal(P.teamSummary(app, teamId).activeInitiatives, 1, 'on-hold work is not active');
+});

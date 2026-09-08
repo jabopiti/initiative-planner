@@ -36,3 +36,36 @@ test('index.html carries no inline brand content', async () => {
 
   assert.equal(text, '', `shell markup should be empty of copy, found: ${text}`);
 });
+
+test('every action rendered has something that handles it, and vice versa', async () => {
+  // A stray edit to the handler chain can orphan an action: the control still
+  // renders and silently does nothing, past lint, types and every unit test.
+  // That has happened once already, to four handlers at a stroke.
+  const source = await read('src/app.js');
+
+  // Actions reach the markup two ways: as a literal attribute, and as an
+  // object property on a field helper.
+  const rendered = new Set([
+    ...[...source.matchAll(/data-act="([a-z-]+)"/g)].map((m) => m[1]),
+    ...[...source.matchAll(/'data-act': '([a-z-]+)'/g)].map((m) => m[1]),
+  ]);
+
+  // And they are consumed three ways: a switch case, a comparison (either
+  // direction), or a lookup by selector for a control read rather than
+  // dispatched on.
+  const consumed = new Set([
+    ...[...source.matchAll(/case '([a-z-]+)':/g)].map((m) => m[1]),
+    ...[...source.matchAll(/act [=!]==? '([a-z-]+)'/g)].map((m) => m[1]),
+    ...[...source.matchAll(/querySelector\(`?\[data-act="([a-z-]+)"/g)].map((m) => m[1]),
+  ]);
+
+  assert.ok(rendered.size > 10, 'expected the page to render plenty of actions');
+
+  const orphaned = [...rendered].filter((act) => !consumed.has(act));
+  assert.deepEqual(orphaned, [], `rendered but never handled: ${orphaned}`);
+
+  // The same defect from the other side: a branch that survives a refactor
+  // which removed its control, misleading the next reader.
+  const dead = [...consumed].filter((act) => !rendered.has(act));
+  assert.deepEqual(dead, [], `handled but never rendered: ${dead}`);
+});

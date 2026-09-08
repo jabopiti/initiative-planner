@@ -1,10 +1,13 @@
 /**
- * People and their team memberships (SPEC §7.3).
+ * People, teams, and the memberships between them (SPEC §7.2, §7.3).
  *
  * A separate aggregate from the initiative lifecycle, with invariants of its
  * own: exactly one of a standard role or a custom rate, shares that should
  * not outrun a person's capacity, and nothing ever hard-deleted once
- * referenced. Pure, and never touches the DOM.
+ * referenced. Teams live here because a membership is the join between the
+ * two, and splitting them would put one invariant in two files.
+ *
+ * Pure, and never touches the DOM.
  */
 
 import * as E from './engine.js';
@@ -153,4 +156,83 @@ export function capacityOverTime(app, personId, months) {
       })),
     };
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * Teams
+ * ------------------------------------------------------------------ */
+
+/** A team owns no people; its roster is who points at it. */
+export function createTeam(app, name = 'New team') {
+  const team = { id: newId('team'), name, active: true };
+  app.TEAMS[team.id] = team;
+  return team;
+}
+
+export function renameTeam(team, name) {
+  team.name = name;
+}
+
+/**
+ * Deactivating a team leaves its memberships alone. People stay in it and
+ * their allocations keep costing; the team simply stops being offered for
+ * new work.
+ */
+export function setTeamActive(team, active) {
+  team.active = active;
+}
+
+/**
+ * Whether a team can be deleted, and what is stopping it. A team still
+ * referenced by an initiative can never be removed — the initiative would
+ * point at nothing (SPEC §7.2).
+ * @returns {{ ok: boolean, blockers: string[] }} blockers are initiative names
+ */
+export function canDeleteTeam(app, teamId) {
+  const blockers = app.INITIATIVES.filter((i) => i.teamId === teamId).map((i) => i.name);
+  return { ok: blockers.length === 0, blockers };
+}
+
+/**
+ * Delete a team outright. Unlike people and roles this *is* a hard delete,
+ * because the guard above guarantees nothing costed refers to it. Its
+ * memberships go with it: a membership of a team that no longer exists
+ * describes nothing.
+ */
+export function deleteTeam(app, teamId) {
+  const check = canDeleteTeam(app, teamId);
+  if (!check.ok) {
+    throw new Error(`${teamId} is still used by: ${check.blockers.join(', ')}`);
+  }
+  for (const person of Object.values(app.PEOPLE)) {
+    person.memberships = person.memberships.filter((m) => m.teamId !== teamId);
+  }
+  delete app.TEAMS[teamId];
+}
+
+/**
+ * Everyone holding a membership in this team, active or not, with the
+ * membership itself. Editing a share here is the same edit as editing it on
+ * the person — there is one record, seen from two sides.
+ */
+export function teamRoster(app, teamId) {
+  return Object.values(app.PEOPLE)
+    .map((person) => ({
+      person,
+      membership: (person.memberships ?? []).find((m) => m.teamId === teamId),
+    }))
+    .filter((row) => row.membership)
+    .sort((a, b) => a.person.name.localeCompare(b.person.name));
+}
+
+/** Summary figures for a team card. */
+export function teamSummary(app, teamId) {
+  const roster = teamRoster(app, teamId).filter((row) => row.membership.active);
+  return {
+    activeMembers: roster.filter((row) => row.person.active).length,
+    totalSharePct: roster.reduce((total, row) => total + row.membership.sharePct, 0),
+    activeInitiatives: app.INITIATIVES.filter(
+      (i) => i.teamId === teamId && i.status === 'active',
+    ).length,
+  };
 }

@@ -135,6 +135,8 @@ export function render() {
   if (view.page === 'people') return renderPeople();
   if (view.page === 'person') return renderPerson();
   if (view.page === 'process') return renderProcessPage();
+  if (view.page === 'teams') return renderTeams();
+  if (view.page === 'team') return renderTeam();
 
   fill(
     'root',
@@ -477,6 +479,150 @@ function personCapacity(person, months) {
       <tbody>${raw(body)}</tbody>
     </table></div>
     ${raw(tableActions('personCapacity', 'capacity'))}`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Teams
+ * ------------------------------------------------------------------ */
+
+function renderTeams() {
+  const cards = Object.values(app.TEAMS)
+    .map((team) => {
+      const summary = P.teamSummary(app, team.id);
+      const deletable = P.canDeleteTeam(app, team.id);
+      return html`<div class="card ${team.active ? '' : 'card--inactive'}">
+        <button type="button" class="link card__title" data-act="open-team" data-id="${team.id}">
+          ${team.name}</button>
+        <dl class="card__stats">
+          <div><dt>Members</dt><dd>${summary.activeMembers}</dd></div>
+          <div><dt>Share held</dt><dd>${summary.totalSharePct}%</dd></div>
+          <div><dt>Initiatives</dt><dd>${summary.activeInitiatives}</dd></div>
+        </dl>
+        <div class="card__actions">
+          <button type="button" data-act="team-active" data-id="${team.id}">
+            ${team.active ? 'Deactivate' : 'Reactivate'}</button>
+          <button type="button" data-act="team-delete" data-id="${team.id}"
+            ${raw(deletable.ok ? '' : 'disabled')}
+            title="${deletable.ok
+              ? 'Delete this team'
+              : `Used by ${deletable.blockers.join(', ')}`}">Delete</button>
+        </div>
+      </div>`;
+    })
+    .join('');
+
+  fill(
+    'root',
+    html`<h1>Teams</h1>
+      <p class="muted">A team holds a share of each of its people rather than owning them
+        outright, which is what lets one person belong to two.</p>
+      <div class="cards">${raw(cards)}</div>
+      <button type="button" class="btn" data-act="team-add">New team</button>`,
+  );
+}
+
+function renderTeam() {
+  const team = app.TEAMS[view.params.id];
+  if (!team) return navigate('teams');
+
+  const roster = P.teamRoster(app, team.id);
+  const initiatives = app.INITIATIVES.filter((i) => i.teamId === team.id);
+  const deletable = P.canDeleteTeam(app, team.id);
+
+  const rosterRows = roster
+    .map((row) => {
+      const warning = P.shareWarning(row.person);
+      return html`<tr class="${row.membership.active && row.person.active ? '' : 'row--inactive'}">
+        <td><button type="button" class="link" data-act="open-person" data-id="${row.person.id}">
+          ${row.person.name}</button>
+          ${raw(row.person.active ? '' : html` <span class="tag">person inactive</span>`)}</td>
+        <td>${E.roleLabel(row.person, app.ROLES)}</td>
+        <td>${raw(numberField({
+          value: row.membership.sharePct,
+          'data-act': 'membership-share',
+          'data-id': row.person.id,
+          'data-team': team.id,
+          'aria-label': `${row.person.name} share`,
+        }))}</td>
+        <td class="num">${row.person.capacityPct}%</td>
+        <td>${raw(warning.overCommitted
+          ? html`<span class="warn">${warning.totalSharePct}% of ${warning.capacityPct}% assigned across all teams</span>`
+          : '')}</td>
+        <td class="cell--action">
+          <button type="button" data-act="membership-active" data-id="${row.person.id}"
+            data-team="${team.id}">${row.membership.active ? 'Leave team' : 'Rejoin'}</button>
+        </td>
+      </tr>`;
+    })
+    .join('');
+
+  const joinable = Object.values(app.PEOPLE).filter(
+    (person) =>
+      person.active && !(person.memberships ?? []).some((m) => m.teamId === team.id && m.active),
+  );
+
+  const initiativeRows = initiatives
+    .map(
+      (initiative) => html`<tr>
+        <td>${initiative.name}</td>
+        <td>${E.phaseLabel(PROCESS, initiative.phaseId)}</td>
+        <td>${initiative.status}</td>
+        <td class="num">${E.formatMoney(E.grandTotal(initiative, app), PROCESS.currency)}</td>
+      </tr>`,
+    )
+    .join('');
+
+  fill(
+    'root',
+    html`<button type="button" class="link" data-act="page" data-page="teams">← Teams</button>
+      <h1>${team.name}</h1>
+      ${raw(team.active ? '' : html`<p class="warn">This team is deactivated.</p>`)}
+
+      <div class="panel">
+        <h2>Name</h2>
+        <div class="fields"><label class="field-row"><span>Team name</span>
+          <input class="field" data-act="team-name" data-id="${team.id}"
+            value="${team.name}" /></label></div>
+      </div>
+
+      <div class="panel">
+        <h2>Roster</h2>
+        <p class="muted">A share is how much of a person this team holds. Editing it here is
+          the same edit as editing it on the person — there is one record, seen from two
+          sides. People are added by assigning someone who already exists, and removed by
+          leaving the team, never by deletion.</p>
+        ${raw(roster.length
+          ? html`<div class="scroller"><table class="grid">
+              <thead><tr><th>Person</th><th>Role</th><th>Share %</th><th>Capacity %</th>
+                <th></th><th></th></tr></thead>
+              <tbody>${raw(rosterRows)}</tbody></table></div>`
+          : html`<p class="muted">Nobody has joined yet.</p>`)}
+        ${raw(joinable.length
+          ? html`<div class="actions">
+              <select class="field field--select" data-act="add-member-pick" data-id="${team.id}">
+                ${raw(joinable.map((p) => html`<option value="${p.id}">${p.name}</option>`).join(''))}
+              </select>
+              <button type="button" class="btn" data-act="add-member" data-id="${team.id}">
+                Add to team</button>
+            </div>`
+          : html`<p class="muted">Everyone active already belongs to this team.</p>`)}
+      </div>
+
+      <div class="panel">
+        <h2>Initiatives</h2>
+        ${raw(initiatives.length
+          ? html`<div class="scroller"><table class="grid">
+              <thead><tr><th>Name</th><th>Phase</th><th>Status</th><th>Total</th></tr></thead>
+              <tbody>${raw(initiativeRows)}</tbody></table></div>`
+          : html`<p class="muted">This team has no initiatives yet.</p>`)}
+        ${raw(deletable.ok
+          ? ''
+          : html`<p class="muted">This team cannot be deleted while it owns initiatives.</p>`)}
+      </div>
+
+      <p class="muted">The capacity grid and cost run-rate chart arrive in a later phase —
+        they need real allocations to be worth verifying against.</p>`,
+  );
 }
 
 /* ------------------------------------------------------------------ *
@@ -891,6 +1037,20 @@ function onInput(event) {
   } else if (act === 'country-reduction') {
     const record = app.COUNTRIES[id].byYear[target.dataset.year];
     record.workingDayReduction[Number(target.dataset.month)] = readNumber(target.value, 0);
+  } else if (act === 'person-field') {
+    const person = app.PEOPLE[id];
+    person[field] = field === 'capacityPct' ? readNumber(target.value, person.capacityPct) : target.value;
+  } else if (act === 'person-custom-label') {
+    app.PEOPLE[id].customRole.label = target.value;
+  } else if (act === 'person-rate') {
+    P.setCustomRate(app.PEOPLE[id], target.dataset.year, readNumber(target.value, 0));
+  } else if (act === 'membership-share') {
+    const person = app.PEOPLE[id];
+    const team = target.dataset.team;
+    const current = person.memberships.find((m) => m.teamId === team);
+    P.setMembershipShare(person, team, readNumber(target.value, current.sharePct));
+  } else if (act === 'team-name') {
+    P.renameTeam(app.TEAMS[id], target.value);
   } else if (act === 'general-field') {
     app.GENERAL[field] = readNumber(target.value, app.GENERAL.exportReminderDays);
   } else {
@@ -962,6 +1122,28 @@ function onClick(event) {
       pendingImport = null;
       store.saveNow(app);
       return navigate('settings', { section: 'overview' });
+    }
+
+    case 'open-team':
+      return navigate('team', { id });
+    case 'team-add': {
+      const team = P.createTeam(app);
+      store.save(app);
+      return navigate('team', { id: team.id });
+    }
+    case 'team-active':
+      P.setTeamActive(app.TEAMS[id], !app.TEAMS[id].active);
+      return commit();
+    case 'team-delete': {
+      // Guarded in the UI too, but never trust the disabled attribute alone.
+      if (!P.canDeleteTeam(app, id).ok) return undefined;
+      P.deleteTeam(app, id);
+      return commit();
+    }
+    case 'add-member': {
+      const select = document.querySelector(`[data-act="add-member-pick"][data-id="${id}"]`);
+      if (select instanceof HTMLSelectElement) P.addMembership(app.PEOPLE[select.value], id, 0);
+      return commit();
     }
 
     case 'open-person':

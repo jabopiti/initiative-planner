@@ -336,9 +336,10 @@ src/
   lifecycle.js   -- initiative creation, phase edits, gates, stage
                     transitions, close/reopen/duplicate. Pure, like the
                     engine.
-  people.js      -- people, memberships and shares. A separate aggregate
-                    from the initiative lifecycle, with invariants of its
-                    own. Pure.
+  people.js      -- people, teams, and the memberships between them. A
+                    separate aggregate from the initiative lifecycle, with
+                    invariants of its own; teams live here because a
+                    membership is the join between the two. Pure.
   transfer.js    -- export/import shaping: serialise, validate, diff,
                     merge, and table export (CSV/TSV/HTML). Pure.
   store.js       -- the only module reaching outside itself: localStorage,
