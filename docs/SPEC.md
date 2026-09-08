@@ -293,11 +293,23 @@ band being renamed, re-bounded, or deleted afterwards.
   was closed from and unlocks every phase and actual that closing
   locked, without clearing any approval, since closing records none of
   its own.
-- **Closing** is an explicit action available from the stage banner at any
-  stage past `Draft`; it is not automatic and has no gate. It locks all
-  phases and all actuals. Missing actuals are a warning, not a blocking
-  condition; unfilled months stay at their estimate. Closing from `In
-  Validation` (abandoning work before Development) is allowed.
+- **Closing** is the last action on an initiative, whatever the process
+  looks like. It is explicit, available from the stage banner at any stage
+  past `Draft`, has no gate, and is never automatic — no gate and no stage
+  advance will ever enter `Closed` on its own.
+
+  Closing freezes the **whole initiative**, not only its numbers: both
+  phases, every actual, and every field on the initiative — name,
+  description, team, state. The single exception is **notes**, which stays
+  writable, because recording why something closed, or what happened
+  afterwards, is exactly what a closed initiative still needs to accept.
+  Reopening unlocks everything closing locked.
+
+  Missing actuals are a warning, not a blocking condition; unfilled months
+  stay at their estimate. Closing from `Validation` (abandoning work before
+  Development) is allowed. Closing a `Draft` is not — a draft has no
+  estimate, no approval and no capacity drawn, so abandoning one is a
+  `Cancelled` state, not a close.
 - **A gate never advances an initiative into `Closed`.** Passing a gate
   moves it to the next stage unless that stage is `Closed`, in which case
   it stays where it is with its approval recorded. With no status stages

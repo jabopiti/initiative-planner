@@ -83,8 +83,11 @@ APP = {
       stageHistory: { [stageId]: <ISO date> }
       // stage        -- "draft" | "validation" | "development"
       //                 | <status stage id> | "closed"
-      // stageHistory -- status stages only. A phase's date lives on its
-      //                 approval; never record it twice.
+      // stageHistory -- status stages and `closed`. A costed phase's date
+      //                 lives on its approval and is never recorded twice;
+      //                 `closed` has no approval, so its date lives here.
+      // closedFrom   -- the stage closing was invoked from, so reopening
+      //                 returns there (SPEC §6).
     }
   ]
 }

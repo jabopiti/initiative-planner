@@ -280,3 +280,91 @@ test('duplicating copies the estimate and nothing else', () => {
   copy.development.allocations[0].allocationPct = 5;
   assert.notEqual(initiative.development.allocations[0].allocationPct, 5, 'no shared references');
 });
+
+/* -------------------------------------------------- the close freeze */
+
+test('closing freezes the whole initiative, not only its numbers', () => {
+  const { app, teamId, people } = setup();
+  const initiative = estimated(app, teamId, people[0]);
+  L.close(app, initiative, '2026-03-01');
+
+  assert.throws(() => L.renameInitiative(initiative, 'New name'), /closed/);
+  assert.throws(() => L.setDescription(initiative, 'New description'), /closed/);
+  assert.throws(() => L.setState(initiative, 'cancelled'), /closed/);
+  assert.throws(() => L.setTeam(app, initiative, Object.keys(app.TEAMS)[1]), /closed/);
+  assert.throws(() => L.setPhasePeriod(initiative, E.VALIDATION, '2026-01-01', '2026-01-31'), /locked/);
+  assert.throws(() => L.setAllocation(app, initiative, E.VALIDATION, people[0].id, 10), /locked/);
+  assert.throws(() => L.addOtherCost(initiative, E.VALIDATION, { name: 'x', month: '2026-01', amount: 1 }), /locked/);
+  assert.throws(() => L.recordActual(initiative, E.VALIDATION, '2026-01', 1), /locked/);
+});
+
+test('notes stay writable after close, so the reason can be recorded', () => {
+  const { app, teamId, people } = setup();
+  const initiative = estimated(app, teamId, people[0]);
+  L.close(app, initiative, '2026-03-01');
+
+  L.setNotes(initiative, 'Closed early: the vendor withdrew.');
+  assert.equal(initiative.notes, 'Closed early: the vendor withdrew.');
+});
+
+test('reopening unlocks everything closing locked', () => {
+  const { app, teamId, people } = setup();
+  const initiative = estimated(app, teamId, people[0]);
+  L.close(app, initiative, '2026-03-01');
+  L.reopen(app, initiative);
+
+  L.renameInitiative(initiative, 'Renamed');
+  L.setState(initiative, 'on-hold');
+  L.recordActual(initiative, E.VALIDATION, '2026-01', 500);
+
+  assert.equal(initiative.name, 'Renamed');
+  assert.equal(initiative.state, 'on-hold');
+  assert.equal(initiative.validation.actualMonths['2026-01'], 500);
+});
+
+test('closing is the only way into Closed, whatever the process looks like', () => {
+  for (const statusStages of [0, 1, 2]) {
+    const { app, teamId, people } = setup(statusStages);
+    const initiative = estimated(app, teamId, people[0]);
+
+    L.passGate(app, initiative, E.VALIDATION, '2026-02-28');
+    L.passGate(app, initiative, E.DEVELOPMENT, '2026-06-30');
+    while (initiative.stage !== E.stageOrder(app.PROCESS).at(-2)) {
+      L.advanceStage(app, initiative, '2026-07-01');
+    }
+
+    assert.notEqual(initiative.stage, E.CLOSED, `${statusStages} stages: never automatic`);
+    // The refusal differs by terminal stage — a phase says "pass its gate",
+    // a status stage says "closing is explicit" — but both refuse.
+    assert.throws(() => L.advanceStage(app, initiative, '2026-08-01'));
+
+    L.close(app, initiative, '2026-09-01');
+    assert.equal(initiative.stage, E.CLOSED);
+  }
+});
+
+test('an unknown state is refused', () => {
+  const { app, teamId } = setup();
+  const initiative = L.createInitiative(app, { name: 'Thing', teamId });
+  assert.throws(() => L.setState(initiative, 'paused'), /unknown state/);
+  for (const state of L.STATES) {
+    L.setState(initiative, state);
+    assert.equal(initiative.state, state);
+  }
+});
+
+test('moving teams strands allocations rather than dropping them', () => {
+  const { app, teamId, people } = setup();
+  const other = Object.keys(app.TEAMS).find((id) => id !== teamId);
+  const initiative = estimated(app, teamId, people[0]);
+  const before = structuredClone(initiative.validation.allocations);
+
+  const stranded = L.setTeam(app, initiative, other);
+
+  assert.equal(initiative.teamId, other);
+  assert.deepEqual(initiative.validation.allocations, before, 'nothing is silently dropped');
+  const expected = before
+    .map((a) => a.personId)
+    .filter((id) => !E.membership(app.PEOPLE[id], other));
+  assert.deepEqual(stranded.sort(), [...new Set(expected)].sort(), 'and the caller is told');
+});

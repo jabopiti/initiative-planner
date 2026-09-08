@@ -99,6 +99,69 @@ function assertEditable(initiative, phaseId) {
   }
 }
 
+/** The three states an initiative can be in, independent of its stage. */
+export const STATES = Object.freeze(['active', 'on-hold', 'cancelled']);
+
+/**
+ * Closing freezes the whole initiative, not only its numbers (SPEC §6):
+ * every field below goes through this guard. `notes` is the sole exception —
+ * recording *why* something closed, or what happened afterwards, is the one
+ * thing a closed initiative still needs to accept.
+ */
+function assertOpen(initiative) {
+  if (initiative.stage === E.CLOSED) {
+    throw new Error(`${initiative.id} is closed; reopen it to make changes`);
+  }
+}
+
+export function renameInitiative(initiative, name) {
+  assertOpen(initiative);
+  initiative.name = name;
+}
+
+export function setDescription(initiative, description) {
+  assertOpen(initiative);
+  initiative.description = description;
+}
+
+/**
+ * State is independent of stage, so this is not a lifecycle transition — but
+ * a closed initiative's state is settled along with everything else.
+ */
+export function setState(initiative, state) {
+  assertOpen(initiative);
+  if (!STATES.includes(state)) throw new Error(`unknown state: ${state}`);
+  initiative.state = state;
+}
+
+/**
+ * Moving an initiative to another team can strand allocations whose people
+ * are not members there. Those are left in place and keep costing, exactly as
+ * an allocation outliving its membership does (SPEC §5.2); the caller is
+ * expected to surface them.
+ *
+ * @returns {string[]} personIds now allocated without a membership
+ */
+export function setTeam(app, initiative, teamId) {
+  assertOpen(initiative);
+  if (!app.TEAMS[teamId]) throw new Error(`unknown team: ${teamId}`);
+  initiative.teamId = teamId;
+
+  const stranded = new Set();
+  for (const phaseId of E.COSTED_PHASES) {
+    for (const allocation of initiative[phaseId].allocations) {
+      const person = app.PEOPLE[allocation.personId];
+      if (person && !E.membership(person, teamId)) stranded.add(allocation.personId);
+    }
+  }
+  return [...stranded];
+}
+
+/** Notes stay writable after close — the one exception to the freeze. */
+export function setNotes(initiative, notes) {
+  initiative.notes = notes;
+}
+
 export function setPhasePeriod(initiative, phaseId, startIso, endIso) {
   assertEditable(initiative, phaseId);
   const phase = initiative[phaseId];
@@ -266,7 +329,12 @@ export function advanceStage(app, initiative, at) {
   return next;
 }
 
-/** Closing locks every phase and every actual. Missing actuals only warn. */
+/**
+ * Closing is the last action on an initiative, whatever the process looks
+ * like: it is the only way into `Closed` (no gate and no advance will enter
+ * it), and it freezes the whole initiative — phases, actuals, and every field
+ * but `notes`. Missing actuals only warn (SPEC §6).
+ */
 export function close(app, initiative, at) {
   if (initiative.stage === E.DRAFT) throw new Error('a draft cannot be closed');
   if (initiative.stage === E.CLOSED) throw new Error('already closed');
