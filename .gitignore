@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.build-tmp/
+initiative-planner.html
+.DS_Store

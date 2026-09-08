@@ -2,11 +2,12 @@
 
 ## What this repository is
 
-This is the **white-label core** of a single-user, offline initiative cost
-estimator, built from the documents in this folder rather than from an
-existing codebase: [SPEC.md](SPEC.md) (what/why), [DESIGN.md](DESIGN.md)
-(how), and [PLAN.md](PLAN.md) (build order). There is no reference
-implementation to copy from or compare against — these documents are the
+This is the **white-label core** of a single-user, offline initiative
+planner, built from the documents in this folder rather than from an
+existing codebase: [SPEC.md](docs/SPEC.md) (what/why),
+[DESIGN.md](docs/DESIGN.md) (how), and [PLAN.md](docs/PLAN.md) (build
+order). There is no reference implementation to copy from or compare
+against — these documents are the
 authoritative source until code exists, at which point **the implementation
 becomes authoritative** and these documents should be corrected if they
 turn out to disagree with a deliberate implementation choice.
@@ -26,49 +27,66 @@ exists to protect.
   only sharing and backup mechanism.
 - Single-user. No authentication, multi-user editing, FX conversion, time
   tracking, or vacation modelling.
+- Cost and capacity attach to exactly two stages, Validation and
+  Development. Status stages record only that they were reached. Adding
+  a third costed phase means changing [SPEC.md](docs/SPEC.md) first.
 
 ## Brand-pack contract
 
-Exactly two source files and one CSS block are ever brand-specific:
+Exactly one source file and one CSS block are ever brand-specific:
 
-- `src/masterData.js` — roles, countries, teams, and approval-track
-  ("budget band") definitions. Ships with fictional placeholder values here.
-- `src/terms.js` — user-facing gate display names. Ships with placeholder
-  names here (e.g. "Gate 1"/"Gate 2").
+- `src/masterData.js` — the seed factory: roles, countries, people, teams,
+  approval-track ("budget band") definitions, and the default process
+  labels. Ships with fictional placeholder values here.
 - The `--brand*` and `--brand-font` custom properties in `src/styles.css`'s
   `:root`, plus an optional `@font-face` block. Ships with a generic
   placeholder color and no embedded font here.
 
+Stage and gate names are **not** a third brand surface. They are seeded by
+`masterData.js` and are thereafter ordinary user data, editable in
+Settings — there is no `terms.js`.
+
 Everything else — every render function, every calculation, every piece of
-copy that isn't a gate name or a band name — must be brand-agnostic. Never
-hardcode a brand string, color, or master-data value anywhere else. Route
-gate display text through a single `gateTerm(code)`-style helper and band
-abbreviations through a `BANDS[].abbr`-style field, exactly as described in
-[DESIGN.md](DESIGN.md) — don't invent a second way to express the same
-thing. There is no automated check for this; changes are reviewed manually.
+copy that isn't a stage name or a band name — must be brand-agnostic.
+Never hardcode a brand string, color, or master-data value anywhere else.
+Route stage and gate display text through a single `stageTerm(id)`-style
+helper and band abbreviations through a `BANDS[].abbr`-style field,
+exactly as described in [DESIGN.md](docs/DESIGN.md) — don't invent a
+second way to express the same thing. Stage *ids* (`draft`, `validation`,
+`development`, `closed`) are schema, not brand content, and may be
+compared directly. There is no automated check for any of this; changes
+are reviewed manually.
 
 ## Product terminology
 
 Use these terms consistently in user-facing text: **approval track**,
-**stage**, **state**, **capacity %**, and **Estimate / Forecast / Actual**.
-See [SPEC.md](SPEC.md) for their definitions.
+**stage**, **state**, **person**, **membership**, **capacity %**,
+**share %**, **allocation %**, **non-initiative work**, and
+**Estimate / Forecast / Actual**. See [SPEC.md](docs/SPEC.md) for their
+definitions — §4 in particular, for why the three percentages are never
+interchangeable.
+
+For pages, use the vocabulary in [DESIGN.md](docs/DESIGN.md) §5:
+**overview**, **detail**, **dashboard**, **settings**, **flow**, and
+below them **panel** and **region**. Not "screen", not "view", not "tab".
 
 ## Commands
 
-Once the project is scaffolded (see [PLAN.md](PLAN.md) Phase 0), these
+Once the project is scaffolded (see [PLAN.md](docs/PLAN.md) Phase 0), these
 commands must exist and behave as follows:
 
 ```text
 npm run dev         # local dev server
-npm run build       # -> initiative-cost-estimator.html (single file)
-npm test             # engine + lifecycle unit tests, node:test
+npm run build       # -> initiative-planner.html (single file)
+npm test            # engine + lifecycle unit tests, node:test
 npm run typecheck   # tsc --noEmit over src/**/*.js (checkJs, not strict)
-npm run lint         # eslint over src/
+npm run lint        # eslint over src/
 ```
 
-Serve the built file with `python3 -m http.server 8899` for manual browser
-checks. UI changes require real browser verification; engine and lifecycle
-regressions are covered by `npm test`.
+Serve the built file with `python3 -m http.server 8899` for browser
+checks. Engine and lifecycle regressions are covered by `npm test`; UI
+changes require real browser verification, which you are expected to do
+yourself (see "Testing expectations").
 
 ## Invariants
 
@@ -102,15 +120,24 @@ order it's built in:
 - Integration-test the lifecycle (gate preconditions, passing a gate,
   locking, reopening, closing) by driving the real exported functions, not
   a duplicate implementation.
-- UI/interaction correctness is verified manually in a real browser —
-  there is no DOM testing framework in this project.
+- UI/interaction correctness has no unit-test coverage — there is no DOM
+  testing framework here, and none should be added. Verify it by building
+  the file, serving it, and driving it in a real browser through your own
+  browser tooling (Playwright or Chrome DevTools MCP). Check the screen
+  against its SPEC section, exercise the Invariants above, and confirm
+  all three theme modes repaint without a reload. Do not report a UI
+  change as done on the strength of reading the diff, and do not hand the
+  check to the user — ask them only for aesthetic judgement.
 
 ## Durable decisions
 
-- The shipped artifact remains one self-contained HTML file.
 - The data schema is versioned (`schemaVersion`). Imports with an unknown
-  schema version are rejected; no migration path is maintained for
-  unavailable legacy exports.
-- Features outside [SPEC.md](SPEC.md)'s contract — variable monthly
-  allocations, multi-team initiatives, scenario comparison, bulk actual
-  entry, audit identity — are out of scope unless SPEC.md is updated first.
+  schema version are rejected outright; no migration path is maintained
+  for legacy exports.
+- People are top-level and teams own none of them; a person may hold
+  several memberships, and membership carries the share of that person's
+  capacity the team holds. Ceilings warn; they never block.
+- [SPEC.md](docs/SPEC.md) §1 lists the non-goals. They are not a backlog.
+  Anything on that list is out of scope until SPEC.md itself is changed —
+  and changing it is a decision to bring to the repo owner, not one to
+  make while implementing a phase.
