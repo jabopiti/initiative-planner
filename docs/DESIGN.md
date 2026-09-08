@@ -302,9 +302,16 @@ src/
                     resolution, capacity, stage progression. Pure, and with
                     no side effects on import, so node:test imports it
                     directly (AGENTS.md).
-  app.js         -- data model, lifecycle functions, all render/wire
-                    functions (one module is fine at this size; split
-                    further only if it grows unwieldy)
+  lifecycle.js   -- initiative creation, phase edits, gates, stage
+                    transitions, close/reopen/duplicate. Pure, like the
+                    engine.
+  transfer.js    -- export/import shaping: serialise, validate, diff,
+                    merge. Pure.
+  store.js       -- the only module reaching outside itself: localStorage
+                    and handing the user a file. Deliberately thin, with
+                    every decision delegated to the pure modules.
+  app.js         -- render/wire functions (one module is fine at this
+                    size; split further only if it grows unwieldy)
   main.js        -- bootstrap: theme toggle, top-level event wiring,
                     initial load + render
   masterData.js  -- brand pack: seed data factory (placeholder values),
@@ -322,10 +329,12 @@ test/
 examples/exports/  -- fictional demo JSON export(s) + a short README
 ```
 
-`engine.js` is kept apart from `app.js` because it is the one module with a
-hard constraint on it — importable under Node with no DOM — and mixing it
-into the render code makes that constraint easy to break by accident. A
-test asserts the module never names `document`, `window` or
+`engine.js`, `lifecycle.js` and `transfer.js` are kept apart from `app.js`
+for one reason: they carry a hard constraint — importable under Node with
+no DOM — and mixing them into render code makes that constraint easy to
+break by accident. `store.js` is the deliberate boundary where that
+constraint ends; keeping it thin is what keeps the rules above it
+testable. A test asserts `engine.js` never names `document`, `window` or
 `localStorage`.
 
 ## 7. Testing strategy

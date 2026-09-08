@@ -10,12 +10,15 @@ and this file is the one to correct.
 ## How to work a phase
 
 [docs/PLAN.md](docs/PLAN.md) is the build order. Take **one phase at a
-time**, on its own branch, as its own PR. Don't start a phase until the
-previous one's "Done when" is genuinely true — not "mostly", not "true
-once I circle back". If a phase turns out to be bigger than it looked,
-split it and say so; don't widen the current PR to swallow it.
+time**, as its own commit, on the long-lived `implementation` branch —
+one branch for the whole build, not one per phase. `main` holds the
+specs; `implementation` merges back when the build is done or when Bo
+asks. Don't start a phase until the previous one's "Done when" is
+genuinely true — not "mostly", not "true once I circle back". If a phase
+turns out to be bigger than it looked, split it into two commits and say
+so; don't quietly widen the current one to swallow it.
 
-Before opening the PR for a phase, all four must pass clean:
+Before committing a phase, all four must pass clean:
 
 ```bash
 npm run lint && npm run typecheck && npm test && npm run build

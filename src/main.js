@@ -1,9 +1,21 @@
 /**
- * Bootstrap: view state, the single render dispatch, and the global
- * listeners. Phase 0 renders placeholders — the pages themselves arrive
- * from Phase 3 onward — but the dispatch shape is the one DESIGN.md §5
- * describes, so later phases fill it in rather than replace it.
+ * Bootstrap: load the dataset, then view state, the single render dispatch,
+ * and the global listeners. The pages themselves arrive from Phase 3 onward;
+ * the dispatch shape is the one DESIGN.md §5 describes, so later phases fill
+ * it in rather than replace it.
  */
+
+import { load, save, flush } from './store.js';
+import * as E from './engine.js';
+
+/** The whole dataset. Every page reads and writes this one object. */
+const { app, reason: loadReason } = load();
+
+/** Persist after a change. Debounced: the whole APP is the unit (DESIGN §3). */
+export function commit() {
+  save(app);
+  render();
+}
 
 /**
  * Top-level pages, in nav order. `id` is internal and never displayed;
@@ -54,9 +66,21 @@ function render() {
   const root = document.getElementById('root');
   const heading = document.createElement('h1');
   heading.textContent = page.label;
+
   const note = document.createElement('p');
   note.textContent = `Not built yet — this ${page.kind} page arrives in a later phase.`;
-  root.replaceChildren(heading, note);
+
+  // Until the pages exist, show that the dataset is real and loaded. This
+  // block goes when Phase 3 gives these pages something of their own to say.
+  const status = document.createElement('p');
+  status.dataset.testid = 'load-status';
+  status.textContent =
+    `${Object.keys(app.PEOPLE).length} people, ` +
+    `${Object.keys(app.TEAMS).length} teams, ` +
+    `${app.INITIATIVES.length} initiatives, ` +
+    `${E.stageOrder(app.PROCESS).length} stages (loaded: ${loadReason})`;
+
+  root.replaceChildren(heading, note, status);
 }
 
 /**
@@ -70,6 +94,9 @@ function installGlobalListeners() {
     const trigger = event.target.closest('[data-page]');
     if (trigger instanceof HTMLElement) navigate(trigger.dataset.page);
   });
+
+  // A debounced save must not lose the last change to a closing tab.
+  window.addEventListener('beforeunload', () => flush(app));
 }
 
 document.getElementById('wordmark').textContent = 'Initiative Planner';

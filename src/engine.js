@@ -247,7 +247,7 @@ export function phaseMonths(phase) {
  * estimate otherwise (SPEC §5.4). Monthly views always show this.
  */
 export function phaseBlendedByMonth(phase, app) {
-  const estimate = phaseEstimateByMonth(phase, app);
+  const estimate = phase.frozen ? phase.frozen.perMonth : phaseEstimateByMonth(phase, app);
   const actuals = phase.actualMonths ?? {};
   /** @type {Record<string, number>} */
   const out = {};

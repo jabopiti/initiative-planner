@@ -298,6 +298,13 @@ band being renamed, re-bounded, or deleted afterwards.
   phases and all actuals. Missing actuals are a warning, not a blocking
   condition; unfilled months stay at their estimate. Closing from `In
   Validation` (abandoning work before Development) is allowed.
+- **A gate never advances an initiative into `Closed`.** Passing a gate
+  moves it to the next stage unless that stage is `Closed`, in which case
+  it stays where it is with its approval recorded. With no status stages
+  configured, passing the final gate therefore leaves the initiative in
+  Development, gated and awaiting an explicit close — because closing is
+  always a decision someone makes, never a side effect of approving a
+  budget.
 - **Advancing through a status stage** needs no gate, no estimate and no
   approval. The initiative moves to the next stage in the configured
   progression and records the date it got there. Nothing is frozen or
