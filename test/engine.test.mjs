@@ -6,9 +6,10 @@ import assert from 'node:assert/strict';
 
 import { createMasterData, trackedYears } from '../src/masterData.js';
 import * as E from '../src/engine.js';
+import { SIMPLE, RICH } from './processes.mjs';
 
 const NOW = 2026;
-const app = () => ({ ...createMasterData('€', NOW), INITIATIVES: [] });
+const app = () => ({ ...createMasterData(NOW), INITIATIVES: [] });
 
 /** A person paid through a standard role. */
 const standardPerson = (a) => Object.values(a.PEOPLE).find((p) => p.roleId && !p.customRole);
@@ -28,7 +29,6 @@ function phase(overrides = {}) {
     actualEndDate: null,
     actualMonths: {},
     frozen: null,
-    backfilled: false,
     ...overrides,
   };
 }
@@ -39,14 +39,12 @@ function initiative(a, overrides = {}) {
     name: 'Test initiative',
     description: '',
     teamId: Object.keys(a.TEAMS)[0],
-    stage: E.DRAFT,
-    state: 'active',
+    phaseId: SIMPLE.phases[0].id,
+    status: 'active',
     notes: '',
-    validation: phase(),
-    development: phase(),
-    gateAApproval: null,
-    gateBApproval: null,
-    stageHistory: {},
+    phases: { plan: phase(), build: phase() },
+    gates: {},
+    checklist: {},
     ...overrides,
   };
 }
@@ -145,15 +143,16 @@ test('a backfilled month costs against its own year, not the current one', () =>
   assert.notEqual(country.byYear[lastYear].rate, country.byYear[thisYear].rate);
 
   const back = initiative(a, {
-    validation: phase({
-      estStartDate: `${lastYear}-03-01`,
-      estEndDate: `${lastYear}-03-31`,
-      allocations: [{ personId: person.id, allocationPct: 100 }],
-      backfilled: true,
-    }),
+    phases: {
+      plan: phase({
+        estStartDate: `${lastYear}-03-01`,
+        estEndDate: `${lastYear}-03-31`,
+        allocations: [{ personId: person.id, allocationPct: 100 }],
+      }),
+    },
   });
 
-  const cost = E.phaseLabourByMonth(back.validation, a)[`${lastYear}-03`];
+  const cost = E.phaseLabourByMonth(back.phases.plan, a)[`${lastYear}-03`];
   const days = E.workingDaysInMonth(country, `${lastYear}-03`);
   const expected = days * 1 * a.ROLES[person.roleId].factor * country.byYear[lastYear].rate;
   assert.equal(cost, expected);
@@ -242,13 +241,12 @@ test('a frozen estimate ignores later master-data changes', () => {
 /* -------------------------------------------------- approval tracks */
 
 test('a total no band covers is Not yet known, never the nearest band', () => {
-  const a = app();
-  const lowest = [...a.BANDS].sort((x, y) => x.lower - y.lower)[0];
+  const lowest = [...SIMPLE.bands].sort((x, y) => x.lower - y.lower)[0];
 
-  assert.equal(E.resolveBand(a.BANDS, lowest.lower - 1), null, 'below the lowest bound');
+  assert.equal(E.resolveBand(SIMPLE.bands, lowest.lower - 1), null, 'below the lowest bound');
 
   // Punch a gap between the two lowest bands and land a total inside it.
-  const sorted = [...a.BANDS].sort((x, y) => x.lower - y.lower);
+  const sorted = structuredClone(SIMPLE.bands).sort((x, y) => x.lower - y.lower);
   const gapStart = sorted[0].upper;
   sorted[1].lower = gapStart + 10000;
   assert.equal(E.resolveBand(sorted, gapStart + 5000), null, 'inside a gap');
@@ -256,22 +254,19 @@ test('a total no band covers is Not yet known, never the nearest band', () => {
 });
 
 test('bounds are lower-inclusive and upper-exclusive', () => {
-  const a = app();
-  const band = [...a.BANDS].sort((x, y) => x.lower - y.lower)[0];
-  assert.equal(E.resolveBand(a.BANDS, band.lower)?.id, band.id);
-  assert.notEqual(E.resolveBand(a.BANDS, band.upper)?.id, band.id);
+  const band = [...SIMPLE.bands].sort((x, y) => x.lower - y.lower)[0];
+  assert.equal(E.resolveBand(SIMPLE.bands, band.lower)?.id, band.id);
+  assert.notEqual(E.resolveBand(SIMPLE.bands, band.upper)?.id, band.id);
 });
 
 test('a band with no upper limit covers everything above its lower bound', () => {
-  const a = app();
-  const open = a.BANDS.find((b) => b.upper === null);
-  assert.ok(open, 'the seed data needs one unbounded band');
-  assert.equal(E.resolveBand(a.BANDS, open.lower * 1000)?.id, open.id);
+  const open = SIMPLE.bands.find((b) => b.upper === null);
+  assert.ok(open, 'the process needs one unbounded band');
+  assert.equal(E.resolveBand(SIMPLE.bands, open.lower * 1000)?.id, open.id);
 });
 
 test('escalation compares severity alone, and survives a rename', () => {
-  const a = app();
-  const [low, high] = [...a.BANDS].sort((x, y) => x.severity - y.severity);
+  const [low, high] = [...SIMPLE.bands].sort((x, y) => x.severity - y.severity);
   const snapshot = { id: low.id, name: low.name, abbr: low.abbr, severity: low.severity };
 
   assert.equal(E.compareBands(snapshot, high), 'escalation');
@@ -294,11 +289,13 @@ test('a person split across teams produces non-initiative work in each, and no m
     initiative(a, {
       id: 'init_split',
       teamId: first.teamId,
-      validation: phase({
-        estStartDate: '2026-05-01',
-        estEndDate: '2026-05-31',
-        allocations: [{ personId: person.id, allocationPct: allocated }],
-      }),
+      phases: {
+        plan: phase({
+          estStartDate: '2026-05-01',
+          estEndDate: '2026-05-31',
+          allocations: [{ personId: person.id, allocationPct: allocated }],
+        }),
+      },
     }),
   );
 
@@ -333,7 +330,7 @@ test('on-hold and cancelled initiatives leave capacity alone but keep costing', 
     estEndDate: '2026-05-31',
     allocations: [{ personId: person.id, allocationPct: 40 }],
   });
-  const held = initiative(a, { id: 'init_held', teamId, state: 'on-hold', validation: p });
+  const held = initiative(a, { id: 'init_held', teamId, status: 'on-hold', phases: { plan: p } });
   a.INITIATIVES.push(held);
 
   assert.equal(E.allocatedPct(a, person.id, '2026-05'), 0, 'excluded from capacity');
@@ -348,11 +345,13 @@ test('allocation is broken down by initiative, since a person can serve several'
     initiative(a, {
       id,
       teamId,
-      validation: phase({
-        estStartDate: '2026-06-01',
-        estEndDate: '2026-06-30',
-        allocations: [{ personId: person.id, allocationPct: pct }],
-      }),
+      phases: {
+        plan: phase({
+          estStartDate: '2026-06-01',
+          estEndDate: '2026-06-30',
+          allocations: [{ personId: person.id, allocationPct: pct }],
+        }),
+      },
     });
   a.INITIATIVES.push(make('init_a', 30), make('init_b', 20));
 
@@ -372,11 +371,13 @@ test('both ceilings warn and neither blocks', () => {
     initiative(a, {
       id: 'init_over',
       teamId: first.teamId,
-      validation: phase({
-        estStartDate: '2026-07-01',
-        estEndDate: '2026-07-31',
-        allocations: [{ personId: person.id, allocationPct: over }],
-      }),
+      phases: {
+        plan: phase({
+          estStartDate: '2026-07-01',
+          estEndDate: '2026-07-31',
+          allocations: [{ personId: person.id, allocationPct: over }],
+        }),
+      },
     }),
   );
 
@@ -387,55 +388,6 @@ test('both ceilings warn and neither blocks', () => {
 });
 
 /* -------------------------------------------------- stage progression */
-
-test('the progression runs draft -> phases -> status stages -> closed', () => {
-  const a = app();
-  const order = E.stageOrder(a.PROCESS);
-  assert.equal(order[0], E.DRAFT);
-  assert.equal(order[1], E.VALIDATION);
-  assert.equal(order[2], E.DEVELOPMENT);
-  assert.equal(order.at(-1), E.CLOSED);
-  assert.deepEqual(order.slice(3, -1), a.PROCESS.stages.map((s) => s.id));
-});
-
-test('zero status stages is a valid process', () => {
-  const a = app();
-  a.PROCESS.stages = [];
-  assert.deepEqual(E.stageOrder(a.PROCESS), [E.DRAFT, E.VALIDATION, E.DEVELOPMENT, E.CLOSED]);
-  assert.equal(E.nextStage(a.PROCESS, E.DEVELOPMENT), E.CLOSED);
-  assert.equal(E.previousStage(a.PROCESS, E.DRAFT), null);
-  assert.equal(E.nextStage(a.PROCESS, E.CLOSED), null);
-});
-
-test('only the two costed phases carry cost, capacity and a gate', () => {
-  const a = app();
-  assert.equal(E.isCostedPhase(E.VALIDATION), true);
-  assert.equal(E.isCostedPhase(E.DEVELOPMENT), true);
-  for (const stage of a.PROCESS.stages) {
-    assert.equal(E.isCostedPhase(stage.id), false);
-    assert.throws(() => E.gateTerm(a.PROCESS, stage.id), /no gate/);
-  }
-});
-
-test('every stage renders through a label lookup, never its id', () => {
-  const a = app();
-  for (const stageId of E.stageOrder(a.PROCESS)) {
-    const label = E.stageTerm(a.PROCESS, stageId);
-    assert.ok(label && label !== stageId, `stage ${stageId} must have a label of its own`);
-  }
-  assert.throws(() => E.stageTerm(a.PROCESS, 'nope'), /unknown stage/);
-});
-
-test('renaming a stage changes its label and nothing else', () => {
-  const a = app();
-  const before = E.stageOrder(a.PROCESS);
-  a.PROCESS.validation.label = 'Discovery';
-  a.PROCESS.stages[0].label = 'Ship it';
-
-  assert.equal(E.stageTerm(a.PROCESS, E.VALIDATION), 'Discovery');
-  assert.equal(E.stageTerm(a.PROCESS, a.PROCESS.stages[0].id), 'Ship it');
-  assert.deepEqual(E.stageOrder(a.PROCESS), before, 'ids and ordering are untouched');
-});
 
 /* -------------------------------------------------- module hygiene */
 
@@ -451,21 +403,15 @@ test('the engine touches no DOM, so it imports under node:test', async () => {
 });
 
 test('seeding twice cannot leak mutations between calls', () => {
-  const first = createMasterData('€', NOW);
+  const first = createMasterData(NOW);
   first.ROLES[Object.keys(first.ROLES)[0]].factor = 99;
-  first.BANDS.push({
-    id: 'injected',
-    name: 'Injected',
-    abbr: 'INJ',
-    lower: 0,
-    upper: 1,
-    req: '',
-    severity: 9,
-  });
+  first.PEOPLE[Object.keys(first.PEOPLE)[0]].capacityPct = 3;
+  first.COUNTRIES[Object.keys(first.COUNTRIES)[0]].byYear[NOW].rate = 1;
 
-  const second = createMasterData('€', NOW);
+  const second = createMasterData(NOW);
   assert.notEqual(second.ROLES[Object.keys(second.ROLES)[0]].factor, 99);
-  assert.equal(second.BANDS.find((b) => b.id === 'injected'), undefined);
+  assert.notEqual(second.PEOPLE[Object.keys(second.PEOPLE)[0]].capacityPct, 3);
+  assert.notEqual(second.COUNTRIES[Object.keys(second.COUNTRIES)[0]].byYear[NOW].rate, 1);
 });
 
 test('escaping neutralises every character that could break out of markup', () => {
@@ -481,9 +427,8 @@ test('escaping neutralises every character that could break out of markup', () =
 });
 
 test('an uncovered floor below the lowest band is reported like any other gap', () => {
-  const a = app();
-  const sorted = [...a.BANDS].sort((x, y) => x.lower - y.lower);
-  assert.deepEqual(E.bandCoverageIssues(sorted), [], 'the seed data covers from zero');
+  const sorted = structuredClone(SIMPLE.bands).sort((x, y) => x.lower - y.lower);
+  assert.deepEqual(E.bandCoverageIssues(sorted), [], 'the process covers from zero');
 
   sorted[0].lower = 5000;
   const issues = E.bandCoverageIssues(sorted);
@@ -495,4 +440,59 @@ test('an uncovered floor below the lowest band is reported like any other gap', 
 test('no bands at all is reported as no issues, not a crash', () => {
   assert.deepEqual(E.bandCoverageIssues([]), []);
   assert.equal(E.resolveBand([], 100), null);
+});
+
+/* -------------------------------------------------- the process */
+
+test('the process defines the progression; nothing assumes its shape', () => {
+  for (const process of [SIMPLE, RICH]) {
+    const order = E.phaseOrder(process);
+    assert.equal(order.length, process.phases.length);
+    assert.equal(E.previousPhase(process, order[0]), null);
+    assert.equal(E.nextPhase(process, order.at(-1)), null);
+    assert.equal(E.isFinalPhase(process, order.at(-1)), true);
+    assert.equal(E.isFinalPhase(process, order[0]), order.length === 1);
+
+    for (let i = 0; i < order.length - 1; i += 1) {
+      assert.equal(E.nextPhase(process, order[i]), order[i + 1]);
+      assert.equal(E.previousPhase(process, order[i + 1]), order[i]);
+    }
+  }
+});
+
+test('every phase has exactly one gate, and each resolves back to its phase', () => {
+  for (const process of [SIMPLE, RICH]) {
+    for (const phase of process.phases) {
+      const gate = E.gateForPhase(process, phase.id);
+      assert.ok(gate.id, `${phase.id} must have a gate`);
+      assert.equal(E.phaseForGate(process, gate.id).id, phase.id);
+      assert.equal(E.gateLabel(process, gate.id), gate.label);
+    }
+  }
+});
+
+test('costed phases are whatever the process says, not a fixed pair', () => {
+  assert.deepEqual(E.costedPhaseIds(SIMPLE), ['plan', 'build']);
+  assert.deepEqual(E.costedPhaseIds(RICH), ['shape', 'deliver']);
+  assert.equal(E.isCostedPhase(RICH, 'discover'), false);
+  assert.equal(E.isCostedPhase(RICH, 'shape'), true);
+});
+
+test('labels are looked up, never rendered from an id', () => {
+  for (const process of [SIMPLE, RICH]) {
+    for (const phase of process.phases) {
+      const label = E.phaseLabel(process, phase.id);
+      assert.ok(label && label !== phase.id, `${phase.id} needs a label of its own`);
+    }
+  }
+  assert.throws(() => E.phaseLabel(SIMPLE, 'nope'), /unknown phase/);
+  assert.throws(() => E.gateLabel(SIMPLE, 'nope'), /unknown gate/);
+});
+
+test('status is a fixed set, and finishing means closed or cancelled', () => {
+  assert.deepEqual([...E.STATUSES], ['active', 'on-hold', 'cancelled', 'closed']);
+  assert.equal(E.isFinished({ status: 'closed' }), true);
+  assert.equal(E.isFinished({ status: 'cancelled' }), true);
+  assert.equal(E.isFinished({ status: 'active' }), false);
+  assert.equal(E.isFinished({ status: 'on-hold' }), false);
 });

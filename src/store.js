@@ -5,6 +5,7 @@
  */
 
 import { SCHEMA_VERSION, createApp } from './lifecycle.js';
+import { PROCESS } from './process.js';
 import { createMasterData } from './masterData.js';
 import { serialize, exportFilename, parseImport, toCsv, toTsv, toHtmlTable } from './transfer.js';
 
@@ -16,10 +17,10 @@ const SAVE_DEBOUNCE_MS = 200;
  * build doesn't read all fall back to fresh seed data — there is no migration
  * path, by design (AGENTS.md).
  *
- * @returns {{ app: object, reason: 'stored'|'empty'|'unreadable'|'schema' }}
+ * @returns {{ app: object, reason: 'stored'|'empty'|'unreadable'|'schema'|'process' }}
  */
 export function load() {
-  const fresh = () => createApp(createMasterData());
+  const fresh = () => createApp(createMasterData(), PROCESS);
 
   let raw = null;
   try {
@@ -37,6 +38,11 @@ export function load() {
   }
   if (!stored || stored.schemaVersion !== SCHEMA_VERSION) {
     return { app: fresh(), reason: 'schema' };
+  }
+  // A dataset written against a different process would put initiatives in
+  // phases this build has never heard of (DESIGN §3).
+  if (stored.processId !== PROCESS.id) {
+    return { app: fresh(), reason: 'process' };
   }
   return { app: stored, reason: 'stored' };
 }

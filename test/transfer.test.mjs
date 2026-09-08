@@ -7,26 +7,36 @@ import { createMasterData } from '../src/masterData.js';
 import * as E from '../src/engine.js';
 import * as L from '../src/lifecycle.js';
 import * as T from '../src/transfer.js';
+import { PROCESS } from '../src/process.js';
 
 const NOW = 2026;
 
 /** A dataset with real history in it: an approval, an actual, a cost item. */
 function populated() {
-  const app = L.createApp(createMasterData('€', NOW));
+  const app = L.createApp(createMasterData(NOW), PROCESS);
   const teamId = Object.keys(app.TEAMS)[0];
   const person = Object.values(app.PEOPLE).find((p) => E.membership(p, teamId));
+  const [firstCosted, secondCosted] = E.costedPhaseIds(PROCESS);
 
-  const initiative = L.createInitiative(app, { name: 'Replatform', teamId });
-  L.advanceStage(app, initiative, '2026-01-05');
-  L.setPhasePeriod(initiative, E.VALIDATION, '2026-01-01', '2026-02-28');
-  L.setAllocation(app, initiative, E.VALIDATION, person.id, 50);
-  L.setPhasePeriod(initiative, E.DEVELOPMENT, '2026-03-01', '2026-06-30');
-  L.setAllocation(app, initiative, E.DEVELOPMENT, person.id, 80);
-  L.addOtherCost(initiative, E.DEVELOPMENT, { name: 'Licence', month: '2026-04', amount: 2500 });
-  L.passGate(app, initiative, E.VALIDATION, '2026-02-28');
-  L.recordActual(initiative, E.VALIDATION, '2026-01', 12345);
+  const initiative = L.createInitiative(app, PROCESS, {
+    name: 'Replatform',
+    teamId,
+    startPhaseId: firstCosted,
+  });
+  L.setPhasePeriod(initiative, firstCosted, '2026-01-01', '2026-02-28');
+  L.setAllocation(app, initiative, firstCosted, person.id, 50);
+  L.setPhasePeriod(initiative, secondCosted, '2026-03-01', '2026-06-30');
+  L.setAllocation(app, initiative, secondCosted, person.id, 80);
+  L.addOtherCost(initiative, secondCosted, { name: 'Licence', month: '2026-04', amount: 2500 });
 
-  return { app, initiative, teamId, person };
+  const gate = E.gateForPhase(PROCESS, firstCosted);
+  for (const item of gate.checklist ?? []) {
+    L.setChecklistStatus(initiative, gate.id, item.id, 'green');
+  }
+  L.passGate(app, PROCESS, initiative, gate.id, '2026-02-28');
+  L.recordActual(initiative, firstCosted, '2026-01', 12345);
+
+  return { app, initiative, teamId, person, firstCosted, secondCosted };
 }
 
 test('a full dataset survives a round trip exactly', () => {
@@ -84,14 +94,15 @@ test('the preview names every approval a merge would overwrite', () => {
   const { app, initiative } = populated();
   const incoming = JSON.parse(T.serialize(app));
   const incomingInitiative = incoming.INITIATIVES.find((i) => i.id === initiative.id);
+  const gateId = Object.keys(initiative.gates)[0];
 
-  incomingInitiative.gateAApproval = { ...incomingInitiative.gateAApproval, grandTotal: 1 };
+  incomingInitiative.gates[gateId] = { ...incomingInitiative.gates[gateId], grandTotal: 1 };
   const changed = T.importPreview(app, incoming, 'merge');
   assert.equal(changed.approvalCollisions.length, 1);
   assert.equal(changed.approvalCollisions[0].initiativeId, initiative.id);
   assert.equal(changed.approvalCollisions[0].wouldBeCleared, false);
 
-  incomingInitiative.gateAApproval = null;
+  delete incomingInitiative.gates[gateId];
   const cleared = T.importPreview(app, incoming, 'merge');
   assert.equal(cleared.approvalCollisions[0].wouldBeCleared, true, 'losing one is worse, not less');
 });
@@ -121,7 +132,7 @@ test('a merge replaces a person wholesale, memberships included', () => {
 test('a merge keeps local initiatives the import does not carry', () => {
   const { app, teamId } = populated();
   const incoming = JSON.parse(T.serialize(app));
-  const local = L.createInitiative(app, { name: 'Local only', teamId });
+  const local = L.createInitiative(app, PROCESS, { name: 'Local only', teamId });
 
   const merged = T.applyImport(app, incoming, 'merge');
   assert.ok(merged.INITIATIVES.some((i) => i.id === local.id), 'merge keeps it');
@@ -145,7 +156,7 @@ test('a round trip preserves the numbers, not just the shape', () => {
   const before = {
     grand: E.grandTotal(initiative, app),
     coverage: E.initiativeCoverage(initiative),
-    band: E.resolveBand(app.BANDS, E.grandTotal(initiative, app))?.id ?? null,
+    band: E.resolveBand(PROCESS.bands, E.grandTotal(initiative, app))?.id ?? null,
   };
 
   const restored = T.applyImport({}, T.parseImport(T.serialize(app)).data, 'replace');
@@ -153,5 +164,23 @@ test('a round trip preserves the numbers, not just the shape', () => {
 
   assert.equal(E.grandTotal(copy, restored), before.grand);
   assert.equal(E.initiativeCoverage(copy), before.coverage);
-  assert.equal(E.resolveBand(restored.BANDS, E.grandTotal(copy, restored))?.id ?? null, before.band);
+  assert.equal(E.resolveBand(PROCESS.bands, E.grandTotal(copy, restored))?.id ?? null, before.band);
+});
+
+test('an export from a different process is refused, and says so plainly', () => {
+  const { app } = populated();
+  const foreign = { ...JSON.parse(T.serialize(app)), processId: 'someone-elses-process' };
+  const parsed = T.parseImport(JSON.stringify(foreign));
+
+  assert.equal(parsed.ok, false);
+  assert.equal(parsed.data, null);
+  assert.match(parsed.error, /different process/);
+  assert.doesNotMatch(parsed.error, /schema version/, 'a wrong process is not a wrong schema');
+});
+
+test('the export carries the process it means', () => {
+  const { app } = populated();
+  const exported = JSON.parse(T.serialize(app));
+  assert.equal(exported.processId, PROCESS.id);
+  assert.equal(exported.processVersion, PROCESS.version);
 });

@@ -13,6 +13,7 @@ import * as L from './lifecycle.js';
 import * as T from './transfer.js';
 import * as P from './people.js';
 import * as store from './store.js';
+import { PROCESS } from './process.js';
 
 /* ------------------------------------------------------------------ *
  * DOM helpers
@@ -86,6 +87,7 @@ export const PAGES = [
   { id: 'initiatives', label: 'Initiatives', kind: 'overview' },
   { id: 'teams', label: 'Teams', kind: 'overview' },
   { id: 'people', label: 'People', kind: 'overview' },
+  { id: 'process', label: 'Process', kind: 'reference' },
   { id: 'settings', label: 'Settings', kind: 'settings' },
 ];
 
@@ -113,8 +115,6 @@ const SETTINGS_SECTIONS = [
   { id: 'overview', label: 'Overview' },
   { id: 'roles', label: 'Roles' },
   { id: 'countries', label: 'Countries & rates' },
-  { id: 'bands', label: 'Approval tracks' },
-  { id: 'process', label: 'Process' },
   { id: 'general', label: 'General' },
   { id: 'data', label: 'Data' },
   { id: 'danger', label: 'Danger zone' },
@@ -134,6 +134,7 @@ export function render() {
   if (view.page === 'settings') return renderSettings();
   if (view.page === 'people') return renderPeople();
   if (view.page === 'person') return renderPerson();
+  if (view.page === 'process') return renderProcessPage();
 
   fill(
     'root',
@@ -227,7 +228,7 @@ function renderPeople() {
           ${entry.person.name}</button></td>
         <td>${entry.row[1]}${raw(entry.person.customRole ? html` <span class="tag">custom rate</span>` : '')}</td>
         <td>${entry.row[2]}</td>
-        <td class="num">${E.formatMoney(entry.row[3], app.GENERAL.currency)}</td>
+        <td class="num">${E.formatMoney(entry.row[3], PROCESS.currency)}</td>
         <td class="num">${entry.person.capacityPct}%</td>
         <td>${entry.row[5]}</td>
         <td class="num">${entry.allocated}%</td>
@@ -415,7 +416,7 @@ function personInitiativesPanel(person, stranded) {
   const data = rows.map((row) => [
     row.initiative.name,
     app.TEAMS[row.initiative.teamId]?.name ?? row.initiative.teamId,
-    E.stageTerm(app.PROCESS, row.phaseId),
+    E.phaseLabel(PROCESS, row.phaseId),
     row.allocationPct,
     row.start ?? '',
     row.end ?? '',
@@ -479,6 +480,111 @@ function personCapacity(person, months) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Process (read-only)
+ * ------------------------------------------------------------------ */
+
+/**
+ * The process is fixed by the build (SPEC §2). This page is where someone
+ * sees the rules they are working within — and where a wrong build becomes
+ * obvious. It offers no control that suggests anything is editable.
+ */
+function renderProcessPage() {
+  const rows = PROCESS.phases
+    .map((phase) => {
+      const gate = phase.gate;
+      const checklist = (gate.checklist ?? []).length
+        ? html`<ul class="checklist-defs">${raw(
+            gate.checklist
+              .map((item) => html`<li><strong>${item.name}</strong> — ${item.description}</li>`)
+              .join(''),
+          )}</ul>`
+        : html`<span class="muted">No checklist</span>`;
+
+      return html`<tr>
+        <td><strong>${phase.label}</strong><br />
+          <span class="tag">${phase.costed ? 'costed' : 'no cost or capacity'}</span></td>
+        <td>${gate.label}<br />
+          <span class="micro">${gate.requiresEstimates
+            ? 'Requires a complete estimate for every costed phase'
+            : 'No cost requirement'}</span>
+          <span class="micro">${gate.skippable
+            ? 'May be skipped, with a reason'
+            : 'Cannot be skipped'}</span></td>
+        <td>${raw(checklist)}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const bandRows = PROCESS.bands
+    .map(
+      (band) => html`<tr>
+        <td>${band.name} <span class="tag">${band.abbr}</span></td>
+        <td class="num">${E.formatMoney(band.lower, PROCESS.currency)}</td>
+        <td class="num">${band.upper === null
+          ? 'no limit'
+          : E.formatMoney(band.upper, PROCESS.currency)}</td>
+        <td class="num">${band.severity}</td>
+        <td>${band.req}</td>
+      </tr>`,
+    )
+    .join('');
+
+  const issues = E.bandCoverageIssues(PROCESS.bands);
+  const issueMarkup = issues.length
+    ? html`<div class="issues">${raw(
+        issues
+          .map((issue) =>
+            issue.type === 'gap'
+              ? html`<p class="warn">Gap: nothing covers
+                  ${E.formatMoney(issue.from, PROCESS.currency)} to
+                  ${E.formatMoney(issue.to, PROCESS.currency)}. A total landing there
+                  resolves to “Not yet known”.</p>`
+              : html`<p class="warn">Overlap: ${issue.message ?? 'two tracks cover the same amounts'}.</p>`,
+          )
+          .join(''),
+      )}</div>`
+    : '';
+
+  fill(
+    'root',
+    html`<h1>Process</h1>
+      <p class="muted">This is fixed by the build and cannot be changed here. Every initiative
+        runs it. The last phase's gate is what closes an initiative — finishing is a governed
+        act, not a status change.</p>
+
+      <div class="panel">
+        <h2>Phases and gates</h2>
+        <div class="scroller"><table class="grid">
+          <thead><tr><th>Phase</th><th>Its gate</th><th>Checklist</th></tr></thead>
+          <tbody>${raw(rows)}</tbody>
+        </table></div>
+      </div>
+
+      <div class="panel">
+        <h2>Approval tracks</h2>
+        <div class="scroller"><table class="grid">
+          <thead><tr><th>Track</th><th>From</th><th>To</th><th>Severity</th>
+            <th>Requirement</th></tr></thead>
+          <tbody>${raw(bandRows)}</tbody>
+        </table></div>
+        ${raw(issueMarkup)}
+      </div>
+
+      <div class="panel">
+        <h2>This build</h2>
+        <div class="fields">
+          <div class="field-row"><span>Process</span><span>${PROCESS.id}</span></div>
+          <div class="field-row"><span>Version</span><span>${PROCESS.version}</span></div>
+          <div class="field-row"><span>Currency</span><span>${PROCESS.currency}</span></div>
+        </div>
+        <p class="muted">A dataset exported here records this process. Importing it into a
+          build running a different process is refused, because its phases and gates would
+          not mean the same thing.</p>
+      </div>`,
+  );
+}
+
+/* ------------------------------------------------------------------ *
  * Settings
  * ------------------------------------------------------------------ */
 
@@ -504,8 +610,6 @@ function renderSettingsBody(section) {
     overview: renderOverview,
     roles: renderRoles,
     countries: renderCountries,
-    bands: renderBands,
-    process: renderProcess,
     general: renderGeneral,
     data: renderData,
     danger: renderDanger,
@@ -528,7 +632,7 @@ function renderOverview() {
   const year = new Date().getFullYear();
   const rates = countries.map((c) => E.yearRecord(c.byYear, year).rate);
   const range = rates.length
-    ? `${E.formatMoney(Math.min(...rates), app.GENERAL.currency)}–${E.formatMoney(Math.max(...rates), app.GENERAL.currency)}`
+    ? `${E.formatMoney(Math.min(...rates), PROCESS.currency)}–${E.formatMoney(Math.max(...rates), PROCESS.currency)}`
     : '—';
 
   const since = app.GENERAL.lastExportAt
@@ -540,8 +644,6 @@ function renderOverview() {
     ${raw(tile('People', people.length, `${people.filter((p) => p.active).length} active`))}
     ${raw(tile('Roles', roles.filter((r) => r.active).length))}
     ${raw(tile('Countries', countries.length, range))}
-    ${raw(tile('Approval tracks', app.BANDS.length))}
-    ${raw(tile('Stages', E.stageOrder(app.PROCESS).length))}
     ${raw(tile('Days since export', since === null ? 'never' : since))}
   </div>`;
 }
@@ -644,140 +746,18 @@ function renderCountries() {
     <button type="button" class="btn" data-act="country-add">Add country</button>`;
 }
 
-/* ---- approval tracks ---- */
-
-function renderBands() {
-  const rows = app.BANDS.map(
-    (band) => html`<tr data-id="${band.id}">
-      <td><input class="field" data-act="band-field" data-field="name" data-id="${band.id}"
-        value="${band.name}" aria-label="Track name" /></td>
-      <td><input class="field field--short" data-act="band-field" data-field="abbr"
-        data-id="${band.id}" value="${band.abbr}" aria-label="Abbreviation" /></td>
-      <td>${raw(numberField({ value: band.lower, 'data-act': 'band-field', 'data-field': 'lower', 'data-id': band.id, 'aria-label': 'Lower bound' }))}</td>
-      <td>${raw(numberField({ value: band.upper ?? '', 'data-act': 'band-field', 'data-field': 'upper', 'data-id': band.id, 'aria-label': 'Upper bound', placeholder: 'no limit' }))}</td>
-      <td>${raw(numberField({ value: band.severity, 'data-act': 'band-field', 'data-field': 'severity', 'data-id': band.id, 'aria-label': 'Severity' }))}</td>
-      <td><input class="field" data-act="band-field" data-field="req" data-id="${band.id}"
-        value="${band.req}" aria-label="Approval requirement" /></td>
-      <td class="cell--action"><button type="button" data-act="band-delete" data-id="${band.id}">
-        Delete</button></td>
-    </tr>`,
-  ).join('');
-
-  return html`<p class="muted">Bounds are lower-inclusive and upper-exclusive; leave the upper
-      bound empty for no limit. Severity is a rank, higher meaning stricter — it is ordered
-      independently of the amounts, so a cheap track can still demand heavy approval.</p>
-    <div class="scroller"><table class="grid">
-      <thead><tr><th>Name</th><th>Abbr.</th><th>From</th><th>To</th><th>Severity</th>
-        <th>Requirement</th><th></th></tr></thead>
-      <tbody>${raw(rows)}</tbody>
-    </table></div>
-    <div id="band-issues" class="issues">${raw(bandIssuesMarkup())}</div>
-    <button type="button" class="btn" data-act="band-add">Add approval track</button>`;
-}
-
-/** Live region: recomputed on every keystroke without rebuilding the inputs. */
-function bandIssuesMarkup() {
-  const issues = E.bandCoverageIssues(app.BANDS);
-  if (issues.length === 0) return html`<p class="ok">Every amount is covered exactly once.</p>`;
-
-  const money = (value) => E.formatMoney(value, app.GENERAL.currency);
-  return issues
-    .map((issue) =>
-      issue.type === 'gap'
-        ? html`<p class="warn">Gap: nothing covers ${money(issue.from)} to ${money(issue.to)}.
-            A total landing there resolves to “Not yet known”.</p>`
-        : html`<p class="warn">Overlap: ${issue.message ?? 'two tracks cover the same amounts'}.</p>`,
-    )
-    .join('');
-}
-
-/* ---- process ---- */
-
-function renderProcess() {
-  const stages = app.PROCESS.stages;
-  const inUse = (stageId) => app.INITIATIVES.filter((i) => i.stage === stageId);
-
-  const fixed = (id, extra = '') => html`<tr>
-    <th scope="row" class="fixed">${id === E.DRAFT || id === E.CLOSED ? 'Fixed' : 'Costed phase'}</th>
-    <td><input class="field" data-act="process-label" data-stage="${id}"
-      value="${app.PROCESS[id].label}" aria-label="Stage name" /></td>
-    <td>${raw(extra)}</td>
-    <td class="cell--action"><span class="muted">Cannot be removed</span></td>
-  </tr>`;
-
-  const gateField = (id) => html`<input class="field" data-act="process-gate" data-stage="${id}"
-    value="${app.PROCESS[id].gateLabel}" aria-label="Gate name" />`;
-
-  const statusRows = stages
-    .map((stage, index) => {
-      const blocking = inUse(stage.id);
-      return html`<tr data-id="${stage.id}">
-        <th scope="row" class="muted">Status</th>
-        <td><input class="field" data-act="stage-label" data-id="${stage.id}"
-          value="${stage.label}" aria-label="Stage name" /></td>
-        <td class="muted">No cost or capacity</td>
-        <td class="cell--action">
-          <button type="button" data-act="stage-move" data-id="${stage.id}" data-dir="-1"
-            ${raw(index === 0 ? 'disabled' : '')} aria-label="Move earlier">↑</button>
-          <button type="button" data-act="stage-move" data-id="${stage.id}" data-dir="1"
-            ${raw(index === stages.length - 1 ? 'disabled' : '')} aria-label="Move later">↓</button>
-          <button type="button" data-act="stage-delete" data-id="${stage.id}"
-            ${raw(blocking.length ? 'disabled' : '')}
-            title="${blocking.length ? `In use by ${blocking.length}` : 'Delete this stage'}">
-            Delete</button>
-        </td>
-      </tr>`;
-    })
-    .join('');
-
-  return html`<p class="muted">One process, shared by every initiative. Only Validation and
-      Development carry cost, capacity and a gate; stages after Development record only that
-      the initiative reached them. Every name here can be changed. Closing is always the last
-      action, whatever the process looks like.</p>
-    <div class="scroller"><table class="grid">
-      <thead><tr><th>Kind</th><th>Name</th><th>Gate</th><th></th></tr></thead>
-      <tbody>
-        ${raw(fixed(E.DRAFT))}
-        ${raw(fixed(E.VALIDATION, gateField(E.VALIDATION)))}
-        ${raw(fixed(E.DEVELOPMENT, gateField(E.DEVELOPMENT)))}
-        ${raw(statusRows)}
-        ${raw(fixed(E.CLOSED))}
-      </tbody>
-    </table></div>
-    <div id="stage-issues" class="issues">${raw(stageIssuesMarkup())}</div>
-    <button type="button" class="btn" data-act="stage-add">Add status stage</button>`;
-}
-
-/** Explains, by name, why a stage cannot be deleted (SPEC §7.7). */
-function stageIssuesMarkup() {
-  const blocked = app.PROCESS.stages
-    .map((stage) => ({ stage, using: app.INITIATIVES.filter((i) => i.stage === stage.id) }))
-    .filter((entry) => entry.using.length > 0);
-
-  if (blocked.length === 0) return '';
-  return blocked
-    .map(
-      (entry) => html`<p class="warn">“${entry.stage.label}” cannot be deleted:
-        ${entry.using.map((i) => i.name).join(', ')} ${entry.using.length === 1 ? 'is' : 'are'}
-        currently in it.</p>`,
-    )
-    .join('');
-}
-
 /* ---- general ---- */
 
 function renderGeneral() {
   return html`<div class="fields">
     <label class="field-row">
-      <span>Currency symbol</span>
-      <input class="field field--short" data-act="general-field" data-field="currency"
-        value="${app.GENERAL.currency}" />
-    </label>
-    <label class="field-row">
       <span>Days before the export reminder appears</span>
       ${raw(numberField({ value: app.GENERAL.exportReminderDays, 'data-act': 'general-field', 'data-field': 'exportReminderDays' }))}
     </label>
-  </div>`;
+  </div>
+  <p class="muted">The currency symbol is fixed by this build and shown on the
+    <button type="button" class="link" data-act="page" data-page="process">Process</button>
+    page, not here.</p>`;
 }
 
 /* ---- data ---- */
@@ -883,10 +863,7 @@ function renderDanger() {
  * position mid-keystroke (AGENTS.md). They write to the model, persist
  * quietly, and refresh only the region that displays the result.
  */
-const LIVE_REGIONS = {
-  'band-field': () => fill('band-issues', bandIssuesMarkup()),
-  'stage-label': () => fill('stage-issues', stageIssuesMarkup()),
-};
+const LIVE_REGIONS = {};
 
 /** Named table currently registered under `key`, for copy and CSV. */
 function tableFor(key) {
@@ -914,34 +891,8 @@ function onInput(event) {
   } else if (act === 'country-reduction') {
     const record = app.COUNTRIES[id].byYear[target.dataset.year];
     record.workingDayReduction[Number(target.dataset.month)] = readNumber(target.value, 0);
-  } else if (act === 'band-field') {
-    const band = app.BANDS.find((candidate) => candidate.id === id);
-    if (field === 'upper') band.upper = target.value.trim() === '' ? null : readNumber(target.value, null);
-    else if (field === 'lower' || field === 'severity') band[field] = readNumber(target.value, band[field]);
-    else band[field] = target.value;
-  } else if (act === 'process-label') {
-    app.PROCESS[target.dataset.stage].label = target.value;
-  } else if (act === 'process-gate') {
-    app.PROCESS[target.dataset.stage].gateLabel = target.value;
-  } else if (act === 'stage-label') {
-    app.PROCESS.stages.find((stage) => stage.id === id).label = target.value;
-  } else if (act === 'person-field') {
-    const person = app.PEOPLE[id];
-    person[field] = field === 'capacityPct' ? readNumber(target.value, person.capacityPct) : target.value;
-  } else if (act === 'person-custom-label') {
-    app.PEOPLE[id].customRole.label = target.value;
-  } else if (act === 'person-rate') {
-    P.setCustomRate(app.PEOPLE[id], target.dataset.year, readNumber(target.value, 0));
-  } else if (act === 'membership-share') {
-    const person = app.PEOPLE[id];
-    const team = target.dataset.team;
-    const current = person.memberships.find((m) => m.teamId === team);
-    P.setMembershipShare(person, team, readNumber(target.value, current.sharePct));
   } else if (act === 'general-field') {
-    app.GENERAL[field] =
-      field === 'exportReminderDays'
-        ? readNumber(target.value, app.GENERAL.exportReminderDays)
-        : target.value;
+    app.GENERAL[field] = readNumber(target.value, app.GENERAL.exportReminderDays);
   } else {
     return;
   }
@@ -995,41 +946,6 @@ function onClick(event) {
         section,
         expanded: view.params.expanded === id ? null : id,
       });
-
-    case 'band-add': {
-      const highest = app.BANDS.reduce((max, b) => Math.max(max, b.upper ?? b.lower), 0);
-      app.BANDS.push({
-        id: L.newId('band'),
-        name: 'New track',
-        abbr: 'NEW',
-        lower: highest,
-        upper: null,
-        req: '',
-        severity: app.BANDS.length + 1,
-      });
-      return commit();
-    }
-    case 'band-delete':
-      app.BANDS = app.BANDS.filter((band) => band.id !== id);
-      return commit();
-
-    case 'stage-add':
-      app.PROCESS.stages.push({ id: L.newId('stage'), label: 'New stage' });
-      return commit();
-    case 'stage-move': {
-      const stages = app.PROCESS.stages;
-      const from = stages.findIndex((stage) => stage.id === id);
-      const to = from + Number(trigger.dataset.dir);
-      if (to < 0 || to >= stages.length) return undefined;
-      [stages[from], stages[to]] = [stages[to], stages[from]];
-      return commit();
-    }
-    case 'stage-delete': {
-      // Guarded in the UI too, but never trust the disabled attribute alone.
-      if (app.INITIATIVES.some((initiative) => initiative.stage === id)) return undefined;
-      app.PROCESS.stages = app.PROCESS.stages.filter((stage) => stage.id !== id);
-      return commit();
-    }
 
     case 'export':
       store.downloadExport(app);

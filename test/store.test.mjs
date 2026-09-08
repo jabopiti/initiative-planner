@@ -100,3 +100,18 @@ test('reset clears the dataset so the next load seeds fresh', () => {
   store.reset();
   assert.equal(store.load().reason, 'empty');
 });
+
+test('a dataset from another process falls back rather than loading', async () => {
+  const { PROCESS } = await import('../src/process.js');
+  const map = stubStorage();
+  const { app } = store.load();
+  map.set(
+    store.STORAGE_KEY,
+    JSON.stringify({ ...app, processId: 'someone-elses-process', INITIATIVES: [{ id: 'x' }] }),
+  );
+
+  const loaded = store.load();
+  assert.equal(loaded.reason, 'process');
+  assert.equal(loaded.app.processId, PROCESS.id);
+  assert.deepEqual(loaded.app.INITIATIVES, [], 'initiatives in unknown phases are not loaded');
+});

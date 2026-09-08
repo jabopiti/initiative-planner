@@ -7,17 +7,17 @@
  */
 
 import { SCHEMA_VERSION } from './lifecycle.js';
+import { PROCESS } from './process.js';
 
 /** Top-level keys an export must carry to be worth looking at. */
 const REQUIRED_KEYS = [
   'schemaVersion',
+  'processId',
   'GENERAL',
-  'PROCESS',
   'ROLES',
   'COUNTRIES',
   'PEOPLE',
   'TEAMS',
-  'BANDS',
   'INITIATIVES',
 ];
 
@@ -62,6 +62,20 @@ export function parseImport(text) {
       error:
         `That export uses schema version ${data.schemaVersion}; this build reads ` +
         `version ${SCHEMA_VERSION}. There is no migration path for it.`,
+      data: null,
+    };
+  }
+
+  // A different process is a different problem from a different schema, and
+  // saying the wrong one wastes the reader's time (DESIGN §3). Data whose
+  // phases and gates mean something else is worse than no data.
+  if (data.processId !== PROCESS.id) {
+    return {
+      ok: false,
+      error:
+        `That export was taken from a different process (“${data.processId}”); ` +
+        `this build runs “${PROCESS.id}”. Its phases and gates would not mean ` +
+        `the same thing here.`,
       data: null,
     };
   }
@@ -126,14 +140,13 @@ export function importPreview(current, incoming, mode) {
   for (const incomingInitiative of incomingInitiatives) {
     const existing = currentById.get(incomingInitiative.id);
     if (!existing) continue;
-    for (const field of ['gateAApproval', 'gateBApproval']) {
-      const before = existing[field];
-      const after = incomingInitiative[field];
-      if (before && JSON.stringify(before) !== JSON.stringify(after)) {
+    for (const [gateId, before] of Object.entries(existing.gates ?? {})) {
+      const after = incomingInitiative.gates?.[gateId];
+      if (JSON.stringify(before) !== JSON.stringify(after)) {
         approvalCollisions.push({
           initiativeId: existing.id,
           name: existing.name,
-          field,
+          gateId,
           wouldBeCleared: !after,
         });
       }
@@ -157,9 +170,9 @@ export function applyImport(current, incoming, mode) {
 
   const merged = structuredClone(current);
   merged.schemaVersion = incoming.schemaVersion;
+  merged.processId = incoming.processId;
+  merged.processVersion = incoming.processVersion;
   merged.GENERAL = { ...merged.GENERAL, ...incoming.GENERAL };
-  merged.PROCESS = structuredClone(incoming.PROCESS);
-  merged.BANDS = structuredClone(incoming.BANDS);
 
   for (const key of KEYED) {
     merged[key] = { ...merged[key], ...structuredClone(incoming[key]) };

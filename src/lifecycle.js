@@ -15,8 +15,8 @@ export const SCHEMA_VERSION = 1;
  * Construction
  * ------------------------------------------------------------------ */
 
-/** An empty costed phase. */
-export function createPhase(backfilled = false) {
+/** An empty costed phase record. Only costed phases get one. */
+export function createPhase() {
   return {
     estStartDate: null,
     estEndDate: null,
@@ -26,13 +26,21 @@ export function createPhase(backfilled = false) {
     actualEndDate: null,
     actualMonths: {},
     frozen: null,
-    backfilled,
   };
 }
 
-/** A fresh APP from seed data. */
-export function createApp(masterData) {
-  return { schemaVersion: SCHEMA_VERSION, ...masterData, INITIATIVES: [] };
+/**
+ * A fresh APP from seed data, stamped with the process it was written
+ * against so an import can refuse a file that means something else.
+ */
+export function createApp(masterData, process) {
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    processId: process.id,
+    processVersion: process.version,
+    ...masterData,
+    INITIATIVES: [],
+  };
 }
 
 let idCounter = 0;
@@ -42,38 +50,51 @@ export function newId(prefix) {
   return `${prefix}_${Date.now().toString(36)}${idCounter.toString(36)}`;
 }
 
+
 /**
- * Create an initiative, optionally at a later stage to backfill work that
- * already existed when the tool was adopted (SPEC §7.6). Any costed phase the
- * initiative has already passed is marked backfilled: it gets no approval and
- * stays editable until close (SPEC §3).
+ * Create an initiative. Starting anywhere but the first phase records every
+ * gate behind it as skipped, with a reason — which is how work that predates
+ * the tool is entered (SPEC §6.2). There is no separate backfill concept.
  *
  * @param {object} app
- * @param {{ name: string, description?: string, teamId: string, startStage?: string }} input
+ * @param {object} process
+ * @param {{ name: string, description?: string, teamId: string,
+ *           startPhaseId?: string, skipReason?: string }} input
  */
-export function createInitiative(app, input) {
-  const startStage = input.startStage ?? E.DRAFT;
-  const order = E.stageOrder(app.PROCESS);
-  if (!order.includes(startStage)) throw new Error(`unknown stage: ${startStage}`);
-
-  const startIndex = order.indexOf(startStage);
-  const passed = (phaseId) => order.indexOf(phaseId) < startIndex;
+export function createInitiative(app, process, input) {
+  const order = E.phaseOrder(process);
+  const startPhaseId = input.startPhaseId ?? order[0];
+  const startIndex = order.indexOf(startPhaseId);
+  if (startIndex === -1) throw new Error(`unknown phase: ${startPhaseId}`);
 
   const initiative = {
     id: newId('init'),
     name: input.name,
     description: input.description ?? '',
     teamId: input.teamId,
-    stage: startStage,
-    state: 'active',
     notes: '',
-    validation: createPhase(passed(E.VALIDATION)),
-    development: createPhase(passed(E.DEVELOPMENT)),
-    gateAApproval: null,
-    gateBApproval: null,
-    stageHistory: {},
-    closedFrom: null,
+    phaseId: startPhaseId,
+    status: 'active',
+    phases: Object.fromEntries(
+      E.costedPhaseIds(process).map((phaseId) => [phaseId, createPhase()]),
+    ),
+    gates: {},
+    checklist: {},
   };
+
+  const reason = input.skipReason || 'Already in progress when entered into the tool';
+  for (const phaseId of order.slice(0, startIndex)) {
+    const gate = E.gateForPhase(process, phaseId);
+    initiative.gates[gate.id] = {
+      outcome: 'skipped',
+      takenAt: null,
+      reason,
+      grandTotal: 0,
+      band: null,
+      phaseCosts: {},
+    };
+  }
+
   app.INITIATIVES.push(initiative);
   return initiative;
 }
@@ -83,105 +104,49 @@ export function createInitiative(app, input) {
  * ------------------------------------------------------------------ */
 
 /**
- * A phase is editable unless the initiative is closed or the phase's estimate
- * was frozen at a gate. A backfilled phase skipped its gate, so it stays
- * editable until close regardless of stage (SPEC §3).
+ * Closing or cancelling freezes the whole initiative (SPEC §6.4). Every
+ * field below goes through this guard; `notes` is the sole exception.
+ */
+function assertOpen(initiative) {
+  if (E.isFinished(initiative)) {
+    throw new Error(`${initiative.id} is ${initiative.status}; reopen it to make changes`);
+  }
+}
+
+/**
+ * A costed phase is editable unless the initiative is finished or its
+ * estimate was frozen by a gate being **passed**. A skipped gate freezes
+ * nothing, so a phase behind one stays editable (SPEC §6.2).
  */
 export function isPhaseEditable(initiative, phaseId) {
-  if (initiative.stage === E.CLOSED) return false;
-  const phase = initiative[phaseId];
-  return phase.backfilled || !phase.frozen;
+  if (E.isFinished(initiative)) return false;
+  const phase = initiative.phases[phaseId];
+  return Boolean(phase) && !phase.frozen;
 }
 
 function assertEditable(initiative, phaseId) {
+  if (!initiative.phases[phaseId]) throw new Error(`${phaseId} carries no cost`);
   if (!isPhaseEditable(initiative, phaseId)) {
     throw new Error(`${phaseId} is locked on ${initiative.id}`);
   }
 }
 
-/** The three states an initiative can be in, independent of its stage. */
-export const STATES = Object.freeze(['active', 'on-hold', 'cancelled']);
-
-/**
- * Closing freezes the whole initiative, not only its numbers (SPEC §6):
- * every field below goes through this guard. `notes` is the sole exception —
- * recording *why* something closed, or what happened afterwards, is the one
- * thing a closed initiative still needs to accept.
- */
-function assertOpen(initiative) {
-  if (initiative.stage === E.CLOSED) {
-    throw new Error(`${initiative.id} is closed; reopen it to make changes`);
-  }
-}
-
-export function renameInitiative(initiative, name) {
-  assertOpen(initiative);
-  initiative.name = name;
-}
-
-export function setDescription(initiative, description) {
-  assertOpen(initiative);
-  initiative.description = description;
-}
-
-/**
- * State is independent of stage, so this is not a lifecycle transition — but
- * a closed initiative's state is settled along with everything else.
- */
-export function setState(initiative, state) {
-  assertOpen(initiative);
-  if (!STATES.includes(state)) throw new Error(`unknown state: ${state}`);
-  initiative.state = state;
-}
-
-/**
- * Moving an initiative to another team can strand allocations whose people
- * are not members there. Those are left in place and keep costing, exactly as
- * an allocation outliving its membership does (SPEC §5.2); the caller is
- * expected to surface them.
- *
- * @returns {string[]} personIds now allocated without a membership
- */
-export function setTeam(app, initiative, teamId) {
-  assertOpen(initiative);
-  if (!app.TEAMS[teamId]) throw new Error(`unknown team: ${teamId}`);
-  initiative.teamId = teamId;
-
-  const stranded = new Set();
-  for (const phaseId of E.COSTED_PHASES) {
-    for (const allocation of initiative[phaseId].allocations) {
-      const person = app.PEOPLE[allocation.personId];
-      if (person && !E.membership(person, teamId)) stranded.add(allocation.personId);
-    }
-  }
-  return [...stranded];
-}
-
-/** Notes stay writable after close — the one exception to the freeze. */
-export function setNotes(initiative, notes) {
-  initiative.notes = notes;
-}
-
 export function setPhasePeriod(initiative, phaseId, startIso, endIso) {
   assertEditable(initiative, phaseId);
-  const phase = initiative[phaseId];
-  phase.estStartDate = startIso;
-  phase.estEndDate = endIso;
+  Object.assign(initiative.phases[phaseId], { estStartDate: startIso, estEndDate: endIso });
 }
 
 /**
- * Allocate a person to a phase. Only a person holding an active membership in
- * the initiative's team may be added (SPEC §5.2); an allocation that outlives
- * its membership is a different case, handled by leaving it in place.
- *
- * Percentages above a ceiling warn elsewhere and are never blocked here.
+ * Allocate a person to a costed phase. Only a person holding an active
+ * membership in the initiative's team may be added (SPEC §5.2); an
+ * allocation that outlives its membership is left in place instead.
  */
 export function setAllocation(app, initiative, phaseId, personId, allocationPct) {
   assertEditable(initiative, phaseId);
   const person = app.PEOPLE[personId];
   if (!person) throw new Error(`unknown person: ${personId}`);
 
-  const phase = initiative[phaseId];
+  const phase = initiative.phases[phaseId];
   const existing = phase.allocations.find((a) => a.personId === personId);
   if (!existing && !E.membership(person, initiative.teamId)) {
     throw new Error(`${personId} is not an active member of team ${initiative.teamId}`);
@@ -198,70 +163,167 @@ export function setAllocation(app, initiative, phaseId, personId, allocationPct)
 export function addOtherCost(initiative, phaseId, { name, month, amount }) {
   assertEditable(initiative, phaseId);
   const item = { id: newId('cost'), name, month, amount };
-  initiative[phaseId].otherCosts.push(item);
+  initiative.phases[phaseId].otherCosts.push(item);
   return item;
 }
 
-/** Actuals are recorded a month at a time, and closing locks them. */
+/** Actuals are recorded a month at a time; finishing locks them. */
 export function recordActual(initiative, phaseId, monthKey, amount) {
-  if (initiative.stage === E.CLOSED) throw new Error('actuals are locked once closed');
-  if (amount === null) delete initiative[phaseId].actualMonths[monthKey];
-  else initiative[phaseId].actualMonths[monthKey] = amount;
+  if (E.isFinished(initiative)) throw new Error('actuals are locked once finished');
+  const phase = initiative.phases[phaseId];
+  if (!phase) throw new Error(`${phaseId} carries no cost`);
+  if (amount === null) delete phase.actualMonths[monthKey];
+  else phase.actualMonths[monthKey] = amount;
 }
 
-/* ------------------------------------------------------------------ *
- * Gates and stages
- * ------------------------------------------------------------------ */
+export function renameInitiative(initiative, name) {
+  assertOpen(initiative);
+  initiative.name = name;
+}
 
-/** A phase is complete when it has both dates and someone allocated above 0%. */
-function phaseIsEstimated(phase) {
-  const hasPeriod = Boolean(phase.estStartDate && phase.estEndDate);
-  const hasPeople = (phase.allocations ?? []).some((a) => a.allocationPct > 0);
-  return hasPeriod && hasPeople;
+export function setDescription(initiative, description) {
+  assertOpen(initiative);
+  initiative.description = description;
 }
 
 /**
- * Whether a gate can be passed, and why not if it can't.
- *
- * Gate 1 needs *both* phases estimated, because it approves a budget for the
- * whole initiative; Gate 2 needs only Development (SPEC §6).
- *
- * @returns {{ ok: boolean, reason: string|null }}
+ * Status is independent of phase. Closed is reached only by the final gate
+ * (SPEC §6.4), so it cannot be set here; Cancelled can, from anywhere.
  */
-export function gatePrecondition(app, initiative, phaseId) {
-  const label = (id) => E.stageTerm(app.PROCESS, id);
+export function setStatus(initiative, status) {
+  if (!E.STATUSES.includes(status)) throw new Error(`unknown status: ${status}`);
+  if (status === 'closed') throw new Error('closing happens by passing the final gate');
+  if (initiative.status === 'closed') {
+    throw new Error('reopen the closed initiative before changing its status');
+  }
+  initiative.status = status;
+}
 
-  if (initiative.stage !== phaseId) {
-    return { ok: false, reason: `this initiative is not in ${label(phaseId)}` };
+/**
+ * Moving an initiative to another team can strand allocations whose people
+ * are not members there. Those are left in place and keep costing, exactly
+ * as an allocation outliving its membership does (SPEC §5.2).
+ * @returns {string[]} personIds now allocated without a membership
+ */
+export function setTeam(app, initiative, teamId) {
+  assertOpen(initiative);
+  if (!app.TEAMS[teamId]) throw new Error(`unknown team: ${teamId}`);
+  initiative.teamId = teamId;
+
+  const stranded = new Set();
+  for (const phase of E.costedPhases(initiative)) {
+    for (const allocation of phase.allocations) {
+      const person = app.PEOPLE[allocation.personId];
+      if (person && !E.membership(person, teamId)) stranded.add(allocation.personId);
+    }
   }
-  if (initiative[phaseId].frozen) {
-    return { ok: false, reason: `${E.gateTerm(app.PROCESS, phaseId)} has already been passed` };
+  return [...stranded];
+}
+
+/** Notes stay writable after finishing — the one exception to the freeze. */
+export function setNotes(initiative, notes) {
+  initiative.notes = notes;
+}
+
+/* ------------------------------------------------------------------ *
+ * Checklists
+ * ------------------------------------------------------------------ */
+
+export const CHECKLIST_STATUSES = Object.freeze(['red', 'amber', 'green']);
+
+/** Items start red, so a gate is blocked until someone has looked at each. */
+export function checklistState(initiative, gate) {
+  const stored = initiative.checklist[gate.id] ?? {};
+  return (gate.checklist ?? []).map((item) => ({
+    ...item,
+    status: stored[item.id]?.status ?? 'red',
+    note: stored[item.id]?.note ?? '',
+  }));
+}
+
+export function setChecklistStatus(initiative, gateId, itemId, status) {
+  if (!CHECKLIST_STATUSES.includes(status)) throw new Error(`unknown status: ${status}`);
+  assertOpen(initiative);
+  const forGate = (initiative.checklist[gateId] ??= {});
+  (forGate[itemId] ??= { status: 'red', note: '' }).status = status;
+}
+
+export function setChecklistNote(initiative, gateId, itemId, note) {
+  assertOpen(initiative);
+  const forGate = (initiative.checklist[gateId] ??= {});
+  (forGate[itemId] ??= { status: 'red', note: '' }).note = note;
+}
+
+/* ------------------------------------------------------------------ *
+ * Gates
+ * ------------------------------------------------------------------ */
+
+/** A costed phase is estimated when it has both dates and someone allocated. */
+function phaseIsEstimated(phase) {
+  return Boolean(
+    phase &&
+      phase.estStartDate &&
+      phase.estEndDate &&
+      (phase.allocations ?? []).some((a) => a.allocationPct > 0),
+  );
+}
+
+/**
+ * Whether the current phase's gate can be passed, and what is stopping it.
+ *
+ * A gate requiring estimates needs *every* costed phase estimated, not just
+ * the one behind it: passing a gate approves the whole initiative's budget,
+ * which is why the requirement looks forward as well as back (SPEC §6.1).
+ *
+ * @returns {{ ok: boolean, blockers: string[], warnings: string[] }}
+ */
+export function gatePrecondition(app, process, initiative, gateId) {
+  const phase = E.phaseForGate(process, gateId);
+  const gate = phase.gate;
+  const blockers = [];
+  const warnings = [];
+
+  if (initiative.phaseId !== phase.id) {
+    blockers.push(`this initiative is not in ${phase.label}`);
+  }
+  if (initiative.gates[gate.id]) blockers.push(`${gate.label} has already been left`);
+  if (E.isFinished(initiative)) blockers.push(`this initiative is ${initiative.status}`);
+
+  if (gate.requiresEstimates) {
+    const missing = E.costedPhaseIds(process).filter(
+      (phaseId) => !phaseIsEstimated(initiative.phases[phaseId]),
+    );
+    if (missing.length > 0) {
+      const names = missing.map((id) => E.phaseLabel(process, id)).join(' and ');
+      blockers.push(`${names} needs a complete period and at least one person allocated`);
+    }
   }
 
-  const required =
-    phaseId === E.VALIDATION ? [E.VALIDATION, E.DEVELOPMENT] : [E.DEVELOPMENT];
-  const missing = required.filter((id) => !phaseIsEstimated(initiative[id]));
-  if (missing.length > 0) {
-    return {
-      ok: false,
-      reason: `${missing.map(label).join(' and ')} needs a complete period and at least one person allocated`,
-    };
+  for (const item of checklistState(initiative, gate)) {
+    if (item.status === 'red') blockers.push(`“${item.name}” is not resolved`);
+    else if (item.status === 'amber') warnings.push(`“${item.name}” is only partly resolved`);
   }
-  return { ok: true, reason: null };
+
+  // Missing actuals never block; they only warn (SPEC §6.1).
+  const gaps = missingActuals(initiative);
+  if (gaps.length > 0) {
+    warnings.push(`${gaps.length} costed month${gaps.length === 1 ? '' : 's'} without an actual`);
+  }
+
+  return { ok: blockers.length === 0, blockers, warnings };
 }
 
 /** Snapshot everything an approved figure depends on, so it can never move. */
 function freeze(app, initiative, phaseId) {
-  const phase = initiative[phaseId];
+  const phase = initiative.phases[phaseId];
+  if (!phase) return;
   const perMonth = E.phaseEstimateByMonth(phase, app);
-  const labour = E.phaseLabourByMonth(phase, app);
-  const other = E.phaseOtherByMonth(phase);
   const total = (map) => Object.values(map).reduce((t, v) => t + v, 0);
 
   phase.frozen = {
     estimatedPhaseCost: total(perMonth),
-    estLabourTotal: total(labour),
-    estOtherTotal: total(other),
+    estLabourTotal: total(E.phaseLabourByMonth(phase, app)),
+    estOtherTotal: total(E.phaseOtherByMonth(phase)),
     perMonth,
     period: { start: phase.estStartDate, end: phase.estEndDate },
     // Master data may change afterwards; an approved figure may not.
@@ -271,83 +333,85 @@ function freeze(app, initiative, phaseId) {
   };
 }
 
+/** Move on: to the next phase, or to Closed if this was the final gate. */
+function advance(process, initiative, phaseId) {
+  if (E.isFinalPhase(process, phaseId)) {
+    initiative.status = 'closed';
+    return;
+  }
+  initiative.phaseId = E.nextPhase(process, phaseId);
+}
+
 /**
- * Pass a gate: freeze the phase, record an approval, advance the stage.
- *
- * The approval snapshots the resolved band rather than referencing it, so
- * escalation still resolves after a band is renamed or deleted (SPEC §5.5).
- *
- * A gate never advances an initiative into Closed — closing is always an
- * explicit action (SPEC §6). With no status stages configured, passing the
- * final gate therefore leaves the initiative in Development with its approval
- * recorded, awaiting an explicit close.
+ * Pass a gate: freeze the phase behind it if costed, record the gate, and
+ * move on. The final gate is what closes the initiative — finishing is a
+ * governed act, never a bare status change (SPEC §6.4).
  */
-export function passGate(app, initiative, phaseId, takenAt) {
-  const check = gatePrecondition(app, initiative, phaseId);
-  if (!check.ok) throw new Error(check.reason);
+export function passGate(app, process, initiative, gateId, takenAt) {
+  const check = gatePrecondition(app, process, initiative, gateId);
+  if (!check.ok) throw new Error(check.blockers.join('; '));
 
-  // Gate 1 approves both estimates; Gate 2 approves Validation's forecast
-  // (actuals where known) plus Development's estimate (SPEC §6).
-  const validationCost =
-    phaseId === E.VALIDATION
-      ? E.phaseEstimateTotal(initiative.validation, app)
-      : E.phaseBlendedTotal(initiative.validation, app);
-  const developmentCost = E.phaseEstimateTotal(initiative.development, app);
-  const total = validationCost + developmentCost;
-  const band = E.resolveBand(app.BANDS, total);
+  const phase = E.phaseForGate(process, gateId);
+  const total = E.grandTotal(initiative, app);
+  const band = E.resolveBand(process.bands, total);
 
-  freeze(app, initiative, phaseId);
+  freeze(app, initiative, phase.id);
 
-  const approval = {
+  initiative.gates[gateId] = {
+    outcome: 'passed',
     takenAt,
+    reason: null,
     grandTotal: total,
     band: band && { id: band.id, name: band.name, abbr: band.abbr, severity: band.severity },
-    validationCost,
-    developmentCost,
+    phaseCosts: E.phaseCosts(initiative, app),
   };
-  if (phaseId === E.VALIDATION) initiative.gateAApproval = approval;
-  else initiative.gateBApproval = approval;
 
-  const next = E.nextStage(app.PROCESS, initiative.stage);
-  if (next && next !== E.CLOSED) initiative.stage = next;
-  return approval;
+  advance(process, initiative, phase.id);
+  return initiative.gates[gateId];
 }
 
 /**
- * Move to the next stage without a gate. This covers Draft, which has no
- * gate, and every status stage, which carries nothing to approve.
+ * Skip a gate the build allows to be skipped. A skip approves nothing and
+ * freezes nothing, so the phase it exits stays editable — and it never
+ * becomes the baseline for an escalation comparison (SPEC §5.5).
  */
-export function advanceStage(app, initiative, at) {
-  if (E.isCostedPhase(initiative.stage)) {
-    throw new Error(`${initiative.stage} advances by passing its gate, not by advancing`);
+export function skipGate(app, process, initiative, gateId, reason, takenAt) {
+  const phase = E.phaseForGate(process, gateId);
+  if (!phase.gate.skippable) throw new Error(`${phase.gate.label} cannot be skipped`);
+  if (initiative.phaseId !== phase.id) throw new Error(`this initiative is not in ${phase.label}`);
+  if (initiative.gates[gateId]) throw new Error(`${phase.gate.label} has already been left`);
+  if (E.isFinished(initiative)) throw new Error(`this initiative is ${initiative.status}`);
+  if (!reason || !String(reason).trim()) throw new Error('skipping a gate requires a reason');
+
+  const total = E.grandTotal(initiative, app);
+  const band = E.resolveBand(process.bands, total);
+
+  initiative.gates[gateId] = {
+    outcome: 'skipped',
+    takenAt,
+    reason: String(reason).trim(),
+    grandTotal: total,
+    band: band && { id: band.id, name: band.name, abbr: band.abbr, severity: band.severity },
+    phaseCosts: E.phaseCosts(initiative, app),
+  };
+
+  advance(process, initiative, phase.id);
+  return initiative.gates[gateId];
+}
+
+/** The gate record that sets the escalation baseline: the last one passed. */
+export function lastPassedGate(process, initiative) {
+  for (const phaseId of [...E.phaseOrder(process)].reverse()) {
+    const record = initiative.gates[E.gateForPhase(process, phaseId).id];
+    if (record?.outcome === 'passed') return record;
   }
-  const next = E.nextStage(app.PROCESS, initiative.stage);
-  if (!next || next === E.CLOSED) throw new Error('closing is an explicit action');
-
-  initiative.stage = next;
-  if (!E.isCostedPhase(next)) initiative.stageHistory[next] = at;
-  return next;
+  return null;
 }
 
-/**
- * Closing is the last action on an initiative, whatever the process looks
- * like: it is the only way into `Closed` (no gate and no advance will enter
- * it), and it freezes the whole initiative — phases, actuals, and every field
- * but `notes`. Missing actuals only warn (SPEC §6).
- */
-export function close(app, initiative, at) {
-  if (initiative.stage === E.DRAFT) throw new Error('a draft cannot be closed');
-  if (initiative.stage === E.CLOSED) throw new Error('already closed');
-  initiative.closedFrom = initiative.stage;
-  initiative.stage = E.CLOSED;
-  initiative.stageHistory[E.CLOSED] = at;
-}
-
-/** Months in a phase that are costed but have no actual recorded. */
+/** Months in a costed phase that have no actual recorded. */
 export function missingActuals(initiative) {
   const gaps = [];
-  for (const phaseId of E.COSTED_PHASES) {
-    const phase = initiative[phaseId];
+  for (const [phaseId, phase] of Object.entries(initiative.phases ?? {})) {
     for (const month of E.phaseMonths(phase)) {
       if (phase.actualMonths[month] === undefined) gaps.push({ phaseId, month });
     }
@@ -356,51 +420,37 @@ export function missingActuals(initiative) {
 }
 
 /**
- * Reverse exactly one stage transition — always the most recent, never an
- * earlier one still buried under it. Recorded actuals are never touched.
+ * Reverse exactly one transition — always the most recent, never an earlier
+ * one still buried under it. Checklist statuses and notes are kept: what
+ * someone assessed is a record, not a side effect of the gate. Recorded
+ * actuals are never touched.
  */
-export function reopen(app, initiative) {
-  const stage = initiative.stage;
-  if (stage === E.DRAFT) throw new Error('a draft has nothing to reopen');
+export function reopen(process, initiative) {
+  // A closed initiative sits in its final phase with that gate recorded, so
+  // reopening it is reversing that gate like any other.
+  const phaseId =
+    initiative.status === 'closed'
+      ? initiative.phaseId
+      : E.previousPhase(process, initiative.phaseId);
 
-  if (stage === E.CLOSED) {
-    initiative.stage = initiative.closedFrom ?? E.DEVELOPMENT;
-    initiative.closedFrom = null;
-    delete initiative.stageHistory[E.CLOSED];
-    return initiative.stage;
-  }
+  if (phaseId === null) throw new Error('this initiative is at its first phase');
 
-  // Development holds two reversible transitions: the final gate (passed but
-  // not advanced, because a gate never enters Closed), then Gate 1 beneath it.
-  if (stage === E.DEVELOPMENT && initiative.gateBApproval) {
-    initiative.gateBApproval = null;
-    initiative.development.frozen = null;
-    return stage;
-  }
-  if (stage === E.DEVELOPMENT) {
-    initiative.gateAApproval = null;
-    initiative.validation.frozen = null;
-    initiative.stage = E.VALIDATION;
-    return initiative.stage;
-  }
-  if (stage === E.VALIDATION) {
-    initiative.stage = E.DRAFT;
-    return initiative.stage;
-  }
+  const gate = E.gateForPhase(process, phaseId);
+  if (!initiative.gates[gate.id]) throw new Error('there is no gate record to reverse');
 
-  // A status stage: step back one and forget the date it was reached.
-  const previous = E.previousStage(app.PROCESS, stage);
-  delete initiative.stageHistory[stage];
-  initiative.stage = previous;
+  delete initiative.gates[gate.id];
+  const phase = initiative.phases[phaseId];
+  if (phase) phase.frozen = null;
 
-  // Stepping back into Development lands on its passed gate, not before it.
-  return initiative.stage;
+  if (initiative.status === 'closed') initiative.status = 'active';
+  initiative.phaseId = phaseId;
+  return phaseId;
 }
 
-/** Copy estimates and descriptions, never actuals or approvals; always Draft. */
-export function duplicate(app, initiative) {
+/** Copy estimates and descriptions, never actuals, gate records or checklists. */
+export function duplicate(app, process, initiative) {
   const copyPhase = (phase) => ({
-    ...createPhase(false),
+    ...createPhase(),
     estStartDate: phase.estStartDate,
     estEndDate: phase.estEndDate,
     allocations: structuredClone(phase.allocations),
@@ -411,14 +461,13 @@ export function duplicate(app, initiative) {
     ...initiative,
     id: newId('init'),
     name: `${initiative.name} (copy)`,
-    stage: E.DRAFT,
-    state: 'active',
-    validation: copyPhase(initiative.validation),
-    development: copyPhase(initiative.development),
-    gateAApproval: null,
-    gateBApproval: null,
-    stageHistory: {},
-    closedFrom: null,
+    phaseId: E.phaseOrder(process)[0],
+    status: 'active',
+    phases: Object.fromEntries(
+      Object.entries(initiative.phases).map(([id, phase]) => [id, copyPhase(phase)]),
+    ),
+    gates: {},
+    checklist: {},
   };
   app.INITIATIVES.push(copy);
   return copy;

@@ -302,18 +302,37 @@ export function phaseCoverage(phase) {
   return recorded === months.length ? 'actual' : 'forecast';
 }
 
-/** The blended grand total across both costed phases. */
+/**
+ * Costed phase records, in no particular order. Only costed phases have a
+ * record, so this needs no knowledge of the process — which is what keeps
+ * the cost and capacity functions free of it.
+ */
+export function costedPhases(initiative) {
+  return Object.values(initiative.phases ?? {});
+}
+
+/** The blended grand total across every costed phase. */
 export function grandTotal(initiative, app) {
-  return (
-    phaseBlendedTotal(initiative.validation, app) +
-    phaseBlendedTotal(initiative.development, app)
+  return costedPhases(initiative).reduce(
+    (total, phase) => total + phaseBlendedTotal(phase, app),
+    0,
   );
 }
 
-/** Coverage across both phases combined. @returns {'estimate'|'forecast'|'actual'} */
+/** Per-phase blended totals, keyed by phase id. */
+export function phaseCosts(initiative, app) {
+  return Object.fromEntries(
+    Object.entries(initiative.phases ?? {}).map(([id, phase]) => [
+      id,
+      phaseBlendedTotal(phase, app),
+    ]),
+  );
+}
+
+/** Coverage across every costed phase. @returns {'estimate'|'forecast'|'actual'} */
 export function initiativeCoverage(initiative) {
-  const phases = [initiative.validation, initiative.development];
-  const labels = phases.map(phaseCoverage);
+  const labels = costedPhases(initiative).map(phaseCoverage);
+  if (labels.length === 0) return 'estimate';
   if (labels.every((label) => label === 'actual')) return 'actual';
   if (labels.every((label) => label === 'estimate')) return 'estimate';
   return 'forecast';
@@ -402,7 +421,7 @@ export function totalSharePct(person) {
 function capacityInitiatives(app, teamId) {
   return app.INITIATIVES.filter(
     (initiative) =>
-      initiative.state === 'active' && (teamId === undefined || initiative.teamId === teamId),
+      initiative.status === 'active' && (teamId === undefined || initiative.teamId === teamId),
   );
 }
 
@@ -410,20 +429,19 @@ function capacityInitiatives(app, teamId) {
  * What a person is allocated in one month, broken down by initiative.
  * @param {object} app @param {string} personId @param {string} monthKeyStr
  * @param {string} [teamId] restrict to one team's initiatives
- * @returns {Array<{ initiativeId: string, teamId: string, phase: string, allocationPct: number }>}
+ * @returns {Array<{ initiativeId: string, teamId: string, phaseId: string, allocationPct: number }>}
  */
 export function allocationBreakdown(app, personId, monthKeyStr, teamId) {
   const rows = [];
   for (const initiative of capacityInitiatives(app, teamId)) {
-    for (const phaseId of ['validation', 'development']) {
-      const phase = initiative[phaseId];
+    for (const [phaseId, phase] of Object.entries(initiative.phases ?? {})) {
       if (!phaseMonths(phase).includes(monthKeyStr)) continue;
       for (const allocation of phase.allocations ?? []) {
         if (allocation.personId !== personId || allocation.allocationPct <= 0) continue;
         rows.push({
           initiativeId: initiative.id,
           teamId: initiative.teamId,
-          phase: phaseId,
+          phaseId,
           allocationPct: allocation.allocationPct,
         });
       }
@@ -483,8 +501,7 @@ export function capacityWarnings(app, personId, teamId, monthKeyStr) {
 export function personInitiatives(app, personId) {
   const rows = [];
   for (const initiative of app.INITIATIVES) {
-    for (const phaseId of COSTED_PHASES) {
-      const phase = initiative[phaseId];
+    for (const [phaseId, phase] of Object.entries(initiative.phases ?? {})) {
       const allocation = (phase.allocations ?? []).find((a) => a.personId === personId);
       if (!allocation) continue;
       rows.push({
@@ -493,7 +510,7 @@ export function personInitiatives(app, personId) {
         allocationPct: allocation.allocationPct,
         start: phase.estStartDate,
         end: phase.estEndDate,
-        countsTowardCapacity: initiative.state === 'active',
+        countsTowardCapacity: initiative.status === 'active',
       });
     }
   }
@@ -533,61 +550,90 @@ export function utilisationPct(app, personId, monthKeyStr) {
 }
 
 /* ------------------------------------------------------------------ *
- * Stage progression
+ * The process
  * ------------------------------------------------------------------ */
 
-/** Stage ids that are schema rather than user data (DESIGN.md §2). */
-export const DRAFT = 'draft';
-export const VALIDATION = 'validation';
-export const DEVELOPMENT = 'development';
-export const CLOSED = 'closed';
-export const COSTED_PHASES = Object.freeze([VALIDATION, DEVELOPMENT]);
+/**
+ * These read the compiled-in process, which is passed in rather than
+ * imported so the same code can be exercised against differently-shaped
+ * processes (DESIGN.md §7). Nothing here may assume how many phases exist,
+ * that any given one is costed, or that a gate has a checklist.
+ */
 
-/** The configured progression, in order. @returns {string[]} */
-export function stageOrder(process) {
-  return [
-    DRAFT,
-    VALIDATION,
-    DEVELOPMENT,
-    ...process.stages.map((stage) => stage.id),
-    CLOSED,
-  ];
+/** Phase ids in order. @returns {string[]} */
+export function phaseOrder(process) {
+  return process.phases.map((phase) => phase.id);
 }
 
-/** Whether a stage carries cost and capacity. */
-export function isCostedPhase(stageId) {
-  return COSTED_PHASES.includes(stageId);
+/** @returns {object} the phase with this id */
+export function phaseById(process, phaseId) {
+  const phase = process.phases.find((candidate) => candidate.id === phaseId);
+  if (!phase) throw new Error(`unknown phase: ${phaseId}`);
+  return phase;
+}
+
+/** Ids of the phases that carry cost and capacity. @returns {string[]} */
+export function costedPhaseIds(process) {
+  return process.phases.filter((phase) => phase.costed).map((phase) => phase.id);
+}
+
+export function isCostedPhase(process, phaseId) {
+  return phaseById(process, phaseId).costed;
+}
+
+/** The gate out of a phase. Every phase has exactly one (SPEC §3). */
+export function gateForPhase(process, phaseId) {
+  return phaseById(process, phaseId).gate;
+}
+
+/** The phase whose gate this is. */
+export function phaseForGate(process, gateId) {
+  const phase = process.phases.find((candidate) => candidate.gate.id === gateId);
+  if (!phase) throw new Error(`unknown gate: ${gateId}`);
+  return phase;
+}
+
+/** Whether this phase's gate is the one that closes the initiative. */
+export function isFinalPhase(process, phaseId) {
+  return process.phases[process.phases.length - 1].id === phaseId;
 }
 
 /**
- * A stage's display label. Never render a stage id, and never compare label
- * text — ordering always comes from `stageOrder` (DESIGN.md §2).
+ * Display labels. Never render an id, and never compare or sort on a label —
+ * ordering always comes from the declared phase order (DESIGN.md §2).
  */
-export function stageTerm(process, stageId) {
-  if (process[stageId]?.label) return process[stageId].label;
-  const stage = process.stages.find((candidate) => candidate.id === stageId);
-  if (!stage) throw new Error(`unknown stage: ${stageId}`);
-  return stage.label;
+export function phaseLabel(process, phaseId) {
+  return phaseById(process, phaseId).label;
 }
 
-/** A costed phase's gate label. */
-export function gateTerm(process, phaseId) {
-  if (!isCostedPhase(phaseId)) throw new Error(`${phaseId} has no gate`);
-  return process[phaseId].gateLabel;
+export function gateLabel(process, gateId) {
+  return phaseForGate(process, gateId).gate.label;
 }
 
-/** The stage after `stageId`, or null at the end of the progression. */
-export function nextStage(process, stageId) {
-  const order = stageOrder(process);
-  const index = order.indexOf(stageId);
-  if (index === -1) throw new Error(`unknown stage: ${stageId}`);
+/** The phase after this one, or null at the end of the process. */
+export function nextPhase(process, phaseId) {
+  const order = phaseOrder(process);
+  const index = order.indexOf(phaseId);
+  if (index === -1) throw new Error(`unknown phase: ${phaseId}`);
   return order[index + 1] ?? null;
 }
 
-/** The stage before `stageId`, or null at the start. */
-export function previousStage(process, stageId) {
-  const order = stageOrder(process);
-  const index = order.indexOf(stageId);
-  if (index === -1) throw new Error(`unknown stage: ${stageId}`);
+/** The phase before this one, or null at the start. */
+export function previousPhase(process, phaseId) {
+  const order = phaseOrder(process);
+  const index = order.indexOf(phaseId);
+  if (index === -1) throw new Error(`unknown phase: ${phaseId}`);
   return index === 0 ? null : order[index - 1];
+}
+
+/* ------------------------------------------------------------------ *
+ * Status
+ * ------------------------------------------------------------------ */
+
+/** Status is independent of phase, and never to be confused with it. */
+export const STATUSES = Object.freeze(['active', 'on-hold', 'cancelled', 'closed']);
+
+/** Closed and Cancelled both freeze the initiative (SPEC §6.4). */
+export function isFinished(initiative) {
+  return initiative.status === 'closed' || initiative.status === 'cancelled';
 }

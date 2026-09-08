@@ -41,28 +41,14 @@ function byYear(years, make) {
  * shared mutable constant, so repeated seeding (across tests, say) cannot
  * leak mutations between calls.
  *
- * @param {string} [currency]
  * @param {number} [now] current year, injectable for tests
  */
-export function createMasterData(currency = '€', now = new Date().getFullYear()) {
+export function createMasterData(now = new Date().getFullYear()) {
   const years = trackedYears(now);
 
   return {
-    GENERAL: { currency, lastExportAt: null, exportReminderDays: 14 },
+    GENERAL: { lastExportAt: null, exportReminderDays: 14 },
 
-    // Stage labels are seeded here because they are brand vocabulary, but
-    // once seeded they are ordinary user data, editable in Settings. The ids
-    // are schema and never change (DESIGN.md §2).
-    PROCESS: {
-      draft: { label: 'Draft' },
-      validation: { label: 'Validation', gateLabel: 'Gate 1' },
-      development: { label: 'Development', gateLabel: 'Gate 2' },
-      stages: [
-        { id: 'stage_rollout', label: 'Rollout' },
-        { id: 'stage_benefits', label: 'Benefits Review' },
-      ],
-      closed: { label: 'Closed' },
-    },
 
     ROLES: {
       role_eng: { id: 'role_eng', name: 'Engineer', abbr: 'ENG', factor: 1.0, active: true },
@@ -160,37 +146,6 @@ export function createMasterData(currency = '€', now = new Date().getFullYear(
       },
     },
 
-    // Severity is an integer rank ordered independently of the bounds
-    // (SPEC §4) — "Fast track" is cheap but deliberately mid-severity.
-    BANDS: [
-      {
-        id: 'band_light',
-        name: 'Light touch',
-        abbr: 'LT',
-        lower: 0,
-        upper: 50000,
-        req: 'Team lead sign-off.',
-        severity: 1,
-      },
-      {
-        id: 'band_standard',
-        name: 'Standard',
-        abbr: 'STD',
-        lower: 50000,
-        upper: 250000,
-        req: 'Department head sign-off.',
-        severity: 2,
-      },
-      {
-        id: 'band_major',
-        name: 'Major',
-        abbr: 'MAJ',
-        lower: 250000,
-        upper: null,
-        req: 'Board approval and a written business case.',
-        severity: 3,
-      },
-    ],
 
     INITIATIVES: [],
   };
