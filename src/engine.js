@@ -471,6 +471,60 @@ export function capacityWarnings(app, personId, teamId, monthKeyStr) {
   };
 }
 
+/**
+ * Every allocation a person holds, across all initiatives and both phases,
+ * regardless of month. The Person detail page's "where does this person's
+ * time go?" table (SPEC §7.3).
+ *
+ * Unlike the capacity figures, this includes on-hold and cancelled
+ * initiatives — the allocation exists and is costed either way (SPEC §3), and
+ * hiding it would make the page disagree with the initiative itself.
+ */
+export function personInitiatives(app, personId) {
+  const rows = [];
+  for (const initiative of app.INITIATIVES) {
+    for (const phaseId of COSTED_PHASES) {
+      const phase = initiative[phaseId];
+      const allocation = (phase.allocations ?? []).find((a) => a.personId === personId);
+      if (!allocation) continue;
+      rows.push({
+        initiative,
+        phaseId,
+        allocationPct: allocation.allocationPct,
+        start: phase.estStartDate,
+        end: phase.estEndDate,
+        countsTowardCapacity: initiative.state === 'active',
+      });
+    }
+  }
+  return rows;
+}
+
+/**
+ * Allocations a person holds on a team they are no longer an active member
+ * of. These keep costing rather than being dropped (SPEC §5.2), so both the
+ * Person and Team pages surface them by name.
+ */
+export function strandedAllocations(app, personId) {
+  const person = app.PEOPLE[personId];
+  return personInitiatives(app, personId).filter(
+    (row) => !membership(person, row.initiative.teamId),
+  );
+}
+
+/** Every month in the rolling window, oldest first. */
+export function windowMonths(app) {
+  const years = new Set();
+  for (const country of Object.values(app.COUNTRIES)) {
+    for (const year of Object.keys(country.byYear)) years.add(Number(year));
+  }
+  return [...years]
+    .sort((a, b) => a - b)
+    .flatMap((year) =>
+      Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`),
+    );
+}
+
 /** Utilisation for the People overview: allocated against capacity, one month. */
 export function utilisationPct(app, personId, monthKeyStr) {
   const person = app.PEOPLE[personId];

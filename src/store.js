@@ -6,7 +6,7 @@
 
 import { SCHEMA_VERSION, createApp } from './lifecycle.js';
 import { createMasterData } from './masterData.js';
-import { serialize, exportFilename, parseImport } from './transfer.js';
+import { serialize, exportFilename, parseImport, toCsv, toTsv, toHtmlTable } from './transfer.js';
 
 export const STORAGE_KEY = 'initiative-planner/v1';
 const SAVE_DEBOUNCE_MS = 200;
@@ -97,4 +97,43 @@ export function downloadExport(app, now = new Date()) {
 /** Read a file the user picked and validate it before anything else happens. */
 export async function readImportFile(file) {
   return parseImport(await file.text());
+}
+
+/**
+ * Copy a table to the clipboard as both plain text and rich HTML, so it lands
+ * as cells in a spreadsheet and as a table in a document (SPEC §8).
+ *
+ * Falls back to plain text where the rich clipboard API is unavailable, since
+ * losing the formatting is better than losing the copy.
+ */
+export async function copyTable(headers, rows) {
+  const text = toTsv(headers, rows);
+  try {
+    const item = new ClipboardItem({
+      'text/plain': new Blob([text], { type: 'text/plain' }),
+      'text/html': new Blob([toHtmlTable(headers, rows)], { type: 'text/html' }),
+    });
+    await navigator.clipboard.write([item]);
+    return 'rich';
+  } catch {
+    try {
+      await navigator.clipboard.writeText(text);
+      return 'text';
+    } catch {
+      return 'failed';
+    }
+  }
+}
+
+/** Download a named table as CSV. */
+export function downloadCsv(filename, headers, rows) {
+  const blob = new Blob([toCsv(headers, rows)], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }

@@ -55,7 +55,9 @@ APP = {
     [personId]: {
       id, name, active, countryId, capacityPct,
       roleId:     <roleId|null>,   // exactly one of roleId / customRole
-      customRole: null | { label, byYear: { [year]: rate } },
+      customRole: null | { label, byYear: { [year]: rate }, fromRoleId },
+      //   fromRoleId -- the role this person had before their custom rate,
+      //   so switching back restores it rather than reassigning them.
       memberships: [ { teamId, sharePct, active } ]
       // capacityPct  -- ceiling on total concurrent commitment (0-100).
       //                 Never an allocation.
@@ -308,11 +310,15 @@ src/
   lifecycle.js   -- initiative creation, phase edits, gates, stage
                     transitions, close/reopen/duplicate. Pure, like the
                     engine.
+  people.js      -- people, memberships and shares. A separate aggregate
+                    from the initiative lifecycle, with invariants of its
+                    own. Pure.
   transfer.js    -- export/import shaping: serialise, validate, diff,
-                    merge. Pure.
-  store.js       -- the only module reaching outside itself: localStorage
-                    and handing the user a file. Deliberately thin, with
-                    every decision delegated to the pure modules.
+                    merge, and table export (CSV/TSV/HTML). Pure.
+  store.js       -- the only module reaching outside itself: localStorage,
+                    the clipboard, and handing the user a file.
+                    Deliberately thin, with every decision delegated to
+                    the pure modules.
   app.js         -- render/wire functions (one module is fine at this
                     size; split further only if it grows unwieldy)
   main.js        -- bootstrap: theme toggle, top-level event wiring,

@@ -172,3 +172,45 @@ export function applyImport(current, incoming, mode) {
   merged.INITIATIVES = [...byId.values()];
   return merged;
 }
+
+/* ------------------------------------------------------------------ *
+ * Table export (SPEC §8)
+ * ------------------------------------------------------------------ */
+
+/** Quote a CSV field only when it needs it, doubling any embedded quotes. */
+function csvCell(value) {
+  const text = String(value ?? '');
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/**
+ * A named table as CSV. Rows are arrays of primitives, in header order.
+ * @param {string[]} headers @param {Array<Array<unknown>>} rows
+ */
+export function toCsv(headers, rows) {
+  return [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
+}
+
+/**
+ * The same table as tab-separated text. This is what a spreadsheet reads off
+ * the clipboard, so it is the plain-text half of a copy.
+ */
+export function toTsv(headers, rows) {
+  const clean = (value) => String(value ?? '').replace(/[\t\r\n]+/g, ' ');
+  return [headers, ...rows].map((row) => row.map(clean).join('\t')).join('\n');
+}
+
+/**
+ * The rich-text half of a copy: a document keeps this as a real table rather
+ * than a wall of tabs. Escaped here rather than by the caller, since this is
+ * the module that builds the markup.
+ */
+export function toHtmlTable(headers, rows) {
+  const escape = (value) =>
+    String(value ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  const head = headers.map((h) => `<th>${escape(h)}</th>`).join('');
+  const body = rows
+    .map((row) => `<tr>${row.map((cell) => `<td>${escape(cell)}</td>`).join('')}</tr>`)
+    .join('');
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
