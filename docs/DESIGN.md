@@ -298,16 +298,21 @@ them:
 
 ```text
 src/
-  app.js         -- data model, calculation engine, lifecycle functions,
-                    all render/wire functions (single module is fine at
-                    this project's size; split further only if it grows
-                    unwieldy)
+  engine.js      -- calendar maths, rate resolution, cost, approval-track
+                    resolution, capacity, stage progression. Pure, and with
+                    no side effects on import, so node:test imports it
+                    directly (AGENTS.md).
+  app.js         -- data model, lifecycle functions, all render/wire
+                    functions (one module is fine at this size; split
+                    further only if it grows unwieldy)
   main.js        -- bootstrap: theme toggle, top-level event wiring,
                     initial load + render
   masterData.js  -- brand pack: seed data factory (placeholder values),
                     including the default PROCESS labels
   styles.css     -- all styling, brand tokens isolated per §4
 index.html       -- shell markup (nav, containers), no inline brand content
+scripts/
+  bundle.mjs     -- moves the built file to the shipped filename (§1)
 vite.config.js
 tsconfig.json
 eslint.config.js
@@ -316,6 +321,12 @@ test/
   *.test.mjs     -- node:test files
 examples/exports/  -- fictional demo JSON export(s) + a short README
 ```
+
+`engine.js` is kept apart from `app.js` because it is the one module with a
+hard constraint on it — importable under Node with no DOM — and mixing it
+into the render code makes that constraint easy to break by accident. A
+test asserts the module never names `document`, `window` or
+`localStorage`.
 
 ## 7. Testing strategy
 

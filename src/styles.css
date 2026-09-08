@@ -1,26 +1,46 @@
 /*
- * Phase 0 stub. The brand token family (--brand*, --brand-font) arrives in
- * Phase 1 and the full light/dark token set in Phase 10; what is here only
- * has to prove that CSS is inlined into the single-file build.
+ * BRAND PACK — contract version 1
  *
- * The rule from AGENTS.md applies from the first line: every color, space,
- * size and radius reads a custom property, never a literal. Corners are
- * square except for explicitly circular elements.
+ * The `--brand*` block below is the only brand-specific CSS in this
+ * repository (AGENTS.md). A downstream brand build replaces that block, and
+ * optionally adds an @font-face whose family it points --brand-font at.
+ * Nothing else in this file may change to support a rebrand.
+ *
+ * Every other rule reads a token: no literal color, size, space or radius
+ * anywhere below. Corners are square except for explicitly circular
+ * elements. The full light/dark token set arrives in Phase 10.
  */
+
 :root {
-  --font-ui: var(--brand-font, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+  /* ---- brand pack: replace this block, and nothing else ---- */
+  --brand-hue: 232;
+  --brand: hsl(var(--brand-hue) 62% 46%);
+  --brand-contrast: hsl(0 0% 100%);
+  --brand-tint: hsl(var(--brand-hue) 62% 96%);
+  /* No embedded font in the white-label default: --brand-font stays unset so
+     every consumer below falls through to its own generic stack. */
+  /* --brand-font: "Some Brand Sans"; */
+  /* ---- end brand pack ---- */
 
-  --color-bg: #ffffff;
-  --color-fg: #14161a;
-  --color-muted: #5b6270;
-  --color-line: #d9dde4;
+  --font-ui: var(--brand-font, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif);
+  --font-num: var(--brand-font, ui-monospace, SFMono-Regular, Menlo, monospace);
 
+  --color-bg: hsl(0 0% 100%);
+  --color-fg: hsl(220 15% 9%);
+  --color-muted: hsl(220 9% 40%);
+  --color-line: hsl(220 14% 86%);
+  --color-accent: var(--brand);
+  --color-accent-contrast: var(--brand-contrast);
+  --color-accent-tint: var(--brand-tint);
+
+  --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
 
   --size-border: 1px;
   --radius-none: 0;
+  --radius-round: 50%;
 }
 
 * {
@@ -42,9 +62,14 @@ body {
   border-bottom: var(--size-border) solid var(--color-line);
 }
 
+.wordmark {
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
 .shell-nav {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-1);
 }
 
 .shell-nav button {
@@ -53,12 +78,17 @@ body {
   background: none;
   border: none;
   border-radius: var(--radius-none);
-  padding: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   cursor: pointer;
 }
 
-.shell-nav button[aria-current="page"] {
+.shell-nav button:hover {
   color: var(--color-fg);
+}
+
+.shell-nav button[aria-current='page'] {
+  color: var(--color-accent);
+  background: var(--color-accent-tint);
 }
 
 .shell-actions {
