@@ -496,3 +496,30 @@ test('status is a fixed set, and finishing means closed or cancelled', () => {
   assert.equal(E.isFinished({ status: 'active' }), false);
   assert.equal(E.isFinished({ status: 'on-hold' }), false);
 });
+
+test('per-allocation figures and the phase total are the same arithmetic', () => {
+  const a = app();
+  const [first, second] = Object.values(a.PEOPLE).filter((p) => p.roleId);
+  const p = phase({
+    estStartDate: '2026-02-01',
+    estEndDate: '2026-04-30',
+    allocations: [
+      { personId: first.id, allocationPct: 50 },
+      { personId: second.id, allocationPct: 80 },
+    ],
+  });
+
+  const rows = p.allocations.map((alloc) =>
+    E.allocationFigures(p, a.PEOPLE[alloc.personId], alloc.allocationPct, a),
+  );
+  const rowSum = rows.reduce((t, r) => t + r.cost, 0);
+  const phaseTotal = Object.values(E.phaseLabourByMonth(p, a)).reduce((t, v) => t + v, 0);
+
+  assert.ok(rowSum > 0);
+  assert.equal(
+    Math.round(rowSum),
+    Math.round(phaseTotal),
+    'an allocation table that does not add up to its own total is worse than no table',
+  );
+  for (const row of rows) assert.ok(row.personDays > 0);
+});

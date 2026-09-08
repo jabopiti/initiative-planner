@@ -207,21 +207,42 @@ function add(map, key, amount) {
  * @param {object} phase @param {object} app
  * @returns {Record<string, number>}
  */
+/**
+ * What one allocation costs, month by month, and the person-days behind it.
+ * Both the phase total and the per-row figures on an allocation table are
+ * expressed through this, so there is only ever one way the number is
+ * derived.
+ *
+ * @returns {{ byMonth: Record<string, number>, personDays: number, cost: number }}
+ */
+export function allocationFigures(phase, person, allocationPct, app) {
+  const country = app.COUNTRIES[person.countryId];
+  const days = workingDaysForPeriod(country, phase.estStartDate, phase.estEndDate);
+
+  /** @type {Record<string, number>} */
+  const byMonth = {};
+  let personDays = 0;
+  let cost = 0;
+
+  for (const [key, workingDays] of Object.entries(days)) {
+    const { year } = parseMonthKey(key);
+    const { dayRate, factor } = resolveRate(person, app.ROLES, app.COUNTRIES, year);
+    const monthDays = workingDays * (allocationPct / 100) * factor;
+    personDays += monthDays;
+    byMonth[key] = monthDays * dayRate;
+    cost += byMonth[key];
+  }
+  return { byMonth, personDays, cost };
+}
+
 export function phaseLabourByMonth(phase, app) {
   /** @type {Record<string, number>} */
   const out = {};
   for (const allocation of phase.allocations ?? []) {
     const person = app.PEOPLE[allocation.personId];
     if (!person) continue;
-    const country = app.COUNTRIES[person.countryId];
-    const days = workingDaysForPeriod(country, phase.estStartDate, phase.estEndDate);
-
-    for (const [key, workingDays] of Object.entries(days)) {
-      const { year } = parseMonthKey(key);
-      const { dayRate, factor } = resolveRate(person, app.ROLES, app.COUNTRIES, year);
-      const personDays = workingDays * (allocation.allocationPct / 100) * factor;
-      add(out, key, personDays * dayRate);
-    }
+    const { byMonth } = allocationFigures(phase, person, allocation.allocationPct, app);
+    for (const [key, amount] of Object.entries(byMonth)) add(out, key, amount);
   }
   return out;
 }

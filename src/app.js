@@ -137,6 +137,8 @@ export function render() {
   if (view.page === 'process') return renderProcessPage();
   if (view.page === 'teams') return renderTeams();
   if (view.page === 'team') return renderTeam();
+  if (view.page === 'initiatives') return renderInitiatives();
+  if (view.page === 'wizard') return renderWizard();
 
   fill(
     'root',
@@ -479,6 +481,427 @@ function personCapacity(person, months) {
       <tbody>${raw(body)}</tbody>
     </table></div>
     ${raw(tableActions('personCapacity', 'capacity'))}`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Phase panels (shared by the wizard and initiative detail)
+ * ------------------------------------------------------------------ */
+
+/**
+ * One costed phase's estimate. Rendered by both the creation wizard and the
+ * initiative detail page, so the two can never drift apart.
+ *
+ * Computed cells carry `data-calc` ids rather than being rebuilt on every
+ * keystroke: typing an allocation percentage updates those cells in place,
+ * never the input under the caret (AGENTS.md).
+ */
+function phasePanel(initiative, phaseId, editable) {
+  const phase = initiative.phases[phaseId];
+  const label = E.phaseLabel(PROCESS, phaseId);
+  const frozen = Boolean(phase.frozen);
+
+  const members = Object.values(app.PEOPLE).filter(
+    (person) => person.active && E.membership(person, initiative.teamId),
+  );
+  const allocated = new Set(phase.allocations.map((a) => a.personId));
+  const joinable = members.filter((person) => !allocated.has(person.id));
+
+  const allocationRows = phase.allocations
+    .map((allocation) => {
+      const person = app.PEOPLE[allocation.personId];
+      if (!person) return '';
+      const year = phase.estStartDate ? E.parseMonthKey(phase.estStartDate.slice(0, 7)).year
+        : new Date().getFullYear();
+      const { dayRate, factor } = E.resolveRate(person, app.ROLES, app.COUNTRIES, year);
+      const figures = E.allocationFigures(phase, person, allocation.allocationPct, app);
+      const stranded = !E.membership(person, initiative.teamId);
+
+      return html`<tr class="${stranded ? 'row--warn' : ''}">
+        <td>${person.name}${raw(stranded
+          ? html` <span class="tag">no longer in this team</span>`
+          : '')}</td>
+        <td>${E.roleLabel(person, app.ROLES)}</td>
+        <td>${app.COUNTRIES[person.countryId]?.name ?? ''}</td>
+        <td class="num">${E.formatMoney(dayRate, PROCESS.currency)}</td>
+        <td class="num">${factor.toFixed(2)}</td>
+        <td>${raw(editable
+          ? numberField({
+              value: allocation.allocationPct,
+              'data-act': 'allocation-pct',
+              'data-id': initiative.id,
+              'data-phase': phaseId,
+              'data-person': person.id,
+              'aria-label': `${person.name} allocation`,
+            })
+          : html`<span class="num">${allocation.allocationPct}%</span>`)}</td>
+        <td class="num" data-calc="days-${phaseId}-${person.id}">
+          ${figures.personDays.toFixed(1)}</td>
+        <td class="num" data-calc="cost-${phaseId}-${person.id}">
+          ${E.formatMoney(figures.cost, PROCESS.currency)}</td>
+        <td class="cell--action">${raw(editable
+          ? html`<button type="button" data-act="allocation-remove" data-id="${initiative.id}"
+              data-phase="${phaseId}" data-person="${person.id}">Remove</button>`
+          : '')}</td>
+      </tr>`;
+    })
+    .join('');
+
+  const costRows = phase.otherCosts
+    .map((item) => {
+      const outOfPeriod =
+        phase.estStartDate && phase.estEndDate &&
+        !E.monthsInRange(phase.estStartDate, phase.estEndDate).includes(item.month);
+      return html`<tr>
+        <td>${raw(editable
+          ? html`<input class="field" data-act="cost-name" data-id="${initiative.id}"
+              data-phase="${phaseId}" data-cost="${item.id}" value="${item.name}"
+              aria-label="Cost item name" />`
+          : item.name)}</td>
+        <td>${item.month}${raw(outOfPeriod
+          ? html` <span class="tag">out of period</span>`
+          : '')}</td>
+        <td class="num">${E.formatMoney(item.amount, PROCESS.currency)}</td>
+        <td class="cell--action">${raw(editable
+          ? html`<button type="button" data-act="cost-remove" data-id="${initiative.id}"
+              data-phase="${phaseId}" data-cost="${item.id}">Remove</button>`
+          : '')}</td>
+      </tr>`;
+    })
+    .join('');
+
+  return html`<div class="panel">
+    <h2>${label}${raw(frozen ? html` <span class="tag">approved and frozen</span>` : '')}</h2>
+
+    <div class="fields">
+      <label class="field-row"><span>From</span>
+        <input type="date" class="field field--short" data-act="phase-start"
+          data-id="${initiative.id}" data-phase="${phaseId}"
+          value="${phase.estStartDate ?? ''}" ${raw(editable ? '' : 'disabled')} /></label>
+      <label class="field-row"><span>To</span>
+        <input type="date" class="field field--short" data-act="phase-end"
+          data-id="${initiative.id}" data-phase="${phaseId}"
+          value="${phase.estEndDate ?? ''}" ${raw(editable ? '' : 'disabled')} /></label>
+    </div>
+
+    <h3>People</h3>
+    ${raw(phase.allocations.length
+      ? html`<div class="scroller"><table class="grid">
+          <thead><tr><th>Person</th><th>Role</th><th>Country</th><th>Day rate</th>
+            <th>Factor</th><th>Allocation %</th><th>Person-days</th><th>Cost</th><th></th></tr></thead>
+          <tbody>${raw(allocationRows)}</tbody></table></div>`
+      : html`<p class="muted">Nobody allocated yet.</p>`)}
+    ${raw(editable && joinable.length
+      ? html`<div class="actions">
+          <select class="field field--select" data-act="allocation-pick"
+            data-phase="${phaseId}">${raw(joinable
+              .map((person) => html`<option value="${person.id}">${person.name}</option>`)
+              .join(''))}</select>
+          <button type="button" class="btn" data-act="allocation-add" data-id="${initiative.id}"
+            data-phase="${phaseId}">Allocate</button>
+        </div>`
+      : editable
+        ? html`<p class="muted">Everyone active in this team is already allocated. Add people
+            to the team first.</p>`
+        : '')}
+
+    <h3>Other costs</h3>
+    ${raw(phase.otherCosts.length
+      ? html`<div class="scroller"><table class="grid">
+          <thead><tr><th>Item</th><th>Month</th><th>Amount</th><th></th></tr></thead>
+          <tbody>${raw(costRows)}</tbody></table></div>`
+      : html`<p class="muted">No non-labour costs.</p>`)}
+    ${raw(editable
+      ? html`<div class="actions">
+          <input class="field field--short" data-act="new-cost-month" data-phase="${phaseId}"
+            type="month" aria-label="Month" />
+          ${raw(numberField({ value: '', 'data-act': 'new-cost-amount', 'data-phase': phaseId, 'aria-label': 'Amount' }))}
+          <button type="button" class="btn" data-act="cost-add" data-id="${initiative.id}"
+            data-phase="${phaseId}">Add cost</button>
+        </div>`
+      : '')}
+
+    <p class="results" data-calc="total-${phaseId}">${raw(phaseTotalsMarkup(initiative, phaseId))}</p>
+  </div>`;
+}
+
+function phaseTotalsMarkup(initiative, phaseId) {
+  const phase = initiative.phases[phaseId];
+  const labour = Object.values(E.phaseLabourByMonth(phase, app)).reduce((t, v) => t + v, 0);
+  const other = Object.values(E.phaseOtherByMonth(phase)).reduce((t, v) => t + v, 0);
+  const money = (v) => E.formatMoney(v, PROCESS.currency);
+  return html`Labour ${money(labour)} + other ${money(other)} =
+    <strong>${money(labour + other)}</strong>`;
+}
+
+/** The live grand total and resolved track, recomputed without a rebuild. */
+function grandMarkup(initiative) {
+  const total = E.grandTotal(initiative, app);
+  const band = E.resolveBand(PROCESS.bands, total);
+  const coverage = E.initiativeCoverage(initiative);
+  return html`<strong>${E.formatMoney(total, PROCESS.currency)}</strong>
+    <span class="tag">${coverage}</span>
+    — ${band ? band.name : 'Not yet known'}${raw(band
+      ? html`<span class="micro">${band.req}</span>`
+      : html`<span class="micro">No approval track covers this total.</span>`)}`;
+}
+
+/**
+ * Recompute everything an allocation percentage affects, writing into the
+ * existing nodes. Nothing structural is rebuilt, so the caret stays put.
+ */
+function refreshPhaseNumbers(initiative, phaseId) {
+  const phase = initiative.phases[phaseId];
+  for (const allocation of phase.allocations) {
+    const person = app.PEOPLE[allocation.personId];
+    if (!person) continue;
+    const figures = E.allocationFigures(phase, person, allocation.allocationPct, app);
+    const days = document.querySelector(`[data-calc="days-${phaseId}-${person.id}"]`);
+    const cost = document.querySelector(`[data-calc="cost-${phaseId}-${person.id}"]`);
+    if (days) days.textContent = figures.personDays.toFixed(1);
+    if (cost) cost.textContent = E.formatMoney(figures.cost, PROCESS.currency);
+  }
+  fill(document.querySelector(`[data-calc="total-${phaseId}"]`), phaseTotalsMarkup(initiative, phaseId));
+  fill('wizard-grand', grandMarkup(initiative));
+}
+
+/* ------------------------------------------------------------------ *
+ * Initiatives registry
+ * ------------------------------------------------------------------ */
+
+const STATUS_LABELS = {
+  active: 'Active',
+  'on-hold': 'On hold',
+  cancelled: 'Cancelled',
+  closed: 'Closed',
+};
+
+/** Sortable columns, each with how to read the value it sorts on. */
+const INITIATIVE_COLUMNS = [
+  { key: 'name', label: 'Name', value: (row) => row.initiative.name.toLowerCase() },
+  { key: 'team', label: 'Team', value: (row) => row.teamName.toLowerCase() },
+  { key: 'phase', label: 'Phase', value: (row) => row.phaseIndex },
+  { key: 'status', label: 'Status', value: (row) => row.initiative.status },
+  { key: 'track', label: 'Approval track', value: (row) => row.band?.severity ?? -1 },
+  { key: 'total', label: 'Total', value: (row) => row.total },
+];
+
+function renderInitiatives() {
+  const filters = view.params.filters ?? {};
+  const sort = view.params.sort ?? { key: 'name', dir: 'asc' };
+  const query = (filters.q ?? '').toLowerCase();
+  const order = E.phaseOrder(PROCESS);
+
+  let rows = app.INITIATIVES.map((initiative) => {
+    const total = E.grandTotal(initiative, app);
+    return {
+      initiative,
+      total,
+      band: E.resolveBand(PROCESS.bands, total),
+      teamName: app.TEAMS[initiative.teamId]?.name ?? '—',
+      phaseIndex: order.indexOf(initiative.phaseId),
+      coverage: E.initiativeCoverage(initiative),
+    };
+  }).filter((row) => {
+    if (filters.teamId && row.initiative.teamId !== filters.teamId) return false;
+    if (filters.phaseId && row.initiative.phaseId !== filters.phaseId) return false;
+    if (filters.status && row.initiative.status !== filters.status) return false;
+    if (filters.bandId && (row.band?.id ?? 'none') !== filters.bandId) return false;
+    if (query && !row.initiative.name.toLowerCase().includes(query)) return false;
+    return true;
+  });
+
+  const column = INITIATIVE_COLUMNS.find((c) => c.key === sort.key) ?? INITIATIVE_COLUMNS[0];
+  rows.sort((a, b) => {
+    const left = column.value(a);
+    const right = column.value(b);
+    const cmp = left < right ? -1 : left > right ? 1 : 0;
+    return sort.dir === 'desc' ? -cmp : cmp;
+  });
+
+  const headers = INITIATIVE_COLUMNS.map(
+    (c) => html`<th aria-sort="${sort.key === c.key
+      ? sort.dir === 'asc' ? 'ascending' : 'descending'
+      : 'none'}">
+      <button type="button" class="link" data-act="sort-initiatives" data-key="${c.key}">
+        ${c.label}${raw(sort.key === c.key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '')}</button></th>`,
+  ).join('');
+
+  const body = rows
+    .map(
+      (row) => html`<tr>
+        <td><button type="button" class="link" data-act="open-initiative"
+          data-id="${row.initiative.id}">${row.initiative.name}</button></td>
+        <td>${row.teamName}</td>
+        <td>${E.phaseLabel(PROCESS, row.initiative.phaseId)}</td>
+        <td>
+          <select class="field field--select" data-act="initiative-status"
+            data-id="${row.initiative.id}"
+            ${raw(row.initiative.status === 'closed' ? 'disabled' : '')}
+            aria-label="Status">
+            ${raw(['active', 'on-hold', 'cancelled']
+              .map((status) => html`<option value="${status}"
+                ${raw(row.initiative.status === status ? 'selected' : '')}>
+                ${STATUS_LABELS[status]}</option>`)
+              .join(''))}
+            ${raw(row.initiative.status === 'closed'
+              ? html`<option value="closed" selected>Closed</option>`
+              : '')}
+          </select>
+        </td>
+        <td>${row.band ? row.band.name : 'Not yet known'}</td>
+        <td class="num">${E.formatMoney(row.total, PROCESS.currency)}
+          <span class="micro">${row.coverage}</span></td>
+        <td class="cell--action">
+          <button type="button" data-act="duplicate-initiative" data-id="${row.initiative.id}">
+            Duplicate</button></td>
+      </tr>`,
+    )
+    .join('');
+
+  const options = (name, list, selected) =>
+    html`<select class="field field--select" data-act="initiatives-filter" data-filter="${name}">
+      <option value="">All</option>
+      ${raw(list.map((o) => html`<option value="${o.value}"
+        ${raw(selected === o.value ? 'selected' : '')}>${o.label}</option>`).join(''))}
+    </select>`;
+
+  fill(
+    'root',
+    html`<h1>Initiatives</h1>
+      <div class="toolbar">
+        <label class="field-inline"><span>Search</span>
+          <input class="field" data-act="initiatives-filter" data-filter="q"
+            value="${filters.q ?? ''}" placeholder="Name" /></label>
+        <label class="field-inline"><span>Team</span>${raw(options('teamId',
+          Object.values(app.TEAMS).map((t) => ({ value: t.id, label: t.name })),
+          filters.teamId))}</label>
+        <label class="field-inline"><span>Phase</span>${raw(options('phaseId',
+          PROCESS.phases.map((p) => ({ value: p.id, label: p.label })),
+          filters.phaseId))}</label>
+        <label class="field-inline"><span>Status</span>${raw(options('status',
+          Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
+          filters.status))}</label>
+        <label class="field-inline"><span>Track</span>${raw(options('bandId',
+          [...PROCESS.bands.map((b) => ({ value: b.id, label: b.name })),
+           { value: 'none', label: 'Not yet known' }],
+          filters.bandId))}</label>
+      </div>
+      ${raw(app.INITIATIVES.length === 0
+        ? html`<p class="muted">Nothing here yet.</p>`
+        : rows.length === 0
+          ? html`<p class="muted">No initiative matches those filters.</p>`
+          : html`<div class="scroller"><table class="grid">
+              <thead><tr>${raw(headers)}<th></th></tr></thead>
+              <tbody>${raw(body)}</tbody></table></div>`)}
+      <button type="button" class="btn btn--primary" data-act="wizard-start">New initiative</button>`,
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Creation wizard
+ * ------------------------------------------------------------------ */
+
+/**
+ * Two steps, resumable. Step 1 creates the initiative immediately, so step 2
+ * is editing a real record rather than holding a draft in memory — which is
+ * what makes leaving and returning lossless (SPEC §7.6).
+ */
+function renderWizard() {
+  const initiative = view.params.id ? app.INITIATIVES.find((i) => i.id === view.params.id) : null;
+  return initiative ? renderWizardEstimates(initiative) : renderWizardGeneral();
+}
+
+function renderWizardGeneral() {
+  const draft = view.params.draft ?? {};
+  const teams = Object.values(app.TEAMS).filter((team) => team.active);
+  const order = E.phaseOrder(PROCESS);
+  const startPhaseId = draft.startPhaseId ?? order[0];
+  const skipped = order.slice(0, order.indexOf(startPhaseId));
+
+  if (teams.length === 0) {
+    return fill(
+      'root',
+      html`<h1>New initiative</h1>
+        <p class="muted">An initiative belongs to a team, and there are no active teams yet.
+          <button type="button" class="link" data-act="page" data-page="teams">Create one
+          first.</button></p>`,
+    );
+  }
+
+  fill(
+    'root',
+    html`<h1>New initiative</h1>
+      <ol class="steps"><li aria-current="step">General</li><li>Estimates</li></ol>
+
+      <div class="panel">
+        <div class="fields">
+          <label class="field-row"><span>Name</span>
+            <input class="field" data-act="draft-field" data-field="name"
+              value="${draft.name ?? ''}" placeholder="What is it called?" /></label>
+          <label class="field-row"><span>Description</span>
+            <input class="field" data-act="draft-field" data-field="description"
+              value="${draft.description ?? ''}" /></label>
+          <label class="field-row"><span>Team</span>
+            <select class="field field--select" data-act="draft-select" data-field="teamId">
+              ${raw(teams.map((team) => html`<option value="${team.id}"
+                ${raw(draft.teamId === team.id ? 'selected' : '')}>${team.name}</option>`).join(''))}
+            </select></label>
+          <label class="field-row"><span>Starting phase</span>
+            <select class="field field--select" data-act="draft-select" data-field="startPhaseId">
+              ${raw(PROCESS.phases.map((phase) => html`<option value="${phase.id}"
+                ${raw(startPhaseId === phase.id ? 'selected' : '')}>${phase.label}</option>`).join(''))}
+            </select></label>
+        </div>
+
+        ${raw(skipped.length
+          ? html`<div class="issues">
+              <p class="warn">Starting at ${E.phaseLabel(PROCESS, startPhaseId)} records
+                ${skipped.length} earlier gate${skipped.length === 1 ? '' : 's'} as skipped:
+                ${skipped.map((id) => E.gateForPhase(PROCESS, id).label).join(', ')}. They
+                approve nothing and freeze nothing.</p>
+              <label class="field-row"><span>Reason</span>
+                <input class="field" data-act="draft-field" data-field="skipReason"
+                  value="${draft.skipReason ?? 'Already in progress when entered into the tool'}" /></label>
+            </div>`
+          : '')}
+
+        <div class="actions">
+          <button type="button" class="btn btn--primary" data-act="draft-create"
+            ${raw((draft.name ?? '').trim() ? '' : 'disabled')}>Create and continue</button>
+          <button type="button" class="btn" data-act="page" data-page="initiatives">Cancel</button>
+        </div>
+        ${raw((draft.name ?? '').trim() ? '' : html`<p class="muted">A name is needed first.</p>`)}
+      </div>`,
+  );
+}
+
+function renderWizardEstimates(initiative) {
+  const costed = E.costedPhaseIds(PROCESS);
+  const panels = costed
+    .map((phaseId) => phasePanel(initiative, phaseId, L.isPhaseEditable(initiative, phaseId)))
+    .join('');
+
+  fill(
+    'root',
+    html`<h1>${initiative.name}</h1>
+      <ol class="steps"><li>General</li><li aria-current="step">Estimates</li></ol>
+      <p class="muted">Fill in as much as you know. Finishing with an incomplete estimate is
+        fine — the gate is what blocks progress later, not this step.</p>
+
+      <div class="panel panel--inset">
+        <h2>Grand total</h2>
+        <p id="wizard-grand">${raw(grandMarkup(initiative))}</p>
+      </div>
+
+      ${raw(panels)}
+
+      <div class="actions">
+        <button type="button" class="btn btn--primary" data-act="open-initiative"
+          data-id="${initiative.id}">Done</button>
+        <button type="button" class="btn" data-act="page" data-page="initiatives">
+          Back to initiatives</button>
+      </div>`,
+  );
 }
 
 /* ------------------------------------------------------------------ *
@@ -1049,6 +1472,45 @@ function onInput(event) {
     const team = target.dataset.team;
     const current = person.memberships.find((m) => m.teamId === team);
     P.setMembershipShare(person, team, readNumber(target.value, current.sharePct));
+  } else if (act === 'people-filter' || act === 'initiatives-filter') {
+    // Search is the one filter that must react per keystroke, and filtering
+    // rebuilds the table the box sits above. Re-render, then put the caret
+    // back exactly where it was — the invariant is that typing never *loses*
+    // the caret, not that nothing may re-render.
+    const page = act === 'people-filter' ? 'people' : 'initiatives';
+    const filters = { ...(view.params.filters ?? {}), [target.dataset.filter]: target.value };
+    const caret = target.selectionStart;
+    navigate(page, { ...view.params, filters });
+    const restored = document.querySelector(`[data-act="${act}"][data-filter="${target.dataset.filter}"]`);
+    if (restored instanceof HTMLInputElement) {
+      restored.focus();
+      restored.setSelectionRange(caret, caret);
+    }
+    return;
+  } else if (act === 'draft-field') {
+    // The draft lives in view params until step 1 is saved, so it survives
+    // re-renders without an initiative existing yet.
+    const draft = { ...(view.params.draft ?? {}), [field]: target.value };
+    view.params = { ...view.params, draft };
+    // Only the create button's enabled state depends on this, so refresh
+    // nothing else and leave the caret alone.
+    const create = document.querySelector('[data-act="draft-create"]');
+    if (create instanceof HTMLButtonElement) create.disabled = !(draft.name ?? '').trim();
+    return;
+  } else if (act === 'allocation-pct') {
+    const initiative = findInitiative(target.dataset.id);
+    const phaseId = target.dataset.phase;
+    const current = initiative.phases[phaseId].allocations
+      .find((a) => a.personId === target.dataset.person);
+    L.setAllocation(app, initiative, phaseId, target.dataset.person,
+      readNumber(target.value, current.allocationPct));
+    commitQuietly();
+    return refreshPhaseNumbers(initiative, phaseId);
+  } else if (act === 'cost-name') {
+    const initiative = findInitiative(target.dataset.id);
+    const item = initiative.phases[target.dataset.phase].otherCosts
+      .find((c) => c.id === target.dataset.cost);
+    item.name = target.value;
   } else if (act === 'team-name') {
     P.renameTeam(app.TEAMS[id], target.value);
   } else if (act === 'general-field') {
@@ -1059,6 +1521,12 @@ function onInput(event) {
 
   commitQuietly();
   LIVE_REGIONS[act]?.();
+}
+
+function findInitiative(id) {
+  const initiative = app.INITIATIVES.find((i) => i.id === id);
+  if (!initiative) throw new Error(`unknown initiative: ${id}`);
+  return initiative;
 }
 
 /** Clicks: structural changes, which do re-render. */
@@ -1126,6 +1594,69 @@ function onClick(event) {
 
     case 'open-team':
       return navigate('team', { id });
+
+    case 'wizard-start':
+      return navigate('wizard', {});
+    case 'draft-create': {
+      const draft = view.params.draft ?? {};
+      if (!(draft.name ?? '').trim()) return undefined;
+      const initiative = L.createInitiative(app, PROCESS, {
+        name: draft.name.trim(),
+        description: draft.description ?? '',
+        teamId: draft.teamId ?? Object.keys(app.TEAMS)[0],
+        startPhaseId: draft.startPhaseId,
+        skipReason: draft.skipReason,
+      });
+      store.save(app);
+      return navigate('wizard', { id: initiative.id });
+    }
+    case 'open-initiative':
+      // Initiative detail arrives in Phase 8; until then the estimates step
+      // is the editing surface, and it is a real page over a real record.
+      return navigate('wizard', { id });
+    case 'duplicate-initiative': {
+      const copy = L.duplicate(app, PROCESS, findInitiative(id));
+      store.save(app);
+      return navigate('wizard', { id: copy.id });
+    }
+    case 'sort-initiatives': {
+      const current = view.params.sort ?? { key: 'name', dir: 'asc' };
+      const key = trigger.dataset.key;
+      const dir = current.key === key && current.dir === 'asc' ? 'desc' : 'asc';
+      return navigate('initiatives', { ...view.params, sort: { key, dir } });
+    }
+
+    case 'allocation-add': {
+      const initiative = findInitiative(id);
+      const phaseId = trigger.dataset.phase;
+      const pick = document.querySelector(`[data-act="allocation-pick"][data-phase="${phaseId}"]`);
+      if (pick instanceof HTMLSelectElement) {
+        L.setAllocation(app, initiative, phaseId, pick.value, 50);
+      }
+      return commit();
+    }
+    case 'allocation-remove': {
+      const initiative = findInitiative(id);
+      L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, 0);
+      return commit();
+    }
+    case 'cost-add': {
+      const initiative = findInitiative(id);
+      const phaseId = trigger.dataset.phase;
+      const monthEl = document.querySelector(`[data-act="new-cost-month"][data-phase="${phaseId}"]`);
+      const amountEl = document.querySelector(`[data-act="new-cost-amount"][data-phase="${phaseId}"]`);
+      const month = monthEl instanceof HTMLInputElement ? monthEl.value : '';
+      const amount = amountEl instanceof HTMLInputElement ? readNumber(amountEl.value, 0) : 0;
+      if (!month || !amount) return undefined;
+      L.addOtherCost(initiative, phaseId, { name: 'New cost', month, amount });
+      return commit();
+    }
+    case 'cost-remove': {
+      const initiative = findInitiative(id);
+      const phase = initiative.phases[trigger.dataset.phase];
+      phase.otherCosts = phase.otherCosts.filter((c) => c.id !== trigger.dataset.cost);
+      return commit();
+    }
     case 'team-add': {
       const team = P.createTeam(app);
       store.save(app);
@@ -1214,6 +1745,27 @@ function onChange(event) {
       const key = target.dataset.filter;
       filters[key] = target.type === 'checkbox' ? target.checked : target.value;
       return navigate('people', { ...view.params, filters });
+    }
+    case 'draft-select': {
+      const draft = { ...(view.params.draft ?? {}), [target.dataset.field]: target.value };
+      return navigate('wizard', { ...view.params, draft });
+    }
+    case 'initiatives-filter': {
+      const filters = { ...(view.params.filters ?? {}) };
+      filters[target.dataset.filter] = target.value;
+      return navigate('initiatives', { ...view.params, filters });
+    }
+    case 'initiative-status':
+      L.setStatus(findInitiative(id), target.value);
+      return commit();
+    case 'phase-start':
+    case 'phase-end': {
+      const initiative = findInitiative(id);
+      const phase = initiative.phases[target.dataset.phase];
+      const start = act === 'phase-start' ? target.value : phase.estStartDate;
+      const end = act === 'phase-end' ? target.value : phase.estEndDate;
+      L.setPhasePeriod(initiative, target.dataset.phase, start || null, end || null);
+      return commit();
     }
     case 'person-country':
       app.PEOPLE[id].countryId = target.value;
