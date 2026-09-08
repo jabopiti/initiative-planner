@@ -1,0 +1,70 @@
+/*
+ * Phase 0 stub. The brand token family (--brand*, --brand-font) arrives in
+ * Phase 1 and the full light/dark token set in Phase 10; what is here only
+ * has to prove that CSS is inlined into the single-file build.
+ *
+ * The rule from AGENTS.md applies from the first line: every color, space,
+ * size and radius reads a custom property, never a literal. Corners are
+ * square except for explicitly circular elements.
+ */
+:root {
+  --font-ui: var(--brand-font, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+
+  --color-bg: #ffffff;
+  --color-fg: #14161a;
+  --color-muted: #5b6270;
+  --color-line: #d9dde4;
+
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+
+  --size-border: 1px;
+  --radius-none: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-ui);
+  color: var(--color-fg);
+  background: var(--color-bg);
+}
+
+.shell-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--size-border) solid var(--color-line);
+}
+
+.shell-nav {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.shell-nav button {
+  font: inherit;
+  color: var(--color-muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-none);
+  padding: var(--space-2);
+  cursor: pointer;
+}
+
+.shell-nav button[aria-current="page"] {
+  color: var(--color-fg);
+}
+
+.shell-actions {
+  margin-left: auto;
+}
+
+#root {
+  padding: var(--space-4);
+}
