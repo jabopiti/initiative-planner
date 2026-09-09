@@ -9,8 +9,11 @@ and this file is the one to correct.
 
 ## Working here
 
-The build is complete; this is maintenance now. `main` is the only branch —
-branch off it for anything non-trivial and merge back.
+The first version is built and reviewed, and a revamp of it is underway.
+[docs/REVAMP.md](docs/REVAMP.md) is the plan and the only tracker: read its
+"Where this stands" first, take the next unstarted workstream, and record
+what landed there when you finish. `main` is the only branch — branch off it
+for anything non-trivial and merge back.
 
 Before committing, all four must pass clean:
 

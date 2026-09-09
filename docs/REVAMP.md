@@ -13,6 +13,26 @@ those are conversations before they are code (AGENTS.md).
 
 ---
 
+## 0. Where this stands
+
+| Workstream | Status |
+|---|---|
+| Silent-write bug (§4.7, first half) | **Landed** — `ae327ab` |
+| §4.1 Foundation | Not started — **next** |
+| §4.2 Entity flows | Not started |
+| §4.3 Settings | Not started |
+| §4.4 Initiative detail | Not started |
+| §4.5 Overviews, capacity, charts | Not started |
+| §4.6 Copy, states, first run, accessibility | Not started |
+| §4.7 File System Access persistence | Not started |
+| §4.8 Brand pack | Not started |
+
+All nine decisions (§1) are settled; nothing is blocked on an answer. Update
+this table in the commit that finishes a workstream — it is the only record
+of progress there is.
+
+---
+
 ## 1. Decisions taken
 
 | # | Decision | Settled |
@@ -446,15 +466,15 @@ review's "a person is just created with no chance to cancel" is answered.
 
 ### 4.7 Storage (D4/D5)
 
-**First: stop losing writes silently.** `saveNow`'s return value is discarded
-all the way up the stack, so a full or blocked localStorage means the app
-accepts edits and persists none of them, with no signal (§2.6). This is a bug,
-it is independent of everything else here, and it should land before any of
-the rest of the revamp.
+**The silent-write bug is fixed** (`ae327ab`). `saveNow`'s return value was
+discarded all the way up the stack, so a full or blocked localStorage meant
+the app accepted edits and persisted none of them with no signal (§2.6).
+Failure is now reported through a handler registered once at boot, on
+transitions only, and the banner outranks the export reminder.
 
-Then: an optional binding to a real file on disk via the File System Access
-API, feature-detected, with localStorage unchanged underneath as the fallback
-and the non-Chromium path. Multi-tab writes are worth a thought at the same
+What remains here: an optional binding to a real file on disk via the File
+System Access API, feature-detected, with localStorage unchanged underneath as
+the fallback and the non-Chromium path. Multi-tab writes are worth a thought at the same
 time — two tabs on the same dataset today is last-writer-wins with no `storage`
 listener and no warning.
 
@@ -472,7 +492,7 @@ the actual test of "good out of the box".
 ## 5. Sequencing
 
 ```
-§4.7 silent-write bug — a bug, not a phase; lands first, alone
+§4.7 silent-write bug — landed already, alone, ahead of everything else
    ↓
 §4.1 Foundation
      split app.js → routing → design system → formatting → patterns
