@@ -24,9 +24,14 @@ const artifact = `${root}initiative-planner.html`;
 
 /** Build the artifact when it is missing or older than any source it is built from. */
 async function ensureBuilt() {
+  // Recursive: the render layer is split across src/pages/ and src/render/
+  // rather than one file, and a directory's own mtime does not change when a
+  // file inside it does — a shallow readdir would miss those edits entirely.
   const sources = [
     `${root}index.html`,
-    ...(await readdir(`${root}src`)).map((name) => `${root}src/${name}`),
+    ...(await readdir(`${root}src`, { recursive: true }))
+      .filter((name) => name.endsWith('.js'))
+      .map((name) => `${root}src/${name}`),
   ];
   const newest = Math.max(...(await Promise.all(sources.map((f) => stat(f).then((s) => s.mtimeMs)))));
   const built = await stat(artifact).then(

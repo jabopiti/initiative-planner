@@ -9,11 +9,22 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (file) => readFile(`${root}${file}`, 'utf8');
 
+/**
+ * Every `.js` file under `src/`, at any depth. The render layer is split
+ * across `src/pages/` and `src/render/` rather than living in one file, so a
+ * check that only looked at the top level would silently stop covering
+ * whatever moved into a subdirectory.
+ */
+async function srcFiles() {
+  const names = await readdir(`${root}src`, { recursive: true });
+  return names.filter((name) => name.endsWith('.js')).map((name) => `src/${name}`);
+}
+
 test('index.html declares every element id the source looks up', async () => {
   // Scanned across all of src/ rather than one file, so moving a lookup
   // between modules cannot quietly disable this check.
-  const names = (await readdir(`${root}src`)).filter((name) => name.endsWith('.js'));
-  const sources = await Promise.all(names.map((name) => read(`src/${name}`)));
+  const names = await srcFiles();
+  const sources = await Promise.all(names.map((name) => read(name)));
   const html = await read('index.html');
 
   const wanted = sources.flatMap((js) =>
@@ -41,7 +52,12 @@ test('every action rendered has something that handles it, and vice versa', asyn
   // A stray edit to the handler chain can orphan an action: the control still
   // renders and silently does nothing, past lint, types and every unit test.
   // That has happened once already, to four handlers at a stroke.
-  const source = await read('src/app.js');
+  //
+  // The render tree and the wiring that consumes it live in different files
+  // (pages/*.js render the markup, app.js owns the switch that handles it),
+  // so this reads every source file rather than just app.js.
+  const sources = await Promise.all((await srcFiles()).map(read));
+  const source = sources.join('\n');
 
   // Actions reach the markup two ways: as a literal attribute, and as an
   // object property on a field helper.

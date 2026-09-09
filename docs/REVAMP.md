@@ -18,8 +18,8 @@ those are conversations before they are code (AGENTS.md).
 | Workstream | Status |
 |---|---|
 | Silent-write bug (§4.7, first half) | **Landed** — `ae327ab` |
-| §4.1 Foundation — split `app.js` | Not started — **next** |
-| §4.1 Foundation — hash routing | Not started |
+| §4.1 Foundation — split `app.js` | **Landed** |
+| §4.1 Foundation — hash routing | Not started — **next** |
 | §4.1 Foundation — design system | Not started |
 | §4.1 Foundation — formatting module | Not started |
 | §4.1 Foundation — interaction patterns | Not started |
@@ -313,6 +313,22 @@ on each, not once at the end.
 adds to it. Split it into per-page render modules first — no framework, no
 router library, just files, with the existing `render()` dispatch unchanged.
 This is what keeps the rest reviewable.
+
+**Landed.** `app.js` now holds only state (`app`, `view`), the `render()`
+dispatch, and the event wiring installed once at `boot()`. Each page's markup
+moved to its own file under `src/pages/` (`portfolio.js`, `initiatives.js`,
+`initiative.js`, `wizard.js`, `teams.js`, `team.js`, `people.js`, `person.js`,
+`process.js`, `settings.js`); what several pages share moved to `src/render/`
+(`dom.js` for the `html`/`raw`/`fill`/`numberField` primitives, `tables.js`
+for the named-table registry, `charts.js` for year navigation and the
+stacked-bar primitive, `phase-panel.js` for the estimate panel the wizard and
+initiative detail both render). `app.js` and the page/render modules import
+each other's exports (state and dispatch one way, markup the other) — a
+deliberate hub-and-spoke circularity that only resolves values inside
+function bodies at call time, never at module-evaluation time, so the load
+order is safe. `test/shell.test.mjs` and `test/smoke.test.mjs` scanned only
+`src/app.js` or a flat `src/` for their consistency checks; both now recurse,
+since the render layer no longer lives in one file.
 
 **Routing.** Hash-based, with `navigate()` writing the hash and a
 `hashchange` listener driving `render()`. Reload restores the page, Back works,

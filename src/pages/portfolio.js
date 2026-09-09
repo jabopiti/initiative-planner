@@ -1,0 +1,151 @@
+/**
+ * Portfolio: the read-only cost dashboard across every team.
+ */
+import * as E from '../engine.js';
+import * as L from '../lifecycle.js';
+import { PROCESS } from '../process.js';
+import { app, view, STATUS_LABELS } from '../app.js';
+import { html, raw, money, fill } from '../render/dom.js';
+import { chartYear, monthsOfYear, yearNav, stackedBarsMarkup } from '../render/charts.js';
+
+const NO_BAND = 'none';
+
+/** Sortable columns for the portfolio table. */
+const PORTFOLIO_COLUMNS = [
+  { key: 'name', label: 'Name', value: (r) => r.initiative.name.toLowerCase() },
+  { key: 'team', label: 'Team', value: (r) => r.teamName.toLowerCase() },
+  { key: 'phase', label: 'Phase', value: (r) => r.phaseIndex },
+  { key: 'status', label: 'Status', value: (r) => r.initiative.status },
+  { key: 'period', label: 'Period', value: (r) => r.period.start ?? '' },
+  { key: 'track', label: 'Approval track', value: (r) => r.band?.severity ?? -1 },
+  { key: 'approved', label: 'Approved', value: (r) => r.approved ?? -1 },
+  { key: 'effective', label: 'Effective', value: (r) => r.effective },
+  { key: 'variance', label: 'Variance', value: (r) => r.variance ?? 0 },
+];
+
+function portfolioRows() {
+  const order = E.phaseOrder(PROCESS);
+  return app.INITIATIVES.map((initiative) => {
+    const effective = E.grandTotal(initiative, app);
+    const passed = L.lastPassedGate(PROCESS, initiative);
+    return {
+      initiative,
+      effective,
+      approved: passed ? passed.grandTotal : null,
+      variance: passed ? effective - passed.grandTotal : null,
+      band: E.resolveBand(PROCESS.bands, effective),
+      teamName: app.TEAMS[initiative.teamId]?.name ?? '—',
+      phaseIndex: order.indexOf(initiative.phaseId),
+      period: E.initiativePeriod(initiative),
+    };
+  });
+}
+
+export function renderPortfolio() {
+  const all = portfolioRows();
+  const selected = view.params.bandId ?? null;
+  const rows = selected ? all.filter((r) => (r.band?.id ?? NO_BAND) === selected) : all;
+
+  // One tile per configured track, plus one for totals no track covers. A
+  // track with nothing in it still shows, so the shape of the portfolio is
+  // legible rather than inferred from what happens to be there.
+  const groups = [
+    ...PROCESS.bands.map((band) => ({ id: band.id, name: band.name, abbr: band.abbr })),
+    { id: NO_BAND, name: 'Not yet known', abbr: '—' },
+  ].map((group) => {
+    const members = all.filter((r) => (r.band?.id ?? NO_BAND) === group.id);
+    return {
+      ...group,
+      count: members.length,
+      total: members.reduce((t, r) => t + r.effective, 0),
+    };
+  });
+
+  const tiles = groups
+    .map(
+      (group) => html`<button type="button"
+        class="tile tile--action ${selected === group.id ? 'tile--on' : ''}"
+        data-act="portfolio-tile" data-band="${group.id}"
+        aria-pressed="${selected === group.id}">
+        <span class="tile__value">${money(group.total)}</span>
+        <span class="tile__label">${group.name}</span>
+        <span class="tile__note">${group.count} initiative${group.count === 1 ? '' : 's'}</span>
+      </button>`,
+    )
+    .join('');
+
+  // The chart shows active work only — on-hold and cancelled initiatives keep
+  // their costs but are not what the portfolio is spending now (SPEC §3).
+  const charted = rows.map((r) => r.initiative).filter((i) => i.status === 'active');
+  const data = E.runRate(app, charted, monthsOfYear(chartYear()));
+  const yearTotal = data.reduce((t, row) => t + row.total, 0);
+
+  const sort = view.params.sort ?? { key: 'effective', dir: 'desc' };
+  const column = PORTFOLIO_COLUMNS.find((c) => c.key === sort.key) ?? PORTFOLIO_COLUMNS[0];
+  const sorted = [...rows].sort((a, b) => {
+    const left = column.value(a);
+    const right = column.value(b);
+    const cmp = left < right ? -1 : left > right ? 1 : 0;
+    return sort.dir === 'desc' ? -cmp : cmp;
+  });
+
+  const headers = PORTFOLIO_COLUMNS.map(
+    (c) => html`<th aria-sort="${sort.key === c.key
+      ? sort.dir === 'asc' ? 'ascending' : 'descending'
+      : 'none'}">
+      <button type="button" class="link" data-act="sort-portfolio" data-key="${c.key}">
+        ${c.label}${raw(sort.key === c.key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '')}</button></th>`,
+  ).join('');
+
+  const body = sorted
+    .map(
+      (r) => html`<tr>
+        <td><button type="button" class="link" data-act="open-initiative"
+          data-id="${r.initiative.id}">${r.initiative.name}</button></td>
+        <td>${r.teamName}</td>
+        <td>${E.phaseLabel(PROCESS, r.initiative.phaseId)}</td>
+        <td>${STATUS_LABELS[r.initiative.status]}</td>
+        <td>${r.period.start ? `${r.period.start} → ${r.period.end ?? '?'}` : '—'}</td>
+        <td>${r.band ? r.band.name : 'Not yet known'}</td>
+        <td class="num">${r.approved === null ? '—' : money(r.approved)}</td>
+        <td class="num">${money(r.effective)}
+          <span class="micro">${E.initiativeCoverage(r.initiative)}</span></td>
+        <td class="num ${r.variance > 0 ? 'over' : ''}">${r.variance === null
+          ? '—'
+          : `${r.variance > 0 ? '+' : ''}${money(r.variance)}`}</td>
+      </tr>`,
+    )
+    .join('');
+
+  fill(
+    'root',
+    html`<h1>Portfolio</h1>
+      <p class="muted">Cost across every team, read-only. Capacity is a per-team and
+        per-person question and lives on those pages.</p>
+
+      <div class="tiles">${raw(tiles)}</div>
+      ${raw(selected
+        ? html`<p class="muted">Filtered to
+            ${groups.find((g) => g.id === selected)?.name}.
+            <button type="button" class="link" data-act="portfolio-tile"
+              data-band="${selected}">Clear</button></p>`
+        : '')}
+
+      <div class="panel">
+        <h2>Cost per month</h2>
+        ${raw(yearNav(`${money(yearTotal)} across ${chartYear()}, active initiatives only.`))}
+        ${raw(yearTotal === 0
+          ? html`<p class="muted">No active initiative costs anything in this year.</p>`
+          : stackedBarsMarkup(data))}
+      </div>
+
+      <div class="panel">
+        <h2>Initiatives</h2>
+        ${raw(sorted.length
+          ? html`<div class="scroller"><table class="grid">
+              <thead><tr>${raw(headers)}</tr></thead>
+              <tbody>${raw(body)}</tbody></table></div>`
+          : html`<p class="muted">Nothing to show.</p>`)}
+      </div>`,
+  );
+}
