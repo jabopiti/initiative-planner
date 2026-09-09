@@ -31,6 +31,19 @@ those are conversations before they are code (AGENTS.md).
 | §4.7 File System Access persistence | Not started |
 | §4.8 Brand pack | Not started |
 
+**How this gets built.** Sonnet 5 at `xhigh` effort is the default — the plan
+below is specified enough to carry it, and it is 2.5x cheaper than Opus 5.
+Escalate to **Opus 5 at `xhigh`** for exactly two rows: the design system and
+the initiative detail. Those are invention rather than execution, with no spec
+to check the result against, which is the only thing that justifies the cost.
+Switch models at a row boundary and never mid-row: caches are model-scoped, so
+a switch mid-task throws away the cached context and pays to rebuild it.
+
+Judge this by cost per finished row, not per request. A cheaper model that
+needs three browser round-trips to get the caret invariant right was not
+cheaper. If the `app.js` split comes out clean on Sonnet, keep it as the
+default for every mechanical row; if it needs heavy correction, move up.
+
 All nine decisions (§1) are settled; nothing is blocked on an answer. Update
 this table in the commit that finishes a row — it is the only record of
 progress there is. §4.1's rows are five separate commits by design (§4.1);
