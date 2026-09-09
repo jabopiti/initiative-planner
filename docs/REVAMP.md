@@ -18,7 +18,11 @@ those are conversations before they are code (AGENTS.md).
 | Workstream | Status |
 |---|---|
 | Silent-write bug (§4.7, first half) | **Landed** — `ae327ab` |
-| §4.1 Foundation | Not started — **next** |
+| §4.1 Foundation — split `app.js` | Not started — **next** |
+| §4.1 Foundation — hash routing | Not started |
+| §4.1 Foundation — design system | Not started |
+| §4.1 Foundation — formatting module | Not started |
+| §4.1 Foundation — interaction patterns | Not started |
 | §4.2 Entity flows | Not started |
 | §4.3 Settings | Not started |
 | §4.4 Initiative detail | Not started |
@@ -28,8 +32,10 @@ those are conversations before they are code (AGENTS.md).
 | §4.8 Brand pack | Not started |
 
 All nine decisions (§1) are settled; nothing is blocked on an answer. Update
-this table in the commit that finishes a workstream — it is the only record
-of progress there is.
+this table in the commit that finishes a row — it is the only record of
+progress there is. §4.1's rows are five separate commits by design (§4.1);
+the other workstreams are one each unless they turn out to want splitting
+too.
 
 ---
 
@@ -283,6 +289,12 @@ would be worse than the clamp it replaces.
 ### 4.1 Foundation
 
 Everything else rides on this; doing per-page work first means doing it twice.
+
+The five parts below land as **five separate commits, in this order** — split,
+routing, design system, formatting, patterns. Each is independently
+verifiable, and as one commit this would be far too large to review or to
+bisect. The gate (lint, typecheck, test, build) and a real browser check run
+on each, not once at the end.
 
 **Structural prerequisite.** `src/app.js` is 2,960 lines and every workstream
 adds to it. Split it into per-page render modules first — no framework, no
