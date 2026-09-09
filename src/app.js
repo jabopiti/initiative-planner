@@ -139,6 +139,7 @@ export function render() {
   if (view.page === 'team') return renderTeam();
   if (view.page === 'initiatives') return renderInitiatives();
   if (view.page === 'wizard') return renderWizard();
+  if (view.page === 'initiative') return renderInitiative();
 
   fill(
     'root',
@@ -649,6 +650,38 @@ function grandMarkup(initiative) {
  * Recompute everything an allocation percentage affects, writing into the
  * existing nodes. Nothing structural is rebuilt, so the caret stays put.
  */
+/**
+ * Recompute what an actual changes: the blended monthly figures and every
+ * total resting on them. Structure is left alone so the caret stays put.
+ */
+function refreshInitiativeNumbers(initiative) {
+  for (const phaseId of Object.keys(initiative.phases)) {
+    const node = document.querySelector(`[data-calc="total-${phaseId}"]`);
+    if (node) fill(node, phaseTotalsMarkup(initiative, phaseId));
+  }
+
+  // Blended figures move with every recorded actual. These cells share a
+  // table with the inputs, so they are written one by one.
+  for (const month of E.initiativeMonths(initiative)) {
+    const cell = document.querySelector(`[data-calc="blended-${month}"]`);
+    if (!cell) continue;
+    const blended = E.costedPhases(initiative).reduce(
+      (total, phase) => total + (E.phaseBlendedByMonth(phase, app)[month] ?? 0),
+      0,
+    );
+    fill(cell, html`<strong>${E.formatMoney(blended, PROCESS.currency)}</strong>`);
+  }
+
+  // The band panel holds no inputs, so it is safe to rebuild whole — and it
+  // has to be: the total, its track, the marker and the variance all move
+  // together.
+  const panel = document.querySelector('[data-calc="band-panel"]');
+  if (panel) fill(panel, bandPanelMarkup(initiative));
+
+  const grand = document.querySelector('[data-calc="grand"]');
+  if (grand) fill(grand, grandMarkup(initiative));
+}
+
 function refreshPhaseNumbers(initiative, phaseId) {
   const phase = initiative.phases[phaseId];
   for (const allocation of phase.allocations) {
@@ -661,7 +694,8 @@ function refreshPhaseNumbers(initiative, phaseId) {
     if (cost) cost.textContent = E.formatMoney(figures.cost, PROCESS.currency);
   }
   fill(document.querySelector(`[data-calc="total-${phaseId}"]`), phaseTotalsMarkup(initiative, phaseId));
-  fill('wizard-grand', grandMarkup(initiative));
+  const grand = document.querySelector('[data-calc="grand"]');
+  if (grand) fill(grand, grandMarkup(initiative));
 }
 
 /* ------------------------------------------------------------------ *
@@ -798,6 +832,382 @@ function renderInitiatives() {
 }
 
 /* ------------------------------------------------------------------ *
+ * Initiative detail
+ * ------------------------------------------------------------------ */
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+function renderInitiative() {
+  const initiative = app.INITIATIVES.find((i) => i.id === view.params.id);
+  if (!initiative) return navigate('initiatives');
+
+  const costed = E.costedPhaseIds(PROCESS);
+  const panels = costed
+    .map((phaseId) => phasePanel(initiative, phaseId, L.isPhaseEditable(initiative, phaseId)))
+    .join('');
+
+  fill(
+    'root',
+    html`<button type="button" class="link" data-act="page" data-page="initiatives">
+        ← Initiatives</button>
+      <h1>${initiative.name}</h1>
+      <p class="muted">${app.TEAMS[initiative.teamId]?.name ?? '—'} ·
+        ${STATUS_LABELS[initiative.status]}</p>
+
+      ${raw(stepperMarkup(initiative))}
+      ${raw(gateBannerMarkup(initiative))}
+      <div data-calc="band-panel">${raw(bandPanelMarkup(initiative))}</div>
+      ${raw(panels)}
+      ${raw(monthTableMarkup(initiative))}
+      ${raw(gateComparisonMarkup(initiative))}`,
+  );
+}
+
+/** Every phase, with passed and skipped gates visually distinct (SPEC §7.5). */
+function stepperMarkup(initiative) {
+  const order = E.phaseOrder(PROCESS);
+  const currentIndex = order.indexOf(initiative.phaseId);
+
+  const items = PROCESS.phases
+    .map((phase, index) => {
+      const record = initiative.gates[phase.gate.id];
+      const state = record
+        ? record.outcome
+        : index === currentIndex && initiative.status !== 'closed'
+          ? 'current'
+          : 'ahead';
+
+      const note = record
+        ? record.outcome === 'skipped'
+          ? html`<span class="micro">Skipped${raw(record.takenAt ? html` · ${record.takenAt}` : '')}
+              — ${record.reason}</span>`
+          : html`<span class="micro">${phase.gate.label} passed · ${record.takenAt}</span>`
+        : html`<span class="micro">${phase.costed ? 'Costed' : 'No cost'}</span>`;
+
+      return html`<li class="step step--${state}">
+        <span class="step__name">${phase.label}</span>
+        ${raw(note)}
+      </li>`;
+    })
+    .join('');
+
+  return html`<ol class="stepper">${raw(items)}</ol>`;
+}
+
+/**
+ * What this phase's gate needs, and the actions for it. A gate action is
+ * disabled with its reasons spelled out rather than hidden — being told why
+ * is the difference between a blocked user and a stuck one.
+ */
+function gateBannerMarkup(initiative) {
+  if (initiative.status === 'closed') {
+    return html`<div class="panel banner banner--done">
+      <h2>Closed</h2>
+      <p class="muted">This initiative is finished and frozen. Only notes stay writable.</p>
+      <div class="actions">
+        <button type="button" class="btn" data-act="reopen" data-id="${initiative.id}">
+          Reopen the final gate</button>
+      </div>
+    </div>`;
+  }
+  if (initiative.status === 'cancelled') {
+    return html`<div class="panel banner">
+      <h2>Cancelled</h2>
+      <p class="muted">Abandoned before the process finished, and frozen. Set the status back
+        to Active from the registry to work on it again.</p>
+    </div>`;
+  }
+
+  const phase = E.phaseById(PROCESS, initiative.phaseId);
+  const gate = phase.gate;
+  const check = L.gatePrecondition(app, PROCESS, initiative, gate.id);
+  const order = E.phaseOrder(PROCESS);
+  const canReopen = order.indexOf(initiative.phaseId) > 0;
+  const closes = E.isFinalPhase(PROCESS, initiative.phaseId);
+
+  const list = (items, kind) =>
+    items.length
+      ? html`<ul class="issues issues--${kind}">${raw(
+          items.map((text) => html`<li class="${kind === 'blocker' ? 'warn' : 'muted'}">${text}</li>`).join(''),
+        )}</ul>`
+      : '';
+
+  return html`<div class="panel banner">
+    <h2>${phase.label} — ${gate.label}</h2>
+    <p class="muted">${closes
+      ? 'This is the last gate. Passing it closes the initiative.'
+      : `Passing it moves to ${E.phaseLabel(PROCESS, E.nextPhase(PROCESS, phase.id))}.`}
+      ${gate.requiresEstimates
+        ? 'It requires a complete estimate for every costed phase.'
+        : 'It has no cost requirement.'}</p>
+
+    ${raw(list(check.blockers, 'blocker'))}
+    ${raw(list(check.warnings, 'warning'))}
+
+    <div class="actions">
+      <label class="field-inline"><span>Gate date</span>
+        <input type="date" class="field field--short" data-field="gate-date"
+          value="${today()}" /></label>
+      <button type="button" class="btn btn--primary" data-act="pass-gate"
+        data-id="${initiative.id}" data-gate="${gate.id}" ${raw(check.ok ? '' : 'disabled')}>
+        ${closes ? `Pass ${gate.label} and close` : `Pass ${gate.label}`}</button>
+      ${raw(canReopen
+        ? html`<button type="button" class="btn" data-act="reopen" data-id="${initiative.id}">
+            Reopen previous phase</button>`
+        : '')}
+    </div>
+
+    ${raw(gate.skippable
+      ? html`<div class="actions">
+          <label class="field-inline"><span>Skip reason</span>
+            <input class="field" data-field="skip-reason"
+              placeholder="Why is this gate not needed?" /></label>
+          <button type="button" class="btn" data-act="skip-gate" data-id="${initiative.id}"
+            data-gate="${gate.id}">Skip this gate</button>
+        </div>
+        <p class="micro">A skip approves nothing and freezes nothing, so this phase stays
+          editable. The reason is recorded and shown wherever the gate appears.</p>`
+      : html`<p class="micro">${gate.label} cannot be skipped.</p>`)}
+
+    ${raw((gate.checklist ?? []).length ? checklistMarkup(initiative, gate) : '')}
+  </div>`;
+}
+
+const CHECK_LABELS = { red: 'Not resolved', amber: 'Partly', green: 'Resolved' };
+
+function checklistMarkup(initiative, gate) {
+  const rows = L.checklistState(initiative, gate)
+    .map(
+      (item) => html`<tr class="check check--${item.status}">
+        <td><strong>${item.name}</strong><span class="micro">${item.description}</span></td>
+        <td>
+          <select class="field field--select" data-act="checklist-status"
+            data-id="${initiative.id}" data-gate="${gate.id}" data-item="${item.id}"
+            aria-label="${item.name} status">
+            ${raw(L.CHECKLIST_STATUSES.map((status) => html`<option value="${status}"
+              ${raw(item.status === status ? 'selected' : '')}>${CHECK_LABELS[status]}</option>`).join(''))}
+          </select>
+        </td>
+        <td><input class="field" data-act="checklist-note" data-id="${initiative.id}"
+          data-gate="${gate.id}" data-item="${item.id}" value="${item.note}"
+          placeholder="Note" aria-label="${item.name} note" /></td>
+      </tr>`,
+    )
+    .join('');
+
+  return html`<h3>Checklist</h3>
+    <p class="muted">Items start unresolved, so a gate with a checklist is blocked until
+      someone has looked at each one. “Partly” lets the gate pass with a warning.</p>
+    <div class="scroller"><table class="grid">
+      <thead><tr><th>Item</th><th>Status</th><th>Note</th></tr></thead>
+      <tbody>${raw(rows)}</tbody></table></div>`;
+}
+
+/** The grand total, its track, where it sits among the bands, and variance. */
+function bandPanelMarkup(initiative) {
+  const total = E.grandTotal(initiative, app);
+  const band = E.resolveBand(PROCESS.bands, total);
+  const scale = E.bandScale(PROCESS.bands);
+  const money = (v) => E.formatMoney(v, PROCESS.currency);
+
+  const segments = [...PROCESS.bands]
+    .sort((a, b) => a.lower - b.lower)
+    .map((b) => {
+      const from = scale.fraction(b.lower);
+      const to = b.upper === null ? 1 : scale.fraction(b.upper);
+      return html`<span class="bar__band ${band?.id === b.id ? 'bar__band--on' : ''}"
+        style="left:${from * 100}%;width:${(to - from) * 100}%" title="${b.name}">
+        <span class="bar__abbr">${b.abbr}</span></span>`;
+    })
+    .join('');
+
+  const passed = L.lastPassedGate(PROCESS, initiative);
+  const variance = passed ? total - passed.grandTotal : null;
+  const move = passed ? E.compareBands(passed.band, band) : 'unknown';
+
+  return html`<div class="panel">
+    <h2>Approval track</h2>
+    <p class="results"><strong>${money(total)}</strong>
+      <span class="tag">${E.initiativeCoverage(initiative)}</span>
+      — ${band ? band.name : 'Not yet known'}</p>
+    <p class="muted">${band ? band.req : 'No configured approval track covers this total.'}</p>
+
+    <div class="bar" role="img" aria-label="Where this total sits among the approval tracks">
+      ${raw(segments)}
+      <span class="bar__marker" style="left:${scale.fraction(total) * 100}%"></span>
+    </div>
+
+    ${raw(passed
+      ? html`<p class="${move === 'escalation' ? 'warn' : 'muted'}">
+          ${variance === 0
+            ? 'Unchanged since the last approval.'
+            : html`${variance > 0 ? 'Up' : 'Down'} ${money(Math.abs(variance))} since
+                ${passed.band ? passed.band.name : 'the last approval'} was approved.`}
+          ${raw(move === 'escalation'
+            ? html`<strong>This now needs a stricter approval track than the one approved.</strong>`
+            : move === 'de-escalation'
+              ? 'It now falls under a lighter track than the one approved.'
+              : '')}</p>`
+      : html`<p class="muted">No gate has been passed yet, so there is nothing to compare
+          against. A skipped gate approves nothing and never sets that baseline.</p>`)}
+  </div>`;
+}
+
+/**
+ * Every costed month across every costed phase, blending estimate and actual.
+ * This is where actuals are entered, one month at a time (SPEC §5.4).
+ *
+ * The legend distinguishes three things that look alike but are not: a cell
+ * you can record against, a gap where money was expected but nothing was
+ * recorded, and the current month.
+ */
+function monthTableMarkup(initiative) {
+  const months = E.initiativeMonths(initiative);
+  const costed = E.costedPhaseIds(PROCESS).filter((id) => initiative.phases[id]);
+  const locked = E.isFinished(initiative);
+  const now = E.monthKey(new Date());
+  const money = (v) => E.formatMoney(v, PROCESS.currency);
+
+  if (months.length === 0) {
+    return html`<div class="panel"><h2>Month by month</h2>
+      <p class="muted">Nothing is costed yet. Give a phase a period and allocate someone.</p></div>`;
+  }
+
+  const headers = ['Month', ...costed.flatMap((id) => {
+    const label = E.phaseLabel(PROCESS, id);
+    return [`${label} estimate`, `${label} actual`];
+  }), 'Blended'];
+
+  const data = months.map((month) => {
+    /** @type {Array<string|number>} */
+    const cells = [month];
+    let blended = 0;
+    for (const phaseId of costed) {
+      const phase = initiative.phases[phaseId];
+      const estimate = (phase.frozen ? phase.frozen.perMonth : E.phaseEstimateByMonth(phase, app))[month] ?? 0;
+      const actual = phase.actualMonths[month];
+      cells.push(Math.round(estimate), actual === undefined ? '' : actual);
+      blended += E.phaseBlendedByMonth(phase, app)[month] ?? 0;
+    }
+    cells.push(Math.round(blended));
+    return cells;
+  });
+  TABLES.months = { headers, rows: data, name: `${initiative.name}-months` };
+
+  const body = months
+    .map((month) => {
+      let blended = 0;
+      const cells = costed
+        .map((phaseId) => {
+          const phase = initiative.phases[phaseId];
+          const estimate = (phase.frozen ? phase.frozen.perMonth : E.phaseEstimateByMonth(phase, app))[month] ?? 0;
+          const actual = phase.actualMonths[month];
+          blended += E.phaseBlendedByMonth(phase, app)[month] ?? 0;
+          const inPeriod = E.phaseMonths(phase).includes(month);
+          const gap = inPeriod && actual === undefined && estimate > 0;
+
+          return html`<td class="num">${estimate ? money(estimate) : '—'}</td>
+            <td class="num ${gap ? 'cell--gap' : ''}">${raw(locked || !inPeriod
+              ? actual === undefined ? '—' : money(actual)
+              : numberField({
+                  value: actual ?? '',
+                  'data-act': 'actual-month',
+                  'data-id': initiative.id,
+                  'data-phase': phaseId,
+                  'data-month': month,
+                  'aria-label': `${E.phaseLabel(PROCESS, phaseId)} actual for ${month}`,
+                  placeholder: 'not recorded',
+                }))}</td>`;
+        })
+        .join('');
+
+      return html`<tr class="${month === now ? 'row--now' : ''}">
+        <td>${month}${raw(month === now ? html` <span class="tag">now</span>` : '')}</td>
+        ${raw(cells)}
+        <td class="num" data-calc="blended-${month}"><strong>${money(blended)}</strong></td>
+      </tr>`;
+    })
+    .join('');
+
+  return html`<div class="panel">
+    <h2>Month by month</h2>
+    <p class="legend">
+      <span class="legend__item"><span class="swatch swatch--edit"></span> record an actual here</span>
+      <span class="legend__item"><span class="swatch swatch--gap"></span> expected but not recorded</span>
+      <span class="legend__item"><span class="swatch swatch--now"></span> current month</span>
+    </p>
+    <div class="scroller scroller--tall"><table class="grid">
+      <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
+      <tbody>${raw(body)}</tbody>
+    </table></div>
+    ${raw(tableActions('months', 'months'))}
+  </div>`;
+}
+
+/** Every gate left so far, beside the live figures (SPEC §7.5). */
+function gateComparisonMarkup(initiative) {
+  const left = PROCESS.phases
+    .map((phase) => ({ phase, record: initiative.gates[phase.gate.id] }))
+    .filter((entry) => entry.record);
+
+  if (left.length === 0) return '';
+
+  const costed = E.costedPhaseIds(PROCESS);
+  const money = (v) => E.formatMoney(v, PROCESS.currency);
+  const headers = ['Gate', 'Outcome', 'Date', ...costed.map((id) => E.phaseLabel(PROCESS, id)),
+    'Approval track', 'Grand total'];
+
+  /** @returns {Array<string|number>} */
+  const rowFor = (label, outcome, date, costs, band, total) => [
+    label, outcome, date, ...costed.map((id) => Math.round(costs[id] ?? 0)),
+    band ? band.name : 'Not yet known', Math.round(total),
+  ];
+
+  const liveCosts = E.phaseCosts(initiative, app);
+  const liveTotal = E.grandTotal(initiative, app);
+  const data = [
+    ...left.map((entry) => rowFor(
+      entry.phase.gate.label,
+      entry.record.outcome,
+      entry.record.takenAt ?? '—',
+      entry.record.phaseCosts,
+      entry.record.band,
+      entry.record.grandTotal,
+    )),
+    rowFor('Now', 'live', today(), liveCosts, E.resolveBand(PROCESS.bands, liveTotal), liveTotal),
+  ];
+  TABLES.gates = { headers, rows: data, name: `${initiative.name}-gates` };
+
+  const body = data
+    .map((row, index) => {
+      const entry = left[index];
+      const skipped = entry?.record.outcome === 'skipped';
+      return html`<tr class="${index === data.length - 1 ? 'row--live' : skipped ? 'row--warn' : ''}">
+        <td>${row[0]}</td>
+        <td>${raw(skipped
+          ? html`<span class="tag">skipped</span><span class="micro">${entry.record.reason}</span>`
+          : html`${row[1]}`)}</td>
+        <td>${row[2]}</td>
+        ${raw(costed.map((id, i) => html`<td class="num">${money(row[3 + i])}</td>`).join(''))}
+        <td>${row[3 + costed.length]}</td>
+        <td class="num"><strong>${money(row[4 + costed.length])}</strong></td>
+      </tr>`;
+    })
+    .join('');
+
+  return html`<div class="panel">
+    <h2>At each gate</h2>
+    <p class="muted">What the figures were when each gate was left, beside where they stand
+      now. A skipped gate approved nothing — its numbers are a record, not a baseline.</p>
+    <div class="scroller"><table class="grid">
+      <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
+      <tbody>${raw(body)}</tbody>
+    </table></div>
+    ${raw(tableActions('gates', 'comparison'))}
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ *
  * Creation wizard
  * ------------------------------------------------------------------ */
 
@@ -890,7 +1300,7 @@ function renderWizardEstimates(initiative) {
 
       <div class="panel panel--inset">
         <h2>Grand total</h2>
-        <p id="wizard-grand">${raw(grandMarkup(initiative))}</p>
+        <p data-calc="grand">${raw(grandMarkup(initiative))}</p>
       </div>
 
       ${raw(panels)}
@@ -1506,6 +1916,18 @@ function onInput(event) {
       readNumber(target.value, current.allocationPct));
     commitQuietly();
     return refreshPhaseNumbers(initiative, phaseId);
+  } else if (act === 'actual-month') {
+    const initiative = findInitiative(target.dataset.id);
+    const phaseId = target.dataset.phase;
+    const raw = target.value.trim();
+    L.recordActual(initiative, phaseId, target.dataset.month,
+      raw === '' ? null : readNumber(raw, 0));
+    commitQuietly();
+    // Recording an actual moves the blended figures, not the structure.
+    return refreshInitiativeNumbers(initiative);
+  } else if (act === 'checklist-note') {
+    L.setChecklistNote(findInitiative(target.dataset.id), target.dataset.gate,
+      target.dataset.item, target.value);
   } else if (act === 'cost-name') {
     const initiative = findInitiative(target.dataset.id);
     const item = initiative.phases[target.dataset.phase].otherCosts
@@ -1610,14 +2032,40 @@ function onClick(event) {
       store.save(app);
       return navigate('wizard', { id: initiative.id });
     }
+    case 'pass-gate': {
+      const initiative = findInitiative(id);
+      const date = document.querySelector('[data-field="gate-date"]');
+      L.passGate(app, PROCESS, initiative, trigger.dataset.gate,
+        date instanceof HTMLInputElement && date.value ? date.value : today());
+      return commit();
+    }
+    case 'skip-gate': {
+      const initiative = findInitiative(id);
+      const field = document.querySelector('[data-field="skip-reason"]');
+      const reason = field instanceof HTMLInputElement ? field.value.trim() : '';
+      if (!reason) {
+        // Refusing silently would look broken; say what is missing.
+        if (field instanceof HTMLInputElement) {
+          field.placeholder = 'A reason is required before a gate can be skipped';
+          field.focus();
+        }
+        return undefined;
+      }
+      const date = document.querySelector('[data-field="gate-date"]');
+      L.skipGate(app, PROCESS, initiative, trigger.dataset.gate, reason,
+        date instanceof HTMLInputElement && date.value ? date.value : today());
+      return commit();
+    }
+    case 'reopen':
+      L.reopen(PROCESS, findInitiative(id));
+      return commit();
+
     case 'open-initiative':
-      // Initiative detail arrives in Phase 8; until then the estimates step
-      // is the editing surface, and it is a real page over a real record.
-      return navigate('wizard', { id });
+      return navigate('initiative', { id });
     case 'duplicate-initiative': {
       const copy = L.duplicate(app, PROCESS, findInitiative(id));
       store.save(app);
-      return navigate('wizard', { id: copy.id });
+      return navigate('initiative', { id: copy.id });
     }
     case 'sort-initiatives': {
       const current = view.params.sort ?? { key: 'name', dir: 'asc' };
@@ -1767,6 +2215,10 @@ function onChange(event) {
       L.setPhasePeriod(initiative, target.dataset.phase, start || null, end || null);
       return commit();
     }
+    case 'checklist-status':
+      L.setChecklistStatus(findInitiative(id), target.dataset.gate, target.dataset.item,
+        target.value);
+      return commit();
     case 'person-country':
       app.PEOPLE[id].countryId = target.value;
       return commit();

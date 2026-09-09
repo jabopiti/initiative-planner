@@ -523,3 +523,44 @@ test('per-allocation figures and the phase total are the same arithmetic', () =>
   );
   for (const row of rows) assert.ok(row.personDays > 0);
 });
+
+test('the initiative month set covers every costed phase, overruns included', () => {
+  const a = app();
+  const person = standardPerson(a);
+  const i = initiative(a, {
+    phases: {
+      plan: phase({
+        estStartDate: '2026-01-01',
+        estEndDate: '2026-02-28',
+        allocations: [{ personId: person.id, allocationPct: 50 }],
+      }),
+      build: phase({
+        estStartDate: '2026-03-01',
+        estEndDate: '2026-04-30',
+        actualMonths: { '2026-07': 5000 },
+        otherCosts: [{ id: 'c1', name: 'Licence', month: '2025-12', amount: 100 }],
+      }),
+    },
+  });
+
+  const months = E.initiativeMonths(i);
+  assert.equal(months[0], '2025-12', 'an out-of-period cost item widens it backwards');
+  assert.equal(months.at(-1), '2026-07', 'an overrun actual widens it forwards');
+  assert.deepEqual([...months].sort(), months, 'and it comes back in order');
+
+  const monthly = months.reduce((total, month) => {
+    for (const p of E.costedPhases(i)) total += E.phaseBlendedByMonth(p, a)[month] ?? 0;
+    return total;
+  }, 0);
+  assert.equal(Math.round(monthly), Math.round(E.grandTotal(i, a)), 'and it sums to the total');
+});
+
+test('the threshold scale places every bound inside the bar', () => {
+  const scale = E.bandScale(SIMPLE.bands);
+  for (const band of SIMPLE.bands) {
+    assert.ok(scale.fraction(band.lower) >= 0 && scale.fraction(band.lower) <= 1);
+  }
+  assert.equal(scale.fraction(-100), 0, 'clamped, never negative');
+  assert.equal(scale.fraction(scale.max * 10), 1, 'and never past the end');
+  assert.ok(scale.fraction(SIMPLE.bands.at(-1).lower) < 1, 'an unbounded top band has room');
+});

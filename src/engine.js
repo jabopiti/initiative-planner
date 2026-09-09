@@ -324,6 +324,35 @@ export function phaseCoverage(phase) {
 }
 
 /**
+ * Every month any costed phase of this initiative touches, sorted. Wider than
+ * the estimate periods: overrun actuals and out-of-period cost items extend
+ * it, and a monthly view that missed them would not sum to the totals beside
+ * it (SPEC §5.3, §5.4).
+ * @returns {string[]}
+ */
+export function initiativeMonths(initiative) {
+  const months = new Set();
+  for (const phase of Object.values(initiative.phases ?? {})) {
+    for (const month of phaseMonths(phase)) months.add(month);
+  }
+  return [...months].sort();
+}
+
+/**
+ * Where a total sits across the configured bands, as a 0–1 fraction, for the
+ * threshold bar. The scale ends a little past the last bound so an unbounded
+ * top band has somewhere to be drawn.
+ */
+export function bandScale(bands) {
+  const bounds = bands.flatMap((band) => [band.lower, band.upper]).filter((v) => v !== null);
+  const max = Math.max(...bounds, 1);
+  return {
+    max: max * 1.25,
+    fraction: (value) => Math.max(0, Math.min(1, value / (max * 1.25))),
+  };
+}
+
+/**
  * Costed phase records, in no particular order. Only costed phases have a
  * record, so this needs no knowledge of the process — which is what keeps
  * the cost and capacity functions free of it.

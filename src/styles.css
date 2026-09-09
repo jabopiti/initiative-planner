@@ -36,6 +36,12 @@
   --color-line-soft: hsl(220 14% 92%);
   --color-danger: hsl(354 62% 44%);
   --color-warn-tint: hsl(354 62% 96%);
+  --color-ok: hsl(152 45% 34%);
+  --color-ok-tint: hsl(152 45% 95%);
+  --color-amber: hsl(38 78% 40%);
+  --color-amber-tint: hsl(38 78% 95%);
+  --color-now-tint: hsl(232 62% 96%);
+  --color-band: hsl(220 14% 90%);
 
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -59,6 +65,10 @@
   --field-tiny: 3rem;
   --tile-min: 9rem;
   --card-min: 14rem;
+  --step-min: 9rem;
+  --bar-height: 1.75rem;
+  --marker-width: 2px;
+  --swatch: 0.75rem;
   --opacity-disabled: 0.55;
   --scroller-tall: 28rem;
 }
@@ -609,4 +619,169 @@ h3 {
 
 #wizard-grand .micro {
   display: block;
+}
+
+/* ---- stepper ---- */
+
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
+
+.step {
+  flex: 1 1 var(--step-min);
+  border: var(--size-border) solid var(--color-line);
+  border-top: var(--size-thick) solid var(--color-line);
+  padding: var(--space-2) var(--space-3);
+}
+
+.step__name {
+  display: block;
+  color: var(--color-fg);
+  font-weight: 600;
+}
+
+.step--passed {
+  border-top-color: var(--color-ok);
+  background: var(--color-ok-tint);
+}
+
+/* A skipped gate must never look like a passed one — the difference is the
+   whole reason a skip is recorded. */
+.step--skipped {
+  border-top-color: var(--color-amber);
+  background: var(--color-amber-tint);
+  border-top-style: dashed;
+}
+
+.step--current {
+  border-top-color: var(--color-accent);
+  background: var(--color-accent-tint);
+}
+
+.step--ahead .step__name {
+  color: var(--color-muted);
+}
+
+/* ---- gate banner ---- */
+
+.banner {
+  border: var(--size-border) solid var(--color-line);
+  border-left: var(--size-thick) solid var(--color-accent);
+  padding: var(--space-4);
+}
+
+.banner--done {
+  border-left-color: var(--color-ok);
+}
+
+.issues--blocker,
+.issues--warning {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-4);
+}
+
+/* ---- threshold bar ---- */
+
+.bar {
+  position: relative;
+  height: var(--bar-height);
+  margin: var(--space-3) 0;
+  background: var(--color-line-soft);
+}
+
+.bar__band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-right: var(--size-border) solid var(--color-bg);
+  background: var(--color-band);
+  overflow: hidden;
+}
+
+.bar__band--on {
+  background: var(--color-accent-tint);
+}
+
+.bar__abbr {
+  display: block;
+  padding: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.bar__marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--marker-width);
+  background: var(--color-fg);
+}
+
+/* ---- checklist ---- */
+
+.check--red td {
+  background: var(--color-warn-tint);
+}
+
+.check--amber td {
+  background: var(--color-amber-tint);
+}
+
+.check--green td {
+  background: var(--color-ok-tint);
+}
+
+/* ---- month table ---- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  margin: var(--space-2) 0;
+}
+
+.legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.swatch {
+  display: inline-block;
+  width: var(--swatch);
+  height: var(--swatch);
+  border: var(--size-border) solid var(--color-line);
+}
+
+.swatch--edit {
+  background: var(--color-bg);
+}
+
+.swatch--gap {
+  background: var(--color-amber-tint);
+  border-color: var(--color-amber);
+}
+
+.swatch--now {
+  background: var(--color-now-tint);
+  border-color: var(--color-accent);
+}
+
+.cell--gap {
+  background: var(--color-amber-tint);
+}
+
+.row--now td {
+  background: var(--color-now-tint);
+}
+
+.row--live td {
+  border-top: var(--size-thick) solid var(--color-line);
 }
