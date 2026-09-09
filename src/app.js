@@ -342,14 +342,30 @@ function monthPicker() {
   </label>`;
 }
 
+const PEOPLE_COLUMNS = [
+  { key: 'name', label: 'Name', value: (r) => r.person.name.toLowerCase() },
+  { key: 'role', label: 'Role', value: (r) => String(r.row[1]).toLowerCase() },
+  { key: 'country', label: 'Country', value: (r) => String(r.row[2]).toLowerCase() },
+  { key: 'rate', label: 'Day rate', value: (r) => r.row[3] },
+  { key: 'capacity', label: 'Capacity %', value: (r) => r.person.capacityPct },
+  { key: 'teams', label: 'Teams', value: (r) => String(r.row[5]).toLowerCase() },
+  { key: 'allocated', label: 'Allocated %', value: (r) => r.allocated },
+  { key: 'utilisation', label: 'Utilisation %', value: (r) => r.utilisation },
+];
+
 function renderPeople() {
   const month = selectedMonth();
   const filters = view.params.filters ?? {};
+  const sort = view.params.sort ?? { key: 'name', dir: 'asc' };
   const query = (filters.q ?? '').toLowerCase();
 
   const people = Object.values(app.PEOPLE).filter((person) => {
     if (!filters.showInactive && !person.active) return false;
     if (filters.teamId && !E.membership(person, filters.teamId)) return false;
+    // A custom-rate person has no roleId, so the role filter matches only
+    // people actually on that standard role.
+    if (filters.roleId && person.roleId !== filters.roleId) return false;
+    if (filters.countryId && person.countryId !== filters.countryId) return false;
     if (query && !person.name.toLowerCase().includes(query)) return false;
     return true;
   });
@@ -378,7 +394,22 @@ function renderPeople() {
       ],
     };
   });
+  const column = PEOPLE_COLUMNS.find((c) => c.key === sort.key) ?? PEOPLE_COLUMNS[0];
+  data.sort((a, b) => {
+    const left = column.value(a);
+    const right = column.value(b);
+    const cmp = left < right ? -1 : left > right ? 1 : 0;
+    return sort.dir === 'desc' ? -cmp : cmp;
+  });
   TABLES.people = { headers, rows: data.map((entry) => entry.row), name: `people-${month}` };
+
+  const sortableHeaders = PEOPLE_COLUMNS.map(
+    (c) => html`<th aria-sort="${sort.key === c.key
+      ? sort.dir === 'asc' ? 'ascending' : 'descending'
+      : 'none'}">
+      <button type="button" class="link" data-act="sort-people" data-key="${c.key}">
+        ${c.label}${raw(sort.key === c.key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '')}</button></th>`,
+  ).join('');
 
   const rows = data
     .map(
@@ -418,12 +449,24 @@ function renderPeople() {
         <label class="field-inline"><span>Team</span>
           <select class="field field--select" data-act="people-filter" data-filter="teamId">
             <option value="">All</option>${raw(teamOptions)}</select></label>
+        <label class="field-inline"><span>Role</span>
+          <select class="field field--select" data-act="people-filter" data-filter="roleId">
+            <option value="">All</option>${raw(Object.values(app.ROLES)
+              .map((role) => html`<option value="${role.id}"
+                ${raw(filters.roleId === role.id ? 'selected' : '')}>${role.name}</option>`)
+              .join(''))}</select></label>
+        <label class="field-inline"><span>Country</span>
+          <select class="field field--select" data-act="people-filter" data-filter="countryId">
+            <option value="">All</option>${raw(Object.values(app.COUNTRIES)
+              .map((c) => html`<option value="${c.id}"
+                ${raw(filters.countryId === c.id ? 'selected' : '')}>${c.name}</option>`)
+              .join(''))}</select></label>
         <label class="field-inline"><input type="checkbox" data-act="people-filter"
           data-filter="showInactive" ${raw(filters.showInactive ? 'checked' : '')} />
           <span>Show inactive</span></label>
       </div>
       <div class="scroller"><table class="grid">
-        <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}<th></th></tr></thead>
+        <thead><tr>${raw(sortableHeaders)}<th></th></tr></thead>
         <tbody>${raw(rows)}</tbody>
       </table></div>
       ${raw(tableActions('people', 'table'))}
@@ -661,15 +704,30 @@ function phasePanel(initiative, phaseId, editable) {
   const allocated = new Set(phase.allocations.map((a) => a.personId));
   const joinable = members.filter((person) => !allocated.has(person.id));
 
+  const exportRows = [];
   const allocationRows = phase.allocations
     .map((allocation) => {
       const person = app.PEOPLE[allocation.personId];
       if (!person) return '';
+      // A frozen phase reads its own snapshot, so an approved figure on
+      // screen never moves when master data changes underneath it.
+      const at = E.ratesFor(app, phase);
       const year = phase.estStartDate ? E.parseMonthKey(phase.estStartDate.slice(0, 7)).year
         : new Date().getFullYear();
-      const { dayRate, factor } = E.resolveRate(person, app.ROLES, app.COUNTRIES, year);
-      const figures = E.allocationFigures(phase, person, allocation.allocationPct, app);
+      const { dayRate, factor } = E.resolveRate(person, at.ROLES, at.COUNTRIES, year);
+      const figures = E.allocationFigures(phase, person, allocation.allocationPct, at);
       const stranded = !E.membership(person, initiative.teamId);
+
+      exportRows.push([
+        person.name,
+        E.roleLabel(person, app.ROLES),
+        app.COUNTRIES[person.countryId]?.name ?? '',
+        Math.round(dayRate),
+        factor,
+        allocation.allocationPct,
+        Number(figures.personDays.toFixed(1)),
+        Math.round(figures.cost),
+      ]);
 
       return html`<tr class="${stranded ? 'row--warn' : ''}">
         <td>${person.name}${raw(stranded
@@ -743,7 +801,8 @@ function phasePanel(initiative, phaseId, editable) {
       ? html`<div class="scroller"><table class="grid">
           <thead><tr><th>Person</th><th>Role</th><th>Country</th><th>Day rate</th>
             <th>Factor</th><th>Allocation %</th><th>Person-days</th><th>Cost</th><th></th></tr></thead>
-          <tbody>${raw(allocationRows)}</tbody></table></div>`
+          <tbody>${raw(allocationRows)}</tbody></table></div>
+        ${raw(registerAllocationTable(initiative, phaseId, exportRows))}`
       : html`<p class="muted">Nobody allocated yet.</p>`)}
     ${raw(editable && joinable.length
       ? html`<div class="actions">
@@ -779,13 +838,35 @@ function phasePanel(initiative, phaseId, editable) {
   </div>`;
 }
 
+/** Each phase's allocations is its own named table for copy and CSV (§8). */
+function registerAllocationTable(initiative, phaseId, rows) {
+  const key = `alloc-${phaseId}`;
+  TABLES[key] = {
+    headers: ['Person', 'Role', 'Country', 'Day rate', 'Factor', 'Allocation %',
+      'Person-days', 'Cost'],
+    rows,
+    name: `${initiative.name}-${E.phaseLabel(PROCESS, phaseId)}-allocations`,
+  };
+  return tableActions(key, 'allocations');
+}
+
 function phaseTotalsMarkup(initiative, phaseId) {
   const phase = initiative.phases[phaseId];
-  const labour = Object.values(E.phaseLabourByMonth(phase, app)).reduce((t, v) => t + v, 0);
-  const other = Object.values(E.phaseOtherByMonth(phase)).reduce((t, v) => t + v, 0);
   const money = (v) => E.formatMoney(v, PROCESS.currency);
+
+  // Once approved these come from the snapshot, so the panel agrees with the
+  // grand total above it rather than quietly disagreeing (SPEC §7.5).
+  const labour = phase.frozen
+    ? phase.frozen.estLabourTotal
+    : Object.values(E.phaseLabourByMonth(phase, app)).reduce((t, v) => t + v, 0);
+  const other = phase.frozen
+    ? phase.frozen.estOtherTotal
+    : Object.values(E.phaseOtherByMonth(phase)).reduce((t, v) => t + v, 0);
+
   return html`Labour ${money(labour)} + other ${money(other)} =
-    <strong>${money(labour + other)}</strong>`;
+    <strong>${money(labour + other)}</strong>${raw(phase.frozen
+      ? html` <span class="tag">as approved</span>`
+      : '')}`;
 }
 
 /** The live grand total and resolved track, recomputed without a rebuild. */
@@ -841,7 +922,7 @@ function refreshPhaseNumbers(initiative, phaseId) {
   for (const allocation of phase.allocations) {
     const person = app.PEOPLE[allocation.personId];
     if (!person) continue;
-    const figures = E.allocationFigures(phase, person, allocation.allocationPct, app);
+    const figures = E.allocationFigures(phase, person, allocation.allocationPct, E.ratesFor(app, phase));
     const days = document.querySelector(`[data-calc="days-${phaseId}-${person.id}"]`);
     const cost = document.querySelector(`[data-calc="cost-${phaseId}-${person.id}"]`);
     if (days) days.textContent = figures.personDays.toFixed(1);
@@ -1523,7 +1604,7 @@ function renderWizard() {
 }
 
 function renderWizardGeneral() {
-  const draft = view.params.draft ?? {};
+  const draft = view.params.draft ?? store.loadDraft();
   const teams = Object.values(app.TEAMS).filter((team) => team.active);
   const order = E.phaseOrder(PROCESS);
   const startPhaseId = draft.startPhaseId ?? order[0];
@@ -1579,7 +1660,7 @@ function renderWizardGeneral() {
         <div class="actions">
           <button type="button" class="btn btn--primary" data-act="draft-create"
             ${raw((draft.name ?? '').trim() ? '' : 'disabled')}>Create and continue</button>
-          <button type="button" class="btn" data-act="page" data-page="initiatives">Cancel</button>
+          <button type="button" class="btn" data-act="draft-discard">Cancel</button>
         </div>
         ${raw((draft.name ?? '').trim() ? '' : html`<p class="muted">A name is needed first.</p>`)}
       </div>`,
@@ -2401,8 +2482,9 @@ function onInput(event) {
   } else if (act === 'draft-field') {
     // The draft lives in view params until step 1 is saved, so it survives
     // re-renders without an initiative existing yet.
-    const draft = { ...(view.params.draft ?? {}), [field]: target.value };
+    const draft = { ...(view.params.draft ?? store.loadDraft()), [field]: target.value };
     view.params = { ...view.params, draft };
+    store.saveDraft(draft);
     // Only the create button's enabled state depends on this, so refresh
     // nothing else and leave the caret alone.
     const create = document.querySelector('[data-act="draft-create"]');
@@ -2538,8 +2620,11 @@ function onClick(event) {
 
     case 'wizard-start':
       return navigate('wizard', {});
+    case 'draft-discard':
+      store.clearDraft();
+      return navigate('initiatives', {});
     case 'draft-create': {
-      const draft = view.params.draft ?? {};
+      const draft = view.params.draft ?? store.loadDraft();
       if (!(draft.name ?? '').trim()) return undefined;
       const initiative = L.createInitiative(app, PROCESS, {
         name: draft.name.trim(),
@@ -2548,6 +2633,7 @@ function onClick(event) {
         startPhaseId: draft.startPhaseId,
         skipReason: draft.skipReason,
       });
+      store.clearDraft();
       store.save(app);
       return navigate('wizard', { id: initiative.id });
     }
@@ -2591,6 +2677,12 @@ function onClick(event) {
       const band = trigger.dataset.band;
       const next = view.params.bandId === band ? null : band;
       return navigate('portfolio', { ...view.params, bandId: next });
+    }
+    case 'sort-people': {
+      const current = view.params.sort ?? { key: 'name', dir: 'asc' };
+      const key = trigger.dataset.key;
+      const dir = current.key === key && current.dir === 'asc' ? 'desc' : 'asc';
+      return navigate('people', { ...view.params, sort: { key, dir } });
     }
     case 'sort-portfolio': {
       const current = view.params.sort ?? { key: 'effective', dir: 'desc' };
@@ -2726,7 +2818,11 @@ function onChange(event) {
       return navigate('people', { ...view.params, filters });
     }
     case 'draft-select': {
-      const draft = { ...(view.params.draft ?? {}), [target.dataset.field]: target.value };
+      const draft = {
+        ...(view.params.draft ?? store.loadDraft()),
+        [target.dataset.field]: target.value,
+      };
+      store.saveDraft(draft);
       return navigate('wizard', { ...view.params, draft });
     }
     case 'initiatives-filter': {

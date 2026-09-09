@@ -77,10 +77,42 @@ export function flush(app) {
   saveNow(app);
 }
 
+const DRAFT_KEY = 'initiative-planner/wizard-draft';
+
+/**
+ * The creation wizard's first step, before an initiative exists to hold it.
+ * Kept apart from the dataset because it is not data yet — it is an unfinished
+ * intention, and it must not travel in an export.
+ */
+export function loadDraft() {
+  try {
+    return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') ?? {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveDraft(draft) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Losing an unfinished draft is survivable; taking the app down is not.
+  }
+}
+
+export function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // Nothing useful to do.
+  }
+}
+
 /** Clear local storage entirely — the Settings danger zone (SPEC §7.7). */
 export function reset() {
   try {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(DRAFT_KEY);
   } catch {
     // Nothing useful to do; the caller reloads either way.
   }

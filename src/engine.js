@@ -208,6 +208,25 @@ function add(map, key, amount) {
  * @returns {Record<string, number>}
  */
 /**
+ * The master data a phase's figures should be read against: the snapshot it
+ * was frozen with, if it has one, and the live data otherwise.
+ *
+ * A frozen phase must display the figures it was approved at, not what those
+ * figures would be today (SPEC §7.5) — and because the snapshot carries the
+ * roles, countries and people as well as the totals, the per-row detail can
+ * be reproduced exactly rather than merely summarised.
+ */
+export function ratesFor(app, phase) {
+  if (!phase?.frozen) return app;
+  return {
+    ...app,
+    ROLES: phase.frozen.rolesCopy,
+    COUNTRIES: phase.frozen.countriesCopy,
+    PEOPLE: phase.frozen.peopleCopy,
+  };
+}
+
+/**
  * What one allocation costs, month by month, and the person-days behind it.
  * Both the phase total and the per-row figures on an allocation table are
  * expressed through this, so there is only ever one way the number is

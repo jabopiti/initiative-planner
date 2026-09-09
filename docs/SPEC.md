@@ -488,7 +488,8 @@ copied or downloaded as CSV, like every other major table (§8).
   highlighted and completed ones marked. A phase left by a **passed**
   gate and one left by a **skipped** gate must be visually distinct — the
   difference is the whole point of recording a skip — and each shows its
-  date. Hovering or opening a skipped gate shows its reason.
+  date. A skipped gate shows its reason outright rather than behind a
+  hover — a reason nobody reads is not a record.
 - A gate banner: plain-language state of what's approved or frozen, what
   the current phase's gate still needs, and the primary action. The gate
   action is disabled with an explanation until its preconditions are met
@@ -534,7 +535,9 @@ Two steps, resumable — leaving and returning never loses progress:
    anywhere but the first phase records every gate behind it as skipped,
    with a reason defaulting to something like "already in progress", which
    the user can edit (§6.2). Saving here creates the initiative
-   immediately.
+   immediately. Until it is saved the entry is held as a draft, so leaving
+   this step loses nothing either; it is discarded on save or on cancel,
+   and never travels in an export.
 2. **Estimates**: the same phase panels used on the detail page, one per
    costed phase. A running grand total and resolved approval track update
    live as the estimate is filled in. Finishing is allowed even if the

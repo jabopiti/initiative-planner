@@ -115,3 +115,28 @@ test('a dataset from another process falls back rather than loading', async () =
   assert.equal(loaded.app.processId, PROCESS.id);
   assert.deepEqual(loaded.app.INITIATIVES, [], 'initiatives in unknown phases are not loaded');
 });
+
+test('the wizard draft survives leaving the page, and is not part of the dataset', () => {
+  store.saveDraft({ name: 'Half typed', teamId: 't1' });
+  assert.deepEqual(store.loadDraft(), { name: 'Half typed', teamId: 't1' });
+
+  // It must not ride along in the dataset, or an unfinished intention would
+  // travel in an export.
+  const { app } = store.load();
+  assert.equal(JSON.stringify(app).includes('Half typed'), false);
+
+  store.clearDraft();
+  assert.deepEqual(store.loadDraft(), {});
+});
+
+test('a reset clears the draft too', () => {
+  store.saveDraft({ name: 'Leftover' });
+  store.reset();
+  assert.deepEqual(store.loadDraft(), {});
+});
+
+test('an unreadable draft comes back empty rather than throwing', () => {
+  const map = stubStorage();
+  map.set('initiative-planner/wizard-draft', '{ broken');
+  assert.deepEqual(store.loadDraft(), {});
+});

@@ -215,3 +215,62 @@ test('a skipped gate never becomes the escalation baseline', () => {
   L.passGate(app, process, initiative, 'g_shape', '2026-03-01');
   assert.equal(L.lastPassedGate(process, initiative).outcome, 'passed');
 });
+
+/* -------------------------------------------------- frozen display */
+
+test('a frozen phase reads its snapshot, so its panel cannot drift from the total', () => {
+  const { app, process, teamId, people } = setup(SIMPLE);
+  const person = people[0];
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+  estimateAll(app, process, initiative, person);
+  L.passGate(app, process, initiative, 'g_plan', '2026-02-28');
+
+  const frozen = initiative.phases.plan;
+  const approvedRow = E.allocationFigures(frozen, person, 50, E.ratesFor(app, frozen));
+
+  // The exact thing freezing exists to protect against.
+  app.COUNTRIES[person.countryId].byYear[NOW].rate *= 3;
+
+  const stillShows = E.allocationFigures(frozen, person, 50, E.ratesFor(app, frozen));
+  assert.equal(stillShows.cost, approvedRow.cost, 'the row must show what was approved');
+  assert.equal(stillShows.personDays, approvedRow.personDays);
+
+  // And the per-row figures must add up to the frozen total shown beside them,
+  // or the panel contradicts itself.
+  const rowSum = frozen.allocations.reduce(
+    (t, a) => t + E.allocationFigures(frozen, app.PEOPLE[a.personId], a.allocationPct,
+      E.ratesFor(app, frozen)).cost,
+    0,
+  );
+  assert.equal(Math.round(rowSum), Math.round(frozen.frozen.estLabourTotal));
+
+  // An open phase still tracks live master data.
+  const open = initiative.phases.build;
+  assert.equal(open.frozen, null);
+  assert.notEqual(
+    Math.round(E.allocationFigures(open, person, 50, E.ratesFor(app, open)).cost),
+    Math.round(approvedRow.cost),
+    'an unfrozen phase should have moved with the rate',
+  );
+});
+
+test('the phase panels sum to the grand total, frozen or not', () => {
+  const { app, process, teamId, people } = setup(SIMPLE);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+  estimateAll(app, process, initiative, people[0]);
+  L.passGate(app, process, initiative, 'g_plan', '2026-02-28');
+  app.COUNTRIES[people[0].countryId].byYear[NOW].rate *= 3;
+
+  const panelTotal = E.costedPhaseIds(process).reduce((total, phaseId) => {
+    const phase = initiative.phases[phaseId];
+    const labour = phase.frozen
+      ? phase.frozen.estLabourTotal
+      : Object.values(E.phaseLabourByMonth(phase, app)).reduce((t, v) => t + v, 0);
+    const other = phase.frozen
+      ? phase.frozen.estOtherTotal
+      : Object.values(E.phaseOtherByMonth(phase)).reduce((t, v) => t + v, 0);
+    return total + labour + other;
+  }, 0);
+
+  assert.equal(Math.round(panelTotal), Math.round(E.grandTotal(initiative, app)));
+});
