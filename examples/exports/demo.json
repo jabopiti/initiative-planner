@@ -1,0 +1,2245 @@
+{
+  "schemaVersion": 1,
+  "processId": "placeholder-process",
+  "processVersion": 1,
+  "GENERAL": {
+    "lastExportAt": null,
+    "exportReminderDays": 14
+  },
+  "ROLES": {
+    "role_eng": {
+      "id": "role_eng",
+      "name": "Engineer",
+      "abbr": "ENG",
+      "factor": 1,
+      "active": true
+    },
+    "role_des": {
+      "id": "role_des",
+      "name": "Designer",
+      "abbr": "DES",
+      "factor": 1,
+      "active": true
+    },
+    "role_lead": {
+      "id": "role_lead",
+      "name": "Lead",
+      "abbr": "LEAD",
+      "factor": 1.25,
+      "active": true
+    },
+    "role_pm": {
+      "id": "role_pm",
+      "name": "Product Manager",
+      "abbr": "PM",
+      "factor": 1.1,
+      "active": true
+    }
+  },
+  "COUNTRIES": {
+    "country_north": {
+      "id": "country_north",
+      "name": "Northland",
+      "active": true,
+      "byYear": {
+        "2025": {
+          "rate": 600,
+          "workingDayReduction": [
+            2,
+            1,
+            1,
+            2,
+            2,
+            0,
+            0,
+            3,
+            0,
+            1,
+            1,
+            4
+          ]
+        },
+        "2026": {
+          "rate": 625,
+          "workingDayReduction": [
+            2,
+            1,
+            1,
+            2,
+            2,
+            0,
+            0,
+            3,
+            0,
+            1,
+            1,
+            4
+          ]
+        },
+        "2027": {
+          "rate": 650,
+          "workingDayReduction": [
+            2,
+            1,
+            1,
+            2,
+            2,
+            0,
+            0,
+            3,
+            0,
+            1,
+            1,
+            4
+          ]
+        },
+        "2028": {
+          "rate": 675,
+          "workingDayReduction": [
+            2,
+            1,
+            1,
+            2,
+            2,
+            0,
+            0,
+            3,
+            0,
+            1,
+            1,
+            4
+          ]
+        }
+      }
+    },
+    "country_south": {
+      "id": "country_south",
+      "name": "Southland",
+      "active": true,
+      "byYear": {
+        "2025": {
+          "rate": 420,
+          "workingDayReduction": [
+            1,
+            0,
+            2,
+            1,
+            3,
+            1,
+            0,
+            2,
+            1,
+            0,
+            2,
+            3
+          ]
+        },
+        "2026": {
+          "rate": 435,
+          "workingDayReduction": [
+            1,
+            0,
+            2,
+            1,
+            3,
+            1,
+            0,
+            2,
+            1,
+            0,
+            2,
+            3
+          ]
+        },
+        "2027": {
+          "rate": 450,
+          "workingDayReduction": [
+            1,
+            0,
+            2,
+            1,
+            3,
+            1,
+            0,
+            2,
+            1,
+            0,
+            2,
+            3
+          ]
+        },
+        "2028": {
+          "rate": 465,
+          "workingDayReduction": [
+            1,
+            0,
+            2,
+            1,
+            3,
+            1,
+            0,
+            2,
+            1,
+            0,
+            2,
+            3
+          ]
+        }
+      }
+    }
+  },
+  "TEAMS": {
+    "team_platform": {
+      "id": "team_platform",
+      "name": "Platform",
+      "active": true
+    },
+    "team_growth": {
+      "id": "team_growth",
+      "name": "Growth",
+      "active": true
+    }
+  },
+  "PEOPLE": {
+    "person_ada": {
+      "id": "person_ada",
+      "name": "Ada Vance",
+      "active": true,
+      "countryId": "country_north",
+      "capacityPct": 100,
+      "roleId": "role_lead",
+      "customRole": null,
+      "memberships": [
+        {
+          "teamId": "team_platform",
+          "sharePct": 60,
+          "active": true
+        },
+        {
+          "teamId": "team_growth",
+          "sharePct": 40,
+          "active": true
+        }
+      ]
+    },
+    "person_bo": {
+      "id": "person_bo",
+      "name": "Bo Ferreira",
+      "active": true,
+      "countryId": "country_north",
+      "capacityPct": 100,
+      "roleId": "role_eng",
+      "customRole": null,
+      "memberships": [
+        {
+          "teamId": "team_platform",
+          "sharePct": 100,
+          "active": true
+        }
+      ]
+    },
+    "person_cy": {
+      "id": "person_cy",
+      "name": "Cy Okafor",
+      "active": true,
+      "countryId": "country_south",
+      "capacityPct": 80,
+      "roleId": "role_des",
+      "customRole": null,
+      "memberships": [
+        {
+          "teamId": "team_growth",
+          "sharePct": 80,
+          "active": true
+        }
+      ]
+    },
+    "person_di": {
+      "id": "person_di",
+      "name": "Di Marchetti",
+      "active": true,
+      "countryId": "country_south",
+      "capacityPct": 100,
+      "roleId": null,
+      "customRole": {
+        "label": "Contract Engineer",
+        "byYear": {
+          "2025": 800,
+          "2026": 840,
+          "2027": 880,
+          "2028": 920
+        }
+      },
+      "memberships": [
+        {
+          "teamId": "team_platform",
+          "sharePct": 100,
+          "active": true
+        }
+      ]
+    },
+    "person_el": {
+      "id": "person_el",
+      "name": "El Nakamura",
+      "active": true,
+      "countryId": "country_north",
+      "capacityPct": 100,
+      "roleId": "role_pm",
+      "customRole": null,
+      "memberships": [
+        {
+          "teamId": "team_growth",
+          "sharePct": 50,
+          "active": true
+        }
+      ]
+    }
+  },
+  "INITIATIVES": [
+    {
+      "id": "init_mk0xjmo01",
+      "name": "Customer portal refresh",
+      "description": "Replace the ageing self-service portal.",
+      "teamId": "team_platform",
+      "notes": "",
+      "phaseId": "discovery",
+      "status": "active",
+      "phases": {
+        "validation": {
+          "estStartDate": "2026-04-01",
+          "estEndDate": "2026-06-30",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {},
+          "frozen": null
+        },
+        "development": {
+          "estStartDate": "2026-07-01",
+          "estEndDate": "2026-12-31",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            },
+            {
+              "personId": "person_bo",
+              "allocationPct": 40
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {},
+          "frozen": null
+        }
+      },
+      "gates": {},
+      "checklist": {}
+    },
+    {
+      "id": "init_mk0xjmo02",
+      "name": "Payments migration",
+      "description": "Move card processing to the new provider.",
+      "teamId": "team_platform",
+      "notes": "",
+      "phaseId": "validation",
+      "status": "active",
+      "phases": {
+        "validation": {
+          "estStartDate": "2026-02-01",
+          "estEndDate": "2026-05-31",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {},
+          "frozen": null
+        },
+        "development": {
+          "estStartDate": "2026-06-01",
+          "estEndDate": "2026-11-30",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            },
+            {
+              "personId": "person_bo",
+              "allocationPct": 40
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {},
+          "frozen": null
+        }
+      },
+      "gates": {
+        "gate_discovery": {
+          "outcome": "passed",
+          "takenAt": "2026-01-28",
+          "reason": null,
+          "grandTotal": 127593.75,
+          "band": {
+            "id": "band_standard",
+            "name": "Standard",
+            "abbr": "STD",
+            "severity": 2
+          },
+          "phaseCosts": {
+            "validation": 37031.25,
+            "development": 90562.5
+          }
+        }
+      },
+      "checklist": {
+        "gate_discovery": {
+          "chk_problem": {
+            "status": "green",
+            "note": ""
+          }
+        }
+      }
+    },
+    {
+      "id": "init_mk0xjmo03",
+      "name": "Warehouse automation",
+      "description": "Automate pick-and-pack in the main depot.",
+      "teamId": "team_platform",
+      "notes": "",
+      "phaseId": "development",
+      "status": "active",
+      "phases": {
+        "validation": {
+          "estStartDate": "2026-01-01",
+          "estEndDate": "2026-04-30",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {
+            "2026-01": 41000,
+            "2026-02": 38500,
+            "2026-03": 44250
+          },
+          "frozen": {
+            "estimatedPhaseCost": 37500,
+            "estLabourTotal": 37500,
+            "estOtherTotal": 0,
+            "perMonth": {
+              "2026-01": 9375,
+              "2026-02": 8906.25,
+              "2026-03": 9843.75,
+              "2026-04": 9375
+            },
+            "period": {
+              "start": "2026-01-01",
+              "end": "2026-04-30"
+            },
+            "rolesCopy": {
+              "role_eng": {
+                "id": "role_eng",
+                "name": "Engineer",
+                "abbr": "ENG",
+                "factor": 1,
+                "active": true
+              },
+              "role_des": {
+                "id": "role_des",
+                "name": "Designer",
+                "abbr": "DES",
+                "factor": 1,
+                "active": true
+              },
+              "role_lead": {
+                "id": "role_lead",
+                "name": "Lead",
+                "abbr": "LEAD",
+                "factor": 1.25,
+                "active": true
+              },
+              "role_pm": {
+                "id": "role_pm",
+                "name": "Product Manager",
+                "abbr": "PM",
+                "factor": 1.1,
+                "active": true
+              }
+            },
+            "countriesCopy": {
+              "country_north": {
+                "id": "country_north",
+                "name": "Northland",
+                "active": true,
+                "byYear": {
+                  "2025": {
+                    "rate": 600,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2026": {
+                    "rate": 625,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2027": {
+                    "rate": 650,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2028": {
+                    "rate": 675,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  }
+                }
+              },
+              "country_south": {
+                "id": "country_south",
+                "name": "Southland",
+                "active": true,
+                "byYear": {
+                  "2025": {
+                    "rate": 420,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2026": {
+                    "rate": 435,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2027": {
+                    "rate": 450,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2028": {
+                    "rate": 465,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  }
+                }
+              }
+            },
+            "peopleCopy": {
+              "person_ada": {
+                "id": "person_ada",
+                "name": "Ada Vance",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_lead",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 60,
+                    "active": true
+                  },
+                  {
+                    "teamId": "team_growth",
+                    "sharePct": 40,
+                    "active": true
+                  }
+                ]
+              },
+              "person_bo": {
+                "id": "person_bo",
+                "name": "Bo Ferreira",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_eng",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 100,
+                    "active": true
+                  }
+                ]
+              },
+              "person_cy": {
+                "id": "person_cy",
+                "name": "Cy Okafor",
+                "active": true,
+                "countryId": "country_south",
+                "capacityPct": 80,
+                "roleId": "role_des",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_growth",
+                    "sharePct": 80,
+                    "active": true
+                  }
+                ]
+              },
+              "person_di": {
+                "id": "person_di",
+                "name": "Di Marchetti",
+                "active": true,
+                "countryId": "country_south",
+                "capacityPct": 100,
+                "roleId": null,
+                "customRole": {
+                  "label": "Contract Engineer",
+                  "byYear": {
+                    "2025": 800,
+                    "2026": 840,
+                    "2027": 880,
+                    "2028": 920
+                  }
+                },
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 100,
+                    "active": true
+                  }
+                ]
+              },
+              "person_el": {
+                "id": "person_el",
+                "name": "El Nakamura",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_pm",
+                "customRole": null,
+                "memberships": []
+              }
+            }
+          }
+        },
+        "development": {
+          "estStartDate": "2026-05-01",
+          "estEndDate": "2026-10-31",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            },
+            {
+              "personId": "person_bo",
+              "allocationPct": 40
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {},
+          "frozen": null
+        }
+      },
+      "gates": {
+        "gate_discovery": {
+          "outcome": "skipped",
+          "takenAt": "2026-01-10",
+          "reason": "Not relevant to this initiative",
+          "grandTotal": 127343.75,
+          "band": {
+            "id": "band_standard",
+            "name": "Standard",
+            "abbr": "STD",
+            "severity": 2
+          },
+          "phaseCosts": {
+            "validation": 37500,
+            "development": 89843.75
+          }
+        },
+        "gate_validation": {
+          "outcome": "passed",
+          "takenAt": "2026-04-30",
+          "reason": null,
+          "grandTotal": 127343.75,
+          "band": {
+            "id": "band_standard",
+            "name": "Standard",
+            "abbr": "STD",
+            "severity": 2
+          },
+          "phaseCosts": {
+            "validation": 37500,
+            "development": 89843.75
+          }
+        }
+      },
+      "checklist": {
+        "gate_validation": {
+          "chk_scope": {
+            "status": "green",
+            "note": ""
+          },
+          "chk_risk": {
+            "status": "green",
+            "note": ""
+          }
+        }
+      }
+    },
+    {
+      "id": "init_mk0xjmo04",
+      "name": "Supplier portal",
+      "description": "Give suppliers self-service order tracking.",
+      "teamId": "team_growth",
+      "notes": "",
+      "phaseId": "rollout",
+      "status": "active",
+      "phases": {
+        "validation": {
+          "estStartDate": "2026-01-01",
+          "estEndDate": "2026-03-31",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {},
+          "frozen": {
+            "estimatedPhaseCost": 28125,
+            "estLabourTotal": 28125,
+            "estOtherTotal": 0,
+            "perMonth": {
+              "2026-01": 9375,
+              "2026-02": 8906.25,
+              "2026-03": 9843.75
+            },
+            "period": {
+              "start": "2026-01-01",
+              "end": "2026-03-31"
+            },
+            "rolesCopy": {
+              "role_eng": {
+                "id": "role_eng",
+                "name": "Engineer",
+                "abbr": "ENG",
+                "factor": 1,
+                "active": true
+              },
+              "role_des": {
+                "id": "role_des",
+                "name": "Designer",
+                "abbr": "DES",
+                "factor": 1,
+                "active": true
+              },
+              "role_lead": {
+                "id": "role_lead",
+                "name": "Lead",
+                "abbr": "LEAD",
+                "factor": 1.25,
+                "active": true
+              },
+              "role_pm": {
+                "id": "role_pm",
+                "name": "Product Manager",
+                "abbr": "PM",
+                "factor": 1.1,
+                "active": true
+              }
+            },
+            "countriesCopy": {
+              "country_north": {
+                "id": "country_north",
+                "name": "Northland",
+                "active": true,
+                "byYear": {
+                  "2025": {
+                    "rate": 600,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2026": {
+                    "rate": 625,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2027": {
+                    "rate": 650,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2028": {
+                    "rate": 675,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  }
+                }
+              },
+              "country_south": {
+                "id": "country_south",
+                "name": "Southland",
+                "active": true,
+                "byYear": {
+                  "2025": {
+                    "rate": 420,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2026": {
+                    "rate": 435,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2027": {
+                    "rate": 450,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2028": {
+                    "rate": 465,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  }
+                }
+              }
+            },
+            "peopleCopy": {
+              "person_ada": {
+                "id": "person_ada",
+                "name": "Ada Vance",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_lead",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 60,
+                    "active": true
+                  },
+                  {
+                    "teamId": "team_growth",
+                    "sharePct": 40,
+                    "active": true
+                  }
+                ]
+              },
+              "person_bo": {
+                "id": "person_bo",
+                "name": "Bo Ferreira",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_eng",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 100,
+                    "active": true
+                  }
+                ]
+              },
+              "person_cy": {
+                "id": "person_cy",
+                "name": "Cy Okafor",
+                "active": true,
+                "countryId": "country_south",
+                "capacityPct": 80,
+                "roleId": "role_des",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_growth",
+                    "sharePct": 80,
+                    "active": true
+                  }
+                ]
+              },
+              "person_di": {
+                "id": "person_di",
+                "name": "Di Marchetti",
+                "active": true,
+                "countryId": "country_south",
+                "capacityPct": 100,
+                "roleId": null,
+                "customRole": {
+                  "label": "Contract Engineer",
+                  "byYear": {
+                    "2025": 800,
+                    "2026": 840,
+                    "2027": 880,
+                    "2028": 920
+                  }
+                },
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 100,
+                    "active": true
+                  }
+                ]
+              },
+              "person_el": {
+                "id": "person_el",
+                "name": "El Nakamura",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_pm",
+                "customRole": null,
+                "memberships": []
+              }
+            }
+          }
+        },
+        "development": {
+          "estStartDate": "2026-04-01",
+          "estEndDate": "2026-08-31",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            },
+            {
+              "personId": "person_cy",
+              "allocationPct": 40
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {},
+          "frozen": {
+            "estimatedPhaseCost": 65560.5,
+            "estLabourTotal": 65560.5,
+            "estOtherTotal": 0,
+            "perMonth": {
+              "2026-04": 13029,
+              "2026-05": 12038.25,
+              "2026-06": 13966.5,
+              "2026-07": 14783.25,
+              "2026-08": 11743.499999999998
+            },
+            "period": {
+              "start": "2026-04-01",
+              "end": "2026-08-31"
+            },
+            "rolesCopy": {
+              "role_eng": {
+                "id": "role_eng",
+                "name": "Engineer",
+                "abbr": "ENG",
+                "factor": 1,
+                "active": true
+              },
+              "role_des": {
+                "id": "role_des",
+                "name": "Designer",
+                "abbr": "DES",
+                "factor": 1,
+                "active": true
+              },
+              "role_lead": {
+                "id": "role_lead",
+                "name": "Lead",
+                "abbr": "LEAD",
+                "factor": 1.25,
+                "active": true
+              },
+              "role_pm": {
+                "id": "role_pm",
+                "name": "Product Manager",
+                "abbr": "PM",
+                "factor": 1.1,
+                "active": true
+              }
+            },
+            "countriesCopy": {
+              "country_north": {
+                "id": "country_north",
+                "name": "Northland",
+                "active": true,
+                "byYear": {
+                  "2025": {
+                    "rate": 600,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2026": {
+                    "rate": 625,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2027": {
+                    "rate": 650,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2028": {
+                    "rate": 675,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  }
+                }
+              },
+              "country_south": {
+                "id": "country_south",
+                "name": "Southland",
+                "active": true,
+                "byYear": {
+                  "2025": {
+                    "rate": 420,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2026": {
+                    "rate": 435,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2027": {
+                    "rate": 450,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2028": {
+                    "rate": 465,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  }
+                }
+              }
+            },
+            "peopleCopy": {
+              "person_ada": {
+                "id": "person_ada",
+                "name": "Ada Vance",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_lead",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 60,
+                    "active": true
+                  },
+                  {
+                    "teamId": "team_growth",
+                    "sharePct": 40,
+                    "active": true
+                  }
+                ]
+              },
+              "person_bo": {
+                "id": "person_bo",
+                "name": "Bo Ferreira",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_eng",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 100,
+                    "active": true
+                  }
+                ]
+              },
+              "person_cy": {
+                "id": "person_cy",
+                "name": "Cy Okafor",
+                "active": true,
+                "countryId": "country_south",
+                "capacityPct": 80,
+                "roleId": "role_des",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_growth",
+                    "sharePct": 80,
+                    "active": true
+                  }
+                ]
+              },
+              "person_di": {
+                "id": "person_di",
+                "name": "Di Marchetti",
+                "active": true,
+                "countryId": "country_south",
+                "capacityPct": 100,
+                "roleId": null,
+                "customRole": {
+                  "label": "Contract Engineer",
+                  "byYear": {
+                    "2025": 800,
+                    "2026": 840,
+                    "2027": 880,
+                    "2028": 920
+                  }
+                },
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 100,
+                    "active": true
+                  }
+                ]
+              },
+              "person_el": {
+                "id": "person_el",
+                "name": "El Nakamura",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_pm",
+                "customRole": null,
+                "memberships": []
+              }
+            }
+          }
+        }
+      },
+      "gates": {
+        "gate_discovery": {
+          "outcome": "passed",
+          "takenAt": "2026-01-15",
+          "reason": null,
+          "grandTotal": 93685.5,
+          "band": {
+            "id": "band_standard",
+            "name": "Standard",
+            "abbr": "STD",
+            "severity": 2
+          },
+          "phaseCosts": {
+            "validation": 28125,
+            "development": 65560.5
+          }
+        },
+        "gate_validation": {
+          "outcome": "passed",
+          "takenAt": "2026-03-31",
+          "reason": null,
+          "grandTotal": 93685.5,
+          "band": {
+            "id": "band_standard",
+            "name": "Standard",
+            "abbr": "STD",
+            "severity": 2
+          },
+          "phaseCosts": {
+            "validation": 28125,
+            "development": 65560.5
+          }
+        },
+        "gate_development": {
+          "outcome": "passed",
+          "takenAt": "2026-08-31",
+          "reason": null,
+          "grandTotal": 93685.5,
+          "band": {
+            "id": "band_standard",
+            "name": "Standard",
+            "abbr": "STD",
+            "severity": 2
+          },
+          "phaseCosts": {
+            "validation": 28125,
+            "development": 65560.5
+          }
+        }
+      },
+      "checklist": {
+        "gate_discovery": {
+          "chk_problem": {
+            "status": "green",
+            "note": ""
+          }
+        },
+        "gate_validation": {
+          "chk_scope": {
+            "status": "green",
+            "note": ""
+          },
+          "chk_risk": {
+            "status": "green",
+            "note": ""
+          }
+        },
+        "gate_development": {
+          "chk_ready": {
+            "status": "green",
+            "note": ""
+          }
+        }
+      }
+    },
+    {
+      "id": "init_mk0xjmo05",
+      "name": "Fraud scoring v2",
+      "description": "Second-generation fraud model, delivered.",
+      "teamId": "team_growth",
+      "notes": "Delivered on time. Benefits review scheduled for the summer.",
+      "phaseId": "rollout",
+      "status": "closed",
+      "phases": {
+        "validation": {
+          "estStartDate": "2025-06-01",
+          "estEndDate": "2025-09-30",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {},
+          "frozen": {
+            "estimatedPhaseCost": 37800,
+            "estLabourTotal": 37800,
+            "estOtherTotal": 0,
+            "perMonth": {
+              "2025-06": 9450,
+              "2025-07": 10350,
+              "2025-08": 8099.999999999999,
+              "2025-09": 9900
+            },
+            "period": {
+              "start": "2025-06-01",
+              "end": "2025-09-30"
+            },
+            "rolesCopy": {
+              "role_eng": {
+                "id": "role_eng",
+                "name": "Engineer",
+                "abbr": "ENG",
+                "factor": 1,
+                "active": true
+              },
+              "role_des": {
+                "id": "role_des",
+                "name": "Designer",
+                "abbr": "DES",
+                "factor": 1,
+                "active": true
+              },
+              "role_lead": {
+                "id": "role_lead",
+                "name": "Lead",
+                "abbr": "LEAD",
+                "factor": 1.25,
+                "active": true
+              },
+              "role_pm": {
+                "id": "role_pm",
+                "name": "Product Manager",
+                "abbr": "PM",
+                "factor": 1.1,
+                "active": true
+              }
+            },
+            "countriesCopy": {
+              "country_north": {
+                "id": "country_north",
+                "name": "Northland",
+                "active": true,
+                "byYear": {
+                  "2025": {
+                    "rate": 600,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2026": {
+                    "rate": 625,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2027": {
+                    "rate": 650,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2028": {
+                    "rate": 675,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  }
+                }
+              },
+              "country_south": {
+                "id": "country_south",
+                "name": "Southland",
+                "active": true,
+                "byYear": {
+                  "2025": {
+                    "rate": 420,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2026": {
+                    "rate": 435,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2027": {
+                    "rate": 450,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2028": {
+                    "rate": 465,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  }
+                }
+              }
+            },
+            "peopleCopy": {
+              "person_ada": {
+                "id": "person_ada",
+                "name": "Ada Vance",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_lead",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 60,
+                    "active": true
+                  },
+                  {
+                    "teamId": "team_growth",
+                    "sharePct": 40,
+                    "active": true
+                  }
+                ]
+              },
+              "person_bo": {
+                "id": "person_bo",
+                "name": "Bo Ferreira",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_eng",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 100,
+                    "active": true
+                  }
+                ]
+              },
+              "person_cy": {
+                "id": "person_cy",
+                "name": "Cy Okafor",
+                "active": true,
+                "countryId": "country_south",
+                "capacityPct": 80,
+                "roleId": "role_des",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_growth",
+                    "sharePct": 80,
+                    "active": true
+                  }
+                ]
+              },
+              "person_di": {
+                "id": "person_di",
+                "name": "Di Marchetti",
+                "active": true,
+                "countryId": "country_south",
+                "capacityPct": 100,
+                "roleId": null,
+                "customRole": {
+                  "label": "Contract Engineer",
+                  "byYear": {
+                    "2025": 800,
+                    "2026": 840,
+                    "2027": 880,
+                    "2028": 920
+                  }
+                },
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 100,
+                    "active": true
+                  }
+                ]
+              },
+              "person_el": {
+                "id": "person_el",
+                "name": "El Nakamura",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_pm",
+                "customRole": null,
+                "memberships": []
+              }
+            }
+          }
+        },
+        "development": {
+          "estStartDate": "2025-10-01",
+          "estEndDate": "2026-01-31",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            },
+            {
+              "personId": "person_cy",
+              "allocationPct": 40
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {},
+          "frozen": {
+            "estimatedPhaseCost": 50277,
+            "estLabourTotal": 50277,
+            "estOtherTotal": 0,
+            "perMonth": {
+              "2025-10": 13764,
+              "2025-11": 11574,
+              "2025-12": 11910,
+              "2026-01": 13029
+            },
+            "period": {
+              "start": "2025-10-01",
+              "end": "2026-01-31"
+            },
+            "rolesCopy": {
+              "role_eng": {
+                "id": "role_eng",
+                "name": "Engineer",
+                "abbr": "ENG",
+                "factor": 1,
+                "active": true
+              },
+              "role_des": {
+                "id": "role_des",
+                "name": "Designer",
+                "abbr": "DES",
+                "factor": 1,
+                "active": true
+              },
+              "role_lead": {
+                "id": "role_lead",
+                "name": "Lead",
+                "abbr": "LEAD",
+                "factor": 1.25,
+                "active": true
+              },
+              "role_pm": {
+                "id": "role_pm",
+                "name": "Product Manager",
+                "abbr": "PM",
+                "factor": 1.1,
+                "active": true
+              }
+            },
+            "countriesCopy": {
+              "country_north": {
+                "id": "country_north",
+                "name": "Northland",
+                "active": true,
+                "byYear": {
+                  "2025": {
+                    "rate": 600,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2026": {
+                    "rate": 625,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2027": {
+                    "rate": 650,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  },
+                  "2028": {
+                    "rate": 675,
+                    "workingDayReduction": [
+                      2,
+                      1,
+                      1,
+                      2,
+                      2,
+                      0,
+                      0,
+                      3,
+                      0,
+                      1,
+                      1,
+                      4
+                    ]
+                  }
+                }
+              },
+              "country_south": {
+                "id": "country_south",
+                "name": "Southland",
+                "active": true,
+                "byYear": {
+                  "2025": {
+                    "rate": 420,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2026": {
+                    "rate": 435,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2027": {
+                    "rate": 450,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  },
+                  "2028": {
+                    "rate": 465,
+                    "workingDayReduction": [
+                      1,
+                      0,
+                      2,
+                      1,
+                      3,
+                      1,
+                      0,
+                      2,
+                      1,
+                      0,
+                      2,
+                      3
+                    ]
+                  }
+                }
+              }
+            },
+            "peopleCopy": {
+              "person_ada": {
+                "id": "person_ada",
+                "name": "Ada Vance",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_lead",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 60,
+                    "active": true
+                  },
+                  {
+                    "teamId": "team_growth",
+                    "sharePct": 40,
+                    "active": true
+                  }
+                ]
+              },
+              "person_bo": {
+                "id": "person_bo",
+                "name": "Bo Ferreira",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_eng",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 100,
+                    "active": true
+                  }
+                ]
+              },
+              "person_cy": {
+                "id": "person_cy",
+                "name": "Cy Okafor",
+                "active": true,
+                "countryId": "country_south",
+                "capacityPct": 80,
+                "roleId": "role_des",
+                "customRole": null,
+                "memberships": [
+                  {
+                    "teamId": "team_growth",
+                    "sharePct": 80,
+                    "active": true
+                  }
+                ]
+              },
+              "person_di": {
+                "id": "person_di",
+                "name": "Di Marchetti",
+                "active": true,
+                "countryId": "country_south",
+                "capacityPct": 100,
+                "roleId": null,
+                "customRole": {
+                  "label": "Contract Engineer",
+                  "byYear": {
+                    "2025": 800,
+                    "2026": 840,
+                    "2027": 880,
+                    "2028": 920
+                  }
+                },
+                "memberships": [
+                  {
+                    "teamId": "team_platform",
+                    "sharePct": 100,
+                    "active": true
+                  }
+                ]
+              },
+              "person_el": {
+                "id": "person_el",
+                "name": "El Nakamura",
+                "active": true,
+                "countryId": "country_north",
+                "capacityPct": 100,
+                "roleId": "role_pm",
+                "customRole": null,
+                "memberships": []
+              }
+            }
+          }
+        }
+      },
+      "gates": {
+        "gate_discovery": {
+          "outcome": "passed",
+          "takenAt": "2025-05-20",
+          "reason": null,
+          "grandTotal": 88077,
+          "band": {
+            "id": "band_standard",
+            "name": "Standard",
+            "abbr": "STD",
+            "severity": 2
+          },
+          "phaseCosts": {
+            "validation": 37800,
+            "development": 50277
+          }
+        },
+        "gate_validation": {
+          "outcome": "passed",
+          "takenAt": "2025-09-30",
+          "reason": null,
+          "grandTotal": 88077,
+          "band": {
+            "id": "band_standard",
+            "name": "Standard",
+            "abbr": "STD",
+            "severity": 2
+          },
+          "phaseCosts": {
+            "validation": 37800,
+            "development": 50277
+          }
+        },
+        "gate_development": {
+          "outcome": "passed",
+          "takenAt": "2026-01-31",
+          "reason": null,
+          "grandTotal": 88077,
+          "band": {
+            "id": "band_standard",
+            "name": "Standard",
+            "abbr": "STD",
+            "severity": 2
+          },
+          "phaseCosts": {
+            "validation": 37800,
+            "development": 50277
+          }
+        },
+        "gate_rollout": {
+          "outcome": "passed",
+          "takenAt": "2026-02-14",
+          "reason": null,
+          "grandTotal": 88077,
+          "band": {
+            "id": "band_standard",
+            "name": "Standard",
+            "abbr": "STD",
+            "severity": 2
+          },
+          "phaseCosts": {
+            "validation": 37800,
+            "development": 50277
+          }
+        }
+      },
+      "checklist": {
+        "gate_discovery": {
+          "chk_problem": {
+            "status": "green",
+            "note": ""
+          }
+        },
+        "gate_validation": {
+          "chk_scope": {
+            "status": "green",
+            "note": ""
+          },
+          "chk_risk": {
+            "status": "green",
+            "note": ""
+          }
+        },
+        "gate_development": {
+          "chk_ready": {
+            "status": "green",
+            "note": ""
+          }
+        },
+        "gate_rollout": {
+          "chk_benefits": {
+            "status": "green",
+            "note": ""
+          }
+        }
+      }
+    },
+    {
+      "id": "init_mk0xjmo06",
+      "name": "Loyalty scheme",
+      "description": "Points and tiers for repeat customers.",
+      "teamId": "team_growth",
+      "notes": "",
+      "phaseId": "discovery",
+      "status": "on-hold",
+      "phases": {
+        "validation": {
+          "estStartDate": "2026-09-01",
+          "estEndDate": "2026-12-31",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {},
+          "frozen": null
+        },
+        "development": {
+          "estStartDate": "2027-01-01",
+          "estEndDate": "2027-06-30",
+          "allocations": [
+            {
+              "personId": "person_ada",
+              "allocationPct": 60
+            },
+            {
+              "personId": "person_cy",
+              "allocationPct": 40
+            }
+          ],
+          "otherCosts": [],
+          "actualStartDate": null,
+          "actualEndDate": null,
+          "actualMonths": {},
+          "frozen": null
+        }
+      },
+      "gates": {},
+      "checklist": {}
+    }
+  ]
+}

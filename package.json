@@ -10,7 +10,8 @@
     "build": "vite build && node scripts/bundle.mjs",
     "test": "node --test \"test/**/*.test.mjs\"",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "demo": "node scripts/demo.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.5.0",

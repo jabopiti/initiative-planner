@@ -13,14 +13,14 @@ a checklist, or both. People exist independently of teams, so one person
 can be split across several, and each team draws only on the share it
 holds.
 
-This repository is being built **spec-first**: there is no reference
-implementation to copy from. Everything needed to build it correctly
-lives in the four documents below.
+This repository was built **spec-first**: the four documents below came
+first and the implementation follows them. Where the two ever disagree,
+the implementation wins and the document is corrected.
 
 ## Status
 
-Specs only, no code yet. Follow [PLAN.md](docs/PLAN.md) in order, starting
-from Phase 0.
+Complete. `npm install && npm run build` produces the shipped file; see
+[PLAN.md](docs/PLAN.md) for how it was built, phase by phase.
 
 ## Start here
 
@@ -34,7 +34,7 @@ from Phase 0.
    module boundaries, brand-pack contract in implementation terms).
 4. [PLAN.md](docs/PLAN.md) — the ordered build phases.
 
-## Commands (once Phase 0 is done)
+## Commands
 
 ```text
 npm install
@@ -43,10 +43,13 @@ npm run build       # -> initiative-planner.html
 npm test
 npm run typecheck
 npm run lint
+npm run demo        # regenerate examples/exports/demo.json
 ```
 
 Serve the built file with `python3 -m http.server 8899` for manual
-browser checks.
+browser checks. [`examples/exports/demo.json`](examples/exports/demo.json)
+is a fictional dataset covering every state the UI renders — import it
+through Settings → Data rather than typing one in.
 
 ## Brand pack
 
