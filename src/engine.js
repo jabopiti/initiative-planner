@@ -238,9 +238,17 @@ export function ratesFor(app, phase) {
  * expressed through this, so there is only ever one way the number is
  * derived.
  *
+ * Takes a **personId**, not a person: the rate for a custom-role person lives
+ * on the person record itself, so passing an object sourced from somewhere
+ * other than `app` silently defeats a frozen snapshot. Resolving here means
+ * the caller's choice of `app` — live or `ratesFor(app, phase)` — decides
+ * everything, which is the only way to get it consistently right.
+ *
  * @returns {{ byMonth: Record<string, number>, personDays: number, cost: number }}
  */
-export function allocationFigures(phase, person, allocationPct, app) {
+export function allocationFigures(phase, personId, allocationPct, app) {
+  const person = app.PEOPLE[personId];
+  if (!person) return { byMonth: {}, personDays: 0, cost: 0 };
   const country = app.COUNTRIES[person.countryId];
   const days = workingDaysForPeriod(country, phase.estStartDate, phase.estEndDate);
 
@@ -264,9 +272,7 @@ export function phaseLabourByMonth(phase, app) {
   /** @type {Record<string, number>} */
   const out = {};
   for (const allocation of phase.allocations ?? []) {
-    const person = app.PEOPLE[allocation.personId];
-    if (!person) continue;
-    const { byMonth } = allocationFigures(phase, person, allocation.allocationPct, app);
+    const { byMonth } = allocationFigures(phase, allocation.personId, allocation.allocationPct, app);
     for (const [key, amount] of Object.entries(byMonth)) add(out, key, amount);
   }
   return out;

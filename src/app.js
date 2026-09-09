@@ -712,15 +712,16 @@ function phasePanel(initiative, phaseId, editable) {
   const exportRows = [];
   const allocationRows = phase.allocations
     .map((allocation) => {
-      const person = app.PEOPLE[allocation.personId];
-      if (!person) return '';
-      // A frozen phase reads its own snapshot, so an approved figure on
+      // A frozen phase reads its own snapshot — including the people, since a
+      // custom rate lives on the person record — so an approved figure on
       // screen never moves when master data changes underneath it.
       const at = E.ratesFor(app, phase);
+      const person = at.PEOPLE[allocation.personId] ?? app.PEOPLE[allocation.personId];
+      if (!person) return '';
       const year = phase.estStartDate ? E.parseMonthKey(phase.estStartDate.slice(0, 7)).year
         : new Date().getFullYear();
       const { dayRate, factor } = E.resolveRate(person, at.ROLES, at.COUNTRIES, year);
-      const figures = E.allocationFigures(phase, person, allocation.allocationPct, at);
+      const figures = E.allocationFigures(phase, allocation.personId, allocation.allocationPct, at);
       const stranded = !E.membership(person, initiative.teamId);
 
       exportRows.push([
@@ -855,6 +856,19 @@ function registerAllocationTable(initiative, phaseId, rows) {
   return tableActions(key, 'allocations');
 }
 
+/**
+ * A panel per costed phase, in process order, skipping any the initiative has
+ * no record for. That gap is reachable: a later build may mark a phase costed
+ * that was not costed when this initiative was created, and a processVersion
+ * moving forward is deliberately not fatal (DESIGN §3).
+ */
+function costedPhasePanels(initiative) {
+  return E.costedPhaseIds(PROCESS)
+    .filter((phaseId) => initiative.phases[phaseId])
+    .map((phaseId) => phasePanel(initiative, phaseId, L.isPhaseEditable(initiative, phaseId)))
+    .join('');
+}
+
 function phaseTotalsMarkup(initiative, phaseId) {
   const phase = initiative.phases[phaseId];
 
@@ -900,13 +914,11 @@ function refreshCalcRegions(initiative) {
   for (const [phaseId, phase] of Object.entries(initiative.phases)) {
     const at = E.ratesFor(app, phase);
     for (const allocation of phase.allocations) {
-      const person = app.PEOPLE[allocation.personId];
-      if (!person) continue;
-      const days = document.querySelector(`[data-calc="days-${phaseId}-${person.id}"]`);
-      const cost = document.querySelector(`[data-calc="cost-${phaseId}-${person.id}"]`);
+      const days = document.querySelector(`[data-calc="days-${phaseId}-${allocation.personId}"]`);
+      const cost = document.querySelector(`[data-calc="cost-${phaseId}-${allocation.personId}"]`);
       if (!days && !cost) continue;
 
-      const figures = E.allocationFigures(phase, person, allocation.allocationPct, at);
+      const figures = E.allocationFigures(phase, allocation.personId, allocation.allocationPct, at);
       if (days) days.textContent = figures.personDays.toFixed(1);
       if (cost) cost.textContent = money(figures.cost);
     }
@@ -1219,10 +1231,7 @@ function renderInitiative() {
   const initiative = app.INITIATIVES.find((i) => i.id === view.params.id);
   if (!initiative) return navigate('initiatives');
 
-  const costed = E.costedPhaseIds(PROCESS);
-  const panels = costed
-    .map((phaseId) => phasePanel(initiative, phaseId, L.isPhaseEditable(initiative, phaseId)))
-    .join('');
+  const panels = costedPhasePanels(initiative);
 
   fill(
     'root',
@@ -1661,10 +1670,7 @@ function renderWizardGeneral() {
 }
 
 function renderWizardEstimates(initiative) {
-  const costed = E.costedPhaseIds(PROCESS);
-  const panels = costed
-    .map((phaseId) => phasePanel(initiative, phaseId, L.isPhaseEditable(initiative, phaseId)))
-    .join('');
+  const panels = costedPhasePanels(initiative);
 
   fill(
     'root',
@@ -1960,6 +1966,18 @@ function capacityCellMarkup(personId, teamId, month) {
     .join('');
 
   const total = rows.reduce((t, r) => t + r.allocationPct, 0);
+
+  // The membership is resolved at click time, not render time, so it can be
+  // gone — a second tab, or an import applied while the grid is open. That is
+  // also exactly what an allocation outliving its membership looks like, so
+  // say so rather than throwing.
+  if (!membership) {
+    return html`<h3>${person.name} — ${month}</h3>
+      <ul class="popover__list">${raw(items)}</ul>
+      <p class="warn">${total}% allocated, but this person no longer holds an active
+        membership in this team. The work still costs; the share does not exist.</p>`;
+  }
+
   return html`<h3>${person.name} — ${month}</h3>
     <ul class="popover__list">${raw(items)}</ul>
     <p class="${total > membership.sharePct ? 'warn' : 'muted'}">
@@ -2569,7 +2587,7 @@ function onClick(event) {
     case 'theme':
       return cycleTheme();
     case 'export':
-      store.downloadExport(app);
+      if (!store.downloadExport(app)) return undefined;
       app.GENERAL.lastExportAt = new Date().toISOString();
       return commit();
     case 'import-mode':

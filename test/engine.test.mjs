@@ -510,7 +510,7 @@ test('per-allocation figures and the phase total are the same arithmetic', () =>
   });
 
   const rows = p.allocations.map((alloc) =>
-    E.allocationFigures(p, a.PEOPLE[alloc.personId], alloc.allocationPct, a),
+    E.allocationFigures(p, alloc.personId, alloc.allocationPct, a),
   );
   const rowSum = rows.reduce((t, r) => t + r.cost, 0);
   const phaseTotal = Object.values(E.phaseLabourByMonth(p, a)).reduce((t, v) => t + v, 0);

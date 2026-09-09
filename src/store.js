@@ -118,22 +118,36 @@ export function reset() {
   }
 }
 
-/** Hand the user the whole dataset as a dated JSON file. */
+/**
+ * Hand the user the whole dataset as a dated JSON file.
+ * @returns {boolean} whether the file actually reached the user
+ */
 export function downloadExport(app, now = new Date()) {
   flush(app);
-  downloadBlob(new Blob([serialize(app)], { type: 'application/json' }), exportFilename(now));
+  return downloadBlob(new Blob([serialize(app)], { type: 'application/json' }), exportFilename(now));
 }
 
-/** Hand the browser a blob to save. The only place an anchor is synthesised. */
+/**
+ * Hand the browser a blob to save. The only place an anchor is synthesised.
+ * @returns {boolean} whether the download was actually started
+ */
 function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  let url = null;
+  try {
+    url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    return true;
+  } catch {
+    // A sandboxed frame or a download policy can refuse this outright.
+    return false;
+  } finally {
+    if (url) URL.revokeObjectURL(url);
+  }
 }
 
 /** Read a file the user picked and validate it before anything else happens. */
@@ -169,5 +183,5 @@ export async function copyTable(headers, rows) {
 
 /** Download a named table as CSV. */
 export function downloadCsv(filename, headers, rows) {
-  downloadBlob(new Blob([toCsv(headers, rows)], { type: 'text/csv' }), filename);
+  return downloadBlob(new Blob([toCsv(headers, rows)], { type: 'text/csv' }), filename);
 }

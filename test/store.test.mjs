@@ -33,6 +33,11 @@ function stubStorage({ throwOnGet = false, throwOnSet = false } = {}) {
 let store;
 beforeEach(async () => {
   stubStorage();
+  // Node supplies Blob and URL; only the DOM half needs standing in for.
+  globalThis.document ??= /** @type {any} */ ({
+    createElement: () => ({ click() {}, remove() {} }),
+    body: { append() {} },
+  });
   store = await import('../src/store.js');
 });
 
@@ -139,4 +144,16 @@ test('an unreadable draft comes back empty rather than throwing', () => {
   const map = stubStorage();
   map.set('initiative-planner/wizard-draft', '{ broken');
   assert.deepEqual(store.loadDraft(), {});
+});
+
+test('a refused download is reported, so the export reminder is not cleared', () => {
+  const { app } = store.load();
+  // A sandboxed frame or a download policy refuses this outright.
+  const realCreate = globalThis.URL.createObjectURL;
+  globalThis.URL.createObjectURL = () => { throw new Error('blocked'); };
+  try {
+    assert.equal(store.downloadExport(app), false, 'a blocked download must say so');
+  } finally {
+    globalThis.URL.createObjectURL = realCreate;
+  }
 });

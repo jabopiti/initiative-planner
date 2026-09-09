@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { createMasterData } from '../src/masterData.js';
 import * as E from '../src/engine.js';
 import * as L from '../src/lifecycle.js';
+import * as P from '../src/people.js';
 import { SIMPLE, RICH, ALL } from './processes.mjs';
 
 const NOW = 2026;
@@ -226,19 +227,19 @@ test('a frozen phase reads its snapshot, so its panel cannot drift from the tota
   L.passGate(app, process, initiative, 'g_plan', '2026-02-28');
 
   const frozen = initiative.phases.plan;
-  const approvedRow = E.allocationFigures(frozen, person, 50, E.ratesFor(app, frozen));
+  const approvedRow = E.allocationFigures(frozen, person.id, 50, E.ratesFor(app, frozen));
 
   // The exact thing freezing exists to protect against.
   app.COUNTRIES[person.countryId].byYear[NOW].rate *= 3;
 
-  const stillShows = E.allocationFigures(frozen, person, 50, E.ratesFor(app, frozen));
+  const stillShows = E.allocationFigures(frozen, person.id, 50, E.ratesFor(app, frozen));
   assert.equal(stillShows.cost, approvedRow.cost, 'the row must show what was approved');
   assert.equal(stillShows.personDays, approvedRow.personDays);
 
   // And the per-row figures must add up to the frozen total shown beside them,
   // or the panel contradicts itself.
   const rowSum = frozen.allocations.reduce(
-    (t, a) => t + E.allocationFigures(frozen, app.PEOPLE[a.personId], a.allocationPct,
+    (t, a) => t + E.allocationFigures(frozen, a.personId, a.allocationPct,
       E.ratesFor(app, frozen)).cost,
     0,
   );
@@ -248,7 +249,7 @@ test('a frozen phase reads its snapshot, so its panel cannot drift from the tota
   const open = initiative.phases.build;
   assert.equal(open.frozen, null);
   assert.notEqual(
-    Math.round(E.allocationFigures(open, person, 50, E.ratesFor(app, open)).cost),
+    Math.round(E.allocationFigures(open, person.id, 50, E.ratesFor(app, open)).cost),
     Math.round(approvedRow.cost),
     'an unfrozen phase should have moved with the rate',
   );
@@ -439,4 +440,38 @@ test('a phase with a period but nobody allocated is not an estimate', () => {
   const check = L.gatePrecondition(app, process, initiative, 'g_plan');
   assert.equal(check.ok, false);
   assert.ok(check.blockers.some((b) => /at least one person/.test(b)));
+});
+
+test('a frozen phase survives a custom rate being renegotiated', () => {
+  // The country-rate case is covered above. This is the other half: a custom
+  // rate lives on the person record, not in ROLES or COUNTRIES, so a snapshot
+  // that swapped only those would leave an approved figure free to move.
+  const { app, process, teamId, people } = setup(SIMPLE);
+  const person = people[0];
+  P.useCustomRole(app, person, 'Contract Engineer');
+
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+  estimateAll(app, process, initiative, person);
+  L.passGate(app, process, initiative, 'g_plan', '2026-02-28');
+
+  const frozen = initiative.phases.plan;
+  const approved = E.allocationFigures(frozen, person.id, 50, E.ratesFor(app, frozen)).cost;
+  assert.ok(approved > 0);
+
+  for (const year of Object.keys(person.customRole.byYear)) {
+    person.customRole.byYear[year] *= 5;
+  }
+
+  assert.equal(
+    E.allocationFigures(frozen, person.id, 50, E.ratesFor(app, frozen)).cost,
+    approved,
+    'a renegotiated contractor rate must not move what was already approved',
+  );
+  assert.equal(Math.round(approved), Math.round(frozen.frozen.estLabourTotal));
+
+  // The open phase still tracks the new rate, which is the whole point.
+  assert.ok(
+    E.allocationFigures(initiative.phases.build, person.id, 50, app).cost > approved,
+    'an unfrozen phase should have moved with the rate',
+  );
 });
