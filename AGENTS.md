@@ -130,7 +130,7 @@ order it's built in:
 - UI/interaction correctness has no unit-test coverage — there is no DOM
   testing framework here, and none should be added. Verify it by building
   the file, serving it, and driving it in a real browser through your own
-  browser tooling (Playwright or Chrome DevTools MCP). Check the screen
+  browser tooling. Check the screen
   against its SPEC section, exercise the Invariants above, and confirm
   all three theme modes repaint without a reload. Do not report a UI
   change as done on the strength of reading the diff, and do not hand the

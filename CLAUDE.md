@@ -24,9 +24,9 @@ circle back".
 ## Verifying UI yourself
 
 `npm test` says nothing about the UI. Build the single file, serve it, and
-drive it in a real browser through the Playwright or Chrome DevTools MCP
-server — do not report a screen as done from reading the diff, and do not
-push the check onto Bo. Import `examples/exports/demo.json` so screens have
+drive it in a real browser with whatever browser tooling this session has —
+do not report a screen as done from reading the diff, and do not push the
+check onto Bo. Import `examples/exports/demo.json` so screens have
 realistic content instead of empty states.
 
 Set an explicit viewport (`resize_window` with a width and height) before
