@@ -121,11 +121,15 @@ export function reset() {
 /** Hand the user the whole dataset as a dated JSON file. */
 export function downloadExport(app, now = new Date()) {
   flush(app);
-  const blob = new Blob([serialize(app)], { type: 'application/json' });
+  downloadBlob(new Blob([serialize(app)], { type: 'application/json' }), exportFilename(now));
+}
+
+/** Hand the browser a blob to save. The only place an anchor is synthesised. */
+function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = exportFilename(now);
+  link.download = filename;
   document.body.append(link);
   link.click();
   link.remove();
@@ -165,13 +169,5 @@ export async function copyTable(headers, rows) {
 
 /** Download a named table as CSV. */
 export function downloadCsv(filename, headers, rows) {
-  const blob = new Blob([toCsv(headers, rows)], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(new Blob([toCsv(headers, rows)], { type: 'text/csv' }), filename);
 }

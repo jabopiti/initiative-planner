@@ -39,6 +39,11 @@ export function html(strings, ...values) {
   }, '');
 }
 
+/** The currency is fixed by the build, so this needs no argument. */
+function money(value) {
+  return E.formatMoney(value, PROCESS.currency);
+}
+
 /** Mark already-safe markup so `html` leaves it alone. */
 export function raw(value) {
   return { __raw: true, value };
@@ -418,7 +423,7 @@ function renderPeople() {
           ${entry.person.name}</button></td>
         <td>${entry.row[1]}${raw(entry.person.customRole ? html` <span class="tag">custom rate</span>` : '')}</td>
         <td>${entry.row[2]}</td>
-        <td class="num">${E.formatMoney(entry.row[3], PROCESS.currency)}</td>
+        <td class="num">${money(entry.row[3])}</td>
         <td class="num">${entry.person.capacityPct}%</td>
         <td>${entry.row[5]}</td>
         <td class="num">${entry.allocated}%</td>
@@ -735,7 +740,7 @@ function phasePanel(initiative, phaseId, editable) {
           : '')}</td>
         <td>${E.roleLabel(person, app.ROLES)}</td>
         <td>${app.COUNTRIES[person.countryId]?.name ?? ''}</td>
-        <td class="num">${E.formatMoney(dayRate, PROCESS.currency)}</td>
+        <td class="num">${money(dayRate)}</td>
         <td class="num">${factor.toFixed(2)}</td>
         <td>${raw(editable
           ? numberField({
@@ -750,7 +755,7 @@ function phasePanel(initiative, phaseId, editable) {
         <td class="num" data-calc="days-${phaseId}-${person.id}">
           ${figures.personDays.toFixed(1)}</td>
         <td class="num" data-calc="cost-${phaseId}-${person.id}">
-          ${E.formatMoney(figures.cost, PROCESS.currency)}</td>
+          ${money(figures.cost)}</td>
         <td class="cell--action">${raw(editable
           ? html`<button type="button" data-act="allocation-remove" data-id="${initiative.id}"
               data-phase="${phaseId}" data-person="${person.id}">Remove</button>`
@@ -773,7 +778,7 @@ function phasePanel(initiative, phaseId, editable) {
         <td>${item.month}${raw(outOfPeriod
           ? html` <span class="tag">out of period</span>`
           : '')}</td>
-        <td class="num">${E.formatMoney(item.amount, PROCESS.currency)}</td>
+        <td class="num">${money(item.amount)}</td>
         <td class="cell--action">${raw(editable
           ? html`<button type="button" data-act="cost-remove" data-id="${initiative.id}"
               data-phase="${phaseId}" data-cost="${item.id}">Remove</button>`
@@ -852,7 +857,6 @@ function registerAllocationTable(initiative, phaseId, rows) {
 
 function phaseTotalsMarkup(initiative, phaseId) {
   const phase = initiative.phases[phaseId];
-  const money = (v) => E.formatMoney(v, PROCESS.currency);
 
   // Once approved these come from the snapshot, so the panel agrees with the
   // grand total above it rather than quietly disagreeing.
@@ -874,7 +878,7 @@ function grandMarkup(initiative) {
   const total = E.grandTotal(initiative, app);
   const band = E.resolveBand(PROCESS.bands, total);
   const coverage = E.initiativeCoverage(initiative);
-  return html`<strong>${E.formatMoney(total, PROCESS.currency)}</strong>
+  return html`<strong>${money(total)}</strong>
     <span class="tag">${coverage}</span>
     — ${band ? band.name : 'Not yet known'}${raw(band
       ? html`<span class="micro">${band.req}</span>`
@@ -882,53 +886,46 @@ function grandMarkup(initiative) {
 }
 
 /**
- * Recompute everything an allocation percentage affects, writing into the
- * existing nodes. Nothing structural is rebuilt, so the caret stays put.
+ * Recompute every figure on screen, in place.
+ *
+ * Which regions exist depends on the page — the wizard has a grand-total
+ * line, initiative detail has a band panel and a month table — so this asks
+ * the DOM rather than taking the caller's word for it. Two hand-maintained
+ * lists were what let an allocation edit refresh the phase totals while
+ * leaving the approval track above them stale.
+ *
+ * Structure is never rebuilt, so the caret stays where the user left it.
  */
-/**
- * Recompute what an actual changes: the blended monthly figures and every
- * total resting on them. Structure is left alone so the caret stays put.
- */
-function refreshInitiativeNumbers(initiative) {
-  for (const phaseId of Object.keys(initiative.phases)) {
-    const node = document.querySelector(`[data-calc="total-${phaseId}"]`);
-    if (node) fill(node, phaseTotalsMarkup(initiative, phaseId));
+function refreshCalcRegions(initiative) {
+  for (const [phaseId, phase] of Object.entries(initiative.phases)) {
+    const at = E.ratesFor(app, phase);
+    for (const allocation of phase.allocations) {
+      const person = app.PEOPLE[allocation.personId];
+      if (!person) continue;
+      const days = document.querySelector(`[data-calc="days-${phaseId}-${person.id}"]`);
+      const cost = document.querySelector(`[data-calc="cost-${phaseId}-${person.id}"]`);
+      if (!days && !cost) continue;
+
+      const figures = E.allocationFigures(phase, person, allocation.allocationPct, at);
+      if (days) days.textContent = figures.personDays.toFixed(1);
+      if (cost) cost.textContent = money(figures.cost);
+    }
+
+    const total = document.querySelector(`[data-calc="total-${phaseId}"]`);
+    if (total) fill(total, phaseTotalsMarkup(initiative, phaseId));
   }
 
-  // Blended figures move with every recorded actual. These cells share a
-  // table with the inputs, so they are written one by one.
+  // Blended monthly figures share a table with the actual inputs, so they are
+  // written cell by cell rather than rebuilt.
   for (const month of E.initiativeMonths(initiative)) {
     const cell = document.querySelector(`[data-calc="blended-${month}"]`);
-    if (!cell) continue;
-    const blended = E.costedPhases(initiative).reduce(
-      (total, phase) => total + (E.phaseBlendedByMonth(phase, app)[month] ?? 0),
-      0,
-    );
-    fill(cell, html`<strong>${E.formatMoney(blended, PROCESS.currency)}</strong>`);
+    if (cell) fill(cell, html`<strong>${money(E.initiativeCostInMonth(initiative, app, month))}</strong>`);
   }
 
-  // The band panel holds no inputs, so it is safe to rebuild whole — and it
-  // has to be: the total, its track, the marker and the variance all move
-  // together.
+  // These hold no inputs, so they are safe to rebuild whole — and have to be:
+  // the total, its track, the marker and the variance all move together.
   const panel = document.querySelector('[data-calc="band-panel"]');
   if (panel) fill(panel, bandPanelMarkup(initiative));
-
-  const grand = document.querySelector('[data-calc="grand"]');
-  if (grand) fill(grand, grandMarkup(initiative));
-}
-
-function refreshPhaseNumbers(initiative, phaseId) {
-  const phase = initiative.phases[phaseId];
-  for (const allocation of phase.allocations) {
-    const person = app.PEOPLE[allocation.personId];
-    if (!person) continue;
-    const figures = E.allocationFigures(phase, person, allocation.allocationPct, E.ratesFor(app, phase));
-    const days = document.querySelector(`[data-calc="days-${phaseId}-${person.id}"]`);
-    const cost = document.querySelector(`[data-calc="cost-${phaseId}-${person.id}"]`);
-    if (days) days.textContent = figures.personDays.toFixed(1);
-    if (cost) cost.textContent = E.formatMoney(figures.cost, PROCESS.currency);
-  }
-  fill(document.querySelector(`[data-calc="total-${phaseId}"]`), phaseTotalsMarkup(initiative, phaseId));
   const grand = document.querySelector('[data-calc="grand"]');
   if (grand) fill(grand, grandMarkup(initiative));
 }
@@ -974,7 +971,6 @@ function renderPortfolio() {
   const all = portfolioRows();
   const selected = view.params.bandId ?? null;
   const rows = selected ? all.filter((r) => (r.band?.id ?? NO_BAND) === selected) : all;
-  const money = (v) => E.formatMoney(v, PROCESS.currency);
 
   // One tile per configured track, plus one for totals no track covers. A
   // track with nothing in it still shows, so the shape of the portfolio is
@@ -1165,7 +1161,7 @@ function renderInitiatives() {
           </select>
         </td>
         <td>${row.band ? row.band.name : 'Not yet known'}</td>
-        <td class="num">${E.formatMoney(row.total, PROCESS.currency)}
+        <td class="num">${money(row.total)}
           <span class="micro">${row.coverage}</span></td>
         <td class="cell--action">
           <button type="button" data-act="duplicate-initiative" data-id="${row.initiative.id}">
@@ -1390,7 +1386,6 @@ function bandPanelMarkup(initiative) {
   const total = E.grandTotal(initiative, app);
   const band = E.resolveBand(PROCESS.bands, total);
   const scale = E.bandScale(PROCESS.bands);
-  const money = (v) => E.formatMoney(v, PROCESS.currency);
 
   const segments = [...PROCESS.bands]
     .sort((a, b) => a.lower - b.lower)
@@ -1448,7 +1443,6 @@ function monthTableMarkup(initiative) {
   const costed = E.costedPhaseIds(PROCESS).filter((id) => initiative.phases[id]);
   const locked = E.isFinished(initiative);
   const now = E.monthKey(new Date());
-  const money = (v) => E.formatMoney(v, PROCESS.currency);
 
   if (months.length === 0) {
     return html`<div class="panel"><h2>Month by month</h2>
@@ -1535,7 +1529,6 @@ function gateComparisonMarkup(initiative) {
   if (left.length === 0) return '';
 
   const costed = E.costedPhaseIds(PROCESS);
-  const money = (v) => E.formatMoney(v, PROCESS.currency);
   const headers = ['Gate', 'Outcome', 'Date', ...costed.map((id) => E.phaseLabel(PROCESS, id)),
     'Approval track', 'Grand total'];
 
@@ -1546,7 +1539,7 @@ function gateComparisonMarkup(initiative) {
   ];
 
   const liveCosts = E.phaseCosts(initiative, app);
-  const liveTotal = E.grandTotal(initiative, app);
+  const liveTotal = Object.values(liveCosts).reduce((t, v) => t + v, 0);
   const data = [
     ...left.map((entry) => rowFor(
       entry.phase.gate.label,
@@ -1782,7 +1775,7 @@ function renderTeam() {
         <td>${initiative.name}</td>
         <td>${E.phaseLabel(PROCESS, initiative.phaseId)}</td>
         <td>${initiative.status}</td>
-        <td class="num">${E.formatMoney(E.grandTotal(initiative, app), PROCESS.currency)}</td>
+        <td class="num">${money(E.grandTotal(initiative, app))}</td>
       </tr>`,
     )
     .join('');
@@ -1893,7 +1886,6 @@ function capacityGridMarkup(team) {
       <p class="muted">Nobody active in this team yet.</p></div>`;
   }
 
-  const money = (v) => E.formatMoney(v, PROCESS.currency);
 
   const rows = roster
     .map((row) => {
@@ -1985,26 +1977,29 @@ function capacityCellMarkup(personId, teamId, month) {
  * a charting library. Shared by the team run-rate and the Portfolio chart, so
  * the two read identically.
  *
- * @param {Array<{month: string, segments: Array<{name: string, cost: number}>, total: number}>} data
+ * @param {Array<{month: string, segments: Array<{name: string, cost: number, kind?: string}>, total: number}>} data
  */
 function stackedBarsMarkup(data) {
   const max = Math.max(...data.map((row) => row.total), 1);
-  const money = (v) => E.formatMoney(v, PROCESS.currency);
   const now = E.monthKey(new Date());
 
   // Colours cycle through chart tokens, so any number of segments works.
-  const names = [...new Set(data.flatMap((row) => row.segments.map((s) => s.name)))];
-  const tone = (name) =>
-    name === 'Non-initiative work'
+  // Segments are told apart by `kind`, never by their label — labels are free
+  // to change, ids and kinds are not.
+  const cycling = [...new Set(
+    data.flatMap((row) => row.segments.filter((s) => s.kind !== 'spare').map((s) => s.name)),
+  )];
+  const tone = (segment) =>
+    segment.kind === 'spare'
       ? 'var(--chart-spare)'
-      : `var(--chart-${(names.indexOf(name) % 6) + 1})`;
+      : `var(--chart-${(cycling.indexOf(segment.name) % 6) + 1})`;
 
   const bars = data
     .map((row) => {
       const stack = row.segments
         .map(
           (segment) => html`<span class="bars__seg"
-            style="height:${(segment.cost / max) * 100}%;background:${tone(segment.name)}"
+            style="height:${(segment.cost / max) * 100}%;background:${tone(segment)}"
             title="${segment.name}: ${money(segment.cost)}"></span>`,
         )
         .join('');
@@ -2016,10 +2011,12 @@ function stackedBarsMarkup(data) {
     })
     .join('');
 
-  const legend = names
+  const seen = new Map();
+  for (const row of data) for (const s of row.segments) seen.set(s.name, s);
+  const legend = [...seen.values()]
     .map(
-      (name) => html`<span class="legend__item">
-        <span class="swatch" style="background:${tone(name)}"></span> ${name}</span>`,
+      (segment) => html`<span class="legend__item">
+        <span class="swatch" style="background:${tone(segment)}"></span> ${segment.name}</span>`,
     )
     .join('');
 
@@ -2029,7 +2026,6 @@ function stackedBarsMarkup(data) {
 function runRateMarkup(team) {
   const data = E.teamRunRate(app, team.id, monthsOfYear(chartYear()));
   const yearTotal = data.reduce((t, row) => t + row.total, 0);
-  const money = (v) => E.formatMoney(v, PROCESS.currency);
 
   return html`<div class="panel">
     <h2>Cost run rate</h2>
@@ -2080,10 +2076,10 @@ function renderProcessPage() {
     .map(
       (band) => html`<tr>
         <td>${band.name} <span class="tag">${band.abbr}</span></td>
-        <td class="num">${E.formatMoney(band.lower, PROCESS.currency)}</td>
+        <td class="num">${money(band.lower)}</td>
         <td class="num">${band.upper === null
           ? 'no limit'
-          : E.formatMoney(band.upper, PROCESS.currency)}</td>
+          : money(band.upper)}</td>
         <td class="num">${band.severity}</td>
         <td>${band.req}</td>
       </tr>`,
@@ -2097,8 +2093,8 @@ function renderProcessPage() {
           .map((issue) =>
             issue.type === 'gap'
               ? html`<p class="warn">Gap: nothing covers
-                  ${E.formatMoney(issue.from, PROCESS.currency)} to
-                  ${E.formatMoney(issue.to, PROCESS.currency)}. A total landing there
+                  ${money(issue.from)} to
+                  ${money(issue.to)}. A total landing there
                   resolves to “Not yet known”.</p>`
               : html`<p class="warn">Overlap: ${issue.message ?? 'two tracks cover the same amounts'}.</p>`,
           )
@@ -2193,7 +2189,7 @@ function renderOverview() {
   const year = new Date().getFullYear();
   const rates = countries.map((c) => E.yearRecord(c.byYear, year).rate);
   const range = rates.length
-    ? `${E.formatMoney(Math.min(...rates), PROCESS.currency)}–${E.formatMoney(Math.max(...rates), PROCESS.currency)}`
+    ? `${money(Math.min(...rates))}–${money(Math.max(...rates))}`
     : '—';
 
   const since = app.GENERAL.lastExportAt
@@ -2418,19 +2414,6 @@ function renderDanger() {
  * Wiring
  * ------------------------------------------------------------------ */
 
-/**
- * Actions that only change computed output elsewhere. These must never
- * re-render: rebuilding the input under the caret would lose focus and
- * position mid-keystroke (AGENTS.md). They write to the model, persist
- * quietly, and refresh only the region that displays the result.
- */
-const LIVE_REGIONS = {};
-
-/** Named table currently registered under `key`, for copy and CSV. */
-function tableFor(key) {
-  return TABLES[key];
-}
-
 /** Typing: update the model in place, never the structure. */
 function onInput(event) {
   const target = event.target;
@@ -2498,7 +2481,7 @@ function onInput(event) {
     L.setAllocation(app, initiative, phaseId, target.dataset.person,
       readNumber(target.value, current.allocationPct));
     commitQuietly();
-    return refreshPhaseNumbers(initiative, phaseId);
+    return refreshCalcRegions(initiative);
   } else if (act === 'actual-month') {
     const initiative = findInitiative(target.dataset.id);
     const phaseId = target.dataset.phase;
@@ -2507,7 +2490,7 @@ function onInput(event) {
       raw === '' ? null : readNumber(raw, 0));
     commitQuietly();
     // Recording an actual moves the blended figures, not the structure.
-    return refreshInitiativeNumbers(initiative);
+    return refreshCalcRegions(initiative);
   } else if (act === 'checklist-note') {
     L.setChecklistNote(findInitiative(target.dataset.id), target.dataset.gate,
       target.dataset.item, target.value);
@@ -2525,7 +2508,6 @@ function onInput(event) {
   }
 
   commitQuietly();
-  LIVE_REGIONS[act]?.();
 }
 
 function findInitiative(id) {
@@ -2774,7 +2756,7 @@ function onClick(event) {
       return navigate(view.page, { ...view.params, month: currentMonth() });
 
     case 'copy-table': {
-      const table = tableFor(trigger.dataset.table);
+      const table = TABLES[trigger.dataset.table];
       store.copyTable(table.headers, table.rows).then((result) => {
         const note = document.querySelector(`[data-note="${trigger.dataset.table}"]`);
         if (note) note.textContent = result === 'failed' ? 'Copy failed' : 'Copied';
@@ -2782,7 +2764,7 @@ function onClick(event) {
       return undefined;
     }
     case 'csv-table': {
-      const table = tableFor(trigger.dataset.table);
+      const table = TABLES[trigger.dataset.table];
       store.downloadCsv(`${table.name}.csv`, table.headers, table.rows);
       return undefined;
     }

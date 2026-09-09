@@ -274,3 +274,169 @@ test('the phase panels sum to the grand total, frozen or not', () => {
 
   assert.equal(Math.round(panelTotal), Math.round(E.grandTotal(initiative, app)));
 });
+
+/* -------------------------------------------------- the full journey */
+
+for (const process of ALL) {
+  test(`[${process.id}] first phase to closed, then back down one step at a time`, () => {
+    const { app, teamId, people } = setup(process);
+    const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+    estimateAll(app, process, initiative, people[0]);
+
+    const gatesInOrder = E.phaseOrder(process).map((id) => E.gateForPhase(process, id).id);
+    for (const gateId of gatesInOrder) {
+      setChecklist(process, initiative, gateId, 'green');
+      L.passGate(app, process, initiative, gateId, '2026-06-30');
+    }
+
+    assert.equal(initiative.status, 'closed', 'the final gate closes it');
+    assert.equal(Object.keys(initiative.gates).length, gatesInOrder.length);
+
+    // Reopening walks back one transition at a time, never skipping.
+    for (let i = gatesInOrder.length; i > 0; i -= 1) {
+      L.reopen(process, initiative);
+      assert.equal(Object.keys(initiative.gates).length, i - 1, 'exactly one gate reversed');
+    }
+    assert.equal(initiative.status, 'active');
+    assert.equal(initiative.phaseId, E.phaseOrder(process)[0]);
+    assert.throws(() => L.reopen(process, initiative), /first phase|no gate record/);
+  });
+}
+
+/* -------------------------------------------------- close and cancel */
+
+test('closing freezes the whole initiative, not only its numbers', () => {
+  const { app, process, teamId, people } = setup(SIMPLE);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+  estimateAll(app, process, initiative, people[0]);
+  for (const gateId of ['g_plan', 'g_build']) {
+    L.passGate(app, process, initiative, gateId, '2026-06-30');
+  }
+  assert.equal(initiative.status, 'closed');
+
+  assert.throws(() => L.renameInitiative(initiative, 'New name'), /closed/);
+  assert.throws(() => L.setDescription(initiative, 'New description'), /closed/);
+  assert.throws(() => L.setStatus(initiative, 'cancelled'), /closed/);
+  assert.throws(() => L.setTeam(app, initiative, Object.keys(app.TEAMS)[1]), /closed/);
+  assert.throws(() => L.setPhasePeriod(initiative, 'plan', '2026-01-01', '2026-01-31'), /locked/);
+  assert.throws(() => L.setAllocation(app, initiative, 'plan', people[0].id, 10), /locked/);
+  assert.throws(() => L.recordActual(initiative, 'plan', '2026-01', 1), /locked/);
+  assert.throws(() => L.setChecklistStatus(initiative, 'g_plan', 'x', 'green'), /closed/);
+});
+
+test('notes stay writable after close, so the reason can be recorded', () => {
+  const { app, process, teamId, people } = setup(SIMPLE);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+  estimateAll(app, process, initiative, people[0]);
+  for (const gateId of ['g_plan', 'g_build']) {
+    L.passGate(app, process, initiative, gateId, '2026-06-30');
+  }
+
+  L.setNotes(initiative, 'Delivered early; the vendor absorbed the overrun.');
+  assert.equal(initiative.notes, 'Delivered early; the vendor absorbed the overrun.');
+});
+
+test('reopening unlocks everything closing locked, and keeps the checklist', () => {
+  const { app, process, teamId, people } = setup(SIMPLE);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+  estimateAll(app, process, initiative, people[0]);
+  L.passGate(app, process, initiative, 'g_plan', '2026-03-31');
+  L.recordActual(initiative, 'plan', '2026-01', 4321);
+  L.passGate(app, process, initiative, 'g_build', '2026-06-30');
+
+  L.reopen(process, initiative);
+  assert.equal(initiative.status, 'active');
+  L.renameInitiative(initiative, 'Renamed');
+  L.setStatus(initiative, 'on-hold');
+  assert.equal(initiative.name, 'Renamed');
+  assert.equal(initiative.status, 'on-hold');
+  assert.equal(initiative.phases.plan.actualMonths['2026-01'], 4321, 'actuals untouched');
+});
+
+test('cancelling freezes too, and is reachable from anywhere', () => {
+  const { app, process, teamId } = setup(SIMPLE);
+  const initiative = L.createInitiative(app, process, { name: 'Abandoned', teamId });
+
+  L.setStatus(initiative, 'cancelled');
+  assert.equal(E.isFinished(initiative), true);
+  assert.throws(() => L.renameInitiative(initiative, 'x'), /cancelled/);
+
+  // And it is a plain status change, so it reverses the same way.
+  initiative.status = 'active';
+  L.renameInitiative(initiative, 'Revived');
+  assert.equal(initiative.name, 'Revived');
+});
+
+test('closed is never reachable by setting the status', () => {
+  const { app, process, teamId } = setup(SIMPLE);
+  const initiative = L.createInitiative(app, process, { name: 'Thing', teamId });
+  assert.throws(() => L.setStatus(initiative, 'closed'), /passing the final gate/);
+  assert.throws(() => L.setStatus(initiative, 'paused'), /unknown status/);
+});
+
+/* -------------------------------------------------- duplicate */
+
+test('duplicating copies the estimate and nothing else', () => {
+  const { app, process, teamId, people } = setup(RICH);
+  const initiative = L.createInitiative(app, process, { name: 'Original', teamId });
+  estimateAll(app, process, initiative, people[0]);
+  L.addOtherCost(initiative, 'shape', { name: 'Licence', month: '2026-04', amount: 2500 });
+  L.skipGate(app, process, initiative, 'g_discover', 'not needed', '2026-01-05');
+  L.recordActual(initiative, 'shape', '2026-01', 999);
+
+  const copy = L.duplicate(app, process, initiative);
+
+  assert.notEqual(copy.id, initiative.id);
+  assert.equal(copy.phaseId, E.phaseOrder(process)[0], 'always restarts at the first phase');
+  assert.equal(copy.status, 'active');
+  assert.deepEqual(copy.gates, {}, 'gate records are never copied');
+  assert.deepEqual(copy.checklist, {}, 'nor checklist statuses');
+  assert.deepEqual(copy.phases.shape.actualMonths, {}, 'nor actuals');
+  assert.equal(copy.phases.shape.frozen, null);
+  assert.deepEqual(copy.phases.shape.allocations, initiative.phases.shape.allocations);
+  assert.equal(copy.phases.shape.otherCosts.length, 1);
+  assert.notEqual(copy.phases.shape.otherCosts[0].id, initiative.phases.shape.otherCosts[0].id);
+
+  copy.phases.shape.allocations[0].allocationPct = 5;
+  assert.notEqual(initiative.phases.shape.allocations[0].allocationPct, 5, 'no shared references');
+});
+
+/* -------------------------------------------------- allocation rules */
+
+test('only an active member of the initiative\'s team can be allocated', () => {
+  const { app, process, teamId } = setup(SIMPLE);
+  const initiative = L.createInitiative(app, process, { name: 'Thing', teamId });
+  const outsider = Object.values(app.PEOPLE).find((p) => !E.membership(p, teamId));
+  assert.ok(outsider, 'the seed data needs someone outside this team');
+  assert.throws(
+    () => L.setAllocation(app, initiative, 'plan', outsider.id, 50),
+    /not an active member/,
+  );
+});
+
+test('moving teams strands allocations rather than dropping them', () => {
+  const { app, process, teamId, people } = setup(SIMPLE);
+  const other = Object.keys(app.TEAMS).find((id) => id !== teamId);
+  const initiative = L.createInitiative(app, process, { name: 'Thing', teamId });
+  estimateAll(app, process, initiative, people[0]);
+  const before = structuredClone(initiative.phases.plan.allocations);
+
+  const stranded = L.setTeam(app, initiative, other);
+
+  assert.equal(initiative.teamId, other);
+  assert.deepEqual(initiative.phases.plan.allocations, before, 'nothing silently dropped');
+  const expected = [...new Set(before.map((a) => a.personId))]
+    .filter((id) => !E.membership(app.PEOPLE[id], other));
+  assert.deepEqual(stranded.sort(), expected.sort(), 'and the caller is told');
+});
+
+test('a phase with a period but nobody allocated is not an estimate', () => {
+  const { app, process, teamId, people } = setup(SIMPLE);
+  const initiative = L.createInitiative(app, process, { name: 'Thing', teamId });
+  estimateAll(app, process, initiative, people[0]);
+  L.setAllocation(app, initiative, 'build', people[0].id, 0);
+
+  const check = L.gatePrecondition(app, process, initiative, 'g_plan');
+  assert.equal(check.ok, false);
+  assert.ok(check.blockers.some((b) => /at least one person/.test(b)));
+});

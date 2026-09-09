@@ -8,6 +8,7 @@
 
 import { SCHEMA_VERSION } from './lifecycle.js';
 import { PROCESS } from './process.js';
+import { escapeHtml } from './engine.js';
 
 /** Top-level keys an export must carry to be worth looking at. */
 const REQUIRED_KEYS = [
@@ -219,8 +220,7 @@ export function toTsv(headers, rows) {
  * the module that builds the markup.
  */
 export function toHtmlTable(headers, rows) {
-  const escape = (value) =>
-    String(value ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+  const escape = escapeHtml;
   const head = headers.map((h) => `<th>${escape(h)}</th>`).join('');
   const body = rows
     .map((row) => `<tr>${row.map((cell) => `<td>${escape(cell)}</td>`).join('')}</tr>`)

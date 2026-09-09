@@ -81,9 +81,12 @@ export function monthsInRange(startIso, endIso) {
  * @returns {T}
  */
 export function yearRecord(byYear, year) {
+  // The direct hit is overwhelmingly the common case, and this sits under
+  // every cost path — so answer it before sorting anything.
+  if (byYear[year] !== undefined) return byYear[year];
+
   const tracked = Object.keys(byYear).map(Number).sort((a, b) => a - b);
   if (tracked.length === 0) throw new Error('per-year record is empty');
-  if (byYear[year] !== undefined) return byYear[year];
   const nearest = year < tracked[0] ? tracked[0] : tracked[tracked.length - 1];
   return byYear[nearest];
 }
@@ -147,8 +150,11 @@ export function workingDaysForPeriod(country, startIso, endIso) {
     const monthStart = new Date(Date.UTC(year, month, 1));
     const monthEnd = new Date(Date.UTC(year, month + 1, 0));
 
-    const whole = workingDaysInMonth(country, key);
+    // weekdaysInMonth allocates a Date per calendar day, so count once and
+    // derive the whole-month figure from it rather than calling it twice.
     const totalWeekdays = weekdaysInMonth(year, month);
+    const reduction = yearRecord(country.byYear, year).workingDayReduction[month] ?? 0;
+    const whole = Math.max(0, totalWeekdays - reduction);
     const covered = weekdaysBetween(
       start > monthStart ? start : monthStart,
       end < monthEnd ? end : monthEnd,
@@ -193,7 +199,7 @@ export function roleLabel(person, roles) {
  * ------------------------------------------------------------------ */
 
 /** Sum the values of a month-keyed map. @param {Record<string, number>} map */
-function sum(map) {
+export function sum(map) {
   return Object.values(map).reduce((total, value) => total + value, 0);
 }
 
@@ -581,7 +587,8 @@ export function runRate(app, initiatives, months) {
         name: initiative.name,
         cost: initiativeCostInMonth(initiative, app, month),
       }))
-      .filter((segment) => segment.cost > 0);
+      .filter((segment) => segment.cost > 0)
+      .map((segment) => ({ ...segment, kind: 'initiative' }));
     return { month, segments, total: segments.reduce((t, seg) => t + seg.cost, 0) };
   });
 }
@@ -597,7 +604,8 @@ export function teamRunRate(app, teamId, months) {
       0,
     );
     const segments = spare > 0
-      ? [...row.segments, { id: 'non-initiative', name: 'Non-initiative work', cost: spare }]
+      ? [...row.segments,
+         { id: 'non-initiative', name: 'Non-initiative work', cost: spare, kind: 'spare' }]
       : row.segments;
     return { month: row.month, segments, total: row.total + spare };
   });
