@@ -911,3 +911,28 @@ h3 {
   color: var(--color-accent);
   font-weight: 600;
 }
+
+/* ---- portfolio tiles ---- */
+
+.tile--action {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  background: var(--color-bg);
+}
+
+.tile--action:hover {
+  border-color: var(--color-accent);
+}
+
+.tile--on {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
+}
+
+.tile--action .tile__value {
+  font-size: var(--text-md);
+}

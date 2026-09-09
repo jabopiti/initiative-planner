@@ -548,15 +548,13 @@ export function initiativeCostInMonth(initiative, app, monthKeyStr) {
 }
 
 /**
- * A team's monthly cost, split by initiative plus one non-initiative-work
- * segment — what the run-rate chart stacks (SPEC §7.2).
+ * Monthly cost stacked by initiative — the shape both charts draw. The
+ * Portfolio chart uses it directly; the team chart appends a
+ * non-initiative-work segment to each month (SPEC §7.1, §7.2).
  *
  * @returns {Array<{ month: string, segments: Array<{ id: string, name: string, cost: number }>, total: number }>}
  */
-export function teamRunRate(app, teamId, months) {
-  const initiatives = app.INITIATIVES.filter((i) => i.teamId === teamId);
-  const members = Object.values(app.PEOPLE).filter((person) => membership(person, teamId));
-
+export function runRate(app, initiatives, months) {
   return months.map((month) => {
     const segments = initiatives
       .map((initiative) => ({
@@ -565,15 +563,41 @@ export function teamRunRate(app, teamId, months) {
         cost: initiativeCostInMonth(initiative, app, month),
       }))
       .filter((segment) => segment.cost > 0);
-
-    const spare = members.reduce(
-      (total, person) => total + nonInitiativeWorkCost(app, person.id, teamId, month),
-      0,
-    );
-    if (spare > 0) segments.push({ id: 'non-initiative', name: 'Non-initiative work', cost: spare });
-
     return { month, segments, total: segments.reduce((t, seg) => t + seg.cost, 0) };
   });
+}
+
+/** One team's run rate, with the share it holds but has not allocated. */
+export function teamRunRate(app, teamId, months) {
+  const initiatives = app.INITIATIVES.filter((i) => i.teamId === teamId);
+  const members = Object.values(app.PEOPLE).filter((person) => membership(person, teamId));
+
+  return runRate(app, initiatives, months).map((row) => {
+    const spare = members.reduce(
+      (total, person) => total + nonInitiativeWorkCost(app, person.id, teamId, row.month),
+      0,
+    );
+    const segments = spare > 0
+      ? [...row.segments, { id: 'non-initiative', name: 'Non-initiative work', cost: spare }]
+      : row.segments;
+    return { month: row.month, segments, total: row.total + spare };
+  });
+}
+
+/**
+ * The span an initiative covers, across every costed phase. Used where a
+ * single date range stands for the whole thing (SPEC §7.1).
+ */
+export function initiativePeriod(initiative) {
+  const starts = [];
+  const ends = [];
+  for (const phase of costedPhases(initiative)) {
+    if (phase.estStartDate) starts.push(phase.estStartDate);
+    if (phase.estEndDate) ends.push(phase.estEndDate);
+  }
+  starts.sort();
+  ends.sort();
+  return { start: starts[0] ?? null, end: ends.at(-1) ?? null };
 }
 
 /**
