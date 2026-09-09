@@ -85,15 +85,16 @@ These commands exist and behave as follows:
 ```text
 npm run dev         # local dev server
 npm run build       # -> initiative-planner.html (single file)
-npm test            # engine + lifecycle unit tests, node:test
+npm test            # unit tests + a headless smoke test, node:test
 npm run typecheck   # tsc --noEmit over src/**/*.js (checkJs, not strict)
 npm run lint        # eslint over src/
 ```
 
 Serve the built file with `python3 -m http.server 8899` for browser
-checks. Engine and lifecycle regressions are covered by `npm test`; UI
-changes require real browser verification, which you are expected to do
-yourself (see "Testing expectations").
+checks. Engine and lifecycle regressions are covered by `npm test`, which
+also boots the built file headlessly; that proves it runs, not that it is
+right. UI changes still require real browser verification, which you are
+expected to do yourself (see "Testing expectations").
 
 ## Invariants
 
@@ -127,14 +128,21 @@ order it's built in:
 - Integration-test the lifecycle (gate preconditions, passing a gate,
   locking, reopening, closing) by driving the real exported functions, not
   a duplicate implementation.
-- UI/interaction correctness has no unit-test coverage — there is no DOM
-  testing framework here, and none should be added. Verify it by building
-  the file, serving it, and driving it in a real browser through your own
-  browser tooling. Check the screen
-  against its SPEC section, exercise the Invariants above, and confirm
-  all three theme modes repaint without a reload. Do not report a UI
-  change as done on the strength of reading the diff, and do not hand the
-  check to the user — ask them only for aesthetic judgement.
+- Smoke-test the shipped artifact: `test/smoke.test.mjs` serves the built
+  file, opens it in headless Chrome and walks every page, so a change that
+  stops the app rendering fails a gate instead of reaching a browser. It
+  skips when no Chrome is installed. Keep it shallow — it answers "does it
+  run", never "is it right".
+- UI/interaction correctness beyond that has no automated coverage. **No DOM
+  simulator and no browser-automation dependency** — `test/browser.mjs`
+  speaks the DevTools protocol over node builtins precisely so `npm install`
+  stays as small as the artifact's own promise. Verify interaction by
+  building the file, serving it, and driving it in a real browser through
+  your own browser tooling. Check the screen against its SPEC section,
+  exercise the Invariants above, and confirm all three theme modes repaint
+  without a reload. Do not report a UI change as done on the strength of
+  reading the diff, and do not hand the check to the user — ask them only
+  for aesthetic judgement.
 
 ## Durable decisions
 

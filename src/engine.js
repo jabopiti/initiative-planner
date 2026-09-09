@@ -291,11 +291,36 @@ export function phaseOtherByMonth(phase) {
   return out;
 }
 
-/** Estimated cost per month: labour plus cost items. */
+/** Whether this phase's estimate was frozen by a gate being passed. */
+export function isFrozen(phase) {
+  return Boolean(phase?.frozen);
+}
+
+/**
+ * Estimated cost per month: labour plus cost items — or, once a gate has
+ * frozen the phase, exactly what was approved.
+ *
+ * Every figure below is expressed through this, so the snapshot is consulted
+ * in ONE place. Callers never touch `phase.frozen`: that rule was previously
+ * re-implemented at seven call sites and forgotten at two of them.
+ */
 export function phaseEstimateByMonth(phase, app) {
+  if (phase.frozen) return phase.frozen.perMonth;
   const out = { ...phaseLabourByMonth(phase, app) };
   for (const [key, amount] of Object.entries(phaseOtherByMonth(phase))) add(out, key, amount);
   return out;
+}
+
+/** Labour alone, honouring a frozen snapshot. */
+export function phaseLabourTotal(phase, app) {
+  if (phase.frozen) return phase.frozen.estLabourTotal;
+  return sum(phaseLabourByMonth(phase, app));
+}
+
+/** Non-labour cost items alone, honouring a frozen snapshot. */
+export function phaseOtherTotal(phase) {
+  if (phase.frozen) return phase.frozen.estOtherTotal;
+  return sum(phaseOtherByMonth(phase));
 }
 
 /**
@@ -322,7 +347,7 @@ export function phaseMonths(phase) {
  * estimate otherwise (SPEC §5.4). Monthly views always show this.
  */
 export function phaseBlendedByMonth(phase, app) {
-  const estimate = phase.frozen ? phase.frozen.perMonth : phaseEstimateByMonth(phase, app);
+  const estimate = phaseEstimateByMonth(phase, app);
   const actuals = phase.actualMonths ?? {};
   /** @type {Record<string, number>} */
   const out = {};
@@ -334,7 +359,6 @@ export function phaseBlendedByMonth(phase, app) {
 
 /** A phase's frozen estimate wins once its gate is passed (SPEC §6). */
 export function phaseEstimateTotal(phase, app) {
-  if (phase.frozen) return phase.frozen.estimatedPhaseCost;
   return sum(phaseEstimateByMonth(phase, app));
 }
 

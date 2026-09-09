@@ -701,7 +701,7 @@ function personCapacity(person, months) {
 function phasePanel(initiative, phaseId, editable) {
   const phase = initiative.phases[phaseId];
   const label = E.phaseLabel(PROCESS, phaseId);
-  const frozen = Boolean(phase.frozen);
+  const frozen = E.isFrozen(phase);
 
   const members = Object.values(app.PEOPLE).filter(
     (person) => person.active && E.membership(person, initiative.teamId),
@@ -872,17 +872,13 @@ function costedPhasePanels(initiative) {
 function phaseTotalsMarkup(initiative, phaseId) {
   const phase = initiative.phases[phaseId];
 
-  // Once approved these come from the snapshot, so the panel agrees with the
-  // grand total above it rather than quietly disagreeing.
-  const labour = phase.frozen
-    ? phase.frozen.estLabourTotal
-    : Object.values(E.phaseLabourByMonth(phase, app)).reduce((t, v) => t + v, 0);
-  const other = phase.frozen
-    ? phase.frozen.estOtherTotal
-    : Object.values(E.phaseOtherByMonth(phase)).reduce((t, v) => t + v, 0);
+  // Both honour a snapshot themselves, so the panel agrees with the grand
+  // total above it rather than quietly disagreeing.
+  const labour = E.phaseLabourTotal(phase, app);
+  const other = E.phaseOtherTotal(phase);
 
   return html`Labour ${money(labour)} + other ${money(other)} =
-    <strong>${money(labour + other)}</strong>${raw(phase.frozen
+    <strong>${money(labour + other)}</strong>${raw(E.isFrozen(phase)
       ? html` <span class="tag">as approved</span>`
       : '')}`;
 }
@@ -1469,7 +1465,7 @@ function monthTableMarkup(initiative) {
     let blended = 0;
     for (const phaseId of costed) {
       const phase = initiative.phases[phaseId];
-      const estimate = (phase.frozen ? phase.frozen.perMonth : E.phaseEstimateByMonth(phase, app))[month] ?? 0;
+      const estimate = E.phaseEstimateByMonth(phase, app)[month] ?? 0;
       const actual = phase.actualMonths[month];
       cells.push(Math.round(estimate), actual === undefined ? '' : actual);
       blended += E.phaseBlendedByMonth(phase, app)[month] ?? 0;
@@ -1485,7 +1481,7 @@ function monthTableMarkup(initiative) {
       const cells = costed
         .map((phaseId) => {
           const phase = initiative.phases[phaseId];
-          const estimate = (phase.frozen ? phase.frozen.perMonth : E.phaseEstimateByMonth(phase, app))[month] ?? 0;
+          const estimate = E.phaseEstimateByMonth(phase, app)[month] ?? 0;
           const actual = phase.actualMonths[month];
           blended += E.phaseBlendedByMonth(phase, app)[month] ?? 0;
           const inPeriod = E.phaseMonths(phase).includes(month);

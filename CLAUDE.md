@@ -23,7 +23,8 @@ circle back".
 
 ## Verifying UI yourself
 
-`npm test` says nothing about the UI. Build the single file, serve it, and
+`npm test` boots the built file and checks every page renders — that is a
+smoke alarm, not a UI test. Build the single file, serve it, and
 drive it in a real browser with whatever browser tooling this session has —
 do not report a screen as done from reading the diff, and do not push the
 check onto Bo. Import `examples/exports/demo.json` so screens have

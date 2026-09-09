@@ -232,10 +232,22 @@ test('a frozen estimate ignores later master-data changes', () => {
   });
   const live = E.phaseEstimateTotal(p, a);
 
-  p.frozen = { estimatedPhaseCost: live };
+  // Freeze it the way lifecycle.freeze does — a hand-built snapshot missing
+  // perMonth is a shape the code never produces, and asserting against it
+  // proves nothing.
+  p.frozen = {
+    estimatedPhaseCost: live,
+    estLabourTotal: E.phaseLabourTotal(p, a),
+    estOtherTotal: E.phaseOtherTotal(p),
+    perMonth: E.phaseEstimateByMonth(p, a),
+    rolesCopy: structuredClone(a.ROLES),
+    countriesCopy: structuredClone(a.COUNTRIES),
+    peopleCopy: structuredClone(a.PEOPLE),
+  };
   a.COUNTRIES[person.countryId].byYear[NOW].rate *= 3;
 
   assert.equal(E.phaseEstimateTotal(p, a), live, 'an approved figure must never move');
+  assert.equal(E.phaseLabourTotal(p, a), p.frozen.estLabourTotal);
 });
 
 /* -------------------------------------------------- approval tracks */

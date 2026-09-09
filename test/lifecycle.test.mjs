@@ -475,3 +475,144 @@ test('a frozen phase survives a custom rate being renegotiated', () => {
     'an unfrozen phase should have moved with the rate',
   );
 });
+
+/* -------------------------------------------------- frozen figures */
+
+/**
+ * The frozen rule used to live at seven call sites in app.js and was
+ * forgotten at two of them, twice. It now lives in the engine, so it can be
+ * checked as a property rather than trusted as a convention.
+ *
+ * Every engine export whose first parameter is a phase is classified below.
+ * Adding one without classifying it fails this test on purpose: that is the
+ * moment to decide whether the new figure is something a gate approved.
+ */
+
+/** Reports an approved figure: must not move when master data changes. */
+const FROZEN_IMMUNE = new Set([
+  'phaseEstimateByMonth',
+  'phaseEstimateTotal',
+  'phaseLabourTotal',
+  'phaseOtherTotal',
+  'phaseBlendedByMonth',
+  'phaseBlendedTotal',
+]);
+
+/**
+ * A raw ingredient, deliberately live. Callers that need the approved view
+ * reach it through the functions above, or pass `ratesFor(app, phase)`.
+ */
+const DELIBERATELY_LIVE = new Set(['phaseLabourByMonth', 'allocationFigures']);
+
+/** Derived from the phase record alone — master data cannot reach it. */
+const NO_MASTER_DATA = new Set([
+  'isFrozen',
+  'phaseMonths',
+  'phaseCoverage',
+  'phaseOtherByMonth',
+  'phaseOtherCoverage',
+]);
+
+/**
+ * Engine exports that take a phase first, by reading their signatures.
+ * @returns {Array<{ name: string, fn: Function, params: string[] }>}
+ */
+function phaseFunctions() {
+  /** @type {Array<{ name: string, fn: Function, params: string[] }>} */
+  const out = [];
+  for (const [name, fn] of Object.entries(E)) {
+    if (typeof fn !== 'function') continue;
+    const source = String(fn);
+    const params = source
+      .slice(source.indexOf('(') + 1, source.indexOf(')'))
+      .split(',')
+      .map((p) => p.trim());
+    if (params[0] === 'phase') out.push({ name, fn, params });
+  }
+  return out;
+}
+
+/** Move every rate and factor, so anything live is guaranteed to shift. */
+function upendMasterData(app) {
+  for (const country of Object.values(app.COUNTRIES)) {
+    for (const year of Object.values(country.byYear)) year.rate *= 3;
+  }
+  for (const role of Object.values(app.ROLES)) role.factor *= 3;
+  for (const person of Object.values(app.PEOPLE)) {
+    // A custom rate is stored as a bare number per year, not a record.
+    const byYear = person.customRole?.byYear;
+    for (const key of Object.keys(byYear ?? {})) byYear[key] *= 3;
+  }
+}
+
+for (const process of ALL) {
+  test(`[${process.id}] every engine figure is classified against the frozen rule`, () => {
+    const { app, teamId, people } = setup(process);
+    const initiative = L.createInitiative(app, process, { name: 'Approved', teamId });
+    estimateAll(app, process, initiative, people[0]);
+
+    // Pass gates for real, up to and including the first costed phase's — so
+    // the snapshot is one the app actually produces rather than a fixture's
+    // idea of one. The first costed phase is not always the first phase.
+    const phaseId = E.costedPhaseIds(process)[0];
+    for (const id of E.phaseOrder(process)) {
+      const gateId = E.gateForPhase(process, id).id;
+      setChecklist(process, initiative, gateId, 'green');
+      L.passGate(app, process, initiative, gateId, '2026-06-01');
+      if (id === phaseId) break;
+    }
+
+    const phase = initiative.phases[phaseId];
+    assert.ok(E.isFrozen(phase), 'passing the gate must have frozen the phase');
+    assert.ok(E.phaseEstimateTotal(phase, app) > 0, 'a zero estimate would prove nothing');
+
+    const found = phaseFunctions();
+    /** Call one of them, supplying `app` wherever it asks for it. */
+    const call = ({ fn, params }) =>
+      fn(phase, ...params.slice(1).map((p) => (p === 'app' ? app : undefined)));
+
+    /** @type {Map<string, unknown>} */
+    const before = new Map();
+    for (const entry of found) {
+      if (DELIBERATELY_LIVE.has(entry.name)) continue;
+      before.set(entry.name, structuredClone(call(entry)));
+    }
+    const liveBefore = E.phaseLabourByMonth(phase, app);
+    const viaSnapshot = E.allocationFigures(
+      phase,
+      people[0].id,
+      phase.allocations[0].allocationPct,
+      E.ratesFor(app, phase),
+    );
+
+    upendMasterData(app);
+
+    for (const entry of found) {
+      const { name } = entry;
+      assert.ok(
+        FROZEN_IMMUNE.has(name) || DELIBERATELY_LIVE.has(name) || NO_MASTER_DATA.has(name),
+        `E.${name} takes a phase but is not classified — decide whether a gate approves it, ` +
+          `then add it to FROZEN_IMMUNE, DELIBERATELY_LIVE or NO_MASTER_DATA`,
+      );
+      if (DELIBERATELY_LIVE.has(name)) continue;
+      assert.deepEqual(call(entry), before.get(name), `E.${name} moved after a gate approved it`);
+    }
+
+    // The exemptions have to still be true, or they are stale cover.
+    assert.notDeepEqual(
+      E.phaseLabourByMonth(phase, app),
+      liveBefore,
+      'phaseLabourByMonth is exempt because it is live — it stopped being live',
+    );
+    assert.deepEqual(
+      E.allocationFigures(
+        phase,
+        people[0].id,
+        phase.allocations[0].allocationPct,
+        E.ratesFor(app, phase),
+      ),
+      viaSnapshot,
+      'allocationFigures through ratesFor() must reproduce the approved row',
+    );
+  });
+}
