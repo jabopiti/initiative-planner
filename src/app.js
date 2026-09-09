@@ -72,6 +72,102 @@ function readNumber(input, fallback = 0) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Theme
+ * ------------------------------------------------------------------ */
+
+const THEME_KEY = 'initiative-planner/theme';
+const THEMES = ['system', 'light', 'dark'];
+const THEME_LABELS = { system: 'System', light: 'Light', dark: 'Dark' };
+
+/**
+ * A device preference, not data: it lives under its own storage key rather
+ * than in the dataset, so it is never exported and never travels between
+ * machines with someone's initiatives.
+ */
+function currentTheme() {
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    return THEMES.includes(stored) ? stored : 'system';
+  } catch {
+    return 'system';
+  }
+}
+
+/**
+ * "System" stamps nothing, leaving `prefers-color-scheme` to decide; an
+ * explicit choice stamps the root. Changing this attribute repaints
+ * everything, because every rule reads tokens rather than colours (SPEC §8).
+ */
+function applyTheme(theme) {
+  if (theme === 'system') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+}
+
+function cycleTheme() {
+  const next = THEMES[(THEMES.indexOf(currentTheme()) + 1) % THEMES.length];
+  try {
+    localStorage.setItem(THEME_KEY, next);
+  } catch {
+    // A blocked store costs the preference, not the app.
+  }
+  applyTheme(next);
+  renderShellActions();
+}
+
+/* ------------------------------------------------------------------ *
+ * Shell
+ * ------------------------------------------------------------------ */
+
+function renderShellActions() {
+  const theme = currentTheme();
+  fill(
+    'shell-actions',
+    html`<button type="button" class="btn btn--small" data-act="export">Export</button>
+      <label class="btn btn--small btn--file">Import
+        <input type="file" accept="application/json,.json" data-act="import-file" hidden />
+      </label>
+      <button type="button" class="btn btn--small" data-act="theme"
+        aria-label="Theme: ${THEME_LABELS[theme]}. Click to change.">
+        ${THEME_LABELS[theme]}</button>`,
+  );
+}
+
+/**
+ * The export reminder. Dismissable by action only: exporting clears it,
+ * nothing else does, because the thing it is warning about is real until the
+ * export happens (SPEC §7).
+ */
+function renderBanner() {
+  const node = document.getElementById('banner');
+  if (!node) return;
+
+  const threshold = app.GENERAL.exportReminderDays;
+  const last = app.GENERAL.lastExportAt ? Date.parse(app.GENERAL.lastExportAt) : null;
+  const days = last === null ? null : Math.floor((Date.now() - last) / 86400000);
+
+  if (!threshold || (days !== null && days < threshold)) {
+    node.hidden = true;
+    node.innerHTML = '';
+    return;
+  }
+
+  // Escalating rather than shouting from the start: the longer it has been
+  // ignored, the more it costs to keep ignoring it.
+  const overdue = days === null ? threshold : days;
+  const level = overdue >= threshold * 3 ? 'severe' : overdue >= threshold * 2 ? 'strong' : 'mild';
+  const said = days === null
+    ? 'This data has never been exported.'
+    : `It has been ${days} days since the last export.`;
+
+  node.hidden = false;
+  node.innerHTML = html`<div class="banner-bar banner-bar--${level}">
+    <span>${said} An export is the only backup — everything here lives in this browser
+      alone.</span>
+    <button type="button" class="btn btn--small" data-act="export">Export now</button>
+  </div>`;
+}
+
+/* ------------------------------------------------------------------ *
  * Popovers
  * ------------------------------------------------------------------ */
 
@@ -177,6 +273,8 @@ const SETTINGS_SECTIONS = [
 
 export function render() {
   const current = PAGES.find((page) => page.id === view.page);
+  renderShellActions();
+  renderBanner();
 
   fill(
     'nav',
@@ -1727,7 +1825,10 @@ function capacityGridMarkup(team) {
               ? html`<button type="button" class="cap__btn" data-act="capacity-cell"
                   data-person="${row.person.id}" data-team="${team.id}" data-month="${month}">
                   ${allocated}%${raw(over ? ' ⚠' : '')}</button>`
-              : html`<span class="cap__empty">—</span>`)}
+              // Focusable so arrow keys can cross it. A sparse grid you
+              // cannot traverse is worse than no keyboard support at all.
+              : html`<span class="cap__empty" tabindex="-1"
+                  aria-label="${row.person.name}, ${month}, nothing allocated">—</span>`)}
           </td>`;
         })
         .join('');
@@ -2401,6 +2502,8 @@ function onClick(event) {
         expanded: view.params.expanded === id ? null : id,
       });
 
+    case 'theme':
+      return cycleTheme();
     case 'export':
       store.downloadExport(app);
       app.GENERAL.lastExportAt = new Date().toISOString();
@@ -2664,6 +2767,59 @@ function onChange(event) {
   }
 }
 
+const ARROWS = {
+  ArrowUp: [-1, 0],
+  ArrowDown: [1, 0],
+  ArrowLeft: [0, -1],
+  ArrowRight: [0, 1],
+};
+
+/**
+ * Arrow-key movement between a table's controls. A capacity grid or a month
+ * table is a grid of inputs, and reaching the far side of one by Tab alone is
+ * punishing.
+ *
+ * Left and right only move when the caret is already at the end of a text
+ * field, so arrowing within a value still works.
+ */
+function onTableKeydown(event) {
+  const step = ARROWS[event.key];
+  if (!step || event.metaKey || event.ctrlKey || event.altKey) return;
+
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const cell = target.closest('td, th');
+  const table = target.closest('table.grid');
+  if (!(cell instanceof HTMLTableCellElement) || !(table instanceof HTMLTableElement)) return;
+
+  if (target instanceof HTMLInputElement && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+    const atStart = target.selectionStart === 0 && target.selectionEnd === 0;
+    const atEnd = target.selectionStart === target.value.length
+      && target.selectionEnd === target.value.length;
+    if (event.key === 'ArrowLeft' ? !atStart : !atEnd) return;
+  }
+
+  const row = cell.parentElement;
+  if (!(row instanceof HTMLTableRowElement)) return;
+  const rows = Array.from(table.rows);
+  const rowIndex = rows.indexOf(row);
+  const cellIndex = Array.from(row.cells).indexOf(cell);
+  if (rowIndex === -1 || cellIndex === -1) return;
+
+  const [dr, dc] = step;
+  const nextRow = rows[rowIndex + dr];
+  if (!nextRow) return;
+  const nextCell = nextRow.cells[cellIndex + dc];
+  if (!nextCell) return;
+
+  const focusable = nextCell.querySelector('input, select, button, textarea, [tabindex]');
+  if (!(focusable instanceof HTMLElement)) return;
+
+  event.preventDefault();
+  focusable.focus();
+  if (focusable instanceof HTMLInputElement && focusable.type === 'text') focusable.select();
+}
+
 /** Picking a file validates it before any choice is offered (SPEC §7.7). */
 async function onFileChange(event) {
   const target = event.target;
@@ -2674,6 +2830,12 @@ async function onFileChange(event) {
   const parsed = await store.readImportFile(file);
   pendingImport = parsed.ok ? { data: parsed.data, mode: 'merge', error: null } : { error: parsed.error };
   target.value = '';
+
+  // The preview and its Replace/Merge choice live in Settings. Importing from
+  // the shell has to go there, or the file would be read and then vanish.
+  if (!document.querySelector('#import-preview')) {
+    return navigate('settings', { section: 'data' });
+  }
   fill('import-preview', importPreviewMarkup());
 }
 
@@ -2687,9 +2849,11 @@ export function boot() {
   loadReason = loaded.reason;
 
   document.getElementById('wordmark').textContent = 'Initiative Planner';
+  applyTheme(currentTheme());
   document.addEventListener('click', onClick);
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') closePopover();
+    if (event.key === 'Escape') return closePopover();
+    return onTableKeydown(event);
   });
   // Fixed positioning does not track the trigger, so follow it explicitly.
   window.addEventListener('scroll', positionPopover, { passive: true, capture: true });

@@ -32,6 +32,7 @@
   --color-accent: var(--brand);
   --color-accent-contrast: var(--brand-contrast);
   --color-accent-tint: var(--brand-tint);
+  color-scheme: light dark;
 
   --color-line-soft: hsl(220 14% 92%);
   --color-danger: hsl(354 62% 44%);
@@ -83,6 +84,81 @@
   --shadow: 0 2px 12px hsl(220 20% 10% / 0.18);
   --opacity-disabled: 0.55;
   --scroller-tall: 28rem;
+}
+
+/*
+ * Dark is a token swap, nothing more. Every rule below reads these
+ * properties, so switching repaints without a reload and without any rule
+ * knowing which theme is active (SPEC §8).
+ *
+ * Three states: an explicit choice stamps data-theme on the root; the default
+ * "system" stamps nothing and follows the OS. Each dark palette is therefore
+ * declared twice — once under the media query guarded against an explicit
+ * light choice, once under the explicit dark choice — so the toggle wins in
+ * both directions.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --brand: hsl(var(--brand-hue) 70% 68%);
+    --brand-contrast: hsl(220 20% 8%);
+    --brand-tint: hsl(var(--brand-hue) 40% 18%);
+
+    --color-bg: hsl(220 18% 10%);
+    --color-fg: hsl(220 14% 92%);
+    --color-muted: hsl(220 10% 62%);
+    --color-line: hsl(220 12% 26%);
+    --color-line-soft: hsl(220 12% 18%);
+    --color-danger: hsl(354 70% 68%);
+    --color-warn-tint: hsl(354 40% 18%);
+    --color-ok: hsl(152 45% 62%);
+    --color-ok-tint: hsl(152 35% 16%);
+    --color-amber: hsl(38 78% 62%);
+    --color-amber-tint: hsl(38 45% 18%);
+    --color-now-tint: hsl(232 40% 20%);
+    --color-band: hsl(220 12% 24%);
+    --color-spare-tint: hsl(220 12% 15%);
+
+    --chart-1: hsl(232 62% 66%);
+    --chart-2: hsl(188 55% 52%);
+    --chart-3: hsl(280 45% 66%);
+    --chart-4: hsl(18 70% 62%);
+    --chart-5: hsl(152 45% 52%);
+    --chart-6: hsl(340 55% 66%);
+    --chart-spare: hsl(220 10% 45%);
+
+    --shadow: 0 2px 16px hsl(0 0% 0% / 0.55);
+  }
+}
+
+:root[data-theme='dark'] {
+  --brand: hsl(var(--brand-hue) 70% 68%);
+  --brand-contrast: hsl(220 20% 8%);
+  --brand-tint: hsl(var(--brand-hue) 40% 18%);
+
+  --color-bg: hsl(220 18% 10%);
+  --color-fg: hsl(220 14% 92%);
+  --color-muted: hsl(220 10% 62%);
+  --color-line: hsl(220 12% 26%);
+  --color-line-soft: hsl(220 12% 18%);
+  --color-danger: hsl(354 70% 68%);
+  --color-warn-tint: hsl(354 40% 18%);
+  --color-ok: hsl(152 45% 62%);
+  --color-ok-tint: hsl(152 35% 16%);
+  --color-amber: hsl(38 78% 62%);
+  --color-amber-tint: hsl(38 45% 18%);
+  --color-now-tint: hsl(232 40% 20%);
+  --color-band: hsl(220 12% 24%);
+  --color-spare-tint: hsl(220 12% 15%);
+
+  --chart-1: hsl(232 62% 66%);
+  --chart-2: hsl(188 55% 52%);
+  --chart-3: hsl(280 45% 66%);
+  --chart-4: hsl(18 70% 62%);
+  --chart-5: hsl(152 45% 52%);
+  --chart-6: hsl(340 55% 66%);
+  --chart-spare: hsl(220 10% 45%);
+
+  --shadow: 0 2px 16px hsl(0 0% 0% / 0.55);
 }
 
 * {
@@ -935,4 +1011,39 @@ h3 {
 
 .tile--action .tile__value {
   font-size: var(--text-md);
+}
+
+/* ---- export reminder ---- */
+
+.banner-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--size-border) solid var(--color-line);
+  color: var(--color-fg);
+}
+
+.banner-bar--mild {
+  background: var(--color-spare-tint);
+}
+
+.banner-bar--strong {
+  background: var(--color-amber-tint);
+  border-bottom-color: var(--color-amber);
+}
+
+.banner-bar--severe {
+  background: var(--color-warn-tint);
+  border-bottom-color: var(--color-danger);
+  font-weight: 600;
+}
+
+.shell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
 }
