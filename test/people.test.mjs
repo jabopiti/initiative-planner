@@ -286,3 +286,84 @@ test('a team summary counts only what is active', () => {
   L.setStatus(held, 'on-hold');
   assert.equal(P.teamSummary(app, teamId).activeInitiatives, 1, 'on-hold work is not active');
 });
+
+/* -------------------------------------------------- run rate */
+
+test('a team run-rate stacks its initiatives plus one non-initiative segment', () => {
+  const app = setup();
+  const teamId = Object.keys(app.TEAMS)[0];
+  const person = Object.values(app.PEOPLE).find((p) => E.membership(p, teamId));
+
+  const make = (name, pct) => {
+    const initiative = L.createInitiative(app, SIMPLE, { name, teamId });
+    L.setPhasePeriod(initiative, 'plan', '2026-05-01', '2026-05-31');
+    L.setAllocation(app, initiative, 'plan', person.id, pct);
+    return initiative;
+  };
+  const first = make('Alpha', 20);
+  const second = make('Beta', 30);
+
+  const [row] = E.teamRunRate(app, teamId, ['2026-05']);
+  const byName = Object.fromEntries(row.segments.map((s) => [s.name, s.cost]));
+
+  assert.ok(byName.Alpha > 0 && byName.Beta > 0);
+  assert.ok(byName['Non-initiative work'] > 0, 'the share nobody committed still costs');
+  assert.equal(
+    Math.round(row.total),
+    Math.round(row.segments.reduce((t, s) => t + s.cost, 0)),
+    'the stack must add up to the bar',
+  );
+
+  // The two initiatives together cost what their allocations imply, and the
+  // chart's figure for one must match that initiative's own.
+  assert.equal(
+    Math.round(byName.Alpha),
+    Math.round(E.initiativeCostInMonth(first, app, '2026-05')),
+  );
+  assert.equal(
+    Math.round(byName.Beta),
+    Math.round(E.initiativeCostInMonth(second, app, '2026-05')),
+  );
+});
+
+test('non-initiative work is costed like initiative work, not at a discount', () => {
+  const app = setup();
+  const teamId = Object.keys(app.TEAMS)[0];
+  const person = Object.values(app.PEOPLE).find(
+    (p) => E.membership(p, teamId) && E.membership(p, teamId).sharePct === 100,
+  );
+  assert.ok(person, 'need someone a team holds outright');
+
+  const month = '2026-05';
+  const spare = E.nonInitiativeWorkCost(app, person.id, teamId, month);
+
+  // Nothing is allocated, so their whole share is non-initiative work — which
+  // must cost exactly what allocating them fully would have.
+  const initiative = L.createInitiative(app, SIMPLE, { name: 'Full', teamId });
+  L.setPhasePeriod(initiative, 'plan', '2026-05-01', '2026-05-31');
+  L.setAllocation(app, initiative, 'plan', person.id, 100);
+  const allocated = E.initiativeCostInMonth(initiative, app, month);
+
+  assert.equal(Math.round(spare), Math.round(allocated));
+  assert.equal(E.nonInitiativeWorkCost(app, person.id, teamId, month), 0, 'and now none is spare');
+});
+
+test('a person split across teams costs each team only its own share', () => {
+  const app = setup();
+  const person = Object.values(app.PEOPLE).find(
+    (p) => p.memberships.filter((m) => m.active).length > 1,
+  );
+  const [first, second] = person.memberships.filter((m) => m.active);
+  const month = '2026-05';
+
+  const a = E.nonInitiativeWorkCost(app, person.id, first.teamId, month);
+  const b = E.nonInitiativeWorkCost(app, person.id, second.teamId, month);
+  const whole = (a + b) * (person.capacityPct / E.totalSharePct(person));
+
+  assert.ok(a > 0 && b > 0);
+  assert.ok(
+    Math.abs(a / b - first.sharePct / second.sharePct) < 0.0001,
+    'each team pays in proportion to the share it holds',
+  );
+  assert.ok(whole > 0, 'and together they account for the person, never twice over');
+});

@@ -17,6 +17,10 @@
 
     <main id="root" tabindex="-1"></main>
 
+    <!-- Popovers are positioned from their trigger's rectangle, so they live
+         at the top level rather than inside the region that opened them. -->
+    <div id="popover" role="dialog" aria-modal="false" hidden></div>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

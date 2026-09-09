@@ -42,6 +42,14 @@
   --color-amber-tint: hsl(38 78% 95%);
   --color-now-tint: hsl(232 62% 96%);
   --color-band: hsl(220 14% 90%);
+  --color-spare-tint: hsl(220 14% 96%);
+  --chart-1: hsl(232 62% 56%);
+  --chart-2: hsl(188 62% 40%);
+  --chart-3: hsl(280 45% 55%);
+  --chart-4: hsl(18 70% 52%);
+  --chart-5: hsl(152 45% 40%);
+  --chart-6: hsl(340 55% 55%);
+  --chart-spare: hsl(220 12% 72%);
 
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -69,6 +77,10 @@
   --bar-height: 1.75rem;
   --marker-width: 2px;
   --swatch: 0.75rem;
+  --popover-max: 20rem;
+  --bars-height: 10rem;
+  --cap-min: 3rem;
+  --shadow: 0 2px 12px hsl(220 20% 10% / 0.18);
   --opacity-disabled: 0.55;
   --scroller-tall: 28rem;
 }
@@ -784,4 +796,118 @@ h3 {
 
 .row--live td {
   border-top: var(--size-thick) solid var(--color-line);
+}
+
+/* ---- popover ---- */
+
+#popover {
+  position: fixed;
+  z-index: 10;
+  max-width: var(--popover-max);
+  background: var(--color-bg);
+  border: var(--size-border) solid var(--color-line);
+  box-shadow: var(--shadow);
+  padding: var(--space-3);
+}
+
+#popover h3 {
+  margin-top: 0;
+}
+
+.popover__list {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-4);
+}
+
+/* ---- capacity grid ---- */
+
+.grid--cap th,
+.grid--cap td {
+  text-align: center;
+  min-width: var(--cap-min);
+  padding: var(--space-1);
+}
+
+.grid--cap tbody th {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cap--on {
+  background: var(--color-accent-tint);
+}
+
+/* A ceiling breach colours; it never disables (SPEC §5.2). */
+.cap--over {
+  background: var(--color-warn-tint);
+  color: var(--color-danger);
+}
+
+.cap__btn {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  border-radius: var(--radius-none);
+  padding: var(--space-1);
+  cursor: pointer;
+  width: 100%;
+}
+
+.cap__btn:hover {
+  text-decoration: underline;
+}
+
+.cap__empty {
+  color: var(--color-muted);
+}
+
+.cap--spare {
+  background: var(--color-spare-tint);
+}
+
+.row--spare th {
+  color: var(--color-muted);
+}
+
+/* ---- run-rate bars ---- */
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  height: var(--bars-height);
+  margin: var(--space-3) 0;
+}
+
+.bars__col {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.bars__stack {
+  display: flex;
+  flex-direction: column-reverse;
+  height: 100%;
+  justify-content: flex-start;
+}
+
+.bars__seg {
+  display: block;
+  width: 100%;
+}
+
+.bars__label {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+  padding-top: var(--space-1);
+}
+
+.bars__col--now .bars__label {
+  color: var(--color-accent);
+  font-weight: 600;
 }

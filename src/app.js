@@ -72,6 +72,61 @@ function readNumber(input, fallback = 0) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Popovers
+ * ------------------------------------------------------------------ */
+
+/** The element a popover was opened from, so it can be repositioned. */
+let popoverTrigger = null;
+
+/**
+ * Position from the trigger's bounding rectangle rather than relying on CSS
+ * anchoring (AGENTS.md), clamped so it cannot open off-screen. Recomputed on
+ * scroll and resize, since a fixed element does not follow its trigger.
+ */
+function positionPopover() {
+  const node = document.getElementById('popover');
+  if (!node || node.hidden || !popoverTrigger?.isConnected) return;
+
+  const rect = popoverTrigger.getBoundingClientRect();
+  const box = node.getBoundingClientRect();
+  const margin = 8;
+  const { innerWidth: vw, innerHeight: vh } = window;
+
+  // With no measurable viewport — a hidden or not-yet-laid-out pane — clamping
+  // would push the popover into a corner for no reason. Sit on the trigger and
+  // let the next scroll or resize place it properly.
+  if (!vw || !vh) {
+    node.style.left = `${rect.left}px`;
+    node.style.top = `${rect.bottom + margin}px`;
+    return;
+  }
+
+  const left = Math.max(margin, Math.min(rect.left, vw - box.width - margin));
+  const below = rect.bottom + margin;
+  const top = below + box.height > vh ? rect.top - box.height - margin : below;
+
+  node.style.left = `${left}px`;
+  node.style.top = `${Math.max(margin, top)}px`;
+}
+
+function openPopover(trigger, markup) {
+  const node = document.getElementById('popover');
+  if (!node) return;
+  popoverTrigger = trigger;
+  node.innerHTML = markup;
+  node.hidden = false;
+  positionPopover();
+}
+
+function closePopover() {
+  const node = document.getElementById('popover');
+  if (!node || node.hidden) return;
+  node.hidden = true;
+  node.innerHTML = '';
+  popoverTrigger = null;
+}
+
+/* ------------------------------------------------------------------ *
  * State
  * ------------------------------------------------------------------ */
 
@@ -1453,9 +1508,177 @@ function renderTeam() {
           : html`<p class="muted">This team cannot be deleted while it owns initiatives.</p>`)}
       </div>
 
-      <p class="muted">The capacity grid and cost run-rate chart arrive in a later phase —
-        they need real allocations to be worth verifying against.</p>`,
+      ${raw(capacityGridMarkup(team))}
+      ${raw(runRateMarkup(team))}`,
   );
+}
+
+/** The twelve months of the year currently being viewed. */
+function chartYear() {
+  return view.params.year ?? new Date().getFullYear();
+}
+
+function monthsOfYear(year) {
+  return Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`);
+}
+
+function yearNav(label) {
+  const year = chartYear();
+  return html`<div class="toolbar">
+    <button type="button" class="btn btn--small" data-act="year-step" data-step="-1">←</button>
+    <strong>${year}</strong>
+    <button type="button" class="btn btn--small" data-act="year-step" data-step="1">→</button>
+    <button type="button" class="btn btn--small" data-act="year-today">Today</button>
+    <span class="muted">${label}</span>
+  </div>`;
+}
+
+/**
+ * One row per active member, one column per month. Rows are bounded by the
+ * member's share in *this* team, not their whole capacity — a person split
+ * 60/40 shows against 60 here (SPEC §7.2).
+ */
+function capacityGridMarkup(team) {
+  const months = monthsOfYear(chartYear());
+  const roster = P.teamRoster(app, team.id).filter(
+    (row) => row.membership.active && row.person.active,
+  );
+
+  if (roster.length === 0) {
+    return html`<div class="panel"><h2>Capacity</h2>
+      <p class="muted">Nobody active in this team yet.</p></div>`;
+  }
+
+  const money = (v) => E.formatMoney(v, PROCESS.currency);
+
+  const rows = roster
+    .map((row) => {
+      const cells = months
+        .map((month) => {
+          const allocated = E.allocatedPct(app, row.person.id, month, team.id);
+          const over = allocated > row.membership.sharePct;
+          return html`<td class="cap ${over ? 'cap--over' : ''} ${allocated ? 'cap--on' : ''}">
+            ${raw(allocated
+              ? html`<button type="button" class="cap__btn" data-act="capacity-cell"
+                  data-person="${row.person.id}" data-team="${team.id}" data-month="${month}">
+                  ${allocated}%${raw(over ? ' ⚠' : '')}</button>`
+              : html`<span class="cap__empty">—</span>`)}
+          </td>`;
+        })
+        .join('');
+      return html`<tr>
+        <th scope="row">${row.person.name}
+          <span class="micro">share ${row.membership.sharePct}%</span></th>
+        ${raw(cells)}
+      </tr>`;
+    })
+    .join('');
+
+  const spareCells = months
+    .map((month) => {
+      const pct = roster.reduce(
+        (total, row) => total + E.nonInitiativeWorkPct(app, row.person.id, team.id, month),
+        0,
+      );
+      const cost = roster.reduce(
+        (total, row) => total + E.nonInitiativeWorkCost(app, row.person.id, team.id, month),
+        0,
+      );
+      return html`<td class="cap cap--spare">${pct}%<span class="micro">${money(cost)}</span></td>`;
+    })
+    .join('');
+
+  return html`<div class="panel">
+    <h2>Capacity</h2>
+    ${raw(yearNav('Allocation against each member’s share of this team.'))}
+    <p class="muted">Over-allocation past a member’s share is flagged, never blocked. Click a
+      figure to see which initiatives make it up.</p>
+    <div class="scroller"><table class="grid grid--cap">
+      <thead><tr><th>Member</th>${raw(months
+        .map((m) => html`<th>${m.slice(5)}</th>`).join(''))}</tr></thead>
+      <tbody>
+        ${raw(rows)}
+        <tr class="row--spare"><th scope="row">Non-initiative work
+          <span class="micro">share not committed</span></th>${raw(spareCells)}</tr>
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+/** What one capacity cell is made of — a person can serve several at once. */
+function capacityCellMarkup(personId, teamId, month) {
+  const person = app.PEOPLE[personId];
+  const rows = E.allocationBreakdown(app, personId, month, teamId);
+  const spare = E.nonInitiativeWorkPct(app, personId, teamId, month);
+  const membership = E.membership(person, teamId);
+
+  const items = rows
+    .map((row) => {
+      const initiative = app.INITIATIVES.find((i) => i.id === row.initiativeId);
+      return html`<li><strong>${row.allocationPct}%</strong> ${initiative?.name ?? row.initiativeId}
+        <span class="micro">${E.phaseLabel(PROCESS, row.phaseId)}</span></li>`;
+    })
+    .join('');
+
+  const total = rows.reduce((t, r) => t + r.allocationPct, 0);
+  return html`<h3>${person.name} — ${month}</h3>
+    <ul class="popover__list">${raw(items)}</ul>
+    <p class="${total > membership.sharePct ? 'warn' : 'muted'}">
+      ${total}% of the ${membership.sharePct}% this team holds${raw(total > membership.sharePct
+        ? html` — more than its share.`
+        : html`, ${spare}% not committed.`)}</p>`;
+}
+
+/**
+ * A stacked bar per month, one segment per initiative plus non-initiative
+ * work. Hand-rolled: the single-file constraint rules out a chart library.
+ */
+function runRateMarkup(team) {
+  const months = monthsOfYear(chartYear());
+  const data = E.teamRunRate(app, team.id, months);
+  const max = Math.max(...data.map((row) => row.total), 1);
+  const money = (v) => E.formatMoney(v, PROCESS.currency);
+  const now = E.monthKey(new Date());
+
+  // Colours cycle through chart tokens so any number of initiatives works.
+  const names = [...new Set(data.flatMap((row) => row.segments.map((s) => s.name)))];
+  const tone = (name) =>
+    name === 'Non-initiative work' ? 'var(--chart-spare)' : `var(--chart-${(names.indexOf(name) % 6) + 1})`;
+
+  const bars = data
+    .map((row) => {
+      const stack = row.segments
+        .map(
+          (segment) => html`<span class="bars__seg"
+            style="height:${(segment.cost / max) * 100}%;background:${tone(segment.name)}"
+            title="${segment.name}: ${money(segment.cost)}"></span>`,
+        )
+        .join('');
+      return html`<div class="bars__col ${row.month === now ? 'bars__col--now' : ''}"
+        title="${row.month}: ${money(row.total)}">
+        <div class="bars__stack">${raw(stack)}</div>
+        <span class="bars__label">${row.month.slice(5)}</span>
+      </div>`;
+    })
+    .join('');
+
+  const legend = names
+    .map(
+      (name) => html`<span class="legend__item">
+        <span class="swatch" style="background:${tone(name)}"></span> ${name}</span>`,
+    )
+    .join('');
+
+  const yearTotal = data.reduce((t, row) => t + row.total, 0);
+
+  return html`<div class="panel">
+    <h2>Cost run rate</h2>
+    ${raw(yearNav(`${money(yearTotal)} across ${chartYear()}.`))}
+    ${raw(yearTotal === 0
+      ? html`<p class="muted">Nothing costs anything in this year yet.</p>`
+      : html`<div class="bars">${raw(bars)}</div>
+        <p class="legend">${raw(legend)}</p>`)}
+  </div>`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -1954,7 +2177,11 @@ function findInitiative(id) {
 /** Clicks: structural changes, which do re-render. */
 function onClick(event) {
   if (!(event.target instanceof Element)) return;
+
   const trigger = event.target.closest('[data-act]');
+  const insidePopover = event.target.closest('#popover');
+  if (!insidePopover && trigger?.dataset.act !== 'capacity-cell') closePopover();
+
   if (!(trigger instanceof HTMLElement)) return;
 
   const { act, id } = trigger.dataset;
@@ -2016,6 +2243,18 @@ function onClick(event) {
 
     case 'open-team':
       return navigate('team', { id });
+    case 'capacity-cell':
+      return openPopover(
+        trigger,
+        capacityCellMarkup(trigger.dataset.person, trigger.dataset.team, trigger.dataset.month),
+      );
+    case 'year-step':
+      return navigate(view.page, {
+        ...view.params,
+        year: chartYear() + Number(trigger.dataset.step),
+      });
+    case 'year-today':
+      return navigate(view.page, { ...view.params, year: new Date().getFullYear() });
 
     case 'wizard-start':
       return navigate('wizard', {});
@@ -2260,6 +2499,12 @@ export function boot() {
 
   document.getElementById('wordmark').textContent = 'Initiative Planner';
   document.addEventListener('click', onClick);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closePopover();
+  });
+  // Fixed positioning does not track the trigger, so follow it explicitly.
+  window.addEventListener('scroll', positionPopover, { passive: true, capture: true });
+  window.addEventListener('resize', positionPopover);
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
   document.addEventListener('change', onFileChange);

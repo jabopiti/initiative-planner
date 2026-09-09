@@ -523,6 +523,60 @@ export function nonInitiativeWorkPct(app, personId, teamId, monthKeyStr) {
 }
 
 /**
+ * What a team's unallocated share of one person costs in a month. This is
+ * ongoing work outside the initiative portfolio, not idle time (SPEC §7.2),
+ * so it is costed exactly as initiative work is — same rate, same factor,
+ * same working days.
+ */
+export function nonInitiativeWorkCost(app, personId, teamId, monthKeyStr) {
+  const pct = nonInitiativeWorkPct(app, personId, teamId, monthKeyStr);
+  if (pct <= 0) return 0;
+
+  const person = app.PEOPLE[personId];
+  const { year } = parseMonthKey(monthKeyStr);
+  const { dayRate, factor } = resolveRate(person, app.ROLES, app.COUNTRIES, year);
+  const days = workingDaysInMonth(app.COUNTRIES[person.countryId], monthKeyStr);
+  return days * (pct / 100) * factor * dayRate;
+}
+
+/** One initiative's blended cost in a month, across all its costed phases. */
+export function initiativeCostInMonth(initiative, app, monthKeyStr) {
+  return costedPhases(initiative).reduce(
+    (total, phase) => total + (phaseBlendedByMonth(phase, app)[monthKeyStr] ?? 0),
+    0,
+  );
+}
+
+/**
+ * A team's monthly cost, split by initiative plus one non-initiative-work
+ * segment — what the run-rate chart stacks (SPEC §7.2).
+ *
+ * @returns {Array<{ month: string, segments: Array<{ id: string, name: string, cost: number }>, total: number }>}
+ */
+export function teamRunRate(app, teamId, months) {
+  const initiatives = app.INITIATIVES.filter((i) => i.teamId === teamId);
+  const members = Object.values(app.PEOPLE).filter((person) => membership(person, teamId));
+
+  return months.map((month) => {
+    const segments = initiatives
+      .map((initiative) => ({
+        id: initiative.id,
+        name: initiative.name,
+        cost: initiativeCostInMonth(initiative, app, month),
+      }))
+      .filter((segment) => segment.cost > 0);
+
+    const spare = members.reduce(
+      (total, person) => total + nonInitiativeWorkCost(app, person.id, teamId, month),
+      0,
+    );
+    if (spare > 0) segments.push({ id: 'non-initiative', name: 'Non-initiative work', cost: spare });
+
+    return { month, segments, total: segments.reduce((t, seg) => t + seg.cost, 0) };
+  });
+}
+
+/**
  * Both ceilings, neither of which ever blocks (SPEC §5.2).
  * @returns {{ overTeamShare: boolean, overCapacity: boolean, allocatedPct: number, sharePct: number }}
  */
