@@ -108,7 +108,7 @@ export function clearDraft() {
   }
 }
 
-/** Clear local storage entirely — the Settings danger zone (SPEC §7.7). */
+/** Clear local storage entirely — the Settings danger zone. */
 export function reset() {
   try {
     localStorage.removeItem(STORAGE_KEY);

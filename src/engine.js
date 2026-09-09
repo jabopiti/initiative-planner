@@ -212,7 +212,7 @@ function add(map, key, amount) {
  * was frozen with, if it has one, and the live data otherwise.
  *
  * A frozen phase must display the figures it was approved at, not what those
- * figures would be today (SPEC §7.5) — and because the snapshot carries the
+ * figures would be today — and because the snapshot carries the
  * roles, countries and people as well as the totals, the per-row detail can
  * be reproduced exactly rather than merely summarised.
  */
@@ -529,7 +529,7 @@ export function allocatedPct(app, personId, monthKeyStr, teamId) {
 
 /**
  * The share a team holds of a person but hasn't allocated. Costed at the same
- * rate and shown as ongoing work, not idle time (SPEC §7.2).
+ * rate and shown as ongoing work, not idle time (SPEC §5.2).
  *
  * Each team draws only on its own share, which is exactly what stops a person
  * split across teams being counted twice.
@@ -543,7 +543,7 @@ export function nonInitiativeWorkPct(app, personId, teamId, monthKeyStr) {
 
 /**
  * What a team's unallocated share of one person costs in a month. This is
- * ongoing work outside the initiative portfolio, not idle time (SPEC §7.2),
+ * ongoing work outside the initiative portfolio, not idle time (SPEC §5.2),
  * so it is costed exactly as initiative work is — same rate, same factor,
  * same working days.
  */
@@ -569,7 +569,7 @@ export function initiativeCostInMonth(initiative, app, monthKeyStr) {
 /**
  * Monthly cost stacked by initiative — the shape both charts draw. The
  * Portfolio chart uses it directly; the team chart appends a
- * non-initiative-work segment to each month (SPEC §7.1, §7.2).
+ * non-initiative-work segment to each month.
  *
  * @returns {Array<{ month: string, segments: Array<{ id: string, name: string, cost: number }>, total: number }>}
  */
@@ -605,7 +605,7 @@ export function teamRunRate(app, teamId, months) {
 
 /**
  * The span an initiative covers, across every costed phase. Used where a
- * single date range stands for the whole thing (SPEC §7.1).
+ * single date range stands for the whole thing.
  */
 export function initiativePeriod(initiative) {
   const starts = [];
@@ -639,7 +639,7 @@ export function capacityWarnings(app, personId, teamId, monthKeyStr) {
 /**
  * Every allocation a person holds, across all initiatives and both phases,
  * regardless of month. The Person detail page's "where does this person's
- * time go?" table (SPEC §7.3).
+ * time go?" table.
  *
  * Unlike the capacity figures, this includes on-hold and cancelled
  * initiatives — the allocation exists and is costed either way (SPEC §3), and

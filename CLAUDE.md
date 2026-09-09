@@ -7,47 +7,50 @@ only the things specific to running the build from Claude Code. Nothing
 here overrides a rule above; if the two ever disagree, `AGENTS.md` wins
 and this file is the one to correct.
 
-## How to work a phase
+## Working here
 
-[docs/PLAN.md](docs/PLAN.md) is the build order. Take **one phase at a
-time**, as its own commit, on the long-lived `implementation` branch —
-one branch for the whole build, not one per phase. `main` holds the
-specs; `implementation` merges back when the build is done or when Bo
-asks. Don't start a phase until the previous one's "Done when" is
-genuinely true — not "mostly", not "true once I circle back". If a phase
-turns out to be bigger than it looked, split it into two commits and say
-so; don't quietly widen the current one to swallow it.
+The build is complete; this is maintenance now. `main` is the only branch —
+branch off it for anything non-trivial and merge back.
 
-Before committing a phase, all four must pass clean:
+Before committing, all four must pass clean:
 
 ```bash
 npm run lint && npm run typecheck && npm test && npm run build
 ```
 
+Don't call something done until it is. Not "mostly", not "true once I
+circle back".
+
 ## Verifying UI yourself
 
-Every phase from 3 onward ships UI, and `npm test` says nothing about it.
-Build the single file, serve it, and drive it in a real browser through
-the Playwright or Chrome DevTools MCP server — do not report a screen as
-done from reading the diff, and do not push the check onto Bo. Load
-`examples/exports/` demo data once it exists so screens have realistic
-content instead of empty states.
+`npm test` says nothing about the UI. Build the single file, serve it, and
+drive it in a real browser through the Playwright or Chrome DevTools MCP
+server — do not report a screen as done from reading the diff, and do not
+push the check onto Bo. Import `examples/exports/demo.json` so screens have
+realistic content instead of empty states.
 
-What to actually check, per page: it matches its SPEC §7 subsection;
-the Invariants in `AGENTS.md` hold (typing never rebuilds the active
-input or moves the caret, popovers position off their trigger, replaced
-regions keep working); and all three theme modes repaint with no reload.
+Set an explicit viewport (`resize_window` with a width and height) before
+measuring anything positional: a hidden pane reports a 0×0 viewport and
+every measurement taken against it is meaningless.
+
+What to actually check, per page: the Invariants in `AGENTS.md` hold
+(typing never rebuilds the active input or moves the caret, popovers
+position off their trigger, replaced regions keep working), and all three
+theme modes repaint with no reload.
+
+A re-render invalidates any `NodeList` you are iterating. Verification
+scripts that walk a list of controls and click each one will silently act on
+the wrong element — re-query after every interaction.
 
 Ask Bo for aesthetic judgement. Don't ask them whether it works.
 
 ## Spec changes
 
-The specs are the source of truth *until code exists* — after that, a
-deliberate implementation choice wins and the spec gets corrected to
-match (`AGENTS.md`, "What this repository is"). Either way the correction
-is explicit: when implementation and spec diverge, fix the document in
-the same PR. Never leave a doc describing behaviour the code doesn't
-have.
+The code is the source of truth. `docs/` keeps only what the code cannot
+say: the decisions behind it, what is deliberately excluded, and the
+vocabulary. When the two diverge, fix the document in the same commit —
+never leave a doc describing behaviour the code doesn't have, and never add
+a doc that restates what a function already says plainly.
 
 Anything on SPEC §1's non-goals list is a conversation with Bo before it
 is a line of code.
@@ -60,9 +63,9 @@ is a line of code.
 - `frontend-design` — when shaping the visual language in Phase 11, so the
   result doesn't read as unstyled defaults. The brand-pack contract
   (`AGENTS.md`) still binds: tokens only, no literal colors.
-- `dataviz` — before building the Portfolio and run-rate stacked bar
-  charts (SPEC §7.1, §7.2). These are hand-rolled, since the single-file
-  constraint rules out a charting library.
+- `dataviz` — before changing the Portfolio or run-rate charts. They are
+  hand-rolled, since the single-file constraint rules out a charting
+  library.
 
 ## Vocabulary
 

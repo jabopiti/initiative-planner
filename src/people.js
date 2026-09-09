@@ -1,5 +1,5 @@
 /**
- * People, teams, and the memberships between them (SPEC §7.2, §7.3).
+ * People, teams, and the memberships between them.
  *
  * A separate aggregate from the initiative lifecycle, with invariants of its
  * own: exactly one of a standard role or a custom rate, shares that should
@@ -121,7 +121,7 @@ export function setMembershipActive(app, person, teamId, active) {
 
 /**
  * A person's shares should not outrun their capacity. Like every other
- * ceiling here this warns and never blocks (SPEC §4).
+ * ceiling here this warns and never blocks (SPEC §5.2).
  */
 export function shareWarning(person) {
   const total = E.totalSharePct(person);
@@ -135,7 +135,7 @@ export function shareWarning(person) {
 
 /**
  * A person's month-by-month capacity picture: what they are allocated, and
- * what each team holds but has not allocated (SPEC §7.3).
+ * what each team holds but has not allocated.
  */
 export function capacityOverTime(app, personId, months) {
   const person = app.PEOPLE[personId];
@@ -185,7 +185,7 @@ export function setTeamActive(team, active) {
 /**
  * Whether a team can be deleted, and what is stopping it. A team still
  * referenced by an initiative can never be removed — the initiative would
- * point at nothing (SPEC §7.2).
+ * point at nothing.
  * @returns {{ ok: boolean, blockers: string[] }} blockers are initiative names
  */
 export function canDeleteTeam(app, teamId) {

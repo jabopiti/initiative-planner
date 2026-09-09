@@ -1,4 +1,4 @@
-// Export/import. The round-trip test is the one PLAN Phase 2 names: a full
+// Export/import. The round-trip test is the load-bearing one: a full
 // dataset must survive serialize -> parse -> apply unchanged.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -19,8 +19,8 @@ the implementation wins and the document is corrected.
 
 ## Status
 
-Complete. `npm install && npm run build` produces the shipped file; see
-[PLAN.md](docs/PLAN.md) for how it was built, phase by phase.
+Complete. `npm install && npm run build` produces the shipped file. It was
+built spec-first, one phase per commit — `git log` is the build record.
 
 ## Start here
 
@@ -32,7 +32,6 @@ Complete. `npm install && npm run build` produces the shipped file; see
    behavior, screen by screen).
 3. [DESIGN.md](docs/DESIGN.md) — how it's built (tech stack, data model,
    module boundaries, brand-pack contract in implementation terms).
-4. [PLAN.md](docs/PLAN.md) — the ordered build phases.
 
 ## Commands
 

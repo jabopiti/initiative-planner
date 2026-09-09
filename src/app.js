@@ -135,7 +135,7 @@ function renderShellActions() {
 /**
  * The export reminder. Dismissable by action only: exporting clears it,
  * nothing else does, because the thing it is warning about is real until the
- * export happens (SPEC §7).
+ * export happens.
  */
 function renderBanner() {
   const node = document.getElementById('banner');
@@ -855,7 +855,7 @@ function phaseTotalsMarkup(initiative, phaseId) {
   const money = (v) => E.formatMoney(v, PROCESS.currency);
 
   // Once approved these come from the snapshot, so the panel agrees with the
-  // grand total above it rather than quietly disagreeing (SPEC §7.5).
+  // grand total above it rather than quietly disagreeing.
   const labour = phase.frozen
     ? phase.frozen.estLabourTotal
     : Object.values(E.phaseLabourByMonth(phase, app)).reduce((t, v) => t + v, 0);
@@ -1245,7 +1245,7 @@ function renderInitiative() {
   );
 }
 
-/** Every phase, with passed and skipped gates visually distinct (SPEC §7.5). */
+/** Every phase, with passed and skipped gates visually distinct. */
 function stepperMarkup(initiative) {
   const order = E.phaseOrder(PROCESS);
   const currentIndex = order.indexOf(initiative.phaseId);
@@ -1526,7 +1526,7 @@ function monthTableMarkup(initiative) {
   </div>`;
 }
 
-/** Every gate left so far, beside the live figures (SPEC §7.5). */
+/** Every gate left so far, beside the live figures. */
 function gateComparisonMarkup(initiative) {
   const left = PROCESS.phases
     .map((phase) => ({ phase, record: initiative.gates[phase.gate.id] }))
@@ -1596,7 +1596,7 @@ function gateComparisonMarkup(initiative) {
 /**
  * Two steps, resumable. Step 1 creates the initiative immediately, so step 2
  * is editing a real record rather than holding a draft in memory — which is
- * what makes leaving and returning lossless (SPEC §7.6).
+ * what makes leaving and returning lossless.
  */
 function renderWizard() {
   const initiative = view.params.id ? app.INITIATIVES.find((i) => i.id === view.params.id) : null;
@@ -1842,7 +1842,7 @@ function renderTeam() {
 
 /**
  * Years a chart may show: the rolling window the data actually covers
- * (SPEC §4). Navigating past it would only ever show an empty chart.
+ * (DESIGN §2). Navigating past it would only ever show an empty chart.
  */
 function trackedYears() {
   const years = new Set();
@@ -1880,7 +1880,7 @@ function yearNav(label) {
 /**
  * One row per active member, one column per month. Rows are bounded by the
  * member's share in *this* team, not their whole capacity — a person split
- * 60/40 shows against 60 here (SPEC §7.2).
+ * 60/40 shows against 60 here.
  */
 function capacityGridMarkup(team) {
   const months = monthsOfYear(chartYear());
@@ -1983,7 +1983,7 @@ function capacityCellMarkup(personId, teamId, month) {
 /**
  * A stacked bar per month. Hand-rolled: the single-file constraint rules out
  * a charting library. Shared by the team run-rate and the Portfolio chart, so
- * the two read identically (SPEC §7.2).
+ * the two read identically.
  *
  * @param {Array<{month: string, segments: Array<{name: string, cost: number}>, total: number}>} data
  */
@@ -2673,7 +2673,7 @@ function onClick(event) {
       return navigate('initiative', { id: copy.id });
     }
     case 'portfolio-tile': {
-      // Clicking the selected tile again clears the filter (SPEC §7.1).
+      // Clicking the selected tile again clears the filter.
       const band = trigger.dataset.band;
       const next = view.params.bandId === band ? null : band;
       return navigate('portfolio', { ...view.params, bandId: next });
@@ -2916,7 +2916,7 @@ function onTableKeydown(event) {
   if (focusable instanceof HTMLInputElement && focusable.type === 'text') focusable.select();
 }
 
-/** Picking a file validates it before any choice is offered (SPEC §7.7). */
+/** Picking a file validates it before any choice is offered. */
 async function onFileChange(event) {
   const target = event.target;
   if (!(target instanceof HTMLInputElement) || target.dataset.act !== 'import-file') return;

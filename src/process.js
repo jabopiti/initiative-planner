@@ -106,7 +106,7 @@ export const PROCESS = {
   ],
 
   // Severity is an integer rank ordered independently of the bounds
-  // (SPEC §4) — a cheap band can still demand heavy approval.
+  // (SPEC §5.5) — a cheap band can still demand heavy approval.
   bands: [
     {
       id: 'band_light',

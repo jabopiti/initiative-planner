@@ -103,7 +103,7 @@ function diffKeyed(current, incoming, mode) {
 
 /**
  * What an import would do, per entity type, plus the thing worth pausing over:
- * which approval records a Merge would overwrite (SPEC §7.7).
+ * which approval records a Merge would overwrite (SPEC §8).
  *
  * @param {object} current @param {object} incoming
  * @param {'replace'|'merge'} mode
@@ -154,7 +154,7 @@ export function importPreview(current, incoming, mode) {
   }
 
   // A person's record is replaced wholesale, memberships included, rather
-  // than reconciled one membership at a time (SPEC §7.7).
+  // than reconciled one membership at a time (SPEC §8).
   const peopleReplaced = entities.PEOPLE.changed;
 
   return { mode, entities, approvalCollisions, peopleReplaced };

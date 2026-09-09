@@ -4,10 +4,8 @@
 
 This is the **white-label core** of a single-user, offline initiative
 planner, built from the documents in this folder rather than from an
-existing codebase: [SPEC.md](docs/SPEC.md) (what/why),
-[DESIGN.md](docs/DESIGN.md) (how), and [PLAN.md](docs/PLAN.md) (build
-order). There is no reference implementation to copy from or compare
-against — these documents are the
+existing codebase: [SPEC.md](docs/SPEC.md) (what/why) and
+[DESIGN.md](docs/DESIGN.md) (how). These documents were the
 authoritative source until code exists, at which point **the implementation
 becomes authoritative** and these documents should be corrected if they
 turn out to disagree with a deliberate implementation choice.
@@ -82,8 +80,7 @@ below them **panel** and **region**. Not "screen", not "view", not "tab".
 
 ## Commands
 
-Once the project is scaffolded (see [PLAN.md](docs/PLAN.md) Phase 0), these
-commands must exist and behave as follows:
+These commands exist and behave as follows:
 
 ```text
 npm run dev         # local dev server
