@@ -138,13 +138,28 @@ function renderShellActions() {
 }
 
 /**
- * The export reminder. Dismissable by action only: exporting clears it,
- * nothing else does, because the thing it is warning about is real until the
- * export happens.
+ * The export reminder, and — ahead of it — a store that has stopped accepting
+ * writes. Dismissable by action only: exporting clears the reminder, nothing
+ * else does, because the thing it is warning about is real until the export
+ * happens.
+ *
+ * A failed write outranks an overdue one. Both say "export now", but one is a
+ * habit worth keeping and the other is this session's work about to be lost.
  */
 function renderBanner() {
   const node = document.getElementById('banner');
   if (!node) return;
+
+  if (!store.isPersisting()) {
+    node.hidden = false;
+    node.innerHTML = html`<div class="banner-bar banner-bar--severe" role="alert">
+      <span><strong>Changes are no longer being saved.</strong> This browser's storage is
+        full or blocked. Export now — anything edited since this appeared exists only on
+        this page, and closing it loses the lot.</span>
+      <button type="button" class="btn btn--small" data-act="export">Export now</button>
+    </div>`;
+    return;
+  }
 
   const threshold = app.GENERAL.exportReminderDays;
   const last = app.GENERAL.lastExportAt ? Date.parse(app.GENERAL.lastExportAt) : null;
@@ -2942,6 +2957,9 @@ export function boot() {
 
   document.getElementById('wordmark').textContent = 'Initiative Planner';
   applyTheme(currentTheme());
+  // Writes are debounced, so a failure surfaces long after the edit that
+  // caused it. The banner is the only always-visible channel there is.
+  store.watchPersistence(() => renderBanner());
   document.addEventListener('click', onClick);
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') return closePopover();

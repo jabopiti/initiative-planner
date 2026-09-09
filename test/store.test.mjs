@@ -88,6 +88,47 @@ test('a full store reports failure instead of taking the app down', () => {
   assert.equal(store.saveNow(app), false, 'a failed write must be survivable mid-keystroke');
 });
 
+test('a store that stops accepting writes says so, once, and says when it recovers', () => {
+  const { app } = store.load();
+  // The module is a singleton across tests, so start from a known-good write
+  // rather than inheriting whatever the last one left behind.
+  store.saveNow(app);
+
+  /** @type {boolean[]} */
+  const seen = [];
+  store.watchPersistence((persisting) => seen.push(persisting));
+  assert.equal(store.isPersisting(), true);
+
+  stubStorage({ throwOnSet: true });
+  store.saveNow(app);
+  store.saveNow(app);
+  store.saveNow(app);
+  assert.deepEqual(seen, [false], 'a store failing for three keystrokes reports once');
+  assert.equal(store.isPersisting(), false, 'and stays reported until it recovers');
+
+  stubStorage();
+  store.saveNow(app);
+  store.saveNow(app);
+  assert.deepEqual(seen, [false, true], 'recovery is reported once too');
+  assert.equal(store.isPersisting(), true);
+});
+
+test('a debounced write that fails still reports, though its caller is long gone', () => {
+  const { app } = store.load();
+  store.saveNow(app);
+
+  /** @type {boolean[]} */
+  const seen = [];
+  store.watchPersistence((persisting) => seen.push(persisting));
+
+  stubStorage({ throwOnSet: true });
+  store.save(app);
+  assert.deepEqual(seen, [], 'nothing has been attempted yet');
+
+  store.flush(app);
+  assert.deepEqual(seen, [false], 'the failure surfaces when the write actually happens');
+});
+
 test('saving is debounced, and flush forces it out', () => {
   const { app } = store.load();
   app.GENERAL.currency = '$';

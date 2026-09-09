@@ -47,15 +47,54 @@ export function load() {
   return { app: stored, reason: 'stored' };
 }
 
+/**
+ * Whether the last write reached storage. A write is debounced, so by the time
+ * one fails the call that caused it has long returned — which is why failure
+ * is reported through a handler rather than a return value nobody is left to
+ * read.
+ */
+let writeFailed = false;
+
+/** @type {((persisting: boolean) => void) | null} */
+let onPersistenceChange = null;
+
+/**
+ * Register the one handler told when persistence stops or starts working.
+ * Installed once at boot.
+ *
+ * A blocked or full store must not take the app down mid-keystroke — but it
+ * must not pass unnoticed either. Every edit here lives in one browser until
+ * someone exports, so silently dropping writes loses the session's work with
+ * nothing on screen to suggest anything happened.
+ *
+ * @param {(persisting: boolean) => void} handler
+ */
+export function watchPersistence(handler) {
+  onPersistenceChange = handler;
+  return writeFailed;
+}
+
 /** Write immediately. Prefer `save` — this is for leaving the page. */
 export function saveNow(app) {
+  let ok = true;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(app));
-    return true;
   } catch {
-    // A full or blocked store must not take the app down mid-keystroke.
-    return false;
+    ok = false;
   }
+
+  // Only transitions are reported: a store that has been failing for twenty
+  // keystrokes should say so once, and recovering should clear it.
+  const wasFailing = writeFailed;
+  writeFailed = !ok;
+  if (writeFailed !== wasFailing) onPersistenceChange?.(ok);
+
+  return ok;
+}
+
+/** Whether writes are currently reaching storage. */
+export function isPersisting() {
+  return !writeFailed;
 }
 
 let pending = null;
