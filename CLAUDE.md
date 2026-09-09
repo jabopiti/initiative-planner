@@ -21,6 +21,11 @@ npm run lint && npm run typecheck && npm test && npm run build
 Don't call something done until it is. Not "mostly", not "true once I
 circle back".
 
+This repo doesn't use an issue tracker. Deferred work, discovered bugs and
+gaps worth recording go in `docs/REVAMP.md` while that plan is live — as a
+finding, not a ticket. Don't create GitHub issues here, and don't set up a
+board.
+
 ## Verifying UI yourself
 
 `npm test` boots the built file and checks every page renders — that is a
@@ -58,9 +63,6 @@ is a line of code.
 
 ## Also load
 
-- `bo-skills:issue-tracker` — before creating, picking up, or closing a
-  GitHub issue, and whenever a phase turns up deferred work or a gap
-  worth recording rather than fixing inline.
 - `frontend-design` — when reshaping the visual language, so the
   result doesn't read as unstyled defaults. The brand-pack contract
   (`AGENTS.md`) still binds: tokens only, no literal colors.

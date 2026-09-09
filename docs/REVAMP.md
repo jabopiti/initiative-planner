@@ -492,8 +492,9 @@ the actual test of "good out of the box".
 Each phase ends with `npm run lint && npm run typecheck && npm test && npm run
 build` clean, and with real browser verification against the demo export in
 all three theme modes and at least two viewport widths (AGENTS.md, "Testing
-expectations"). One GitHub issue per phase; this document is the map, the
-issues are the work.
+expectations"). This document is the only tracker: a phase is done when its
+section here says what landed, and anything discovered along the way is
+written into the findings above rather than filed somewhere else.
 
 ## 6. Not in scope
 
