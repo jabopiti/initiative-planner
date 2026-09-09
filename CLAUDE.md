@@ -60,7 +60,7 @@ is a line of code.
 - `bo-skills:issue-tracker` — before creating, picking up, or closing a
   GitHub issue, and whenever a phase turns up deferred work or a gap
   worth recording rather than fixing inline.
-- `frontend-design` — when shaping the visual language in Phase 11, so the
+- `frontend-design` — when reshaping the visual language, so the
   result doesn't read as unstyled defaults. The brand-pack contract
   (`AGENTS.md`) still binds: tokens only, no literal colors.
 - `dataviz` — before changing the Portfolio or run-rate charts. They are
