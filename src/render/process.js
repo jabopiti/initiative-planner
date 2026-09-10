@@ -1,19 +1,21 @@
 import * as F from '../format.js';
 /**
  * Process: the read-only reference for phases, gates and approval tracks.
+ * A section within Settings (§4.3) — this module has no `render()` dispatch
+ * entry of its own, unlike everything under `pages/`.
  */
 import * as E from '../engine.js';
 import { PROCESS } from '../process.js';
-import { html, raw, fill } from '../render/dom.js';
-import { icon } from '../render/icons.js';
-import { pageHead, scroller, badge } from '../render/components.js';
+import { html, raw } from './dom.js';
+import { icon } from './icons.js';
+import { scroller, badge } from './components.js';
 
 /**
- * The process is fixed by the build (SPEC §2). This page is where someone
- * sees the rules they are working within — and where a wrong build becomes
+ * The process is fixed by the build (SPEC §2). This is where someone sees
+ * the rules they are working within — and where a wrong build becomes
  * obvious. It offers no control that suggests anything is editable.
  */
-export function renderProcessPage() {
+export function processSectionMarkup() {
   const rows = PROCESS.phases
     .map((phase) => {
       const gate = phase.gate;
@@ -72,43 +74,37 @@ export function renderProcessPage() {
       )}</div>`
     : '';
 
-  fill(
-    'root',
-    html`${raw(pageHead({
-      title: 'Process',
-      lede: "This is fixed by the build and cannot be changed here. Every initiative runs it. "
-        + "The last phase's gate is what closes an initiative — finishing is a governed act, "
-        + 'not a status change.',
-    }))}
+  return html`<p class="muted">This is fixed by the build and cannot be changed here. Every
+      initiative runs it. The last phase's gate is what closes an initiative — finishing is a
+      governed act, not a status change.</p>
 
-      <div class="panel">
-        <h2>Phases and gates</h2>
-        ${raw(scroller('Phases and their gates', html`<table class="grid">
-          <thead><tr><th>Phase</th><th>Its gate</th><th>Checklist</th></tr></thead>
-          <tbody>${raw(rows)}</tbody>
-        </table>`))}
+    <div class="panel">
+      <h3>Phases and gates</h3>
+      ${raw(scroller('Phases and their gates', html`<table class="grid">
+        <thead><tr><th>Phase</th><th>Its gate</th><th>Checklist</th></tr></thead>
+        <tbody>${raw(rows)}</tbody>
+      </table>`))}
+    </div>
+
+    <div class="panel">
+      <h3>Approval tracks</h3>
+      ${raw(scroller('Approval tracks', html`<table class="grid">
+        <thead><tr><th>Track</th><th>From</th><th>To</th><th>Severity</th>
+          <th>Requirement</th></tr></thead>
+        <tbody>${raw(bandRows)}</tbody>
+      </table>`))}
+      ${raw(issueMarkup)}
+    </div>
+
+    <div class="panel">
+      <h3>This build</h3>
+      <div class="fields">
+        <div class="field-row"><span>Process</span><span>${PROCESS.id}</span></div>
+        <div class="field-row"><span>Version</span><span>${PROCESS.version}</span></div>
+        <div class="field-row"><span>Currency</span><span>${PROCESS.currency}</span></div>
       </div>
-
-      <div class="panel">
-        <h2>Approval tracks</h2>
-        ${raw(scroller('Approval tracks', html`<table class="grid">
-          <thead><tr><th>Track</th><th>From</th><th>To</th><th>Severity</th>
-            <th>Requirement</th></tr></thead>
-          <tbody>${raw(bandRows)}</tbody>
-        </table>`))}
-        ${raw(issueMarkup)}
-      </div>
-
-      <div class="panel">
-        <h2>This build</h2>
-        <div class="fields">
-          <div class="field-row"><span>Process</span><span>${PROCESS.id}</span></div>
-          <div class="field-row"><span>Version</span><span>${PROCESS.version}</span></div>
-          <div class="field-row"><span>Currency</span><span>${PROCESS.currency}</span></div>
-        </div>
-        <p class="muted">A dataset exported here records this process. Importing it into a
-          build running a different process is refused, because its phases and gates would
-          not mean the same thing.</p>
-      </div>`,
-  );
+      <p class="muted">A dataset exported here records this process. Importing it into a
+        build running a different process is refused, because its phases and gates would
+        not mean the same thing.</p>
+    </div>`;
 }

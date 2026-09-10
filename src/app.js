@@ -36,8 +36,7 @@ import { renderTeams } from './pages/teams.js';
 import { renderTeam, capacityCellMarkup } from './pages/team.js';
 import { renderPeople } from './pages/people.js';
 import { renderPerson } from './pages/person.js';
-import { renderProcessPage } from './pages/process.js';
-import { renderSettings, importPreviewMarkup } from './pages/settings.js';
+import { renderSettings, importPreviewMarkup, scrollToSettingsSection } from './pages/settings.js';
 
 /* ------------------------------------------------------------------ *
  * Theme
@@ -320,7 +319,6 @@ export const PAGES = [
   { id: 'initiatives', label: 'Initiatives', kind: 'overview' },
   { id: 'teams', label: 'Teams', kind: 'overview' },
   { id: 'people', label: 'People', kind: 'overview' },
-  { id: 'process', label: 'Process', kind: 'reference' },
   { id: 'settings', label: 'Settings', kind: 'settings' },
 ];
 
@@ -384,6 +382,10 @@ function announceNavigation() {
   root?.focus();
   const announcer = document.getElementById('route-announcer');
   if (announcer) announcer.textContent = root?.querySelector('h1')?.textContent.trim() ?? '';
+  // Settings is one continuous scroll (§4.3); this is what "a section is a
+  // place" means for it — only on a real navigation, never on a quiet
+  // re-render from editing whatever section is already in view.
+  if (view.page === 'settings') scrollToSettingsSection();
 }
 
 export function navigate(page, params = {}) {
@@ -436,7 +438,6 @@ export function render() {
   if (view.page === 'settings') return renderSettings();
   if (view.page === 'people') return renderPeople();
   if (view.page === 'person') return renderPerson();
-  if (view.page === 'process') return renderProcessPage();
   if (view.page === 'teams') return renderTeams();
   if (view.page === 'team') return renderTeam();
   if (view.page === 'initiatives') return renderInitiatives();
@@ -665,7 +666,10 @@ function onInput(event) {
   } else if (act === 'team-name') {
     P.renameTeam(app.TEAMS[id], target.value);
   } else if (act === 'general-field') {
-    app.GENERAL[field] = F.readNumber(target.value, app.GENERAL.exportReminderDays);
+    // 0 is a real, meaningful value here — it turns the reminder off — so
+    // the bound is only against nonsense, not against the low end.
+    const read = F.readNumber(target.value, app.GENERAL.exportReminderDays);
+    app.GENERAL[field] = Math.min(365, Math.max(0, read));
   } else {
     return;
   }
@@ -687,7 +691,7 @@ function onClick(event) {
   if (!(trigger instanceof HTMLElement)) return;
 
   const { act, id } = trigger.dataset;
-  const section = view.params.section ?? 'overview';
+  const section = view.params.section ?? 'roles';
 
   switch (act) {
     case 'page':
@@ -710,10 +714,16 @@ function onClick(event) {
     case 'role-active':
       app.ROLES[id].active = !app.ROLES[id].active;
       return commit();
+    case 'role-deactivate-arm':
+      return navigate('settings', { ...view.params, confirmDeactivate: id });
 
     case 'country-active':
       app.COUNTRIES[id].active = !app.COUNTRIES[id].active;
       return commit();
+    case 'country-deactivate-arm':
+      return navigate('settings', { ...view.params, confirmDeactivate: id });
+    case 'deactivate-cancel':
+      return navigate('settings', { ...view.params, confirmDeactivate: null });
     case 'country-expand':
       return navigate('settings', {
         section,
@@ -736,7 +746,7 @@ function onClick(event) {
       app = T.applyImport(app, pendingImport.data, pendingImport.mode);
       pendingImport = null;
       store.saveNow(app);
-      return navigate('settings', { section: 'overview' });
+      return navigate('settings', { section: 'data' });
     }
 
 
@@ -938,7 +948,7 @@ function onClick(event) {
       store.reset();
       const fresh = store.load();
       app = fresh.app;
-      return navigate('settings', { section: 'overview' });
+      return navigate('settings', { section: 'roles' });
     }
     default:
       return undefined;
@@ -1079,7 +1089,10 @@ async function onFileChange(event) {
   if (!file) return;
 
   const parsed = await store.readImportFile(file);
-  pendingImport = parsed.ok ? { data: parsed.data, mode: 'merge', error: null } : { error: parsed.error };
+  // Replace is the comprehensible mode — everything here is discarded and
+  // replaced by the file. Merge overlays quietly and is the harder of the
+  // two to reason about, so it is an opt-in, not the default (§4.3).
+  pendingImport = parsed.ok ? { data: parsed.data, mode: 'replace', error: null } : { error: parsed.error };
   target.value = '';
 
   // The preview and its Replace/Merge choice live in Settings. Importing from
@@ -1149,5 +1162,9 @@ export function boot() {
   // reality from the first paint, not only after the first navigation.
   const canonical = hashFor(view);
   if (location.hash !== canonical) location.hash = canonical;
+  // A deep link straight into a settings section (e.g. #/settings/danger)
+  // has to land there on the very first paint too, not only after a
+  // subsequent navigate() — boot() never goes through announceNavigation().
+  if (view.page === 'settings') scrollToSettingsSection();
   return loadReason;
 }

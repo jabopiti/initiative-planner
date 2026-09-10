@@ -29,7 +29,9 @@ here — this table is status only.
 | §4.1 Foundation — formatting module | **Landed** |
 | §4.1 Foundation — interaction patterns | **Landed** |
 | §4.2 Entity flows | **Landed** |
-| §4.3 Settings | Not started — **next** |
+| §4.3 Settings — page structure, copy/behaviour findings | **Landed** |
+| §4.3 Settings — working days as absolute values | Not started — **next** |
+| §4.3 Settings — bulk entry for rates/working days | Not started |
 | §4.4 Initiative detail | Not started |
 | §4.5 Overviews, capacity, charts | Not started |
 | §4.6 Copy, states, first run, accessibility | Not started |
@@ -643,6 +645,64 @@ the chosen country/role (person) or name (team) actually persisted.
   afterwards (SPEC §2, DESIGN §4). Nothing to build. What is worth doing is
   giving the placeholder seed realistic working-day figures instead of the
   current test-friendly pattern, and saying so in the file header.
+
+**Landed — page structure and every finding except the schema change.**
+Settings is one continuous scroll now: `SETTINGS_SECTIONS` renders every
+section's body at once inside `.settings-sections`, with `.settings-nav`
+(a side rail ≥48rem, a sticky horizontal bar below it) jumping between them
+by scrolling — never by swapping content, which is what the old tab strip
+did. The address bar still carries the identity (`#/settings/<section>`);
+`scrollToSettingsSection()` is called from `announceNavigation()` and once
+from `boot()`, so a real navigation (a nav click, Back/Forward, a deep link
+on first paint) scrolls to the section, and a quiet re-render from editing
+whatever section is already open never does — the same distinction hash
+routing already draws between a place changing and a param changing.
+`pages/process.js` moved to `render/process.js` and lost its own
+`pageHead`/`fill` call, becoming `processSectionMarkup()`: a markup
+producer like `phase-panel.js`, not a `render()` dispatch target — Process
+is no longer a top-level page or nav tab.
+
+Overview is gone rather than kept empty: its only content was the tile row
+the finding asks to delete, and days-since-export — its one figure worth
+keeping — now sits in Data beside Export, where an export reminder means
+something. `SETTINGS_SECTIONS[0]` (Roles) is the new default wherever
+`'overview'` used to be one — the four `navigate('settings', { section:
+'overview' })` call sites (`country-expand`'s default, import-apply,
+reset-confirm, the onClick default) now point at `'roles'` or, for
+import-apply and reset-confirm specifically, `'data'` — landing back on
+the section the action was taken from reads better than an arbitrary
+default.
+
+The General sentence is deleted (Process's "This build" panel already
+carries the currency). The Countries collapse button reads "Rates & working
+days" / "Hide rates & working days" both ways now. The gate panel
+(`initiative.js`) links to the Process section via the existing `section`
+action — a small addition ahead of §4.4's fuller gate-panel rewrite, since
+both this row and that one asked for it. Import defaults to Replace.
+`exportReminderDays` clamps to 0–365 and says 0 turns the reminder off. The
+Danger zone's armed state offers "Export first" beside the confirm/cancel
+pair. Deactivating a role or country whose usage count
+(`E.roleUsageCount`/`E.countryUsageCount`, both new) is above zero arms a
+confirm step naming how many people use it, reusing the same arm-then-
+confirm idiom the Danger zone already established, rather than a popover or
+`window.confirm`; deactivating something nobody uses, or reactivating
+anything, still takes one click. A country whose current calendar year's
+rate is 0 shows an inline warning beside its name.
+
+**Not yet landed:** the working-days schema change (absolute values instead
+of a reduction) and bulk entry for rates/working days — both still ahead,
+listed separately in §0's table since they touch a schema bump and deserve
+their own review pass.
+
+Verified in a real browser against `examples/exports/demo.json`, at
+1440×900 and 400×800, in light and dark: the section nav scrolling and
+highlighting correctly on click and on deep link, the narrow sticky bar
+sitting below the shell header rather than under it (a real bug caught this
+way — the rail's sticky `top` needed to clear the header's height, which
+CSS does not do on its own for two stacked sticky elements), the
+deactivate-arm/confirm/cancel cycle for a role with a real user, and the
+zero-rate warning appearing for a freshly-created country and not for
+Northland or Southland.
 
 > **Schema note.** A `schemaVersion` bump invalidates stored data and refuses
 > older exports, by design and with no migration path. Every schema change in

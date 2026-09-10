@@ -189,6 +189,16 @@ export function roleLabel(person, roles) {
   return person.customRole ? person.customRole.label : roles[person.roleId]?.name ?? '';
 }
 
+/** How many people currently use this role, so deactivating it is never blind. */
+export function roleUsageCount(app, roleId) {
+  return Object.values(app.PEOPLE).filter((person) => person.roleId === roleId).length;
+}
+
+/** How many people currently use this country, so deactivating it is never blind. */
+export function countryUsageCount(app, countryId) {
+  return Object.values(app.PEOPLE).filter((person) => person.countryId === countryId).length;
+}
+
 /* ------------------------------------------------------------------ *
  * Phase cost
  * ------------------------------------------------------------------ */

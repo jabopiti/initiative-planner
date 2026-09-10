@@ -1487,7 +1487,7 @@ h3,
 }
 
 /*
- * TABS — the settings section strip and the import mode choice.
+ * TABS — the import mode choice inside an import preview.
  */
 .tabs {
   display: flex;
@@ -1519,6 +1519,94 @@ h3,
 .tabs button[aria-selected='true'] {
   color: var(--color-accent);
   border-bottom-color: var(--color-accent);
+}
+
+/*
+ * SETTINGS LAYOUT — one continuous scroll, sectioned (§4.3). A side rail on
+ * wide viewports, so every section is one click away without hunting through
+ * the scroll; a sticky bar on narrow, where there is no room for a rail
+ * beside the content.
+ *
+ * 3.5rem approximates .shell-header's rendered height, so the narrow-mode
+ * bar sticks directly under it rather than the two sticky elements
+ * overlapping — CSS does not stack sequential sticky elements on its own.
+ */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 12rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-5);
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  position: sticky;
+  /* 3.5rem clears .shell-header, which is sticky at top:0 itself — without
+     this, the rail sticks underneath it instead of below it. */
+  top: calc(3.5rem + var(--space-4));
+}
+
+.settings-nav button {
+  font: inherit;
+  text-align: left;
+  color: var(--color-muted);
+  background: none;
+  border: none;
+  border-left: var(--size-thick) solid transparent;
+  border-radius: var(--radius-none);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
+}
+
+.settings-nav button:hover {
+  color: var(--color-fg);
+  background-image: var(--state-layer-hover);
+}
+
+.settings-nav button[aria-current='location'] {
+  color: var(--color-accent);
+  border-left-color: var(--color-accent);
+  background-image: var(--state-layer-hover);
+}
+
+.settings-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+@media (max-width: 48rem) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    top: 3.5rem;
+    z-index: var(--z-header);
+    background: var(--color-canvas);
+    border-bottom: var(--size-border) solid var(--color-line);
+    margin: 0 calc(-1 * var(--space-3));
+    padding: 0 var(--space-3);
+  }
+
+  .settings-nav button {
+    border-left: none;
+    border-bottom: var(--size-thick) solid transparent;
+    white-space: nowrap;
+  }
+
+  .settings-nav button[aria-current='location'] {
+    border-left-color: transparent;
+    border-bottom-color: var(--color-accent);
+  }
 }
 
 /*

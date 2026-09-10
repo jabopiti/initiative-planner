@@ -114,6 +114,8 @@ function gateBannerMarkup(initiative) {
 
   return html`<div class="panel banner">
     <h2>${phase.label} — ${gate.label}</h2>
+    <p class="micro"><button type="button" class="link" data-act="section" data-section="process"
+      >${gate.label} in the process definition</button></p>
     <p class="muted">${closes
       ? 'This is the last gate. Passing it closes the initiative.'
       : `Passing it moves to ${E.phaseLabel(PROCESS, E.nextPhase(PROCESS, phase.id))}.`}

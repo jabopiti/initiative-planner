@@ -15,6 +15,117 @@ staying here.
 
 ---
 
+## §4.3 — Overview section removed rather than left empty
+
+**Question:** the finding says "Overview: delete the tile row," not "delete
+Overview." But the tile row was the section's entire content once
+days-since-export moved to Data.
+
+**Decision:** removed the section from `SETTINGS_SECTIONS` entirely rather
+than ship a nav item that opens to nothing. `SETTINGS_SECTIONS[0]` (Roles)
+is the new default wherever `?? 'overview'` used to be.
+
+**If you'd reverse this:** re-add `{ id: 'overview', label: 'Overview',
+render: renderOverview }` at the front of `SETTINGS_SECTIONS` with whatever
+content should live there — the rest of the routing (default section,
+`import-apply`/`reset-confirm`'s landing section) would want revisiting too,
+since those were pointed at `'roles'`/`'data'` on the assumption Overview
+was gone.
+
+---
+
+## §4.3 — deactivation confirms by arming, not a popover or `window.confirm`
+
+**Question:** "says what uses it" before deactivating a role or country
+needed some UI. A popover (already built, used for capacity cells) was one
+option; a native `confirm()` another.
+
+**Decision:** reused the Danger zone's existing arm → confirm/cancel
+pattern instead — clicking Deactivate on something with a nonzero usage
+count swaps the button for a usage count plus Yes/Cancel, in place. Nothing
+nobody uses, and reactivating anything, still takes one click.
+
+**Options considered and rejected:** a popover would have meant positioning
+it off a table row and closing it on outside-click, more machinery than a
+two-state row already gives for free; `window.confirm` is a native dialog
+outside the design system entirely, blocks the main thread, and cannot
+carry the "used by N people" detail as anything but part of an alert string.
+
+**If you'd reverse this:** the arm state lives in `view.params.confirmDeactivate`
+(one id at a time, shared between Roles and Countries) — a popover version
+would replace `role-deactivate-arm`/`country-deactivate-arm`'s `navigate()`
+call with `openPopover()` and keep the usage-count computation
+(`E.roleUsageCount`/`E.countryUsageCount`) as is.
+
+---
+
+## §4.3 — the zero-rate warning checks only the current calendar year
+
+**Question:** a country's `byYear` covers four years. Warning if *any* year
+is at 0, or only the one that matters right now?
+
+**Decision:** only `new Date().getFullYear()`. A zero rate in a past year
+(backfilled work, presumably already costed and frozen) or a future year
+(not yet reached) isn't the "everyone here is free *right now*" problem the
+finding describes — checking every year would also fire for perfectly
+reasonable historical data.
+
+**If you'd reverse this:** `zeroRate` in `renderCountries()` is one line;
+checking `Object.values(country.byYear).some(y => y.rate === 0)` instead
+warns for any year, not just the current one.
+
+---
+
+## §4.3 — settings section nav scrolls only on a real navigation
+
+**Question:** with every section rendered at once, when should the page
+actually scroll to one — every re-render (e.g. typing a role's name), or
+only when the section identity changes?
+
+**Decision:** only on a real navigation — hooked into `announceNavigation()`
+(already the "did the place actually change" signal hash routing uses) plus
+once explicitly in `boot()` for a deep link's first paint. A quiet
+`commit()`-triggered re-render from editing whatever section is already
+open never re-scrolls, which is what stops an edit from yanking the
+viewport back to the top of the section the reader is already partway down.
+
+**Rejected:** true scroll-spy (an `IntersectionObserver` tracking which
+section is in view, updating the nav's highlight live as you scroll by
+hand). More correct for a long document, but it means re-registering
+observers against DOM nodes that get replaced on nearly every `commit()`,
+and the plan's own wording ("a sticky section nav") reads more like a
+jump-to-section index than a live-tracking one. `aria-current` reflects
+`view.params.section` only — the last section navigated to, not necessarily
+what happens to be scrolled into view after manual scrolling.
+
+**If you'd reverse this:** add an `IntersectionObserver` in `boot()`
+watching each `#settings-section-*` node, re-observing after every
+`renderSettings()` call, updating a module-level "current section" used for
+the nav highlight independent of `view.params.section`.
+
+---
+
+## §4.3 — the narrow-viewport sticky bar's header clearance is a measured constant
+
+**Question:** `.settings-nav`'s sticky `top` has to clear `.shell-header`,
+which is also `position: sticky; top: 0` — CSS does not stack sequential
+sticky elements on its own, and this app has no `--header-height` token to
+read.
+
+**Decision:** `3.5rem`, a measured approximation of the header's rendered
+height, used both for the wide-viewport rail (`calc(3.5rem + var(--space-4))`)
+and the narrow bar (`3.5rem` flush). Caught in browser verification: without
+it, the rail's first item (Roles) rendered hidden behind the header once
+scrolled.
+
+**Watch for:** a change to `.shell-header`'s padding, font size, or content
+(a second row, a taller wordmark) will silently reopen this — there's no
+structural link between the two values, only this note. Introducing a real
+`--header-height` custom property, computed once and read by both rules,
+would remove the fragility if this bites again.
+
+---
+
 ## §4.1 — split `app.js` into per-page render modules
 
 **Question:** the plan said "per-page render modules" but didn't say what to

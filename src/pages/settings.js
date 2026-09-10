@@ -1,7 +1,8 @@
-import * as F from '../format.js';
 /**
- * Settings: one page, sectioned by a tab strip. Each section is its own
- * region, replaced wholesale when the tab changes.
+ * Settings: one scrolling page, sectioned, with a section nav — a side rail
+ * on wide viewports, a sticky bar on narrow (§4.3). Every section renders at
+ * once; the nav and the address bar (`#/settings/<section>`) exist to jump
+ * between them, not to swap content in and out.
  */
 import * as E from '../engine.js';
 import * as T from '../transfer.js';
@@ -9,82 +10,75 @@ import { app, view, pendingImport } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller } from '../render/components.js';
+import { processSectionMarkup } from '../render/process.js';
 
 const SETTINGS_SECTIONS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'roles', label: 'Roles' },
-  { id: 'countries', label: 'Countries & rates' },
-  { id: 'general', label: 'General' },
-  { id: 'data', label: 'Data' },
-  { id: 'danger', label: 'Danger zone' },
+  { id: 'roles', label: 'Roles', render: renderRoles },
+  { id: 'countries', label: 'Countries & rates', render: renderCountries },
+  { id: 'process', label: 'Process', render: processSectionMarkup },
+  { id: 'general', label: 'General', render: renderGeneral },
+  { id: 'data', label: 'Data', render: renderData },
+  { id: 'danger', label: 'Danger zone', render: renderDanger },
 ];
 
 export function renderSettings() {
-  const section = view.params.section ?? 'overview';
-  const tabs = SETTINGS_SECTIONS.map(
-    (item) => html`<button type="button" role="tab" data-act="section" data-section="${item.id}"
-      aria-selected="${item.id === section}">${item.label}</button>`,
+  const section = view.params.section ?? SETTINGS_SECTIONS[0].id;
+
+  const nav = SETTINGS_SECTIONS.map(
+    (item) => html`<button type="button" data-act="section" data-section="${item.id}"
+      ${raw(item.id === section ? 'aria-current="location"' : '')}>${item.label}</button>`,
+  ).join('');
+
+  const sections = SETTINGS_SECTIONS.map(
+    (item) => html`<section id="settings-section-${item.id}" class="panel"
+      aria-labelledby="settings-heading-${item.id}">
+      <h2 id="settings-heading-${item.id}">${item.label}</h2>
+      ${raw(item.render())}
+    </section>`,
   ).join('');
 
   fill(
     'root',
     html`${raw(pageHead({ title: 'Settings' }))}
-      <div class="tabs" role="tablist">${raw(tabs)}</div>
-      <div id="settings-body" class="panel"></div>`,
+      <div class="settings-layout">
+        <nav class="settings-nav" aria-label="Settings sections">${raw(nav)}</nav>
+        <div class="settings-sections">${raw(sections)}</div>
+      </div>`,
   );
-  renderSettingsBody(section);
 }
 
-/** One region per section, replaced wholesale when the section changes. */
-function renderSettingsBody(section) {
-  const renderers = {
-    overview: renderOverview,
-    roles: renderRoles,
-    countries: renderCountries,
-    general: renderGeneral,
-    data: renderData,
-    danger: renderDanger,
-  };
-  fill('settings-body', renderers[section]());
-}
-
-function tile(label, value, note = '') {
-  return html`<div class="tile">
-    <div class="tile__value">${value}</div>
-    <div class="tile__label">${label}</div>
-    ${raw(note ? html`<div class="tile__note">${note}</div>` : '')}
-  </div>`;
-}
-
-function renderOverview() {
-  const people = Object.values(app.PEOPLE);
-  const roles = Object.values(app.ROLES);
-  const countries = Object.values(app.COUNTRIES).filter((c) => c.active);
-  const year = new Date().getFullYear();
-  const rates = countries.map((c) => E.yearRecord(c.byYear, year).rate);
-  const range = rates.length
-    ? `${F.money(Math.min(...rates))}–${F.money(Math.max(...rates))}`
-    : '—';
-
-  const since = app.GENERAL.lastExportAt
-    ? Math.floor((Date.now() - Date.parse(app.GENERAL.lastExportAt)) / 86400000)
-    : null;
-
-  return html`<div class="tiles">
-    ${raw(tile('Teams', Object.keys(app.TEAMS).length))}
-    ${raw(tile('People', people.length, `${people.filter((p) => p.active).length} active`))}
-    ${raw(tile('Roles', roles.filter((r) => r.active).length))}
-    ${raw(tile('Countries', countries.length, range))}
-    ${raw(tile('Days since export', since === null ? 'never' : since))}
-  </div>`;
+/**
+ * Jump to a section without a page reload — called only when the section
+ * identity actually changed (from `announceNavigation`, and once from
+ * `boot`), never on a quiet re-render triggered by an edit within the
+ * section the reader is already looking at.
+ */
+export function scrollToSettingsSection() {
+  const section = view.params.section ?? SETTINGS_SECTIONS[0].id;
+  document.getElementById(`settings-section-${section}`)?.scrollIntoView({ block: 'start' });
 }
 
 /* ---- roles ---- */
 
 function renderRoles() {
+  const confirming = view.params.confirmDeactivate;
   const rows = Object.values(app.ROLES)
-    .map(
-      (role) => html`<tr data-id="${role.id}" class="${role.active ? '' : 'row--inactive'}">
+    .map((role) => {
+      const usage = E.roleUsageCount(app, role.id);
+      const action = role.active && confirming === role.id
+        ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}Used by
+              ${usage} ${usage === 1 ? 'person' : 'people'}.</span>
+            <button type="button" class="btn--small btn--danger" data-act="role-active"
+              data-id="${role.id}">Yes, deactivate</button>
+            <button type="button" class="btn--small" data-act="deactivate-cancel"
+              >Cancel</button>`
+        : role.active && usage > 0
+          ? html`<button type="button" class="btn--small" data-act="role-deactivate-arm"
+              data-id="${role.id}">Deactivate</button>`
+          : html`<button type="button" class="btn--small" data-act="role-active"
+              data-id="${role.id}">${role.active ? 'Deactivate' : 'Reactivate'}</button>`;
+
+      return html`<tr data-id="${role.id}" class="${role.active ? '' : 'row--inactive'}">
         <td><input class="field" data-act="role-field" data-field="name" data-id="${role.id}"
           value="${role.name}" aria-label="Role name" /></td>
         <td><input class="field field--abbr" data-act="role-field" data-field="abbr"
@@ -92,10 +86,9 @@ function renderRoles() {
         <td>${raw(numberField({ value: role.factor, 'data-act': 'role-field',
           'data-field': 'factor', 'data-id': role.id, 'aria-label': 'Factor',
           extraClass: 'field--pct' }))}</td>
-        <td class="cell--action"><button type="button" class="btn--small" data-act="role-active"
-          data-id="${role.id}">${role.active ? 'Deactivate' : 'Reactivate'}</button></td>
-      </tr>`,
-    )
+        <td class="cell--action">${raw(action)}</td>
+      </tr>`;
+    })
     .join('');
 
   const emptyRow = html`<tr data-id="new">
@@ -123,11 +116,28 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 function renderCountries() {
   const expanded = view.params.expanded ?? null;
+  const confirming = view.params.confirmDeactivate;
+  const thisYear = new Date().getFullYear();
 
   const rows = Object.values(app.COUNTRIES)
     .map((country) => {
       const years = Object.keys(country.byYear).map(Number).sort((a, b) => a - b);
       const open = expanded === country.id;
+      const usage = E.countryUsageCount(app, country.id);
+      const zeroRate = (country.byYear[thisYear]?.rate ?? 0) === 0;
+
+      const action = country.active && confirming === country.id
+        ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}Used by
+              ${usage} ${usage === 1 ? 'person' : 'people'}.</span>
+            <button type="button" class="btn--small btn--danger" data-act="country-active"
+              data-id="${country.id}">Yes, deactivate</button>
+            <button type="button" class="btn--small" data-act="deactivate-cancel"
+              >Cancel</button>`
+        : country.active && usage > 0
+          ? html`<button type="button" class="btn--small" data-act="country-deactivate-arm"
+              data-id="${country.id}">Deactivate</button>`
+          : html`<button type="button" class="btn--small" data-act="country-active"
+              data-id="${country.id}">${country.active ? 'Deactivate' : 'Reactivate'}</button>`;
 
       const yearBlocks = years
         .map((year) => {
@@ -166,15 +176,18 @@ function renderCountries() {
       return html`<tbody data-id="${country.id}" class="${country.active ? '' : 'row--inactive'}">
         <tr>
           <td><input class="field" data-act="country-field" data-field="name" data-id="${country.id}"
-            value="${country.name}" aria-label="Country name" /></td>
+            value="${country.name}" aria-label="Country name" />
+            ${raw(zeroRate
+              ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}${thisYear}
+                  rate is 0 — everyone here costs nothing this year</span>`
+              : '')}</td>
           <td class="cell--action">
             <button type="button" class="btn--small" data-act="country-expand"
               data-id="${country.id}" aria-expanded="${open}"
               >${raw(icon(open ? 'chevron-down' : 'chevron-right'))}${open
-                ? 'Hide rates'
-                : 'Rates & holidays'}</button>
-            <button type="button" class="btn--small" data-act="country-active"
-              data-id="${country.id}">${country.active ? 'Deactivate' : 'Reactivate'}</button>
+                ? 'Hide rates & working days'
+                : 'Rates & working days'}</button>
+            ${raw(action)}
           </td>
         </tr>
         ${raw(open ? html`<tr><td colspan="2"><table class="grid grid--nested">
@@ -211,17 +224,22 @@ function renderGeneral() {
         'data-field': 'exportReminderDays', extraClass: 'field--pct' }))}
     </label>
   </div>
-  <p class="muted">The currency symbol is fixed by this build and shown on the
-    <button type="button" class="link" data-act="page" data-page="process">Process</button>
-    page, not here.</p>`;
+  <p class="muted">0 turns the reminder off entirely, rather than hiding it.</p>`;
 }
 
 /* ---- data ---- */
 
 function renderData() {
+  const since = app.GENERAL.lastExportAt
+    ? Math.floor((Date.now() - Date.parse(app.GENERAL.lastExportAt)) / 86400000)
+    : null;
+
   return html`<p class="muted">The export carries everything: master data, the process, every
       person, initiative, actual and approval. It is the only backup and the only way to move
       data between machines.</p>
+    <p class="muted">${since === null
+      ? 'This data has never been exported.'
+      : `Last exported ${since} day${since === 1 ? '' : 's'} ago.`}</p>
     <div class="actions">
       <button type="button" class="btn btn--primary" data-act="export">
         ${raw(icon('export'))}Export JSON</button>
@@ -302,6 +320,8 @@ function renderDanger() {
       ? html`<div class="issues"><p class="warn">${raw(icon('warning', 'icon--lead'))}This will
             erase everything. There is no undo.</p>
           <div class="actions">
+            <button type="button" class="btn" data-act="export">
+              ${raw(icon('export'))}Export first</button>
             <button type="button" class="btn btn--danger" data-act="reset-confirm">
               ${raw(icon('remove'))}Yes, erase everything</button>
             <button type="button" class="btn" data-act="reset-cancel">Cancel</button>
