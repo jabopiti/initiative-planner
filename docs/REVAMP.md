@@ -533,8 +533,6 @@ English only, per D6. Every raw ISO string in the UI goes through it, and
   memberships, roles, countries, cost lines.
 - *Confirm and undo* (D1) — one mechanism, not per-call-site ad-hockery.
 - *Validation at the field* — inline, warning not blocking, matching the
-
-**Landed.** Replaced implicit clicks with `.row--clickable` and `.card--clickable` stretched links. Refactored all entity lists (team memberships, allocations, roles, countries, cost lines) into editable grids with a trailing empty row for seamless inline addition. Wrapped deletions in a global `UndoStack` backed by an omnipotent snapshot, surfaced via a temporary toast. Added a keyboard traversal hint to the capacity grid.
   tool's existing "warn, never block" stance (SPEC §5.2).
 - *Cross-reference links everywhere* — a team's initiatives, a person's
   initiatives and an initiative's team are all dead text today (§2.6).
@@ -543,6 +541,28 @@ English only, per D6. Every raw ISO string in the UI goes through it, and
 - *Distinct badge kinds* — `.tag` carries seven unrelated meanings today, and
   the `⚠` character stands in for a warning icon (§2.6).
 - *Popovers take and restore focus*, and trap it while open (§2.6).
+
+**Landed.** Replaced implicit clicks with `.row--clickable` and
+`.card--clickable` stretched links. Refactored all entity lists (team
+memberships, allocations, roles, countries, cost lines) into editable grids
+with a trailing empty row for seamless inline addition. Wrapped deletions in
+a global `UndoStack` backed by an omnipotent snapshot, surfaced via a
+temporary toast. Added a keyboard traversal hint to the capacity grid.
+
+**Corrected on review.** Editing an existing cost item's amount recalculated
+the displayed totals but skipped `commitQuietly()`, so the new figure was
+never persisted — a reload silently reverted it to the old amount. Two
+places still displayed a full date as a raw ISO string instead of routing it
+through `format.js`'s `date()` (Portfolio's Period column and a person's
+Initiatives panel), a gap the formatting-module row above should have swept
+but didn't. `person.js` also carried an inline `style="position: relative;
+z-index: 2;"` on a cross-reference link, duplicating (and violating the
+tokens-only rule ahead of) the `.row--clickable a:not(.row-link)` rule
+`styles.css` already declares for exactly this case. All three fixed;
+verified in a real browser against `examples/exports/demo.json` — the
+persistence fix by editing an amount, reloading, and confirming it held; the
+date fixes by reading the rendered Portfolio and Person pages; the CSS fix
+by inspection, since it's non-visual.
 
 **Invariants that must survive all of it** (AGENTS.md, restated only because
 this is where they get broken): typing never rebuilds the active input or

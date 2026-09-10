@@ -618,7 +618,10 @@ function onInput(event) {
     if (field === 'amount') item.amount = F.readNumber(target.value, item.amount);
     else item[field] = target.value;
     // Changing an amount moves phase totals. Re-render the affected totals.
-    if (field === 'amount') return refreshCalcRegions(initiative);
+    if (field === 'amount') {
+      commitQuietly();
+      return refreshCalcRegions(initiative);
+    }
   } else if (act === 'team-name') {
     P.renameTeam(app.TEAMS[id], target.value);
   } else if (act === 'general-field') {

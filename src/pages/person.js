@@ -177,11 +177,11 @@ function personInitiativesPanel(person, stranded) {
     .map(
       (row) => html`<tr class="row--clickable ${strandedIds.has(`${row.initiative.id}:${row.phaseId}`) ? 'row--warn' : ''}">
         <td><a class="row-link" href="#/initiative/${row.initiative.id}">${row.initiative.name}</a></td>
-        <td><a href="#/team/${row.initiative.teamId}" style="position: relative; z-index: 2;" class="link">${app.TEAMS[row.initiative.teamId]?.name ?? row.initiative.teamId}</a></td>
+        <td><a href="#/team/${row.initiative.teamId}" class="link">${app.TEAMS[row.initiative.teamId]?.name ?? row.initiative.teamId}</a></td>
         <td>${E.phaseLabel(PROCESS, row.phaseId)}</td>
         <td>${row.allocationPct}</td>
-        <td>${row.start ?? ''}</td>
-        <td>${row.end ?? ''}</td>
+        <td>${F.date(row.start)}</td>
+        <td>${F.date(row.end)}</td>
         <td>${raw(row.countsTowardCapacity ? '' : badge('not in capacity', 'quiet'))}</td>
       </tr>`,
     )

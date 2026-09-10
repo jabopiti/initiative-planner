@@ -103,7 +103,7 @@ export function renderPortfolio() {
         <td>${r.teamName}</td>
         <td>${E.phaseLabel(PROCESS, r.initiative.phaseId)}</td>
         <td>${STATUS_LABELS[r.initiative.status]}</td>
-        <td>${r.period.start ? `${r.period.start} → ${r.period.end ?? '?'}` : '—'}</td>
+        <td>${r.period.start ? `${F.date(r.period.start)} → ${r.period.end ? F.date(r.period.end) : '?'}` : '—'}</td>
         <td>${r.band ? r.band.name : 'Not yet known'}</td>
         <td class="num">${r.approved === null ? '—' : F.money(r.approved)}</td>
         <td class="num">${F.money(r.effective)}
