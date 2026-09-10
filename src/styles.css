@@ -7,8 +7,28 @@
  * Nothing else in this file may change to support a rebrand.
  *
  * Every other rule reads a token: no literal color, size, space or radius
- * anywhere below. Corners are square except for explicitly circular
- * elements. The full light/dark token set arrives in Phase 10.
+ * anywhere below the token blocks. Corners are square except for explicitly
+ * circular elements.
+ *
+ * ---------------------------------------------------------------------------
+ * THE DESIGN SYSTEM
+ *
+ * Why it looks the way it does is written down once, in
+ * docs/REVAMP-design-direction.md, and not repeated here. What this file adds
+ * is the part a document cannot hold: the tokens themselves, and one
+ * documented block per component. In short — a ledger. Rules carry the
+ * structure, the left edge carries governance state, and numerals are the
+ * display face.
+ *
+ * Reading order:
+ *   1. Tokens          — the only place a literal value may appear
+ *   2. Theme           — dark as a token swap, declared twice on purpose
+ *   3. Base            — element defaults and the type voices
+ *   4. Shell           — header, nav, skip link, banner bar
+ *   5. Components      — button, field, table, panel, card, badge, banner,
+ *                        popover, toast, empty state, and the rest
+ *   6. Responsive      — the two breakpoints
+ * ---------------------------------------------------------------------------
  */
 
 :root {
@@ -16,7 +36,7 @@
   --brand-hue: 232;
   --brand: hsl(var(--brand-hue) 62% 46%);
   --brand-contrast: hsl(0 0% 100%);
-  --brand-tint: hsl(var(--brand-hue) 62% 96%);
+  --brand-tint: hsl(var(--brand-hue) 62% 95%);
   /* No embedded font in the white-label default: --brand-font stays unset so
      every consumer below falls through to its own generic stack. */
   /* --brand-font: "Some Brand Sans"; */
@@ -25,65 +45,169 @@
   --font-ui: var(--brand-font, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif);
   --font-num: var(--brand-font, ui-monospace, SFMono-Regular, Menlo, monospace);
 
-  --color-bg: hsl(0 0% 100%);
-  --color-fg: hsl(220 15% 9%);
-  --color-muted: hsl(220 9% 40%);
-  --color-line: hsl(220 14% 86%);
+  /* ---- colour: the neutral ramp ----
+     Canvas is the page ground, surface is what sits on it. The one step
+     between them is what lets a sticky header and a frozen first column read
+     as raised without a shadow. The ramp keeps its own fixed hue rather than
+     following --brand-hue; widening the brand pack to own it is §4.8's row,
+     not this one. */
+  --color-canvas: hsl(220 22% 97%);
+  --color-surface: hsl(0 0% 100%);
+  --color-surface-raised: hsl(0 0% 100%);
+  --color-fg: hsl(220 18% 12%);
+  --color-muted: hsl(220 9% 42%);
+  --color-faint: hsl(220 8% 58%);
+  --color-line: hsl(220 14% 84%);
+  --color-line-soft: hsl(220 14% 91%);
+  color-scheme: light dark;
+
+  /* ---- colour: semantic roles ----
+     Accent marks selection and the current thing, never severity. Ok, warn
+     and danger mark outcome. Each severity has a text colour and a tint for a
+     row background. */
   --color-accent: var(--brand);
   --color-accent-contrast: var(--brand-contrast);
   --color-accent-tint: var(--brand-tint);
-  color-scheme: light dark;
-
-  --color-line-soft: hsl(220 14% 92%);
-  --color-danger: hsl(354 62% 44%);
+  --color-danger: hsl(354 62% 42%);
   --color-warn-tint: hsl(354 62% 96%);
-  --color-ok: hsl(152 45% 34%);
+  --color-ok: hsl(152 45% 30%);
   --color-ok-tint: hsl(152 45% 95%);
-  --color-amber: hsl(38 78% 40%);
+  --color-amber: hsl(38 78% 36%);
   --color-amber-tint: hsl(38 78% 95%);
-  --color-now-tint: hsl(232 62% 96%);
+  /* The current month reads as "the thing you are on", which is what accent
+     means — deriving it rather than repeating a hue keeps a rebrand honest. */
+  --color-now-tint: var(--color-accent-tint);
   --color-band: hsl(220 14% 90%);
   --color-spare-tint: hsl(220 14% 96%);
+
   --chart-1: hsl(232 62% 56%);
-  --chart-2: hsl(188 62% 40%);
+  --chart-2: hsl(188 62% 38%);
   --chart-3: hsl(280 45% 55%);
-  --chart-4: hsl(18 70% 52%);
-  --chart-5: hsl(152 45% 40%);
-  --chart-6: hsl(340 55% 55%);
+  --chart-4: hsl(18 70% 50%);
+  --chart-5: hsl(152 45% 38%);
+  --chart-6: hsl(340 55% 53%);
   --chart-spare: hsl(220 12% 72%);
 
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.375rem;
-  --tracking-wide: 0.04em;
-  --measure: 62ch;
+  /* ---- state ----
+     Mixed from the foreground so they compose over any surface and re-derive
+     themselves for a new brand or a new theme. Selection is solid, because
+     what is selected has to be legible in a screenshot, not only under a
+     cursor. */
+  --state-hover: color-mix(in oklab, var(--color-fg) 6%, transparent);
+  --state-active: color-mix(in oklab, var(--color-fg) 12%, transparent);
+  --state-selected: var(--color-accent-tint);
+  /* Applied as a background *layer* rather than a background colour, so the
+     surface underneath keeps its own colour and stays opaque. That is what
+     lets one hover token work over a plain row, a warning row and the frozen
+     first column alike. */
+  --state-layer-hover: linear-gradient(var(--state-hover), var(--state-hover));
+  --state-layer-active: linear-gradient(var(--state-active), var(--state-active));
+  --opacity-disabled: 0.5;
+  /* Foreground, not accent: an accent ring vanishes on an accent-filled
+     button, and a brand pack may set the accent to any luminance. */
+  --color-focus: var(--color-fg);
 
+  /* ---- typography ----
+     Base is 14px. A tight ratio, so eight levels coexist without any of them
+     shouting over the data. */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-display: 1.75rem;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.45;
+
+  --tracking-wide: 0.06em;
+  --tracking-tight: -0.01em;
+  --measure: 64ch;
+  /* A prose cell needs a floor, or the table squeezes it to one word a line. */
+  --measure-cell: 18rem;
+
+  /* ---- space: a 4px scale, and one half-step for badges ---- */
+  --space-half: 0.125rem;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  /* ---- density ----
+     A 13px cell with 8px of padding lands a row near 31px. That is denser
+     than the 40px an enterprise table usually calls "condensed", on purpose:
+     this is a tool someone reads for an hour, not a page someone visits. */
+  --row-pad-y: var(--space-2);
+  --row-pad-x: var(--space-3);
+  --control-height: 2rem;
+  --control-height-sm: 1.625rem;
 
   --size-border: 1px;
   --size-thick: 2px;
   --radius-none: 0;
   --radius-round: 50%;
 
+  /* ---- field widths, sized to what goes in them ----
+     A date needs room for a date. The old --field-short was 5rem, which is
+     why one never fitted. */
   --field-min: 6rem;
-  --field-short: 5rem;
-  --field-tiny: 3rem;
-  --tile-min: 9rem;
-  --card-min: 14rem;
-  --step-min: 9rem;
+  --field-date: 9.5rem;
+  --field-month: 9rem;
+  --field-money: 7rem;
+  --field-pct: 4.5rem;
+  --field-abbr: 5rem;
+  --field-tiny: 3.25rem;
+  --field-search: 12rem;
+  --field-select: 9rem;
+
+  /* ---- layout sizes ---- */
+  --tile-min: 10rem;
+  --card-min: 16rem;
+  --step-min: 8rem;
   --bar-height: 1.75rem;
-  --marker-width: 2px;
   --swatch: 0.75rem;
-  --popover-max: 20rem;
-  --bars-height: 10rem;
-  --cap-min: 3rem;
-  --shadow: 0 2px 12px hsl(220 20% 10% / 0.18);
-  --opacity-disabled: 0.55;
+  --popover-max: 22rem;
+  --bars-height: 11rem;
+  --cap-min: 3.25rem;
   --scroller-tall: 28rem;
+  --toast-max: 24rem;
+  --icon-size: 1em;
+
+  /* ---- elevation ----
+     Two levels. Flat is everything anchored in the page; raised is what
+     floats above it and a click elsewhere dismisses. There is no third. */
+  --elevation-raised:
+    0 1px 2px hsl(220 20% 10% / 0.08),
+    0 8px 24px hsl(220 20% 10% / 0.16);
+
+  /* ---- motion ----
+     Short, decisive, asymmetric: things leave faster than they arrive. */
+  --motion-fast: 90ms;
+  --motion-base: 160ms;
+  --motion-slow: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ease-entrance: cubic-bezier(0, 0, 0.38, 0.9);
+  --ease-exit: cubic-bezier(0.2, 0, 1, 0.9);
+
+  /* ---- stacking ----
+     Named so a new layer is chosen against the others rather than guessed. */
+  --z-cell: 1;
+  --z-row-head: 2;
+  --z-col-head: 3;
+  --z-header: 5;
+  --z-nav: 6;
+  --z-popover: 10;
+  --z-toast: 20;
 }
 
 /*
@@ -95,71 +219,96 @@
  * "system" stamps nothing and follows the OS. Each dark palette is therefore
  * declared twice — once under the media query guarded against an explicit
  * light choice, once under the explicit dark choice — so the toggle wins in
- * both directions.
+ * both directions. The two blocks are identical and must stay that way.
  */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --brand: hsl(var(--brand-hue) 70% 68%);
-    --brand-contrast: hsl(220 20% 8%);
-    --brand-tint: hsl(var(--brand-hue) 40% 18%);
+    --brand: hsl(var(--brand-hue) 72% 70%);
+    --brand-contrast: hsl(220 22% 8%);
+    --brand-tint: hsl(var(--brand-hue) 38% 20%);
 
-    --color-bg: hsl(220 18% 10%);
-    --color-fg: hsl(220 14% 92%);
-    --color-muted: hsl(220 10% 62%);
-    --color-line: hsl(220 12% 26%);
-    --color-line-soft: hsl(220 12% 18%);
-    --color-danger: hsl(354 70% 68%);
-    --color-warn-tint: hsl(354 40% 18%);
+    --color-canvas: hsl(220 20% 9%);
+    --color-surface: hsl(220 18% 12%);
+    --color-surface-raised: hsl(220 16% 16%);
+    --color-fg: hsl(220 16% 93%);
+    --color-muted: hsl(220 10% 64%);
+    --color-faint: hsl(220 9% 50%);
+    --color-line: hsl(220 12% 27%);
+    --color-line-soft: hsl(220 12% 20%);
+
+    --color-danger: hsl(354 76% 70%);
+    --color-warn-tint: hsl(354 34% 20%);
     --color-ok: hsl(152 45% 62%);
-    --color-ok-tint: hsl(152 35% 16%);
-    --color-amber: hsl(38 78% 62%);
-    --color-amber-tint: hsl(38 45% 18%);
-    --color-now-tint: hsl(232 40% 20%);
-    --color-band: hsl(220 12% 24%);
-    --color-spare-tint: hsl(220 12% 15%);
+    --color-ok-tint: hsl(152 32% 18%);
+    --color-amber: hsl(38 78% 64%);
+    --color-amber-tint: hsl(38 42% 20%);
+    --color-band: hsl(220 12% 25%);
+    --color-spare-tint: hsl(220 12% 16%);
 
-    --chart-1: hsl(232 62% 66%);
-    --chart-2: hsl(188 55% 52%);
-    --chart-3: hsl(280 45% 66%);
-    --chart-4: hsl(18 70% 62%);
-    --chart-5: hsl(152 45% 52%);
-    --chart-6: hsl(340 55% 66%);
-    --chart-spare: hsl(220 10% 45%);
+    --chart-1: hsl(232 62% 68%);
+    --chart-2: hsl(188 55% 54%);
+    --chart-3: hsl(280 45% 68%);
+    --chart-4: hsl(18 70% 64%);
+    --chart-5: hsl(152 45% 54%);
+    --chart-6: hsl(340 55% 68%);
+    --chart-spare: hsl(220 10% 46%);
 
-    --shadow: 0 2px 16px hsl(0 0% 0% / 0.55);
+    --elevation-raised:
+      0 1px 2px hsl(0 0% 0% / 0.5),
+      0 8px 28px hsl(0 0% 0% / 0.6);
   }
 }
 
 :root[data-theme='dark'] {
-  --brand: hsl(var(--brand-hue) 70% 68%);
-  --brand-contrast: hsl(220 20% 8%);
-  --brand-tint: hsl(var(--brand-hue) 40% 18%);
+  --brand: hsl(var(--brand-hue) 72% 70%);
+  --brand-contrast: hsl(220 22% 8%);
+  --brand-tint: hsl(var(--brand-hue) 38% 20%);
 
-  --color-bg: hsl(220 18% 10%);
-  --color-fg: hsl(220 14% 92%);
-  --color-muted: hsl(220 10% 62%);
-  --color-line: hsl(220 12% 26%);
-  --color-line-soft: hsl(220 12% 18%);
-  --color-danger: hsl(354 70% 68%);
-  --color-warn-tint: hsl(354 40% 18%);
+  --color-canvas: hsl(220 20% 9%);
+  --color-surface: hsl(220 18% 12%);
+  --color-surface-raised: hsl(220 16% 16%);
+  --color-fg: hsl(220 16% 93%);
+  --color-muted: hsl(220 10% 64%);
+  --color-faint: hsl(220 9% 50%);
+  --color-line: hsl(220 12% 27%);
+  --color-line-soft: hsl(220 12% 20%);
+
+  --color-danger: hsl(354 76% 70%);
+  --color-warn-tint: hsl(354 34% 20%);
   --color-ok: hsl(152 45% 62%);
-  --color-ok-tint: hsl(152 35% 16%);
-  --color-amber: hsl(38 78% 62%);
-  --color-amber-tint: hsl(38 45% 18%);
-  --color-now-tint: hsl(232 40% 20%);
-  --color-band: hsl(220 12% 24%);
-  --color-spare-tint: hsl(220 12% 15%);
+  --color-ok-tint: hsl(152 32% 18%);
+  --color-amber: hsl(38 78% 64%);
+  --color-amber-tint: hsl(38 42% 20%);
+  --color-band: hsl(220 12% 25%);
+  --color-spare-tint: hsl(220 12% 16%);
 
-  --chart-1: hsl(232 62% 66%);
-  --chart-2: hsl(188 55% 52%);
-  --chart-3: hsl(280 45% 66%);
-  --chart-4: hsl(18 70% 62%);
-  --chart-5: hsl(152 45% 52%);
-  --chart-6: hsl(340 55% 66%);
-  --chart-spare: hsl(220 10% 45%);
+  --chart-1: hsl(232 62% 68%);
+  --chart-2: hsl(188 55% 54%);
+  --chart-3: hsl(280 45% 68%);
+  --chart-4: hsl(18 70% 64%);
+  --chart-5: hsl(152 45% 54%);
+  --chart-6: hsl(340 55% 68%);
+  --chart-spare: hsl(220 10% 46%);
 
-  --shadow: 0 2px 16px hsl(0 0% 0% / 0.55);
+  --elevation-raised:
+    0 1px 2px hsl(0 0% 0% / 0.5),
+    0 8px 28px hsl(0 0% 0% / 0.6);
 }
+
+/* One place honours the preference, at the token, so no rule has to
+   remember. Not zero: a zero duration cancels transitionend, which some
+   browsers rely on internally. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0.01ms;
+    --motion-base: 0.01ms;
+    --motion-slow: 0.01ms;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 3. Base
+ * ------------------------------------------------------------------ */
 
 * {
   box-sizing: border-box;
@@ -168,67 +317,51 @@
 body {
   margin: 0;
   font-family: var(--font-ui);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
   color: var(--color-fg);
-  background: var(--color-bg);
+  background: var(--color-canvas);
 }
 
-.shell-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border-bottom: var(--size-border) solid var(--color-line);
+/*
+ * The focus ring, once, for everything. Offset by the ring's own width so a
+ * band of page shows between element and ring — which is what keeps it
+ * legible on an accent-filled button as well as on the canvas.
+ */
+:focus-visible {
+  outline: var(--size-thick) solid var(--color-focus);
+  outline-offset: var(--size-thick);
 }
 
-.wordmark {
-  font-weight: 600;
-  color: var(--color-accent);
-}
-
-.shell-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
-.shell-nav button {
-  font: inherit;
-  color: var(--color-muted);
-  background: none;
-  border: none;
-  border-radius: var(--radius-none);
-  padding: var(--space-2) var(--space-3);
-  cursor: pointer;
-}
-
-.shell-nav button:hover {
-  color: var(--color-fg);
-}
-
-.shell-nav button[aria-current='page'] {
-  color: var(--color-accent);
-  background: var(--color-accent-tint);
-}
-
-.shell-actions {
-  margin-left: auto;
-}
-
-#root {
-  padding: var(--space-4);
-}
-
-/* ---- typography & shared text ---- */
+/* ---- the three type voices ---- */
 
 h1 {
-  font-size: var(--text-lg);
-  margin: 0 0 var(--space-3);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  margin: 0;
 }
 
 h2 {
-  font-size: var(--text-md);
-  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  margin: 0 0 var(--space-3);
+}
+
+/*
+ * The label voice: uppercase, small, tracked wide, muted. It marks a column
+ * head, a heading inside a panel, a badge. Never a sentence.
+ */
+h3,
+.label-voice {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-muted);
+  margin: var(--space-5) 0 var(--space-2);
 }
 
 .muted {
@@ -239,237 +372,16 @@ h2 {
 .micro {
   display: block;
   font-size: var(--text-xs);
+  line-height: var(--leading-tight);
   color: var(--color-muted);
 }
 
-/* ---- tabs ---- */
-
-.tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  border-bottom: var(--size-border) solid var(--color-line);
-  margin-bottom: var(--space-4);
-}
-
-.tabs button {
-  font: inherit;
-  color: var(--color-muted);
-  background: none;
-  border: none;
-  border-bottom: var(--size-thick) solid transparent;
-  border-radius: var(--radius-none);
-  padding: var(--space-2) var(--space-3);
-  cursor: pointer;
-}
-
-.tabs button:hover {
-  color: var(--color-fg);
-}
-
-.tabs button[aria-selected='true'] {
-  color: var(--color-accent);
-  border-bottom-color: var(--color-accent);
-}
-
-/* ---- tables ---- */
-
-.grid {
-  width: 100%;
-  border-collapse: collapse;
-  margin: var(--space-3) 0;
-}
-
-/* Cells declare their own color so a theme change repaints reliably, rather
-   than relying on an ancestor's color cascading (AGENTS.md). */
-.grid th,
-.grid td {
-  color: var(--color-fg);
-  text-align: left;
-  padding: var(--space-2);
-  border-bottom: var(--size-border) solid var(--color-line);
-  vertical-align: top;
-}
-
-.grid thead th {
-  color: var(--color-muted);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-wide);
-}
-
-.grid .fixed,
-.grid .muted {
-  color: var(--color-muted);
-  font-weight: 400;
-}
-
-.row--inactive td,
-.row--inactive th {
-  color: var(--color-muted);
-}
-
-.cell--action {
-  text-align: right;
-  white-space: nowrap;
-}
-
-.months {
-  border-collapse: collapse;
-  width: 100%;
-}
-
-.months td {
-  padding: 0 var(--space-1) 0 0;
-  border: none;
-  color: var(--color-fg);
-}
-
-.grid--nested th,
-.grid--nested td {
-  border-bottom-color: var(--color-line-soft);
-}
-
-/* ---- fields ---- */
-
-.field {
-  font: inherit;
-  color: var(--color-fg);
-  background: var(--color-bg);
-  border: var(--size-border) solid var(--color-line);
-  border-radius: var(--radius-none);
-  padding: var(--space-1) var(--space-2);
-  width: 100%;
-  min-width: var(--field-min);
-}
-
-.field:focus-visible {
-  outline: var(--size-thick) solid var(--color-accent);
-  outline-offset: var(--size-border);
-}
-
-.field--num {
+/* Numerals are the display face: tabular, tightened, and weighted. */
+.num {
   text-align: right;
   font-family: var(--font-num);
-}
-
-.field--short {
-  min-width: 0;
-  width: var(--field-short);
-}
-
-.field--tiny {
-  min-width: 0;
-  width: var(--field-tiny);
-}
-
-/* Wide content scrolls inside its own container. The page body must never
-   scroll horizontally. */
-.scroller {
-  overflow-x: auto;
-  max-width: 100%;
-}
-
-.fields {
-  display: grid;
-  gap: var(--space-3);
-  max-width: var(--measure);
-}
-
-.field-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-/* ---- buttons ---- */
-
-.btn,
-.cell--action button {
-  font: inherit;
-  color: var(--color-fg);
-  background: var(--color-bg);
-  border: var(--size-border) solid var(--color-line);
-  border-radius: var(--radius-none);
-  padding: var(--space-2) var(--space-3);
-  cursor: pointer;
-}
-
-.btn:hover:not(:disabled),
-.cell--action button:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
-.btn:disabled,
-.cell--action button:disabled {
-  color: var(--color-muted);
-  cursor: not-allowed;
-  opacity: var(--opacity-disabled);
-}
-
-.btn--primary {
-  color: var(--color-accent-contrast);
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
-.btn--danger {
-  color: var(--color-danger);
-  border-color: var(--color-danger);
-}
-
-.btn--file {
-  display: inline-block;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin: var(--space-3) 0;
-}
-
-/* ---- panels, tiles, messages ---- */
-
-.panel--inset {
-  border: var(--size-border) solid var(--color-line);
-  padding: var(--space-4);
-  margin-top: var(--space-4);
-}
-
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--tile-min), 1fr));
-  gap: var(--space-3);
-}
-
-.tile {
-  border: var(--size-border) solid var(--color-line);
-  padding: var(--space-3);
-}
-
-.tile__value {
-  font-family: var(--font-num);
-  font-size: var(--text-lg);
-  color: var(--color-fg);
-}
-
-.tile__label {
-  color: var(--color-muted);
-  font-size: var(--text-sm);
-}
-
-.tile__note {
-  color: var(--color-muted);
-  font-size: var(--text-xs);
-}
-
-.issues p {
-  margin: var(--space-2) 0;
-  max-width: var(--measure);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
 }
 
 .warn {
@@ -480,41 +392,335 @@ h2 {
   color: var(--color-muted);
 }
 
+/* Over-allocation is a warning, never a block, so it colours rather than
+   disables (SPEC §5.2). */
+.over {
+  color: var(--color-danger);
+  font-weight: var(--weight-medium);
+}
 
-/* ---- people ---- */
+/* ---- icons ---- */
 
-.toolbar {
+/*
+ * Sized in ems so an icon tracks the type it sits beside, and coloured
+ * through currentColor so a theme change needs no second definition.
+ */
+.icon {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  flex: 0 0 auto;
+  vertical-align: -0.125em;
+}
+
+.icon--lead {
+  margin-right: var(--space-1);
+}
+
+/* ------------------------------------------------------------------ *
+ * 4. Shell
+ * ------------------------------------------------------------------ */
+
+/*
+ * The skip link. It is a button rather than an anchor because the address
+ * fragment belongs to the router: an `href="#root"` would be parsed as a
+ * route and land the reader on Portfolio.
+ */
+.skip-link {
+  position: absolute;
+  left: var(--space-3);
+  top: var(--space-3);
+  z-index: var(--z-toast);
+  font: inherit;
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  border: var(--size-thick) solid var(--color-accent);
+  border-radius: var(--radius-none);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transform: translateY(calc(-100% - var(--space-5)));
+  transition: transform var(--motion-fast) var(--ease-exit);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  transition-timing-function: var(--ease-entrance);
+}
+
+.shell-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: var(--size-border) solid var(--color-line);
 }
 
-.field-inline {
+.wordmark {
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-accent);
+}
+
+.shell-nav {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-half);
+}
+
+.shell-nav button {
+  font: inherit;
+  font-weight: var(--weight-medium);
+  color: var(--color-muted);
+  background: none;
+  border: none;
+  border-bottom: var(--size-thick) solid transparent;
+  border-radius: var(--radius-none);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
+}
+
+.shell-nav button:hover {
+  color: var(--color-fg);
+  background-image: var(--state-layer-hover);
+}
+
+.shell-nav button:active {
+  background-image: var(--state-layer-active);
+}
+
+/* The current page is selection, which is what accent means. */
+.shell-nav button[aria-current='page'] {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/* The menu button only exists below the nav breakpoint. */
+.nav-toggle {
+  display: none;
+}
+
+.shell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-left: auto;
+}
+
+#root {
+  padding: var(--space-5) var(--space-4) var(--space-8);
+}
+
+#root:focus-visible {
+  outline-offset: calc(-1 * var(--size-thick));
+}
+
+/*
+ * The page head: title, what the page is for, and the one action that
+ * creates the thing the page lists. Used by every page, so the eye lands in
+ * the same place each time.
+ */
+.page-head {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: var(--size-border) solid var(--color-line);
+}
+
+.page-head__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.page-head__row h1 {
+  margin-right: auto;
+}
+
+.page-head .muted {
+  margin: 0;
+}
+
+/* ---- the export reminder, and a store that has stopped accepting writes ---- */
+
+.banner-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--size-border) solid var(--color-line);
+  border-left: var(--size-thick) solid var(--color-line);
+  color: var(--color-fg);
+}
+
+.banner-bar--mild {
+  background: var(--color-spare-tint);
+}
+
+.banner-bar--strong {
+  background: var(--color-amber-tint);
+  border-left-color: var(--color-amber);
+}
+
+.banner-bar--severe {
+  background: var(--color-warn-tint);
+  border-left-color: var(--color-danger);
+  font-weight: var(--weight-medium);
+}
+
+/* ------------------------------------------------------------------ *
+ * 5. Components
+ * ------------------------------------------------------------------ */
+
+/*
+ * BUTTON — default, primary, danger, ghost, small, icon-only.
+ *
+ * Default is the workhorse: a bordered surface. Primary is the one action a
+ * page exists for and there is at most one per region. Danger states its own
+ * severity rather than borrowing primary's weight. Ghost is for a control
+ * that lives inside another component and must not compete with it.
+ */
+.btn,
+.cell--action button,
+.card__actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--control-height);
+  font: inherit;
+  font-weight: var(--weight-medium);
+  color: var(--color-fg);
+  background: var(--color-surface);
+  border: var(--size-border) solid var(--color-line);
+  border-radius: var(--radius-none);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.btn:hover:not(:disabled),
+.cell--action button:hover:not(:disabled),
+.card__actions button:hover:not(:disabled) {
+  border-color: var(--color-fg);
+  background-image: var(--state-layer-hover);
+}
+
+.btn:active:not(:disabled),
+.cell--action button:active:not(:disabled),
+.card__actions button:active:not(:disabled) {
+  background-image: var(--state-layer-active);
+}
+
+.btn:disabled,
+.cell--action button:disabled,
+.card__actions button:disabled {
+  color: var(--color-muted);
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+
+.btn--primary {
+  color: var(--color-accent-contrast);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  font-weight: var(--weight-semibold);
+}
+
+/* The tint has to sit over the accent, so hover darkens the fill rather than
+   laying the neutral state layer on top of it. */
+.btn--primary:hover:not(:disabled) {
+  color: var(--color-accent-contrast);
+  background: color-mix(in oklab, var(--color-accent) 88%, var(--color-fg));
+  border-color: color-mix(in oklab, var(--color-accent) 88%, var(--color-fg));
+}
+
+.btn--primary:active:not(:disabled) {
+  background: color-mix(in oklab, var(--color-accent) 76%, var(--color-fg));
+}
+
+/* Disabled drops the fill entirely rather than fading it. A half-transparent
+   accent with muted text on top reads as broken, not as unavailable — and the
+   reason a gate cannot be passed is always spelled out beside the button. */
+.btn--primary:disabled {
+  color: var(--color-muted);
+  background: var(--color-line-soft);
+  border-color: var(--color-line);
+  opacity: 1;
+}
+
+.btn--danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  background: var(--color-warn-tint);
+}
+
+/* Lives inside another component; carries no border of its own. */
+.btn--ghost {
+  background: none;
+  border-color: transparent;
+}
+
+.btn--small {
+  min-height: var(--control-height-sm);
+  font-size: var(--text-sm);
+  padding: 0 var(--space-2);
+}
+
+/*
+ * Icon-only. The name lives on the button as an aria-label and a title, never
+ * on the glyph — and never alone on a destructive action, where the word is
+ * the whole safeguard.
+ */
+.btn--icon {
+  padding: 0;
+  width: var(--control-height);
+}
+
+.btn--icon.btn--small {
+  width: var(--control-height-sm);
+}
+
+/* A file input dressed as a button: the input itself is hidden. */
+.btn--file {
+  display: inline-flex;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  color: var(--color-muted);
-  font-size: var(--text-sm);
+  margin: var(--space-3) 0 0;
 }
 
-.field--select {
-  width: auto;
-  min-width: 0;
+.actions--table {
+  margin-top: var(--space-2);
 }
 
-.choice {
-  display: flex;
-  gap: var(--space-3);
-}
-
-.choice label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
+/*
+ * LINK — a button that behaves as a link: navigation, not action. Underlined
+ * on hover rather than always, because a dense table of underlined names is
+ * unreadable.
+ */
 .link {
   font: inherit;
   color: var(--color-accent);
@@ -524,84 +730,416 @@ h2 {
   padding: 0;
   cursor: pointer;
   text-align: left;
+  text-decoration-thickness: var(--size-border);
+  text-underline-offset: var(--space-half);
 }
 
 .link:hover {
   text-decoration: underline;
 }
 
-.num {
+.link--back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-2);
+}
+
+.link--back:hover {
+  color: var(--color-accent);
+}
+
+/*
+ * FIELD — text, numeric and date inputs, and select.
+ *
+ * Numeric fields are text inputs with inputmode="numeric", never
+ * type="number" (AGENTS.md); the modifiers below only size and align them.
+ * Every width modifier is sized to what goes in the field — a date field that
+ * cannot show a date was the symptom that started this.
+ */
+.field {
+  font: inherit;
+  color: var(--color-fg);
+  background: var(--color-surface);
+  border: var(--size-border) solid var(--color-line);
+  border-radius: var(--radius-none);
+  padding: var(--space-1) var(--space-2);
+  min-height: var(--control-height);
+  width: 100%;
+  min-width: var(--field-min);
+  transition: border-color var(--motion-fast) var(--ease-standard);
+}
+
+.field:hover:not(:disabled) {
+  border-color: var(--color-muted);
+}
+
+.field:disabled {
+  color: var(--color-muted);
+  background: var(--color-canvas);
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.field::placeholder {
+  color: var(--color-faint);
+}
+
+.field--num {
   text-align: right;
   font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Over-allocation is a warning, never a block, so it colours rather than
-   disables (SPEC §5.2). */
-.over {
-  color: var(--color-danger);
+.field--date {
+  width: var(--field-date);
+  min-width: 0;
 }
 
-.row--warn td {
-  background: var(--color-warn-tint);
+.field--month {
+  width: var(--field-month);
+  min-width: 0;
 }
 
-.tag {
-  display: inline-block;
-  font-size: var(--text-xs);
-  color: var(--color-muted);
-  border: var(--size-border) solid var(--color-line);
+.field--money {
+  width: var(--field-money);
+  min-width: 0;
+}
+
+.field--pct {
+  width: var(--field-pct);
+  min-width: 0;
+}
+
+.field--abbr {
+  width: var(--field-abbr);
+  min-width: 0;
+}
+
+.field--tiny {
+  width: var(--field-tiny);
+  min-width: 0;
   padding: 0 var(--space-1);
+  min-height: var(--control-height-sm);
 }
 
-.btn--small {
-  font-size: var(--text-sm);
-  padding: var(--space-1) var(--space-2);
+.field--search {
+  width: var(--field-search);
+  min-width: 0;
 }
 
-.actions--table {
+.field--select {
+  width: auto;
+  min-width: var(--field-select);
+}
+
+/* A stack of labelled controls, label column and control column aligned. */
+.fields {
+  display: grid;
+  gap: var(--space-3);
+  max-width: var(--measure);
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
   align-items: center;
-  margin-top: 0;
+  gap: var(--space-3);
 }
 
-.copy-note {
+.field-row > span:first-child {
+  color: var(--color-muted);
+}
+
+/* A control with its label beside it, for toolbars. */
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--color-muted);
   font-size: var(--text-sm);
 }
 
-.scroller--tall {
-  max-height: var(--scroller-tall);
-  overflow-y: auto;
+.field-inline > span {
+  white-space: nowrap;
 }
 
-.panel + .panel {
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: var(--size-border) solid var(--color-line);
+.choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.choice label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-fg);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+/*
+ * TABLE — the ledger.
+ *
+ * Cells declare their own colour and their own background so a theme change
+ * repaints reliably, rather than relying on an ancestor's cascading
+ * (AGENTS.md). The background goes through --cell-bg so a row state can swap
+ * it in one declaration and the frozen first column stays opaque over
+ * whatever it scrolls past.
+ */
+.grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--text-sm);
+  background: var(--color-surface);
+}
+
+/*
+ * A cell holds one line. Squeezing a nine-column table into a narrow viewport
+ * otherwise wraps every cell and turns a 31px row into a 114px one — which
+ * costs far more than the horizontal scroll it was trying to avoid, and
+ * destroys the density this whole system is for. Cells that genuinely carry
+ * prose opt out with `.cell--wrap`.
+ */
+.grid th,
+.grid td {
+  color: var(--color-fg);
+  background: var(--cell-bg, var(--color-surface));
+  text-align: left;
+  padding: var(--row-pad-y) var(--row-pad-x);
+  border-bottom: var(--size-border) solid var(--color-line-soft);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* A definition, a requirement, a checklist item's description: sentences, and
+   the one thing in a table allowed to take the height it needs. */
+.cell--wrap {
+  white-space: normal;
+  min-width: var(--measure-cell);
+  vertical-align: top;
+}
+
+.grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-row-head);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  white-space: nowrap;
+  border-bottom: var(--size-border) solid var(--color-line);
+}
+
+/*
+ * The frozen first column. A row that scrolls sideways must never lose its
+ * identity — which is the whole reason these tables scroll rather than
+ * stacking into cards. Direct children only, so a nested table is untouched.
+ */
+.grid > thead > tr > th:first-child,
+.grid > tbody > tr > th:first-child,
+.grid > tbody > tr > td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: var(--z-cell);
+  border-right: var(--size-border) solid var(--color-line-soft);
+  /* The frozen column is the row's identity. It gets the width it needs and
+     the rest of the table scrolls past it, rather than the name wrapping to
+     three lines to save space the table is not short of. */
+  white-space: nowrap;
+}
+
+.grid > thead > tr > th:first-child {
+  z-index: var(--z-col-head);
+}
+
+.grid tbody tr:last-child > * {
+  border-bottom: none;
+}
+
+/* The hover layer sits over whatever the row's own background is, so a
+   warning row still reads as a warning row while the pointer is on it. */
+.grid tbody tr:hover > * {
+  background-image: var(--state-layer-hover);
+}
+
+.grid .fixed,
+.grid .muted {
+  color: var(--color-muted);
+  font-weight: var(--weight-regular);
+}
+
+.grid tbody th {
+  font-weight: var(--weight-medium);
+}
+
+.row--inactive > td,
+.row--inactive > th {
+  color: var(--color-muted);
+}
+
+.cell--action {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Row and cell states, each one declaration. */
+.row--warn {
+  --cell-bg: var(--color-warn-tint);
+}
+
+.row--now {
+  --cell-bg: var(--color-now-tint);
+}
+
+.cell--gap {
+  --cell-bg: var(--color-amber-tint);
+}
+
+.check--red {
+  --cell-bg: var(--color-warn-tint);
+}
+
+.check--amber {
+  --cell-bg: var(--color-amber-tint);
+}
+
+.check--green {
+  --cell-bg: var(--color-ok-tint);
+}
+
+.row--live > td {
+  border-top: var(--size-thick) solid var(--color-line);
+  font-weight: var(--weight-medium);
 }
 
 .grid--narrow {
   width: auto;
 }
 
-.checklist-defs {
-  margin: 0;
-  padding-left: var(--space-4);
-  color: var(--color-muted);
-  font-size: var(--text-sm);
+.grid--nested th,
+.grid--nested td {
+  border-bottom-color: var(--color-line-soft);
 }
 
-/* ---- cards ---- */
+/* The twelve working-day inputs inside a country's year row. */
+.months {
+  border-collapse: collapse;
+  width: 100%;
+}
 
+.months td {
+  padding: 0 var(--space-1) 0 0;
+  border: none;
+  color: var(--color-fg);
+  background: none;
+  text-align: center;
+}
+
+/*
+ * SCROLLER — the region a wide table lives in.
+ *
+ * Keyboard-reachable and named, because a region that scrolls and cannot be
+ * focused is unreachable without a mouse. Wide content scrolls inside its own
+ * container; the page body never scrolls horizontally.
+ */
+.scroller {
+  overflow-x: auto;
+  max-width: 100%;
+  border: var(--size-border) solid var(--color-line);
+  background: var(--color-surface);
+}
+
+/* Vertical stickiness only works where the table owns its vertical scroll —
+   a horizontally-scrolling wrapper is only as tall as its table. */
+.scroller--tall {
+  max-height: var(--scroller-tall);
+  overflow-y: auto;
+}
+
+/*
+ * PANEL — a titled block of one page. Separated by a rule and by the step
+ * between canvas and surface, never by a shadow.
+ */
+.panel {
+  background: var(--color-surface);
+  border: var(--size-border) solid var(--color-line);
+  padding: var(--space-4);
+}
+
+.panel + .panel {
+  margin-top: var(--space-4);
+}
+
+.panel > .scroller {
+  border-inline: none;
+}
+
+/* Recessed rather than raised: a panel inside a panel. */
+.panel--inset {
+  background: var(--color-canvas);
+  margin-top: var(--space-4);
+}
+
+.panel h3:first-child,
+.panel > .label-voice:first-child {
+  margin-top: 0;
+}
+
+/*
+ * BANNER — a panel that carries governance state, marked on its left edge.
+ * The edge is the system's one status channel: accent for something waiting
+ * on you, ok for something settled.
+ */
+.banner {
+  border-left: var(--size-thick) solid var(--color-accent);
+}
+
+.banner--done {
+  border-left-color: var(--color-ok);
+}
+
+.banner--alert {
+  border-left-color: var(--color-danger);
+}
+
+.issues p {
+  margin: var(--space-2) 0;
+  max-width: var(--measure);
+}
+
+.issues--blocker,
+.issues--warning {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-4);
+}
+
+/*
+ * CARD and TILE — a grid of one-line summaries. A tile shows a figure; a
+ * card shows a named thing with figures under it.
+ */
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
   gap: var(--space-3);
-  margin: var(--space-3) 0;
 }
 
 .card {
+  background: var(--color-surface);
   border: var(--size-border) solid var(--color-line);
-  padding: var(--space-3);
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -612,25 +1150,30 @@ h2 {
 }
 
 .card__title {
-  font-size: var(--text-md);
-  font-weight: 600;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
 }
 
 .card__stats {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-4);
   margin: 0;
 }
 
 .card__stats dt {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
   color: var(--color-muted);
-  font-size: var(--text-xs);
 }
 
 .card__stats dd {
   margin: 0;
   font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-lg);
   color: var(--color-fg);
 }
 
@@ -642,79 +1185,283 @@ h2 {
 }
 
 .card__actions button {
-  font: inherit;
   font-size: var(--text-sm);
-  color: var(--color-fg);
-  background: var(--color-bg);
-  border: var(--size-border) solid var(--color-line);
-  border-radius: var(--radius-none);
-  padding: var(--space-1) var(--space-2);
-  cursor: pointer;
+  min-height: var(--control-height-sm);
 }
 
-.card__actions button:hover:not(:disabled) {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
-.card__actions button:disabled {
-  color: var(--color-muted);
-  cursor: not-allowed;
-  opacity: var(--opacity-disabled);
-}
-
-/* ---- wizard ---- */
-
-.steps {
-  display: flex;
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--tile-min), 1fr));
   gap: var(--space-3);
-  list-style: none;
-  margin: 0 0 var(--space-4);
-  padding: 0;
-  color: var(--color-muted);
-  font-size: var(--text-sm);
 }
 
-.steps li {
-  counter-increment: step;
+.tile {
+  background: var(--color-surface);
+  border: var(--size-border) solid var(--color-line);
+  padding: var(--space-3) var(--space-4);
 }
 
-.steps li::before {
-  content: counter(step) '. ';
-}
-
-.steps {
-  counter-reset: step;
-}
-
-.steps li[aria-current='step'] {
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-.results {
-  margin: var(--space-3) 0 0;
+/* The figure is the point of the tile, so it is set as the display face. */
+.tile__value {
+  display: block;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-display);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
   color: var(--color-fg);
 }
 
-h3 {
+.tile__label {
+  display: block;
+  color: var(--color-fg);
   font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.tile__note {
+  display: block;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+/* A tile that filters the list below it. Selection is solid accent. */
+.tile--action {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  transition: border-color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
+}
+
+.tile--action:hover {
+  border-color: var(--color-fg);
+  background-image: var(--state-layer-hover);
+}
+
+.tile--on {
+  border-color: var(--color-accent);
+  background: var(--state-selected);
+}
+
+/* Still the figure, still the point of the tile — one step down only because
+   four of them sit side by side. */
+.tile--action .tile__value {
+  font-size: var(--text-xl);
+}
+
+/*
+ * BADGE — a short, non-interactive mark on a value.
+ *
+ * Kinds, because one treatment previously carried seven unrelated meanings
+ * and that was a large part of why hierarchy was hard to read. Every use site
+ * says which kind it means: neutral for a name, accent for the current thing,
+ * info for a qualification, ok for something approved, warn for something to
+ * look at, quiet for something excluded.
+ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-half);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  padding: var(--space-half) var(--space-1);
+  border: var(--size-border) solid var(--color-line);
   color: var(--color-muted);
-  margin: var(--space-4) 0 var(--space-2);
+  background: var(--color-surface);
 }
 
-#wizard-grand .micro {
-  display: block;
+.badge--accent {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
 }
 
-/* ---- stepper ---- */
+.badge--info {
+  color: var(--color-fg);
+  border-color: var(--color-line);
+  background: var(--color-spare-tint);
+}
 
+.badge--ok {
+  color: var(--color-ok);
+  border-color: var(--color-ok);
+  background: var(--color-ok-tint);
+}
+
+.badge--warn {
+  color: var(--color-amber);
+  border-color: var(--color-amber);
+  background: var(--color-amber-tint);
+}
+
+.badge--danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  background: var(--color-warn-tint);
+}
+
+.badge--quiet {
+  color: var(--color-faint);
+  border-color: var(--color-line-soft);
+  background: none;
+}
+
+/*
+ * EMPTY STATE — an invitation, not an apology. One line saying what is not
+ * there and, where there is one, the control that fixes it.
+ */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  color: var(--color-muted);
+  text-align: center;
+  background: var(--color-canvas);
+  border: var(--size-border) solid var(--color-line-soft);
+}
+
+/* A sub-list inside a panel that happens to be empty is not an event. It gets
+   one quiet line, not the full block — the block is for a page or a panel with
+   nothing in it at all. */
+.empty--inline {
+  align-items: flex-start;
+  text-align: left;
+  padding: var(--space-2) 0;
+  background: none;
+  border: none;
+}
+
+.empty .icon {
+  color: var(--color-faint);
+}
+
+.empty p {
+  margin: 0;
+  max-width: var(--measure);
+}
+
+/*
+ * POPOVER — raised, dismissible, positioned from its trigger's rectangle in
+ * script rather than by CSS anchoring (AGENTS.md).
+ */
+#popover {
+  position: fixed;
+  z-index: var(--z-popover);
+  max-width: var(--popover-max);
+  background: var(--color-surface-raised);
+  border: var(--size-border) solid var(--color-line);
+  box-shadow: var(--elevation-raised);
+  padding: var(--space-3);
+  animation: rise var(--motion-base) var(--ease-entrance);
+}
+
+#popover h3 {
+  margin-top: 0;
+}
+
+.popover__list {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-4);
+}
+
+/*
+ * TOAST — one transient confirmation of something that already happened.
+ * Never carries an action, never reports an error that needs a decision.
+ */
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-5);
+  z-index: var(--z-toast);
+  transform: translateX(-50%);
+  max-width: var(--toast-max);
+}
+
+#toast:empty {
+  display: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-fg);
+  background: var(--color-surface-raised);
+  border: var(--size-border) solid var(--color-line);
+  border-left: var(--size-thick) solid var(--color-accent);
+  box-shadow: var(--elevation-raised);
+  animation: rise var(--motion-base) var(--ease-entrance);
+}
+
+.toast--warn {
+  border-left-color: var(--color-danger);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-1));
+  }
+}
+
+/*
+ * TABS — the settings section strip and the import mode choice.
+ */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  border-bottom: var(--size-border) solid var(--color-line);
+  margin-bottom: var(--space-4);
+}
+
+.tabs button {
+  font: inherit;
+  font-weight: var(--weight-medium);
+  color: var(--color-muted);
+  background: none;
+  border: none;
+  border-bottom: var(--size-thick) solid transparent;
+  border-radius: var(--radius-none);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transition: color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
+}
+
+.tabs button:hover {
+  color: var(--color-fg);
+  background-image: var(--state-layer-hover);
+}
+
+.tabs button[aria-selected='true'] {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/*
+ * THE PROCESS RAIL — the signature component.
+ *
+ * Phases abut into one horizontal line that changes colour where a gate was
+ * crossed. A skipped gate is dashed and never reads as a passed one: that
+ * difference is the reason a skip is recorded at all.
+ */
 .stepper {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-half);
   list-style: none;
   margin: 0 0 var(--space-4);
   padding: 0;
@@ -722,58 +1469,105 @@ h3 {
 
 .step {
   flex: 1 1 var(--step-min);
-  border: var(--size-border) solid var(--color-line);
+  background: var(--color-surface);
   border-top: var(--size-thick) solid var(--color-line);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-3);
 }
 
 .step__name {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   color: var(--color-fg);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .step--passed {
   border-top-color: var(--color-ok);
-  background: var(--color-ok-tint);
 }
 
-/* A skipped gate must never look like a passed one — the difference is the
-   whole reason a skip is recorded. */
+.step--passed .step__name {
+  color: var(--color-ok);
+}
+
 .step--skipped {
   border-top-color: var(--color-amber);
-  background: var(--color-amber-tint);
   border-top-style: dashed;
+}
+
+.step--skipped .step__name {
+  color: var(--color-amber);
 }
 
 .step--current {
   border-top-color: var(--color-accent);
-  background: var(--color-accent-tint);
+  background: var(--state-selected);
+}
+
+.step--current .step__name {
+  color: var(--color-accent);
 }
 
 .step--ahead .step__name {
   color: var(--color-muted);
+  font-weight: var(--weight-regular);
 }
 
-/* ---- gate banner ---- */
-
-.banner {
-  border: var(--size-border) solid var(--color-line);
-  border-left: var(--size-thick) solid var(--color-accent);
-  padding: var(--space-4);
+/* The wizard's two-step counter, which is a different thing from the rail. */
+.steps {
+  counter-reset: step;
+  display: flex;
+  gap: var(--space-4);
+  list-style: none;
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  color: var(--color-muted);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
 }
 
-.banner--done {
-  border-left-color: var(--color-ok);
+.steps li {
+  counter-increment: step;
 }
 
-.issues--blocker,
-.issues--warning {
-  margin: var(--space-2) 0;
+.steps li::before {
+  content: counter(step) ' — ';
+}
+
+.steps li[aria-current='step'] {
+  color: var(--color-accent);
+}
+
+/* ---- results line ---- */
+
+.results {
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-3);
+  border-top: var(--size-border) solid var(--color-line-soft);
+  color: var(--color-fg);
+}
+
+.results strong {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-tight);
+}
+
+#wizard-grand .micro {
+  display: block;
+}
+
+.checklist-defs {
+  margin: 0;
   padding-left: var(--space-4);
+  color: var(--color-muted);
+  font-size: var(--text-sm);
 }
 
-/* ---- threshold bar ---- */
+/* ---- approval-track bar ---- */
 
 .bar {
   position: relative;
@@ -786,7 +1580,7 @@ h3 {
   position: absolute;
   top: 0;
   bottom: 0;
-  border-right: var(--size-border) solid var(--color-bg);
+  border-right: var(--size-border) solid var(--color-surface);
   background: var(--color-band);
   overflow: hidden;
 }
@@ -798,7 +1592,9 @@ h3 {
 .bar__abbr {
   display: block;
   padding: var(--space-1);
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
   color: var(--color-muted);
 }
 
@@ -806,32 +1602,18 @@ h3 {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: var(--marker-width);
+  width: var(--size-thick);
   background: var(--color-fg);
 }
 
-/* ---- checklist ---- */
-
-.check--red td {
-  background: var(--color-warn-tint);
-}
-
-.check--amber td {
-  background: var(--color-amber-tint);
-}
-
-.check--green td {
-  background: var(--color-ok-tint);
-}
-
-/* ---- month table ---- */
+/* ---- legend ---- */
 
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-4);
   color: var(--color-muted);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   margin: var(--space-2) 0;
 }
 
@@ -849,7 +1631,7 @@ h3 {
 }
 
 .swatch--edit {
-  background: var(--color-bg);
+  background: var(--color-surface);
 }
 
 .swatch--gap {
@@ -860,39 +1642,6 @@ h3 {
 .swatch--now {
   background: var(--color-now-tint);
   border-color: var(--color-accent);
-}
-
-.cell--gap {
-  background: var(--color-amber-tint);
-}
-
-.row--now td {
-  background: var(--color-now-tint);
-}
-
-.row--live td {
-  border-top: var(--size-thick) solid var(--color-line);
-}
-
-/* ---- popover ---- */
-
-#popover {
-  position: fixed;
-  z-index: 10;
-  max-width: var(--popover-max);
-  background: var(--color-bg);
-  border: var(--size-border) solid var(--color-line);
-  box-shadow: var(--shadow);
-  padding: var(--space-3);
-}
-
-#popover h3 {
-  margin-top: 0;
-}
-
-.popover__list {
-  margin: 0 0 var(--space-2);
-  padding-left: var(--space-4);
 }
 
 /* ---- capacity grid ---- */
@@ -910,17 +1659,26 @@ h3 {
 }
 
 .cap--on {
-  background: var(--color-accent-tint);
+  --cell-bg: var(--color-accent-tint);
 }
 
 /* A ceiling breach colours; it never disables (SPEC §5.2). */
 .cap--over {
-  background: var(--color-warn-tint);
+  --cell-bg: var(--color-warn-tint);
   color: var(--color-danger);
 }
 
+.cap--spare {
+  --cell-bg: var(--color-spare-tint);
+}
+
 .cap__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-half);
   font: inherit;
+  font-variant-numeric: tabular-nums;
   color: inherit;
   background: none;
   border: none;
@@ -935,11 +1693,7 @@ h3 {
 }
 
 .cap__empty {
-  color: var(--color-muted);
-}
-
-.cap--spare {
-  background: var(--color-spare-tint);
+  color: var(--color-faint);
 }
 
 .row--spare th {
@@ -978,74 +1732,15 @@ h3 {
 
 .bars__label {
   text-align: center;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
   color: var(--color-muted);
   padding-top: var(--space-1);
 }
 
 .bars__col--now .bars__label {
   color: var(--color-accent);
-  font-weight: 600;
-}
-
-/* ---- portfolio tiles ---- */
-
-.tile--action {
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  background: var(--color-bg);
-}
-
-.tile--action:hover {
-  border-color: var(--color-accent);
-}
-
-.tile--on {
-  border-color: var(--color-accent);
-  background: var(--color-accent-tint);
-}
-
-.tile--action .tile__value {
-  font-size: var(--text-md);
-}
-
-/* ---- export reminder ---- */
-
-.banner-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-4);
-  border-bottom: var(--size-border) solid var(--color-line);
-  color: var(--color-fg);
-}
-
-.banner-bar--mild {
-  background: var(--color-spare-tint);
-}
-
-.banner-bar--strong {
-  background: var(--color-amber-tint);
-  border-bottom-color: var(--color-amber);
-}
-
-.banner-bar--severe {
-  background: var(--color-warn-tint);
-  border-bottom-color: var(--color-danger);
-  font-weight: 600;
-}
-
-.shell-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
+  font-weight: var(--weight-semibold);
 }
 
 /* ---- visually hidden ---- */
@@ -1062,4 +1757,123 @@ h3 {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * 6. Responsive
+ * ------------------------------------------------------------------ *
+ *
+ * Two breakpoints, named for what changes rather than for a device. The
+ * widths are literals because a media query cannot read a custom property —
+ * the one place in this file where that is unavoidable.
+ *
+ *   48rem / 768px — the nav collapses behind a menu button, the header
+ *                   stacks, labelled controls go full width
+ *   64rem / 1024px — nothing narrows a multi-column grid below this
+ *
+ * Wide tables do not change shape at either. They stay tables and scroll
+ * inside their region, with the first column frozen: stacking a comparison
+ * table into cards drops the header/cell relationship in some browsers, and
+ * that relationship is the entire value of these tables.
+ */
+
+@media (max-width: 64rem) {
+  .field-row {
+    grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 48rem) {
+  .shell-header {
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  /* Collapsed: the nav becomes a panel under the header, opened by the menu
+     button and closed by anything else. */
+  .shell-nav {
+    display: none;
+  }
+
+  .shell-nav--open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    order: 1;
+    z-index: var(--z-nav);
+    /* Full-bleed: the negative margins pull the panel out through the
+       header's padding, and the basis has to grow by the same amount or the
+       box simply ends short of the edge. */
+    flex-basis: calc(100% + var(--space-3) + var(--space-3));
+    margin: var(--space-2) calc(-1 * var(--space-3)) calc(-1 * var(--space-2));
+    border-top: var(--size-border) solid var(--color-line);
+    animation: rise var(--motion-slow) var(--ease-entrance);
+  }
+
+  .shell-nav--open button {
+    text-align: left;
+    border-bottom: var(--size-border) solid var(--color-line-soft);
+    padding: var(--space-3);
+  }
+
+  .shell-nav--open button[aria-current='page'] {
+    background: var(--state-selected);
+    border-bottom-color: var(--color-line-soft);
+  }
+
+  #root {
+    padding: var(--space-4) var(--space-3) var(--space-7);
+  }
+
+  .page-head__row h1 {
+    flex-basis: 100%;
+  }
+
+  .field-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .field-inline {
+    flex-wrap: wrap;
+  }
+
+  .toolbar > .field-inline {
+    flex-basis: 100%;
+  }
+
+  .field--search,
+  .field--select {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  .cards,
+  .tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panel {
+    padding: var(--space-3);
+  }
+
+  .stepper {
+    flex-direction: column;
+  }
+
+  .step {
+    flex: 1 1 auto;
+  }
+
+  #toast {
+    left: var(--space-3);
+    right: var(--space-3);
+    transform: none;
+    max-width: none;
+  }
 }

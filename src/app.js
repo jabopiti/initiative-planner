@@ -22,6 +22,7 @@ import * as store from './store.js';
 import { PROCESS } from './process.js';
 
 import { html, raw, money, fill, readNumber } from './render/dom.js';
+import { SPRITE, icon } from './render/icons.js';
 import { TABLES } from './render/tables.js';
 import { chartYear } from './render/charts.js';
 import { phaseTotalsMarkup, grandMarkup } from './render/phase-panel.js';
@@ -88,14 +89,37 @@ function renderShellActions() {
   const theme = currentTheme();
   fill(
     'shell-actions',
-    html`<button type="button" class="btn btn--small" data-act="export">Export</button>
-      <label class="btn btn--small btn--file">Import
+    html`<button type="button" class="btn btn--small" data-act="export">
+        ${raw(icon('export'))}Export</button>
+      <label class="btn btn--small btn--file">${raw(icon('import'))}Import
         <input type="file" accept="application/json,.json" data-act="import-file" hidden />
       </label>
       <button type="button" class="btn btn--small" data-act="theme"
         aria-label="Theme: ${THEME_LABELS[theme]}. Click to change.">
-        ${THEME_LABELS[theme]}</button>`,
+        ${raw(icon('theme'))}${THEME_LABELS[theme]}</button>`,
   );
+}
+
+/* ------------------------------------------------------------------ *
+ * Transient messages
+ * ------------------------------------------------------------------ */
+
+/** The timer clearing the current toast, so a second one replaces the first. */
+let toastTimer = null;
+
+/**
+ * One transient confirmation of something that already happened. It never
+ * carries an action and never reports something needing a decision — those
+ * are banners, which stay until the thing they describe is dealt with.
+ */
+function showToast(text, kind = '') {
+  const node = document.getElementById('toast');
+  if (!node) return;
+  node.innerHTML = html`<div class="toast ${kind}">${raw(icon(kind ? 'warning' : 'check'))}${text}</div>`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    node.innerHTML = '';
+  }, 3200);
 }
 
 /**
@@ -114,7 +138,7 @@ function renderBanner() {
   if (!store.isPersisting()) {
     node.hidden = false;
     node.innerHTML = html`<div class="banner-bar banner-bar--severe" role="alert">
-      <span><strong>Changes are no longer being saved.</strong> This browser's storage is
+      <span>${raw(icon('warning', 'icon--lead'))}<strong>Changes are no longer being saved.</strong> This browser's storage is
         full or blocked. Export now — anything edited since this appeared exists only on
         this page, and closing it loses the lot.</span>
       <button type="button" class="btn btn--small" data-act="export">Export now</button>
@@ -142,10 +166,46 @@ function renderBanner() {
 
   node.hidden = false;
   node.innerHTML = html`<div class="banner-bar banner-bar--${level}">
-    <span>${said} An export is the only backup — everything here lives in this browser
-      alone.</span>
-    <button type="button" class="btn btn--small" data-act="export">Export now</button>
+    <span>${raw(level === 'mild' ? '' : icon('warning', 'icon--lead'))}${said} An export is the
+      only backup — everything here lives in this browser alone.</span>
+    <button type="button" class="btn btn--small" data-act="export">
+      ${raw(icon('export'))}Export now</button>
   </div>`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Navigation chrome
+ * ------------------------------------------------------------------ */
+
+/**
+ * Whether the collapsed nav is showing. Below the nav breakpoint the page
+ * links live behind a menu button; above it the class does nothing and the
+ * strip is always visible, so this is one variable rather than a media query
+ * read from script.
+ *
+ * View state, not a place: it never reaches the hash, the same way a sort
+ * order does not.
+ */
+let navOpen = false;
+
+function renderNavToggle() {
+  // Icon-only, so the name lives on the button as both an aria-label and a
+  // tooltip. It opens a menu rather than destroying anything, which is the
+  // only kind of action allowed to lose its word.
+  const label = navOpen ? 'Close the menu' : 'Open the menu';
+  fill(
+    'nav-toggle',
+    html`<button type="button" class="btn btn--ghost btn--icon" data-act="nav-toggle"
+      aria-expanded="${navOpen}" aria-controls="nav" aria-label="${label}" title="${label}"
+      >${raw(icon(navOpen ? 'remove' : 'menu'))}</button>`,
+  );
+  document.getElementById('nav')?.classList.toggle('shell-nav--open', navOpen);
+}
+
+function setNavOpen(open) {
+  if (navOpen === open) return;
+  navOpen = open;
+  renderNavToggle();
 }
 
 /* ------------------------------------------------------------------ *
@@ -287,6 +347,8 @@ function announceNavigation() {
 
 export function navigate(page, params = {}) {
   view = { page, params };
+  // Going somewhere is what the collapsed menu is for, so arriving closes it.
+  navOpen = false;
   render();
 
   // Only a change of *place* touches the address bar or moves focus — a
@@ -326,6 +388,9 @@ export function render() {
         ${raw(page.id === view.page ? 'aria-current="page"' : '')}>${page.label}</button>`,
     ).join(''),
   );
+  // The nav is replaced wholesale above, so the collapsed state has to be
+  // written back onto it rather than surviving in the DOM.
+  renderNavToggle();
 
   if (view.page === 'settings') return renderSettings();
   if (view.page === 'people') return renderPeople();
@@ -504,6 +569,9 @@ function onClick(event) {
   const trigger = event.target.closest('[data-act]');
   const insidePopover = event.target.closest('#popover');
   if (!insidePopover && trigger?.dataset.act !== 'capacity-cell') closePopover();
+  // The collapsed menu closes the same way a popover does: anything outside
+  // it, that is not the button that opened it, dismisses it.
+  if (!event.target.closest('.shell-header')) setNavOpen(false);
 
   if (!(trigger instanceof HTMLElement)) return;
 
@@ -515,6 +583,8 @@ function onClick(event) {
       return navigate(trigger.dataset.page);
     case 'section':
       return navigate('settings', { section: trigger.dataset.section });
+    case 'nav-toggle':
+      return setNavOpen(!navOpen);
 
     case 'role-add': {
       const newId = L.newId('role');
@@ -738,9 +808,12 @@ function onClick(event) {
 
     case 'copy-table': {
       const table = TABLES[trigger.dataset.table];
+      // The confirmation moved from a note beside the button to a toast: the
+      // button sits under tables that scroll inside their own box, so the
+      // note could land off-screen from the thing that produced it.
       store.copyTable(table.headers, table.rows).then((result) => {
-        const note = document.querySelector(`[data-note="${trigger.dataset.table}"]`);
-        if (note) note.textContent = result === 'failed' ? 'Copy failed' : 'Copied';
+        if (result === 'failed') showToast('Copy failed', 'toast--warn');
+        else showToast('Copied');
       });
       return undefined;
     }
@@ -909,13 +982,29 @@ export function boot() {
   view = parseHash();
 
   document.getElementById('wordmark').textContent = 'Initiative Planner';
+  // One sprite for the whole app, injected before the first render so no
+  // <use> ever points at a symbol that is not there yet.
+  fill('sprite', SPRITE);
+
+  // The skip link is the first thing in the tab order and the only way past
+  // the header without a mouse. It is a button, not an anchor, because the
+  // address fragment belongs to the router (see index.html).
+  const skip = document.getElementById('skip-link');
+  if (skip) {
+    skip.textContent = 'Skip to content';
+    skip.addEventListener('click', () => document.getElementById('root')?.focus());
+  }
+
   applyTheme(currentTheme());
   // Writes are debounced, so a failure surfaces long after the edit that
   // caused it. The banner is the only always-visible channel there is.
   store.watchPersistence(() => renderBanner());
   document.addEventListener('click', onClick);
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') return closePopover();
+    if (event.key === 'Escape') {
+      setNavOpen(false);
+      return closePopover();
+    }
     return onTableKeydown(event);
   });
   // Fixed positioning does not track the trigger, so follow it explicitly.

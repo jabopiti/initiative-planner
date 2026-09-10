@@ -3,3 +3,8 @@ dist/
 .build-tmp/
 initiative-planner.html
 .DS_Store
+
+# Screenshots taken while verifying a UI change in a real browser. Worth
+# keeping on disk for whoever reviews the change; not worth carrying in the
+# history of a repository whose whole promise is that it is small.
+design-review/

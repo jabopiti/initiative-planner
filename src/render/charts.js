@@ -5,6 +5,7 @@
 import * as E from '../engine.js';
 import { app, view } from '../app.js';
 import { html, raw, money } from './dom.js';
+import { icon } from './icons.js';
 
 /**
  * Years a chart may show: the rolling window the data actually covers
@@ -32,12 +33,16 @@ export function monthsOfYear(year) {
 export function yearNav(label) {
   const year = chartYear();
   const years = trackedYears();
+  // Icon-only, so each carries its name as an aria-label and a tooltip.
+  // Stepping a year destroys nothing, which is what lets them lose the word.
   return html`<div class="toolbar">
-    <button type="button" class="btn btn--small" data-act="year-step" data-step="-1"
-      ${raw(year <= years[0] ? 'disabled' : '')} aria-label="Previous year">←</button>
-    <strong>${year}</strong>
-    <button type="button" class="btn btn--small" data-act="year-step" data-step="1"
-      ${raw(year >= years.at(-1) ? 'disabled' : '')} aria-label="Next year">→</button>
+    <button type="button" class="btn btn--small btn--icon" data-act="year-step" data-step="-1"
+      ${raw(year <= years[0] ? 'disabled' : '')} aria-label="Previous year"
+      title="Previous year">${raw(icon('chevron-left'))}</button>
+    <strong class="num">${year}</strong>
+    <button type="button" class="btn btn--small btn--icon" data-act="year-step" data-step="1"
+      ${raw(year >= years.at(-1) ? 'disabled' : '')} aria-label="Next year"
+      title="Next year">${raw(icon('chevron-right'))}</button>
     <button type="button" class="btn btn--small" data-act="year-today">Today</button>
     <span class="muted">${label}</span>
   </div>`;

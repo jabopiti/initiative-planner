@@ -4,15 +4,21 @@
 import * as P from '../people.js';
 import { app } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
+import { icon } from '../render/icons.js';
+import { pageHead, empty, badge } from '../render/components.js';
 
 export function renderTeams() {
-  const cards = Object.values(app.TEAMS)
+  const teams = Object.values(app.TEAMS);
+  const cards = teams
     .map((team) => {
       const summary = P.teamSummary(app, team.id);
       const deletable = P.canDeleteTeam(app, team.id);
       return html`<div class="card ${team.active ? '' : 'card--inactive'}">
-        <button type="button" class="link card__title" data-act="open-team" data-id="${team.id}">
-          ${team.name}</button>
+        <div>
+          <button type="button" class="link card__title" data-act="open-team" data-id="${team.id}">
+            ${team.name}</button>
+          ${raw(team.active ? '' : badge('inactive', 'quiet'))}
+        </div>
         <dl class="card__stats">
           <div><dt>Members</dt><dd>${summary.activeMembers}</dd></div>
           <div><dt>Share held</dt><dd>${summary.totalSharePct}%</dd></div>
@@ -25,7 +31,7 @@ export function renderTeams() {
             ${raw(deletable.ok ? '' : 'disabled')}
             title="${deletable.ok
               ? 'Delete this team'
-              : `Used by ${deletable.blockers.join(', ')}`}">Delete</button>
+              : `Used by ${deletable.blockers.join(', ')}`}">${raw(icon('remove'))}Delete</button>
         </div>
       </div>`;
     })
@@ -33,10 +39,19 @@ export function renderTeams() {
 
   fill(
     'root',
-    html`<h1>Teams</h1>
-      <p class="muted">A team holds a share of each of its people rather than owning them
-        outright, which is what lets one person belong to two.</p>
-      <div class="cards">${raw(cards)}</div>
-      <button type="button" class="btn" data-act="team-add">New team</button>`,
+    html`${raw(pageHead({
+      title: 'Teams',
+      lede: 'A team holds a share of each of its people rather than owning them outright, '
+        + 'which is what lets one person belong to two.',
+      actions: html`<button type="button" class="btn btn--primary" data-act="team-add">
+        ${raw(icon('add'))}New team</button>`,
+    }))}
+      ${raw(teams.length
+        ? html`<div class="cards">${raw(cards)}</div>`
+        : empty('No teams yet. An initiative belongs to one, so this is the place to start.', {
+            icon: 'add',
+            action: html`<button type="button" class="btn btn--primary" data-act="team-add">
+              ${raw(icon('add'))}New team</button>`,
+          }))}`,
   );
 }

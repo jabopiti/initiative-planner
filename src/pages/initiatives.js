@@ -5,6 +5,8 @@ import * as E from '../engine.js';
 import { PROCESS } from '../process.js';
 import { app, view, STATUS_LABELS } from '../app.js';
 import { html, raw, money, fill } from '../render/dom.js';
+import { icon } from '../render/icons.js';
+import { pageHead, scroller, empty, sortHeader } from '../render/components.js';
 
 /** Sortable columns, each with how to read the value it sorts on. */
 const INITIATIVE_COLUMNS = [
@@ -50,11 +52,7 @@ export function renderInitiatives() {
   });
 
   const headers = INITIATIVE_COLUMNS.map(
-    (c) => html`<th aria-sort="${sort.key === c.key
-      ? sort.dir === 'asc' ? 'ascending' : 'descending'
-      : 'none'}">
-      <button type="button" class="link" data-act="sort-initiatives" data-key="${c.key}">
-        ${c.label}${raw(sort.key === c.key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '')}</button></th>`,
+    (c) => sortHeader(c, sort, { 'data-act': 'sort-initiatives' }),
   ).join('');
 
   const body = rows
@@ -83,8 +81,8 @@ export function renderInitiatives() {
         <td class="num">${money(row.total)}
           <span class="micro">${row.coverage}</span></td>
         <td class="cell--action">
-          <button type="button" data-act="duplicate-initiative" data-id="${row.initiative.id}">
-            Duplicate</button></td>
+          <button type="button" class="btn--small" data-act="duplicate-initiative"
+            data-id="${row.initiative.id}">${raw(icon('duplicate'))}Duplicate</button></td>
       </tr>`,
     )
     .join('');
@@ -98,11 +96,16 @@ export function renderInitiatives() {
 
   fill(
     'root',
-    html`<h1>Initiatives</h1>
+    html`${raw(pageHead({
+      title: 'Initiatives',
+      lede: 'Every initiative in the tool, whatever phase or status it is in.',
+      actions: html`<button type="button" class="btn btn--primary" data-act="wizard-start">
+        ${raw(icon('add'))}New initiative</button>`,
+    }))}
       <div class="toolbar">
-        <label class="field-inline"><span>Search</span>
-          <input class="field" data-act="initiatives-filter" data-filter="q"
-            value="${filters.q ?? ''}" placeholder="Name" /></label>
+        <label class="field-inline">${raw(icon('search'))}<span class="sr-only">Search</span>
+          <input class="field field--search" data-act="initiatives-filter" data-filter="q"
+            value="${filters.q ?? ''}" placeholder="Search by name" /></label>
         <label class="field-inline"><span>Team</span>${raw(options('teamId',
           Object.values(app.TEAMS).map((t) => ({ value: t.id, label: t.name })),
           filters.teamId))}</label>
@@ -118,12 +121,15 @@ export function renderInitiatives() {
           filters.bandId))}</label>
       </div>
       ${raw(app.INITIATIVES.length === 0
-        ? html`<p class="muted">Nothing here yet.</p>`
+        ? empty('Nothing here yet. An initiative is where a cost and a team meet.', {
+            icon: 'add',
+            action: html`<button type="button" class="btn btn--primary" data-act="wizard-start">
+              ${raw(icon('add'))}New initiative</button>`,
+          })
         : rows.length === 0
-          ? html`<p class="muted">No initiative matches those filters.</p>`
-          : html`<div class="scroller"><table class="grid">
+          ? empty('No initiative matches those filters.', { icon: 'filter' })
+          : scroller('Initiatives', html`<table class="grid">
               <thead><tr>${raw(headers)}<th></th></tr></thead>
-              <tbody>${raw(body)}</tbody></table></div>`)}
-      <button type="button" class="btn btn--primary" data-act="wizard-start">New initiative</button>`,
+              <tbody>${raw(body)}</tbody></table>`))}`,
   );
 }

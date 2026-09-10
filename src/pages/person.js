@@ -7,6 +7,8 @@ import * as P from '../people.js';
 import { PROCESS } from '../process.js';
 import { app, view, navigate } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
+import { icon } from '../render/icons.js';
+import { pageHead, scroller, empty, badge } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
 
 export function renderPerson() {
@@ -19,10 +21,15 @@ export function renderPerson() {
 
   fill(
     'root',
-    html`<button type="button" class="link" data-act="page" data-page="people">← People</button>
-      <h1>${person.name}</h1>
-      ${raw(person.active ? '' : html`<p class="warn">This person is deactivated. Existing
-        allocations keep costing; they draw no new capacity.</p>`)}
+    html`${raw(pageHead({
+      title: person.name,
+      back: { page: 'people', label: 'People' },
+      actions: html`<button type="button" class="btn" data-act="person-active"
+        data-id="${person.id}">${person.active ? 'Deactivate' : 'Reactivate'}</button>`,
+    }))}
+      ${raw(person.active ? '' : html`<p class="panel banner banner--alert warn">
+        ${raw(icon('warning', 'icon--lead'))}This person is deactivated. Existing allocations
+        keep costing; they draw no new capacity.</p>`)}
       <div class="panel">${raw(personIdentity(person))}</div>
       <div class="panel">${raw(personTeams(person, warning, stranded))}</div>
       <div class="panel">${raw(personInitiativesPanel(person, stranded))}</div>
@@ -53,6 +60,7 @@ function personIdentity(person) {
             'data-id': person.id,
             'data-year': year,
             'aria-label': `${year} day rate`,
+            extraClass: 'field--money',
           }))}</td></tr>`,
         )
         .join('')
@@ -67,7 +75,8 @@ function personIdentity(person) {
         <select class="field field--select" data-act="person-country" data-id="${person.id}">
           ${raw(countryOptions)}</select></label>
       <label class="field-row"><span>Capacity %</span>
-        ${raw(numberField({ value: person.capacityPct, 'data-act': 'person-field', 'data-field': 'capacityPct', 'data-id': person.id }))}</label>
+        ${raw(numberField({ value: person.capacityPct, 'data-act': 'person-field',
+          'data-field': 'capacityPct', 'data-id': person.id, extraClass: 'field--pct' }))}</label>
       <div class="field-row"><span>Paid as</span>
         <div class="choice">
           <label><input type="radio" name="rate-kind" data-act="rate-kind" data-kind="standard"
@@ -87,9 +96,9 @@ function personIdentity(person) {
     ${raw(custom
       ? html`<p class="muted">A negotiated rate is absolute: it replaces the country rate and
           the role factor does not apply. Working days still come from the person’s country.</p>
-        <div class="scroller"><table class="grid grid--narrow">
+        ${raw(scroller('Day rate per year', html`<table class="grid grid--narrow">
           <thead><tr><th>Year</th><th>Day rate</th></tr></thead>
-          <tbody>${raw(rateRows)}</tbody></table></div>`
+          <tbody>${raw(rateRows)}</tbody></table>`))}`
       : html`<p class="muted">The rate comes from this person’s country for the year being
           costed, multiplied by the role’s factor.</p>`)}`;
 }
@@ -107,13 +116,16 @@ function personTeams(person, warning, stranded) {
           'data-id': person.id,
           'data-team': membership.teamId,
           'aria-label': 'Share of capacity',
+          extraClass: 'field--pct',
         }))}</td>
-        <td>${raw(strandedHere.length
-          ? html`<span class="warn">${strandedHere.length} allocation${strandedHere.length === 1 ? '' : 's'} still costing</span>`
+        <td class="cell--wrap">${raw(strandedHere.length
+          ? html`<span class="warn">${raw(icon('warning', 'icon--lead'))}${strandedHere.length}
+              allocation${strandedHere.length === 1 ? '' : 's'} still costing</span>`
           : '')}</td>
         <td class="cell--action">
-          <button type="button" data-act="membership-active" data-id="${person.id}"
-            data-team="${membership.teamId}">${membership.active ? 'Leave team' : 'Rejoin'}</button>
+          <button type="button" class="btn--small" data-act="membership-active"
+            data-id="${person.id}" data-team="${membership.teamId}"
+            >${membership.active ? 'Leave team' : 'Rejoin'}</button>
         </td>
       </tr>`;
     })
@@ -127,10 +139,10 @@ function personTeams(person, warning, stranded) {
     <p class="muted">A share is how much of this person one team holds. Each team draws only on
       its own share, which is what keeps someone split across teams from being counted twice.</p>
     ${raw(rows
-      ? html`<div class="scroller"><table class="grid">
+      ? scroller('Team memberships', html`<table class="grid">
           <thead><tr><th>Team</th><th>Share %</th><th></th><th></th></tr></thead>
-          <tbody>${raw(rows)}</tbody></table></div>`
-      : html`<p class="muted">No team yet — valid, and costs nothing. This person is on the bench.</p>`)}
+          <tbody>${raw(rows)}</tbody></table>`)
+      : empty('No team yet — valid, and costs nothing. This person is on the bench.'))}
     <p class="${warning.overCommitted ? 'warn' : 'muted'}">
       ${warning.totalSharePct}% of ${warning.capacityPct}% assigned${raw(warning.overCommitted
         ? html` — more than this person has. Allowed, but worth a look.`
@@ -140,7 +152,8 @@ function personTeams(person, warning, stranded) {
           <select class="field field--select" data-act="join-team-pick" data-id="${person.id}">
             ${raw(joinable.map((team) => html`<option value="${team.id}">${team.name}</option>`).join(''))}
           </select>
-          <button type="button" class="btn" data-act="join-team" data-id="${person.id}">Add to team</button>
+          <button type="button" class="btn" data-act="join-team" data-id="${person.id}"
+            >${raw(icon('add'))}Add to team</button>
         </div>`
       : '')}`;
 }
@@ -163,22 +176,22 @@ function personInitiativesPanel(person, stranded) {
     .map(
       (row, index) => html`<tr class="${strandedIds.has(`${row.initiative.id}:${row.phaseId}`) ? 'row--warn' : ''}">
         ${raw(data[index].map((cell) => html`<td>${cell}</td>`).join(''))}
-        <td>${raw(row.countsTowardCapacity ? '' : html`<span class="tag">not in capacity</span>`)}</td>
+        <td>${raw(row.countsTowardCapacity ? '' : badge('not in capacity', 'quiet'))}</td>
       </tr>`,
     )
     .join('');
 
   return html`<h2>Initiatives</h2>
     ${raw(stranded.length
-      ? html`<p class="warn">Still allocated to ${stranded.map((row) => row.initiative.name).join(', ')}
-          without an active membership in that team. These keep costing.</p>`
+      ? html`<p class="warn">${raw(icon('warning', 'icon--lead'))}Still allocated to
+          ${stranded.map((row) => row.initiative.name).join(', ')} without an active membership
+          in that team. These keep costing.</p>`
       : '')}
     ${raw(rows.length
-      ? html`<div class="scroller"><table class="grid">
+      ? scroller('Initiatives this person is allocated to', html`<table class="grid">
           <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}<th></th></tr></thead>
-          <tbody>${raw(body)}</tbody></table></div>
-        ${raw(tableActions('personInitiatives', 'initiatives'))}`
-      : html`<p class="muted">Not allocated to anything yet.</p>`)}`;
+          <tbody>${raw(body)}</tbody></table>`) + tableActions('personInitiatives', 'initiatives')
+      : empty('Not allocated to anything yet.'))}`;
 }
 
 function personCapacity(person, months) {
@@ -197,7 +210,8 @@ function personCapacity(person, months) {
     .map(
       (row) => html`<tr class="${row.overAllocated ? 'row--warn' : ''}">
         <td>${row.month}</td>
-        <td class="num ${row.overAllocated ? 'over' : ''}">${row.allocatedPct}%${raw(row.overAllocated ? ' ⚠' : '')}</td>
+        <td class="num ${row.overAllocated ? 'over' : ''}">${row.allocatedPct}%${raw(
+          row.overAllocated ? icon('warning', 'icon--lead') : '')}</td>
         <td class="num">${row.capacityPct}%</td>
         ${raw(row.nonInitiative.map((entry) => html`<td class="num">${entry.pct}%</td>`).join(''))}
       </tr>`,
@@ -207,9 +221,9 @@ function personCapacity(person, months) {
   return html`<h2>Capacity over time</h2>
     <p class="muted">Every month in the rolling window. “Spare” is the share a team holds but
       has not allocated — ongoing work, not idle time.</p>
-    <div class="scroller scroller--tall"><table class="grid">
+    ${raw(scroller('Capacity month by month', html`<table class="grid">
       <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
       <tbody>${raw(body)}</tbody>
-    </table></div>
+    </table>`, 'scroller--tall'))}
     ${raw(tableActions('personCapacity', 'capacity'))}`;
 }

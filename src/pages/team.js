@@ -6,6 +6,8 @@ import * as P from '../people.js';
 import { PROCESS } from '../process.js';
 import { app, view, navigate } from '../app.js';
 import { html, raw, money, fill, numberField } from '../render/dom.js';
+import { icon } from '../render/icons.js';
+import { pageHead, scroller, empty, badge } from '../render/components.js';
 import { chartYear, monthsOfYear, yearNav, stackedBarsMarkup } from '../render/charts.js';
 
 export function renderTeam() {
@@ -22,7 +24,7 @@ export function renderTeam() {
       return html`<tr class="${row.membership.active && row.person.active ? '' : 'row--inactive'}">
         <td><button type="button" class="link" data-act="open-person" data-id="${row.person.id}">
           ${row.person.name}</button>
-          ${raw(row.person.active ? '' : html` <span class="tag">person inactive</span>`)}</td>
+          ${raw(row.person.active ? '' : badge('person inactive', 'quiet'))}</td>
         <td>${E.roleLabel(row.person, app.ROLES)}</td>
         <td>${raw(numberField({
           value: row.membership.sharePct,
@@ -30,14 +32,17 @@ export function renderTeam() {
           'data-id': row.person.id,
           'data-team': team.id,
           'aria-label': `${row.person.name} share`,
+          extraClass: 'field--pct',
         }))}</td>
         <td class="num">${row.person.capacityPct}%</td>
-        <td>${raw(warning.overCommitted
-          ? html`<span class="warn">${warning.totalSharePct}% of ${warning.capacityPct}% assigned across all teams</span>`
+        <td class="cell--wrap">${raw(warning.overCommitted
+          ? html`<span class="warn">${raw(icon('warning', 'icon--lead'))}${warning.totalSharePct}%
+              of ${warning.capacityPct}% assigned across all teams</span>`
           : '')}</td>
         <td class="cell--action">
-          <button type="button" data-act="membership-active" data-id="${row.person.id}"
-            data-team="${team.id}">${row.membership.active ? 'Leave team' : 'Rejoin'}</button>
+          <button type="button" class="btn--small" data-act="membership-active"
+            data-id="${row.person.id}" data-team="${team.id}"
+            >${row.membership.active ? 'Leave team' : 'Rejoin'}</button>
         </td>
       </tr>`;
     })
@@ -61,9 +66,14 @@ export function renderTeam() {
 
   fill(
     'root',
-    html`<button type="button" class="link" data-act="page" data-page="teams">← Teams</button>
-      <h1>${team.name}</h1>
-      ${raw(team.active ? '' : html`<p class="warn">This team is deactivated.</p>`)}
+    html`${raw(pageHead({
+      title: team.name,
+      back: { page: 'teams', label: 'Teams' },
+      actions: html`<button type="button" class="btn" data-act="team-active"
+        data-id="${team.id}">${team.active ? 'Deactivate' : 'Reactivate'}</button>`,
+    }))}
+      ${raw(team.active ? '' : html`<p class="panel banner banner--alert warn">
+        ${raw(icon('warning', 'icon--lead'))}This team is deactivated.</p>`)}
 
       <div class="panel">
         <h2>Name</h2>
@@ -79,18 +89,18 @@ export function renderTeam() {
           sides. People are added by assigning someone who already exists, and removed by
           leaving the team, never by deletion.</p>
         ${raw(roster.length
-          ? html`<div class="scroller"><table class="grid">
+          ? scroller('Team roster', html`<table class="grid">
               <thead><tr><th>Person</th><th>Role</th><th>Share %</th><th>Capacity %</th>
                 <th></th><th></th></tr></thead>
-              <tbody>${raw(rosterRows)}</tbody></table></div>`
-          : html`<p class="muted">Nobody has joined yet.</p>`)}
+              <tbody>${raw(rosterRows)}</tbody></table>`)
+          : empty('Nobody has joined yet. Add someone who already exists as a person.'))}
         ${raw(joinable.length
           ? html`<div class="actions">
               <select class="field field--select" data-act="add-member-pick" data-id="${team.id}">
                 ${raw(joinable.map((p) => html`<option value="${p.id}">${p.name}</option>`).join(''))}
               </select>
               <button type="button" class="btn" data-act="add-member" data-id="${team.id}">
-                Add to team</button>
+                ${raw(icon('add'))}Add to team</button>
             </div>`
           : html`<p class="muted">Everyone active already belongs to this team.</p>`)}
       </div>
@@ -98,10 +108,10 @@ export function renderTeam() {
       <div class="panel">
         <h2>Initiatives</h2>
         ${raw(initiatives.length
-          ? html`<div class="scroller"><table class="grid">
+          ? scroller('Initiatives owned by this team', html`<table class="grid">
               <thead><tr><th>Name</th><th>Phase</th><th>Status</th><th>Total</th></tr></thead>
-              <tbody>${raw(initiativeRows)}</tbody></table></div>`
-          : html`<p class="muted">This team has no initiatives yet.</p>`)}
+              <tbody>${raw(initiativeRows)}</tbody></table>`)
+          : empty('This team has no initiatives yet.'))}
         ${raw(deletable.ok
           ? ''
           : html`<p class="muted">This team cannot be deleted while it owns initiatives.</p>`)}
@@ -125,7 +135,7 @@ function capacityGridMarkup(team) {
 
   if (roster.length === 0) {
     return html`<div class="panel"><h2>Capacity</h2>
-      <p class="muted">Nobody active in this team yet.</p></div>`;
+      ${raw(empty('Nobody active in this team yet.'))}</div>`;
   }
 
 
@@ -138,8 +148,9 @@ function capacityGridMarkup(team) {
           return html`<td class="cap ${over ? 'cap--over' : ''} ${allocated ? 'cap--on' : ''}">
             ${raw(allocated
               ? html`<button type="button" class="cap__btn" data-act="capacity-cell"
-                  data-person="${row.person.id}" data-team="${team.id}" data-month="${month}">
-                  ${allocated}%${raw(over ? ' ⚠' : '')}</button>`
+                  data-person="${row.person.id}" data-team="${team.id}" data-month="${month}"
+                  title="${row.person.name}, ${month}: ${allocated}% allocated">
+                  ${allocated}%${raw(over ? icon('warning') : '')}</button>`
               // Focusable so arrow keys can cross it. A sparse grid you
               // cannot traverse is worse than no keyboard support at all.
               : html`<span class="cap__empty" tabindex="-1"
@@ -174,7 +185,7 @@ function capacityGridMarkup(team) {
     ${raw(yearNav('Allocation against each member’s share of this team.'))}
     <p class="muted">Over-allocation past a member’s share is flagged, never blocked. Click a
       figure to see which initiatives make it up.</p>
-    <div class="scroller"><table class="grid grid--cap">
+    ${raw(scroller('Allocation per member per month', html`<table class="grid grid--cap">
       <thead><tr><th>Member</th>${raw(months
         .map((m) => html`<th>${m.slice(5)}</th>`).join(''))}</tr></thead>
       <tbody>
@@ -182,7 +193,7 @@ function capacityGridMarkup(team) {
         <tr class="row--spare"><th scope="row">Non-initiative work
           <span class="micro">share not committed</span></th>${raw(spareCells)}</tr>
       </tbody>
-    </table></div>
+    </table>`))}
   </div>`;
 }
 
@@ -210,8 +221,9 @@ export function capacityCellMarkup(personId, teamId, month) {
   if (!membership) {
     return html`<h3>${person.name} — ${month}</h3>
       <ul class="popover__list">${raw(items)}</ul>
-      <p class="warn">${total}% allocated, but this person no longer holds an active
-        membership in this team. The work still costs; the share does not exist.</p>`;
+      <p class="warn">${raw(icon('warning', 'icon--lead'))}${total}% allocated, but this person
+        no longer holds an active membership in this team. The work still costs; the share does
+        not exist.</p>`;
   }
 
   return html`<h3>${person.name} — ${month}</h3>
@@ -230,7 +242,7 @@ function runRateMarkup(team) {
     <h2>Cost run rate</h2>
     ${raw(yearNav(`${money(yearTotal)} across ${chartYear()}.`))}
     ${raw(yearTotal === 0
-      ? html`<p class="muted">Nothing costs anything in this year yet.</p>`
+      ? empty('Nothing costs anything in this year yet.', { icon: 'warning' })
       : stackedBarsMarkup(data))}
   </div>`;
 }

@@ -7,6 +7,8 @@ import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
 import { app } from '../app.js';
 import { html, raw, money, numberField } from './dom.js';
+import { icon } from './icons.js';
+import { scroller, empty, badge } from './components.js';
 import { TABLES, tableActions } from './tables.js';
 
 /**
@@ -55,8 +57,8 @@ function phasePanel(initiative, phaseId, editable) {
       ]);
 
       return html`<tr class="${stranded ? 'row--warn' : ''}">
-        <td>${person.name}${raw(stranded
-          ? html` <span class="tag">no longer in this team</span>`
+        <td>${person.name} ${raw(stranded
+          ? badge('no longer in this team', 'warn', 'warning')
           : '')}</td>
         <td>${E.roleLabel(person, app.ROLES)}</td>
         <td>${app.COUNTRIES[person.countryId]?.name ?? ''}</td>
@@ -70,6 +72,7 @@ function phasePanel(initiative, phaseId, editable) {
               'data-phase': phaseId,
               'data-person': person.id,
               'aria-label': `${person.name} allocation`,
+              extraClass: 'field--pct',
             })
           : html`<span class="num">${allocation.allocationPct}%</span>`)}</td>
         <td class="num" data-calc="days-${phaseId}-${person.id}">
@@ -77,8 +80,9 @@ function phasePanel(initiative, phaseId, editable) {
         <td class="num" data-calc="cost-${phaseId}-${person.id}">
           ${money(figures.cost)}</td>
         <td class="cell--action">${raw(editable
-          ? html`<button type="button" data-act="allocation-remove" data-id="${initiative.id}"
-              data-phase="${phaseId}" data-person="${person.id}">Remove</button>`
+          ? html`<button type="button" class="btn--small" data-act="allocation-remove"
+              data-id="${initiative.id}" data-phase="${phaseId}" data-person="${person.id}"
+              >${raw(icon('remove'))}Remove</button>`
           : '')}</td>
       </tr>`;
     })
@@ -90,45 +94,48 @@ function phasePanel(initiative, phaseId, editable) {
         phase.estStartDate && phase.estEndDate &&
         !E.monthsInRange(phase.estStartDate, phase.estEndDate).includes(item.month);
       return html`<tr>
-        <td>${raw(editable
+        <td class="cell--wrap">${raw(editable
           ? html`<input class="field" data-act="cost-name" data-id="${initiative.id}"
               data-phase="${phaseId}" data-cost="${item.id}" value="${item.name}"
               aria-label="Cost item name" />`
           : item.name)}</td>
-        <td>${item.month}${raw(outOfPeriod
-          ? html` <span class="tag">out of period</span>`
+        <td>${item.month} ${raw(outOfPeriod
+          ? badge('out of period', 'warn', 'warning')
           : '')}</td>
         <td class="num">${money(item.amount)}</td>
         <td class="cell--action">${raw(editable
-          ? html`<button type="button" data-act="cost-remove" data-id="${initiative.id}"
-              data-phase="${phaseId}" data-cost="${item.id}">Remove</button>`
+          ? html`<button type="button" class="btn--small" data-act="cost-remove"
+              data-id="${initiative.id}" data-phase="${phaseId}" data-cost="${item.id}"
+              >${raw(icon('remove'))}Remove</button>`
           : '')}</td>
       </tr>`;
     })
     .join('');
 
-  return html`<div class="panel">
-    <h2>${label}${raw(frozen ? html` <span class="tag">approved and frozen</span>` : '')}</h2>
+  // A frozen phase is settled by the process, so its mark is the `ok` kind,
+  // not a warning: nothing here needs looking at.
+  return html`<div class="panel ${frozen ? 'banner banner--done' : ''}">
+    <h2>${label} ${raw(frozen ? badge('approved and frozen', 'ok', 'check') : '')}</h2>
 
     <div class="fields">
       <label class="field-row"><span>From</span>
-        <input type="date" class="field field--short" data-act="phase-start"
+        <input type="date" class="field field--date" data-act="phase-start"
           data-id="${initiative.id}" data-phase="${phaseId}"
           value="${phase.estStartDate ?? ''}" ${raw(editable ? '' : 'disabled')} /></label>
       <label class="field-row"><span>To</span>
-        <input type="date" class="field field--short" data-act="phase-end"
+        <input type="date" class="field field--date" data-act="phase-end"
           data-id="${initiative.id}" data-phase="${phaseId}"
           value="${phase.estEndDate ?? ''}" ${raw(editable ? '' : 'disabled')} /></label>
     </div>
 
     <h3>People</h3>
     ${raw(phase.allocations.length
-      ? html`<div class="scroller"><table class="grid">
+      ? scroller(`${label} allocations`, html`<table class="grid">
           <thead><tr><th>Person</th><th>Role</th><th>Country</th><th>Day rate</th>
             <th>Factor</th><th>Allocation %</th><th>Person-days</th><th>Cost</th><th></th></tr></thead>
-          <tbody>${raw(allocationRows)}</tbody></table></div>
-        ${raw(registerAllocationTable(initiative, phaseId, exportRows))}`
-      : html`<p class="muted">Nobody allocated yet.</p>`)}
+          <tbody>${raw(allocationRows)}</tbody></table>`)
+        + registerAllocationTable(initiative, phaseId, exportRows)
+      : empty('Nobody allocated yet.'))}
     ${raw(editable && joinable.length
       ? html`<div class="actions">
           <select class="field field--select" data-act="allocation-pick"
@@ -136,7 +143,7 @@ function phasePanel(initiative, phaseId, editable) {
               .map((person) => html`<option value="${person.id}">${person.name}</option>`)
               .join(''))}</select>
           <button type="button" class="btn" data-act="allocation-add" data-id="${initiative.id}"
-            data-phase="${phaseId}">Allocate</button>
+            data-phase="${phaseId}">${raw(icon('add'))}Allocate</button>
         </div>`
       : editable
         ? html`<p class="muted">Everyone active in this team is already allocated. Add people
@@ -145,17 +152,18 @@ function phasePanel(initiative, phaseId, editable) {
 
     <h3>Other costs</h3>
     ${raw(phase.otherCosts.length
-      ? html`<div class="scroller"><table class="grid">
+      ? scroller(`${label} other costs`, html`<table class="grid">
           <thead><tr><th>Item</th><th>Month</th><th>Amount</th><th></th></tr></thead>
-          <tbody>${raw(costRows)}</tbody></table></div>`
-      : html`<p class="muted">No non-labour costs.</p>`)}
+          <tbody>${raw(costRows)}</tbody></table>`)
+      : empty('No non-labour costs.'))}
     ${raw(editable
       ? html`<div class="actions">
-          <input class="field field--short" data-act="new-cost-month" data-phase="${phaseId}"
+          <input class="field field--month" data-act="new-cost-month" data-phase="${phaseId}"
             type="month" aria-label="Month" />
-          ${raw(numberField({ value: '', 'data-act': 'new-cost-amount', 'data-phase': phaseId, 'aria-label': 'Amount' }))}
+          ${raw(numberField({ value: '', 'data-act': 'new-cost-amount', 'data-phase': phaseId,
+            'aria-label': 'Amount', placeholder: 'Amount', extraClass: 'field--money' }))}
           <button type="button" class="btn" data-act="cost-add" data-id="${initiative.id}"
-            data-phase="${phaseId}">Add cost</button>
+            data-phase="${phaseId}">${raw(icon('add'))}Add cost</button>
         </div>`
       : '')}
 
@@ -197,8 +205,8 @@ export function phaseTotalsMarkup(initiative, phaseId) {
   const other = E.phaseOtherTotal(phase);
 
   return html`Labour ${money(labour)} + other ${money(other)} =
-    <strong>${money(labour + other)}</strong>${raw(E.isFrozen(phase)
-      ? html` <span class="tag">as approved</span>`
+    <strong>${money(labour + other)}</strong> ${raw(E.isFrozen(phase)
+      ? badge('as approved', 'ok')
       : '')}`;
 }
 
@@ -208,7 +216,7 @@ export function grandMarkup(initiative) {
   const band = E.resolveBand(PROCESS.bands, total);
   const coverage = E.initiativeCoverage(initiative);
   return html`<strong>${money(total)}</strong>
-    <span class="tag">${coverage}</span>
+    ${raw(badge(coverage, 'info'))}
     — ${band ? band.name : 'Not yet known'}${raw(band
       ? html`<span class="micro">${band.req}</span>`
       : html`<span class="micro">No approval track covers this total.</span>`)}`;

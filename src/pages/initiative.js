@@ -7,6 +7,8 @@ import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
 import { app, view, navigate, STATUS_LABELS, today } from '../app.js';
 import { html, raw, money, fill, numberField } from '../render/dom.js';
+import { icon } from '../render/icons.js';
+import { pageHead, scroller, empty, badge } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
 import { costedPhasePanels } from '../render/phase-panel.js';
 
@@ -18,11 +20,14 @@ export function renderInitiative() {
 
   fill(
     'root',
-    html`<button type="button" class="link" data-act="page" data-page="initiatives">
-        ← Initiatives</button>
-      <h1>${initiative.name}</h1>
-      <p class="muted">${app.TEAMS[initiative.teamId]?.name ?? '—'} ·
-        ${STATUS_LABELS[initiative.status]}</p>
+    html`${raw(pageHead({
+      title: initiative.name,
+      back: { page: 'initiatives', label: 'Initiatives' },
+      lede: html`${app.TEAMS[initiative.teamId]?.name ?? '—'} ·
+        ${STATUS_LABELS[initiative.status]}`,
+      actions: html`<button type="button" class="btn" data-act="duplicate-initiative"
+        data-id="${initiative.id}">${raw(icon('duplicate'))}Duplicate</button>`,
+    }))}
 
       ${raw(stepperMarkup(initiative))}
       ${raw(gateBannerMarkup(initiative))}
@@ -54,8 +59,12 @@ function stepperMarkup(initiative) {
           : html`<span class="micro">${phase.gate.label} passed · ${record.takenAt}</span>`
         : html`<span class="micro">${phase.costed ? 'Costed' : 'No cost'}</span>`;
 
+      // A skipped gate must never read as a passed one; the glyph says which
+      // before the colour does, and survives being printed in grey.
+      const mark = state === 'passed' ? 'check' : state === 'skipped' ? 'skip' : '';
+
       return html`<li class="step step--${state}">
-        <span class="step__name">${phase.label}</span>
+        <span class="step__name">${raw(mark ? icon(mark) : '')}${phase.label}</span>
         ${raw(note)}
       </li>`;
     })
@@ -116,11 +125,11 @@ function gateBannerMarkup(initiative) {
 
     <div class="actions">
       <label class="field-inline"><span>Gate date</span>
-        <input type="date" class="field field--short" data-field="gate-date"
+        <input type="date" class="field field--date" data-field="gate-date"
           value="${today()}" /></label>
       <button type="button" class="btn btn--primary" data-act="pass-gate"
         data-id="${initiative.id}" data-gate="${gate.id}" ${raw(check.ok ? '' : 'disabled')}>
-        ${closes ? `Pass ${gate.label} and close` : `Pass ${gate.label}`}</button>
+        ${raw(icon('check'))}${closes ? `Pass ${gate.label} and close` : `Pass ${gate.label}`}</button>
       ${raw(canReopen
         ? html`<button type="button" class="btn" data-act="reopen" data-id="${initiative.id}">
             Reopen previous phase</button>`
@@ -133,7 +142,7 @@ function gateBannerMarkup(initiative) {
             <input class="field" data-field="skip-reason"
               placeholder="Why is this gate not needed?" /></label>
           <button type="button" class="btn" data-act="skip-gate" data-id="${initiative.id}"
-            data-gate="${gate.id}">Skip this gate</button>
+            data-gate="${gate.id}">${raw(icon('skip'))}Skip this gate</button>
         </div>
         <p class="micro">A skip approves nothing and freezes nothing, so this phase stays
           editable. The reason is recorded and shown wherever the gate appears.</p>`
@@ -149,7 +158,8 @@ function checklistMarkup(initiative, gate) {
   const rows = L.checklistState(initiative, gate)
     .map(
       (item) => html`<tr class="check check--${item.status}">
-        <td><strong>${item.name}</strong><span class="micro">${item.description}</span></td>
+        <td class="cell--wrap"><strong>${item.name}</strong>
+          <span class="micro">${item.description}</span></td>
         <td>
           <select class="field field--select" data-act="checklist-status"
             data-id="${initiative.id}" data-gate="${gate.id}" data-item="${item.id}"
@@ -158,9 +168,9 @@ function checklistMarkup(initiative, gate) {
               ${raw(item.status === status ? 'selected' : '')}>${CHECK_LABELS[status]}</option>`).join(''))}
           </select>
         </td>
-        <td><input class="field" data-act="checklist-note" data-id="${initiative.id}"
-          data-gate="${gate.id}" data-item="${item.id}" value="${item.note}"
-          placeholder="Note" aria-label="${item.name} note" /></td>
+        <td class="cell--wrap"><input class="field" data-act="checklist-note"
+          data-id="${initiative.id}" data-gate="${gate.id}" data-item="${item.id}"
+          value="${item.note}" placeholder="Note" aria-label="${item.name} note" /></td>
       </tr>`,
     )
     .join('');
@@ -168,9 +178,9 @@ function checklistMarkup(initiative, gate) {
   return html`<h3>Checklist</h3>
     <p class="muted">Items start unresolved, so a gate with a checklist is blocked until
       someone has looked at each one. “Partly” lets the gate pass with a warning.</p>
-    <div class="scroller"><table class="grid">
+    ${raw(scroller(`${gate.label} checklist`, html`<table class="grid">
       <thead><tr><th>Item</th><th>Status</th><th>Note</th></tr></thead>
-      <tbody>${raw(rows)}</tbody></table></div>`;
+      <tbody>${raw(rows)}</tbody></table>`))}`;
 }
 
 /** The grand total, its track, where it sits among the bands, and variance. */
@@ -197,7 +207,7 @@ export function bandPanelMarkup(initiative) {
   return html`<div class="panel">
     <h2>Approval track</h2>
     <p class="results"><strong>${money(total)}</strong>
-      <span class="tag">${E.initiativeCoverage(initiative)}</span>
+      ${raw(badge(E.initiativeCoverage(initiative), 'info'))}
       — ${band ? band.name : 'Not yet known'}</p>
     <p class="muted">${band ? band.req : 'No configured approval track covers this total.'}</p>
 
@@ -213,7 +223,8 @@ export function bandPanelMarkup(initiative) {
             : html`${variance > 0 ? 'Up' : 'Down'} ${money(Math.abs(variance))} since
                 ${passed.band ? passed.band.name : 'the last approval'} was approved.`}
           ${raw(move === 'escalation'
-            ? html`<strong>This now needs a stricter approval track than the one approved.</strong>`
+            ? html`<strong>${raw(icon('warning', 'icon--lead'))}This now needs a stricter approval
+                track than the one approved.</strong>`
             : move === 'de-escalation'
               ? 'It now falls under a lighter track than the one approved.'
               : '')}</p>`
@@ -238,7 +249,7 @@ function monthTableMarkup(initiative) {
 
   if (months.length === 0) {
     return html`<div class="panel"><h2>Month by month</h2>
-      <p class="muted">Nothing is costed yet. Give a phase a period and allocate someone.</p></div>`;
+      ${raw(empty('Nothing is costed yet. Give a phase a period and allocate someone.'))}</div>`;
   }
 
   const headers = ['Month', ...costed.flatMap((id) => {
@@ -285,12 +296,13 @@ function monthTableMarkup(initiative) {
                   'data-month': month,
                   'aria-label': `${E.phaseLabel(PROCESS, phaseId)} actual for ${month}`,
                   placeholder: 'not recorded',
+                  extraClass: 'field--money',
                 }))}</td>`;
         })
         .join('');
 
       return html`<tr class="${month === now ? 'row--now' : ''}">
-        <td>${month}${raw(month === now ? html` <span class="tag">now</span>` : '')}</td>
+        <td>${month} ${raw(month === now ? badge('now', 'accent') : '')}</td>
         ${raw(cells)}
         <td class="num" data-calc="blended-${month}"><strong>${money(blended)}</strong></td>
       </tr>`;
@@ -304,10 +316,10 @@ function monthTableMarkup(initiative) {
       <span class="legend__item"><span class="swatch swatch--gap"></span> expected but not recorded</span>
       <span class="legend__item"><span class="swatch swatch--now"></span> current month</span>
     </p>
-    <div class="scroller scroller--tall"><table class="grid">
+    ${raw(scroller('Cost month by month', html`<table class="grid">
       <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
       <tbody>${raw(body)}</tbody>
-    </table></div>
+    </table>`, 'scroller--tall'))}
     ${raw(tableActions('months', 'months'))}
   </div>`;
 }
@@ -351,8 +363,8 @@ function gateComparisonMarkup(initiative) {
       const skipped = entry?.record.outcome === 'skipped';
       return html`<tr class="${index === data.length - 1 ? 'row--live' : skipped ? 'row--warn' : ''}">
         <td>${row[0]}</td>
-        <td>${raw(skipped
-          ? html`<span class="tag">skipped</span><span class="micro">${entry.record.reason}</span>`
+        <td class="cell--wrap">${raw(skipped
+          ? badge('skipped', 'warn', 'skip') + html`<span class="micro">${entry.record.reason}</span>`
           : html`${row[1]}`)}</td>
         <td>${row[2]}</td>
         ${raw(costed.map((id, i) => html`<td class="num">${money(row[3 + i])}</td>`).join(''))}
@@ -366,10 +378,10 @@ function gateComparisonMarkup(initiative) {
     <h2>At each gate</h2>
     <p class="muted">What the figures were when each gate was left, beside where they stand
       now. A skipped gate approved nothing — its numbers are a record, not a baseline.</p>
-    <div class="scroller"><table class="grid">
+    ${raw(scroller('Figures at each gate', html`<table class="grid">
       <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
       <tbody>${raw(body)}</tbody>
-    </table></div>
+    </table>`))}
     ${raw(tableActions('gates', 'comparison'))}
   </div>`;
 }

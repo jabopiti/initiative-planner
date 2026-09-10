@@ -175,3 +175,111 @@ would need to grow. Flag it if a future row wants a shareable filtered view
 (e.g. "everyone over-allocated in March," linked from outside the app) —
 that's the case most likely to justify it.
 
+
+---
+
+## §4.1 — the skip link is a button, not an anchor
+
+**Question:** a skip link is conventionally `<a href="#main">`. This app's
+router owns the address fragment (`#/portfolio`, `#/initiative/abc`), so an
+`href="#root"` is parsed by `parseHash()` as an unrecognised route and
+canonicalised — the reader clicks "skip to content" and lands on Portfolio.
+
+**Options considered:**
+1. Keep the anchor and intercept the click with `preventDefault()`. Preserves
+   link semantics, but a middle-click, a ctrl-click or any path that bypasses
+   the handler still writes the fragment and navigates the user somewhere they
+   did not ask to go.
+2. Keep the anchor and have the router tolerate `#root` as a non-route. Spreads
+   knowledge of the skip link into `parseHash`, which should only know about
+   places.
+3. A `<button>` that moves focus to `<main>`, wired once in `boot()` alongside
+   the other global listeners.
+
+**Decision: option 3.** The fragment is the router's, and nothing else should
+write to it. A button announces as a button rather than a link, which is the
+only thing given up; it is still the first tab stop, still says what it does,
+and still moves focus to `#root` (which already carries `tabindex="-1"` for
+route announcements). The label is set from `boot()` rather than sitting in
+`index.html`, so the shell stays free of copy.
+
+**If you'd reverse this:** swap the element for an `<a href="#root">` and add a
+`preventDefault()` to the same handler, plus a `#root` case in `parseHash`.
+
+---
+
+## §4.1 — the copy confirmation moved from an inline note to a toast
+
+**Question:** the plan lists `toast` among the components to build "and use
+everywhere", but nothing in the app raises a transient message. The only
+candidate was the copy-to-clipboard confirmation, which rendered as a
+`.copy-note` span beside the Copy button.
+
+**Options considered:**
+1. Ship the toast component unused, waiting for the interaction-patterns row
+   (which brings undo) to give it a user. Rejected: dead CSS in a file whose
+   whole promise is that it is small, and an undocumented component is not
+   really documented.
+2. Leave the inline note and skip the toast entirely. Contradicts the row.
+3. Route the existing "Copied" / "Copy failed" strings to a toast.
+
+**Decision: option 3.** The strings, the trigger and the `data-act` are all
+unchanged; only where the message appears moved. It is also a fix on its own
+terms — those buttons sit under tables that scroll inside their own box, so the
+note could easily be off-screen from the row the reader was looking at. The
+`aria-live` region moved with it, so the announcement is unchanged too.
+
+**Watch for:** `.copy-note` and the `data-note` attribute are gone. If you'd
+rather have the inline note back, `tableActions()` and the `copy-table` case in
+`app.js` are the only two places to touch.
+
+---
+
+## §4.1 — a page-head component, which moved the primary action
+
+**Question:** every page opened with a bare `<h1>`, a `<p class="muted">` and,
+on the overviews, a "New person" / "New team" / "New initiative" button at the
+*bottom*, under the table. Building one `pageHead` component meant deciding
+where that button goes.
+
+**Options considered:**
+1. Leave each page's markup as it was and style `h1` alone. No consolidation,
+   and the eye lands somewhere different on every page.
+2. A page head that takes a title, a lede and a back link, with the create
+   button left where it was at the bottom. Half a component: the one control a
+   page exists for stays hard to find, below however many rows there are.
+3. A page head that also owns the primary action, top-right.
+
+**Decision: option 3.** It is a layout change rather than a behavioural one —
+same `data-act`, same copy, same handler — and it is the convention every
+overview in every tool of this kind already uses. The empty states keep their
+own copy of the button, so a first-run page still invites the action where the
+reader is looking.
+
+**If you'd reverse this:** drop the `actions` argument at the four call sites
+and re-append the button after the table. Flag it if you would rather the
+create action stayed at the bottom; it is a two-line change per page.
+
+---
+
+## §4.1 — table cells hold one line by default
+
+**Question:** at 375px the Portfolio table's rows were 114px tall — the browser
+squeezes a nine-column table into the viewport and every cell wraps. Either the
+cells wrap and the rows grow, or the cells do not wrap and the table scrolls.
+
+**Decision:** cells do not wrap; the table scrolls. `.grid th, .grid td` carry
+`white-space: nowrap`, and cells that genuinely hold sentences opt out with
+`.cell--wrap` (five of them: a checklist item's description, an approval
+track's requirement, a gate's skip reason, an over-commitment warning, a cost
+item's name).
+
+Reasoning: the horizontal scroll was already the decided answer for a narrow
+viewport, and it is only worth having if it actually buys the density it was
+paid for. A 114px row costs more screen than the scroll it was avoiding, and it
+does it on every viewport, not just the narrow one. The opt-out list is short
+and explicit rather than a heuristic, so a new prose column is a deliberate
+choice rather than something that silently starts wrapping.
+
+**Watch for:** a new table column carrying a sentence will run off the side
+instead of wrapping. That is the intended failure — add `.cell--wrap` to it.

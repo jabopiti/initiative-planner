@@ -24,8 +24,8 @@ here — this table is status only.
 | Silent-write bug (§4.7, first half) | **Landed** — `ae327ab` |
 | §4.1 Foundation — split `app.js` | **Landed** |
 | §4.1 Foundation — hash routing | **Landed** |
-| §4.1 Foundation — design system | Not started — **next** |
-| §4.1 Foundation — formatting module | Not started |
+| §4.1 Foundation — design system | **Landed** — awaiting aesthetic sign-off |
+| §4.1 Foundation — formatting module | Not started — **next** |
 | §4.1 Foundation — interaction patterns | Not started |
 | §4.2 Entity flows | Not started |
 | §4.3 Settings | Not started |
@@ -382,6 +382,52 @@ contract. Instead:
 - Responsive: real breakpoints, a nav that collapses, and a decided answer for
   what each wide table does when the viewport is narrow.
 - Focus: a visible ring on every interactive element, plus a skip link.
+
+**Landed.** The direction was decided first and written down as
+[REVAMP-design-direction.md](REVAMP-design-direction.md), so the tokens have
+somewhere to be answerable to: a ledger, where rules carry the structure, a
+2px left edge is the one channel for governance state, and numerals are the
+display face. `styles.css` is now a system rather than a token list — a
+canvas/surface split that gives elevation without shadows, a seven-step type
+scale on a 14px base, a 4px spacing scale of nine steps, state tokens applied
+as a background *layer* (so one hover token composes over a plain row, a
+warning row and the frozen first column alike), two elevation levels, three
+motion durations with three easings, and field widths sized to their content —
+the date field is `--field-date`, and a date now fits in it.
+
+Components are documented at the block that defines each one and used
+everywhere: button (default, primary, danger, ghost, small, icon-only), field,
+select, table, panel, card, tile, badge, banner, popover, toast, empty state,
+plus the process rail. `.tag`'s seven meanings became `badge` kinds — neutral,
+accent, info, ok, warn, danger, quiet — with each call site saying which it
+means, and the `⚠` character is gone. Icons are one inline `<symbol>` sprite in
+`src/render/icons.js`, coloured through `currentColor`; `undo` is deliberately
+absent until the patterns row gives it a user. `src/render/components.js` holds
+the shapes every page builds from (`pageHead`, `scroller`, `empty`, `badge`,
+`sortHeader`).
+
+Responsive: two breakpoints, a nav that collapses behind a menu button below
+48rem, and one decided answer for every wide table — it stays a table and
+scrolls inside a labelled, focusable region with the first column frozen.
+Stacking into cards was rejected on the evidence that `display` on table
+elements drops table semantics in some browsers, and the header/cell
+relationship is the entire value of these tables. Cells hold one line unless
+they carry a sentence, which is what keeps a nine-column table at a 36px row
+instead of a 114px one when it is squeezed.
+
+Two brand-pack holes closed on the way past: `--color-now-tint` was pinned to
+the default brand's hue and now derives from the accent, and the stylesheet
+carries no literal colour or px outside the token blocks — checked by walking
+the shipped stylesheet's rules in the browser, not by reading.
+
+Verified in a real browser against `examples/exports/demo.json` at 1440×900 and
+375×812, in all three theme modes: the caret invariant on both kinds of input
+(the filter that re-renders, and the allocation field that must not), the
+popover anchored to its trigger's rectangle and following it on scroll, table
+cells repainting on a theme change with no reload, the focus ring and skip link
+under real keyboard input, and the frozen column holding its position while the
+rest of the table scrolls past it. Screenshots are in `design-review/`
+(gitignored).
 
 **Formatting.** One module owning money, dates, months and numeric parsing —
 English only, per D6. Every raw ISO string in the UI goes through it, and

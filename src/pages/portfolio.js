@@ -6,6 +6,8 @@ import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
 import { app, view, STATUS_LABELS } from '../app.js';
 import { html, raw, money, fill } from '../render/dom.js';
+import { icon } from '../render/icons.js';
+import { pageHead, scroller, empty, sortHeader } from '../render/components.js';
 import { chartYear, monthsOfYear, yearNav, stackedBarsMarkup } from '../render/charts.js';
 
 const NO_BAND = 'none';
@@ -90,11 +92,7 @@ export function renderPortfolio() {
   });
 
   const headers = PORTFOLIO_COLUMNS.map(
-    (c) => html`<th aria-sort="${sort.key === c.key
-      ? sort.dir === 'asc' ? 'ascending' : 'descending'
-      : 'none'}">
-      <button type="button" class="link" data-act="sort-portfolio" data-key="${c.key}">
-        ${c.label}${raw(sort.key === c.key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '')}</button></th>`,
+    (c) => sortHeader(c, sort, { 'data-act': 'sort-portfolio' }),
   ).join('');
 
   const body = sorted
@@ -119,13 +117,17 @@ export function renderPortfolio() {
 
   fill(
     'root',
-    html`<h1>Portfolio</h1>
-      <p class="muted">Cost across every team, read-only. Capacity is a per-team and
-        per-person question and lives on those pages.</p>
+    html`${raw(pageHead({
+      title: 'Portfolio',
+      lede: 'Cost across every team, read-only. Capacity is a per-team and per-person question '
+        + 'and lives on those pages.',
+    }))}
 
       <div class="tiles">${raw(tiles)}</div>
       ${raw(selected
-        ? html`<p class="muted">Filtered to
+        // The funnel says what a reader cannot otherwise tell: that this is
+        // not everything.
+        ? html`<p class="muted actions">${raw(icon('filter', 'icon--lead'))}Filtered to
             ${groups.find((g) => g.id === selected)?.name}.
             <button type="button" class="link" data-act="portfolio-tile"
               data-band="${selected}">Clear</button></p>`
@@ -135,17 +137,17 @@ export function renderPortfolio() {
         <h2>Cost per month</h2>
         ${raw(yearNav(`${money(yearTotal)} across ${chartYear()}, active initiatives only.`))}
         ${raw(yearTotal === 0
-          ? html`<p class="muted">No active initiative costs anything in this year.</p>`
+          ? empty('No active initiative costs anything in this year.', { icon: 'warning' })
           : stackedBarsMarkup(data))}
       </div>
 
       <div class="panel">
         <h2>Initiatives</h2>
         ${raw(sorted.length
-          ? html`<div class="scroller"><table class="grid">
+          ? scroller('Initiatives by cost', html`<table class="grid">
               <thead><tr>${raw(headers)}</tr></thead>
-              <tbody>${raw(body)}</tbody></table></div>`
-          : html`<p class="muted">Nothing to show.</p>`)}
+              <tbody>${raw(body)}</tbody></table>`)
+          : empty('Nothing to show.'))}
       </div>`,
   );
 }

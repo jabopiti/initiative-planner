@@ -4,6 +4,8 @@
 import * as E from '../engine.js';
 import { app, view, currentMonth } from '../app.js';
 import { html, raw, money, fill } from '../render/dom.js';
+import { icon } from '../render/icons.js';
+import { pageHead, scroller, empty, badge, sortHeader } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
 
 function selectedMonth() {
@@ -86,28 +88,28 @@ export function renderPeople() {
   TABLES.people = { headers, rows: data.map((entry) => entry.row), name: `people-${month}` };
 
   const sortableHeaders = PEOPLE_COLUMNS.map(
-    (c) => html`<th aria-sort="${sort.key === c.key
-      ? sort.dir === 'asc' ? 'ascending' : 'descending'
-      : 'none'}">
-      <button type="button" class="link" data-act="sort-people" data-key="${c.key}">
-        ${c.label}${raw(sort.key === c.key ? (sort.dir === 'asc' ? ' ↑' : ' ↓') : '')}</button></th>`,
+    (c) => sortHeader(c, sort, { 'data-act': 'sort-people' }),
   ).join('');
 
   const rows = data
     .map(
       (entry) => html`<tr class="${entry.person.active ? '' : 'row--inactive'}">
         <td><button type="button" class="link" data-act="open-person" data-id="${entry.person.id}">
-          ${entry.person.name}</button></td>
-        <td>${entry.row[1]}${raw(entry.person.customRole ? html` <span class="tag">custom rate</span>` : '')}</td>
+          ${entry.person.name}</button>
+          ${raw(entry.person.active ? '' : badge('inactive', 'quiet'))}</td>
+        <td>${entry.row[1]} ${raw(entry.person.customRole ? badge('custom rate', 'info') : '')}</td>
         <td>${entry.row[2]}</td>
         <td class="num">${money(entry.row[3])}</td>
         <td class="num">${entry.person.capacityPct}%</td>
         <td>${entry.row[5]}</td>
         <td class="num">${entry.allocated}%</td>
         <td class="num ${entry.utilisation > 100 ? 'over' : ''}">
-          ${Math.round(entry.utilisation)}%${raw(entry.utilisation > 100 ? ' ⚠' : '')}</td>
+          ${Math.round(entry.utilisation)}%${raw(entry.utilisation > 100
+            ? icon('warning', 'icon--lead')
+            : '')}</td>
         <td class="cell--action">
-          <button type="button" data-act="person-active" data-id="${entry.person.id}">
+          <button type="button" class="btn--small" data-act="person-active"
+            data-id="${entry.person.id}">
             ${entry.person.active ? 'Deactivate' : 'Reactivate'}</button></td>
       </tr>`,
     )
@@ -120,14 +122,18 @@ export function renderPeople() {
 
   fill(
     'root',
-    html`<h1>People</h1>
-      <p class="muted">A person exists independently of any team, which is what lets one
-        belong to two. Every figure below describes the selected month.</p>
+    html`${raw(pageHead({
+      title: 'People',
+      lede: 'A person exists independently of any team, which is what lets one belong to two. '
+        + 'Every figure below describes the selected month.',
+      actions: html`<button type="button" class="btn btn--primary" data-act="person-add">
+        ${raw(icon('add'))}New person</button>`,
+    }))}
       <div class="toolbar">
         ${raw(monthPicker())}
-        <label class="field-inline"><span>Search</span>
-          <input class="field" data-act="people-filter" data-filter="q" value="${filters.q ?? ''}"
-            placeholder="Name" /></label>
+        <label class="field-inline">${raw(icon('search'))}<span class="sr-only">Search</span>
+          <input class="field field--search" data-act="people-filter" data-filter="q"
+            value="${filters.q ?? ''}" placeholder="Search by name" /></label>
         <label class="field-inline"><span>Team</span>
           <select class="field field--select" data-act="people-filter" data-filter="teamId">
             <option value="">All</option>${raw(teamOptions)}</select></label>
@@ -147,11 +153,17 @@ export function renderPeople() {
           data-filter="showInactive" ${raw(filters.showInactive ? 'checked' : '')} />
           <span>Show inactive</span></label>
       </div>
-      <div class="scroller"><table class="grid">
-        <thead><tr>${raw(sortableHeaders)}<th></th></tr></thead>
-        <tbody>${raw(rows)}</tbody>
-      </table></div>
-      ${raw(tableActions('people', 'table'))}
-      <button type="button" class="btn" data-act="person-add">New person</button>`,
+      ${raw(data.length
+        ? scroller(`People in ${month}`, html`<table class="grid">
+            <thead><tr>${raw(sortableHeaders)}<th></th></tr></thead>
+            <tbody>${raw(rows)}</tbody>
+          </table>`) + tableActions('people', 'table')
+        : Object.keys(app.PEOPLE).length === 0
+          ? empty('Nobody here yet. People are added once and then shared between teams.', {
+              icon: 'add',
+              action: html`<button type="button" class="btn btn--primary" data-act="person-add">
+                ${raw(icon('add'))}New person</button>`,
+            })
+          : empty('Nobody matches those filters.', { icon: 'filter' }))}`,
   );
 }

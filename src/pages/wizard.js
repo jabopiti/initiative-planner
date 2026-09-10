@@ -6,6 +6,8 @@ import * as store from '../store.js';
 import { PROCESS } from '../process.js';
 import { app, view } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
+import { icon } from '../render/icons.js';
+import { pageHead, empty } from '../render/components.js';
 import { costedPhasePanels, grandMarkup } from '../render/phase-panel.js';
 
 /**
@@ -28,16 +30,18 @@ function renderWizardGeneral() {
   if (teams.length === 0) {
     return fill(
       'root',
-      html`<h1>New initiative</h1>
-        <p class="muted">An initiative belongs to a team, and there are no active teams yet.
-          <button type="button" class="link" data-act="page" data-page="teams">Create one
-          first.</button></p>`,
+      html`${raw(pageHead({ title: 'New initiative' }))}
+        ${raw(empty('An initiative belongs to a team, and there are no active teams yet.', {
+          icon: 'add',
+          action: html`<button type="button" class="btn btn--primary" data-act="page"
+            data-page="teams">${raw(icon('add'))}Create a team first</button>`,
+        }))}`,
     );
   }
 
   fill(
     'root',
-    html`<h1>New initiative</h1>
+    html`${raw(pageHead({ title: 'New initiative' }))}
       <ol class="steps"><li aria-current="step">General</li><li>Estimates</li></ol>
 
       <div class="panel">
@@ -62,7 +66,8 @@ function renderWizardGeneral() {
 
         ${raw(skipped.length
           ? html`<div class="issues">
-              <p class="warn">Starting at ${E.phaseLabel(PROCESS, startPhaseId)} records
+              <p class="warn">${raw(icon('skip', 'icon--lead'))}Starting at
+                ${E.phaseLabel(PROCESS, startPhaseId)} records
                 ${skipped.length} earlier gate${skipped.length === 1 ? '' : 's'} as skipped:
                 ${skipped.map((id) => E.gateForPhase(PROCESS, id).label).join(', ')}. They
                 approve nothing and freeze nothing.</p>
@@ -74,7 +79,8 @@ function renderWizardGeneral() {
 
         <div class="actions">
           <button type="button" class="btn btn--primary" data-act="draft-create"
-            ${raw((draft.name ?? '').trim() ? '' : 'disabled')}>Create and continue</button>
+            ${raw((draft.name ?? '').trim() ? '' : 'disabled')}
+            >${raw(icon('add'))}Create and continue</button>
           <button type="button" class="btn" data-act="draft-discard">Cancel</button>
         </div>
         ${raw((draft.name ?? '').trim() ? '' : html`<p class="muted">A name is needed first.</p>`)}
@@ -87,10 +93,12 @@ function renderWizardEstimates(initiative) {
 
   fill(
     'root',
-    html`<h1>${initiative.name}</h1>
+    html`${raw(pageHead({
+      title: initiative.name,
+      lede: 'Fill in as much as you know. Finishing with an incomplete estimate is fine — the '
+        + 'gate is what blocks progress later, not this step.',
+    }))}
       <ol class="steps"><li>General</li><li aria-current="step">Estimates</li></ol>
-      <p class="muted">Fill in as much as you know. Finishing with an incomplete estimate is
-        fine — the gate is what blocks progress later, not this step.</p>
 
       <div class="panel panel--inset">
         <h2>Grand total</h2>
@@ -101,7 +109,7 @@ function renderWizardEstimates(initiative) {
 
       <div class="actions">
         <button type="button" class="btn btn--primary" data-act="open-initiative"
-          data-id="${initiative.id}">Done</button>
+          data-id="${initiative.id}">${raw(icon('check'))}Done</button>
         <button type="button" class="btn" data-act="page" data-page="initiatives">
           Back to initiatives</button>
       </div>`,

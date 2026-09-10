@@ -6,6 +6,8 @@ import * as E from '../engine.js';
 import * as T from '../transfer.js';
 import { app, view, pendingImport } from '../app.js';
 import { html, raw, money, fill, numberField } from '../render/dom.js';
+import { icon } from '../render/icons.js';
+import { pageHead, scroller } from '../render/components.js';
 
 const SETTINGS_SECTIONS = [
   { id: 'overview', label: 'Overview' },
@@ -25,7 +27,7 @@ export function renderSettings() {
 
   fill(
     'root',
-    html`<h1>Settings</h1>
+    html`${raw(pageHead({ title: 'Settings' }))}
       <div class="tabs" role="tablist">${raw(tabs)}</div>
       <div id="settings-body" class="panel"></div>`,
   );
@@ -84,22 +86,25 @@ function renderRoles() {
       (role) => html`<tr data-id="${role.id}" class="${role.active ? '' : 'row--inactive'}">
         <td><input class="field" data-act="role-field" data-field="name" data-id="${role.id}"
           value="${role.name}" aria-label="Role name" /></td>
-        <td><input class="field field--short" data-act="role-field" data-field="abbr"
+        <td><input class="field field--abbr" data-act="role-field" data-field="abbr"
           data-id="${role.id}" value="${role.abbr}" aria-label="Abbreviation" /></td>
-        <td>${raw(numberField({ value: role.factor, 'data-act': 'role-field', 'data-field': 'factor', 'data-id': role.id, 'aria-label': 'Factor' }))}</td>
-        <td class="cell--action"><button type="button" data-act="role-active" data-id="${role.id}">
-          ${role.active ? 'Deactivate' : 'Reactivate'}</button></td>
+        <td>${raw(numberField({ value: role.factor, 'data-act': 'role-field',
+          'data-field': 'factor', 'data-id': role.id, 'aria-label': 'Factor',
+          extraClass: 'field--pct' }))}</td>
+        <td class="cell--action"><button type="button" class="btn--small" data-act="role-active"
+          data-id="${role.id}">${role.active ? 'Deactivate' : 'Reactivate'}</button></td>
       </tr>`,
     )
     .join('');
 
   return html`<p class="muted">A role's factor multiplies the day rate that comes from a
       person's country. Roles are never deleted once referenced — deactivate instead.</p>
-    <div class="scroller"><table class="grid">
+    ${raw(scroller('Roles', html`<table class="grid">
       <thead><tr><th>Name</th><th>Abbr.</th><th>Factor</th><th></th></tr></thead>
       <tbody>${raw(rows)}</tbody>
-    </table></div>
-    <button type="button" class="btn" data-act="role-add">Add role</button>`;
+    </table>`))}
+    <div class="actions"><button type="button" class="btn" data-act="role-add"
+      >${raw(icon('add'))}Add role</button></div>`;
 }
 
 /* ---- countries & rates ---- */
@@ -140,8 +145,10 @@ function renderCountries() {
               'data-id': country.id,
               'data-year': year,
               'aria-label': `${year} day rate`,
+              extraClass: 'field--money',
             }))}</td>
-            <td colspan="12"><table class="months"><tbody><tr>${raw(cells)}</tr></tbody></table></td>
+            <td colspan="12">${raw(scroller(`Reduced working days in ${year}`,
+              html`<table class="months"><tbody><tr>${raw(cells)}</tr></tbody></table>`))}</td>
           </tr>`;
         })
         .join('');
@@ -151,14 +158,17 @@ function renderCountries() {
           <td><input class="field" data-act="country-field" data-field="name" data-id="${country.id}"
             value="${country.name}" aria-label="Country name" /></td>
           <td class="cell--action">
-            <button type="button" data-act="country-expand" data-id="${country.id}"
-              aria-expanded="${open}">${open ? 'Hide rates' : 'Rates & holidays'}</button>
-            <button type="button" data-act="country-active" data-id="${country.id}">
-              ${country.active ? 'Deactivate' : 'Reactivate'}</button>
+            <button type="button" class="btn--small" data-act="country-expand"
+              data-id="${country.id}" aria-expanded="${open}"
+              >${raw(icon(open ? 'chevron-down' : 'chevron-right'))}${open
+                ? 'Hide rates'
+                : 'Rates & holidays'}</button>
+            <button type="button" class="btn--small" data-act="country-active"
+              data-id="${country.id}">${country.active ? 'Deactivate' : 'Reactivate'}</button>
           </td>
         </tr>
         ${raw(open ? html`<tr><td colspan="2"><table class="grid grid--nested">
-          <thead><tr><th>Year</th><th>Day rate</th><th colspan="12">Reduced working days</th></tr></thead>
+          <thead><tr><th>Year</th><th>Day rate</th><th>Reduced working days</th></tr></thead>
           <tbody>${raw(yearBlocks)}</tbody></table></td></tr>` : '')}
       </tbody>`;
     })
@@ -167,11 +177,12 @@ function renderCountries() {
   return html`<p class="muted">Each year carries its own day rate and its own holiday
       reductions, so a rate rise next year never moves this year's months. The window
       rolls forward automatically and keeps last year, for backfilled work.</p>
-    <div class="scroller"><table class="grid">
+    ${raw(scroller('Countries', html`<table class="grid">
       <thead><tr><th>Name</th><th></th></tr></thead>
       ${raw(rows)}
-    </table></div>
-    <button type="button" class="btn" data-act="country-add">Add country</button>`;
+    </table>`))}
+    <div class="actions"><button type="button" class="btn" data-act="country-add"
+      >${raw(icon('add'))}Add country</button></div>`;
 }
 
 /* ---- general ---- */
@@ -180,7 +191,8 @@ function renderGeneral() {
   return html`<div class="fields">
     <label class="field-row">
       <span>Days before the export reminder appears</span>
-      ${raw(numberField({ value: app.GENERAL.exportReminderDays, 'data-act': 'general-field', 'data-field': 'exportReminderDays' }))}
+      ${raw(numberField({ value: app.GENERAL.exportReminderDays, 'data-act': 'general-field',
+        'data-field': 'exportReminderDays', extraClass: 'field--pct' }))}
     </label>
   </div>
   <p class="muted">The currency symbol is fixed by this build and shown on the
@@ -195,8 +207,9 @@ function renderData() {
       person, initiative, actual and approval. It is the only backup and the only way to move
       data between machines.</p>
     <div class="actions">
-      <button type="button" class="btn" data-act="export">Export JSON</button>
-      <label class="btn btn--file">Import JSON
+      <button type="button" class="btn btn--primary" data-act="export">
+        ${raw(icon('export'))}Export JSON</button>
+      <label class="btn btn--file">${raw(icon('import'))}Import JSON
         <input type="file" accept="application/json,.json" data-act="import-file" hidden />
       </label>
     </div>
@@ -206,7 +219,8 @@ function renderData() {
 export function importPreviewMarkup() {
   if (!pendingImport) return '';
   if (pendingImport.error) {
-    return html`<div class="issues"><p class="warn">${pendingImport.error}</p></div>`;
+    return html`<div class="issues"><p class="warn">${raw(icon('warning', 'icon--lead'))}${
+      pendingImport.error}</p></div>`;
   }
 
   const mode = pendingImport.mode;
@@ -223,8 +237,9 @@ export function importPreviewMarkup() {
     ? html`<div class="issues">${raw(
         preview.approvalCollisions
           .map(
-            (c) => html`<p class="warn">This would ${c.wouldBeCleared ? 'clear' : 'overwrite'}
-              a recorded approval on “${c.name}”.</p>`,
+            (c) => html`<p class="warn">${raw(icon('warning', 'icon--lead'))}This would
+              ${c.wouldBeCleared ? 'clear' : 'overwrite'} a recorded approval on
+              “${c.name}”.</p>`,
           )
           .join(''),
       )}</div>`
@@ -246,10 +261,10 @@ export function importPreviewMarkup() {
     <p class="muted">${mode === 'replace'
       ? 'Everything currently here is discarded and replaced by the file.'
       : 'The file is overlaid on what is here. Anything it does not mention is kept.'}</p>
-    <table class="grid">
+    ${raw(scroller('What the import changes', html`<table class="grid">
       <thead><tr><th></th><th>Added</th><th>Changed</th><th>Removed</th></tr></thead>
       <tbody>${raw(counts)}</tbody>
-    </table>
+    </table>`))}
     ${raw(people)}
     ${raw(collisions)}
     <div class="actions">
@@ -268,10 +283,11 @@ function renderDanger() {
       data, the process, every person, initiative, actual and approval. It cannot be undone,
       and an export taken beforehand is the only way back.</p>
     ${raw(armed
-      ? html`<div class="issues"><p class="warn">This will erase everything. There is no undo.</p>
+      ? html`<div class="issues"><p class="warn">${raw(icon('warning', 'icon--lead'))}This will
+            erase everything. There is no undo.</p>
           <div class="actions">
             <button type="button" class="btn btn--danger" data-act="reset-confirm">
-              Yes, erase everything</button>
+              ${raw(icon('remove'))}Yes, erase everything</button>
             <button type="button" class="btn" data-act="reset-cancel">Cancel</button>
           </div></div>`
       : html`<button type="button" class="btn btn--danger" data-act="reset-arm">
