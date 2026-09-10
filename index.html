@@ -37,8 +37,10 @@
     <div id="route-announcer" class="sr-only" role="status" aria-live="polite"></div>
 
     <!-- Popovers are positioned from their trigger's rectangle, so they live
-         at the top level rather than inside the region that opened them. -->
-    <div id="popover" role="dialog" aria-modal="false" hidden></div>
+         at the top level rather than inside the region that opened them.
+         tabindex="-1" lets openPopover() focus the container itself when its
+         content has nothing focusable of its own. -->
+    <div id="popover" role="dialog" aria-modal="false" tabindex="-1" hidden></div>
 
     <!-- One transient confirmation at a time, announced politely. -->
     <div id="toast" role="status" aria-live="polite"></div>

@@ -558,11 +558,19 @@ Initiatives panel), a gap the formatting-module row above should have swept
 but didn't. `person.js` also carried an inline `style="position: relative;
 z-index: 2;"` on a cross-reference link, duplicating (and violating the
 tokens-only rule ahead of) the `.row--clickable a:not(.row-link)` rule
-`styles.css` already declares for exactly this case. All three fixed;
-verified in a real browser against `examples/exports/demo.json` — the
-persistence fix by editing an amount, reloading, and confirming it held; the
-date fixes by reading the rendered Portfolio and Person pages; the CSS fix
-by inspection, since it's non-visual.
+`styles.css` already declares for exactly this case. The row's own last
+bullet — "Popovers take and restore focus, and trap it while open" — was
+never implemented at all: `openPopover`/`closePopover` were untouched by
+this row's commit. Fixed now: opening moves focus into the popover's first
+focusable element, or the container itself (`tabindex="-1"`, added in
+`index.html`) when it has none; Tab cycles within it while open; closing —
+by Escape or an outside click — restores focus to the trigger. All four
+fixed; verified in a real browser against `examples/exports/demo.json` —
+the persistence fix by editing an amount, reloading, and confirming it
+held; the date fixes by reading the rendered Portfolio and Person pages;
+the popover fix by dispatching open/Escape/outside-click and checking
+`document.activeElement` at each step; the CSS fix by inspection, since
+it's non-visual.
 
 **Invariants that must survive all of it** (AGENTS.md, restated only because
 this is where they get broken): typing never rebuilds the active input or

@@ -257,6 +257,8 @@ function positionPopover() {
   node.style.top = `${Math.max(margin, top)}px`;
 }
 
+const FOCUSABLE = 'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
 function openPopover(trigger, markup) {
   const node = document.getElementById('popover');
   if (!node) return;
@@ -264,6 +266,12 @@ function openPopover(trigger, markup) {
   node.innerHTML = markup;
   node.hidden = false;
   positionPopover();
+  // Non-modal (aria-modal="false"): move focus in and trap Tab only when
+  // there is something to tab between. With no focusable content, the
+  // container itself (tabindex="-1" in index.html) takes focus instead.
+  const focusable = node.querySelector(FOCUSABLE);
+  if (focusable instanceof HTMLElement) focusable.focus();
+  else node.focus();
 }
 
 function closePopover() {
@@ -271,7 +279,29 @@ function closePopover() {
   if (!node || node.hidden) return;
   node.hidden = true;
   node.innerHTML = '';
+  const trigger = popoverTrigger;
   popoverTrigger = null;
+  // Escape and outside-click both route here; a click on a different
+  // trigger is its own openPopover call and moves focus on its own.
+  if (trigger?.isConnected) trigger.focus();
+}
+
+/** Keep Tab cycling inside an open popover rather than leaking to the page behind it. */
+function trapPopoverTab(event) {
+  const node = document.getElementById('popover');
+  if (!node || node.hidden || !node.contains(document.activeElement)) return;
+  const focusables = Array.from(node.querySelectorAll(FOCUSABLE))
+    .filter((el) => el instanceof HTMLElement);
+  if (focusables.length === 0) return event.preventDefault();
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    if (last instanceof HTMLElement) last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    if (first instanceof HTMLElement) first.focus();
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -1057,6 +1087,7 @@ export function boot() {
       setNavOpen(false);
       return closePopover();
     }
+    if (event.key === 'Tab') trapPopoverTab(event);
     return onTableKeydown(event);
   });
   // Fixed positioning does not track the trigger, so follow it explicitly.
