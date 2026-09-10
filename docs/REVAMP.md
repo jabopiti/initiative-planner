@@ -30,8 +30,8 @@ here — this table is status only.
 | §4.1 Foundation — interaction patterns | **Landed** |
 | §4.2 Entity flows | **Landed** |
 | §4.3 Settings — page structure, copy/behaviour findings | **Landed** |
-| §4.3 Settings — working days as absolute values | Not started — **next** |
-| §4.3 Settings — bulk entry for rates/working days | Not started |
+| §4.3 Settings — working days as absolute values | **Landed** — `schemaVersion` 2 |
+| §4.3 Settings — bulk entry for rates/working days | Not started — **next** |
 | §4.4 Initiative detail | Not started |
 | §4.5 Overviews, capacity, charts | Not started |
 | §4.6 Copy, states, first run, accessibility | Not started |
@@ -689,10 +689,42 @@ confirm idiom the Danger zone already established, rather than a popover or
 anything, still takes one click. A country whose current calendar year's
 rate is 0 shows an inline warning beside its name.
 
-**Not yet landed:** the working-days schema change (absolute values instead
-of a reduction) and bulk entry for rates/working days — both still ahead,
-listed separately in §0's table since they touch a schema bump and deserve
-their own review pass.
+**Not yet landed:** bulk entry for rates/working days — still ahead, listed
+separately in §0's table.
+
+**Landed — working days as absolute values, `schemaVersion` 2.**
+`workingDayReduction` (a reduction off the calendar) is gone; a country's
+`byYear[year].workingDays` is now the absolute count per month, edited
+directly. `engine.js`'s `workingDaysInMonth` reads it straight off the
+record; `workingDaysForPeriod` still uses `weekdaysInMonth` as the
+proration denominator (the fraction of a partial month's weekdays covered),
+but the numerator is now the stored absolute figure, not
+`weekdaysInMonth - reduction`. A new country's inline-add (`app.js`) and
+`masterData.js`'s seed both prefill every month with
+`E.weekdaysInMonth(year, month)` — a holiday-free calendar, matching the
+finding's "prefill with the weekday count" ask — and `masterData.js`
+layers a fixed holiday pattern on top of the real per-year weekday count
+(`NORTH_HOLIDAYS`/`SOUTH_HOLIDAYS`) rather than reusing one hardcoded
+reduction array across all four years, so the placeholder data is
+realistic and correctly varies where weekday alignment does. The one field
+edit (`country-reduction` → `country-workday`) clamps to a floor of 0 and
+has no ceiling — exceeding a month's real weekday count isn't validated
+against, since nothing in SPEC says it should be.
+
+`examples/exports/demo.json` — a fixture checked into the repo, not
+user data — was migrated in place with a one-off script reusing the real
+`weekdaysInMonth` to convert every `workingDayReduction` array (both the
+top-level `COUNTRIES` and every frozen phase's embedded `countriesCopy`
+snapshot, 48 records total) into the equivalent absolute `workingDays`,
+and its `schemaVersion` bumped to match. `test/demo.test.mjs`'s "the demo
+export imports into this build" is what would have caught a missed spot.
+
+Verified in a real browser: loading the old (`schemaVersion` 1) demo data
+now correctly falls back to fresh seed rather than loading (the existing,
+intentional no-migration behaviour); the migrated demo data loads and
+shows realistic per-month figures; editing a working-days cell persists
+and survives a reload; a freshly created country's working days prefill
+with real weekday counts, not zero.
 
 Verified in a real browser against `examples/exports/demo.json`, at
 1440×900 and 400×800, in light and dark: the section nav scrolling and

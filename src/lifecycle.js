@@ -9,7 +9,10 @@
 
 import * as E from './engine.js';
 
-export const SCHEMA_VERSION = 1;
+// v2: a country's byYear record stores absolute working days per month
+// (`workingDays`) instead of a reduction off the calendar's weekdays
+// (`workingDayReduction`) — §4.3. No migration; see AGENTS.md.
+export const SCHEMA_VERSION = 2;
 
 /* ------------------------------------------------------------------ *
  * Construction

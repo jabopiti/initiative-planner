@@ -8,7 +8,23 @@
  *
  * Everything here is fictional placeholder content. The engine must never
  * depend on these concrete values — only on their shape.
+ *
+ * A country's `byYear[year].workingDays` is an absolute working-day count
+ * per month, not a reduction off the calendar (§4.3) — this seed derives it
+ * from the real weekday count for that year minus a fixed holiday pattern,
+ * so the figures are realistic rather than a round test-friendly number,
+ * and so they correctly differ year to year as weekday alignment shifts.
  */
+import { weekdaysInMonth } from './engine.js';
+
+/** A rough public-holiday calendar: reduction off each month's weekdays. */
+const NORTH_HOLIDAYS = [2, 1, 1, 2, 2, 0, 0, 3, 0, 1, 1, 4];
+const SOUTH_HOLIDAYS = [1, 0, 2, 1, 3, 1, 0, 2, 1, 0, 2, 3];
+
+/** @param {number} year @param {number[]} holidays reduction per month */
+function workingDaysByMonth(year, holidays) {
+  return holidays.map((reduction, month) => Math.max(0, weekdaysInMonth(year, month) - reduction));
+}
 
 /** Years the rolling window covers: last year, this year, the next two. */
 export const WINDOW_BEFORE = 1;
@@ -63,18 +79,18 @@ export function createMasterData(now = new Date().getFullYear()) {
         name: 'Northland',
         active: true,
         // Rate drifts upward year on year so tests can tell the years apart.
-        byYear: byYear(years, (_year, i) => ({
+        byYear: byYear(years, (year, i) => ({
           rate: 600 + i * 25,
-          workingDayReduction: [2, 1, 1, 2, 2, 0, 0, 3, 0, 1, 1, 4],
+          workingDays: workingDaysByMonth(year, NORTH_HOLIDAYS),
         })),
       },
       country_south: {
         id: 'country_south',
         name: 'Southland',
         active: true,
-        byYear: byYear(years, (_year, i) => ({
+        byYear: byYear(years, (year, i) => ({
           rate: 420 + i * 15,
-          workingDayReduction: [1, 0, 2, 1, 3, 1, 0, 2, 1, 0, 2, 3],
+          workingDays: workingDaysByMonth(year, SOUTH_HOLIDAYS),
         })),
       },
     },

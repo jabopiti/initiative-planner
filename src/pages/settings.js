@@ -146,12 +146,12 @@ function renderCountries() {
             (label, index) => html`<td>
               <span class="micro">${label}</span>
               ${raw(numberField({
-                value: record.workingDayReduction[index],
-                'data-act': 'country-reduction',
+                value: record.workingDays[index],
+                'data-act': 'country-workday',
                 'data-id': country.id,
                 'data-year': year,
                 'data-month': index,
-                'aria-label': `${label} ${year} reduction`,
+                'aria-label': `${label} ${year} working days`,
                 extraClass: 'field--tiny',
               }))}
             </td>`,
@@ -167,7 +167,7 @@ function renderCountries() {
               'aria-label': `${year} day rate`,
               extraClass: 'field--money',
             }))}</td>
-            <td colspan="12">${raw(scroller(`Reduced working days in ${year}`,
+            <td colspan="12">${raw(scroller(`Working days in ${year}`,
               html`<table class="months"><tbody><tr>${raw(cells)}</tr></tbody></table>`))}</td>
           </tr>`;
         })
@@ -191,7 +191,7 @@ function renderCountries() {
           </td>
         </tr>
         ${raw(open ? html`<tr><td colspan="2"><table class="grid grid--nested">
-          <thead><tr><th>Year</th><th>Day rate</th><th>Reduced working days</th></tr></thead>
+          <thead><tr><th>Year</th><th>Day rate</th><th>Working days</th></tr></thead>
           <tbody>${raw(yearBlocks)}</tbody></table></td></tr>` : '')}
       </tbody>`;
     })
@@ -205,9 +205,11 @@ function renderCountries() {
     </tr>
   </tbody>`;
 
-  return html`<p class="muted">Each year carries its own day rate and its own holiday
-      reductions, so a rate rise next year never moves this year's months. The window
-      rolls forward automatically and keeps last year, for backfilled work.</p>
+  return html`<p class="muted">Each year carries its own day rate and its own working
+      days per month, so a rate rise next year never moves this year's months. Each month
+      is prefilled with its real weekday count — lower it for holidays, closures or
+      anything else that takes days off the calendar. The window rolls forward
+      automatically and keeps last year, for backfilled work.</p>
     ${raw(scroller('Countries', html`<table class="grid">
       <thead><tr><th>Name</th><th></th></tr></thead>
       ${raw(rows)}${raw(emptyRow)}

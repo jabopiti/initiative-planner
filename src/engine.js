@@ -102,15 +102,15 @@ export function weekdaysInMonth(year, month) {
 }
 
 /**
- * Working days in a whole month: weekdays minus that country's reduction for
- * that month, in that month's own year.
+ * Working days in a whole month, as that country's own record has them for
+ * that month's year — an absolute count the user edits directly, not a
+ * reduction off the calendar's weekdays (§4.3).
  * @param {object} country @param {string} monthKeyStr `YYYY-MM`
  */
 export function workingDaysInMonth(country, monthKeyStr) {
   const { year, month } = parseMonthKey(monthKeyStr);
   const record = yearRecord(country.byYear, year);
-  const reduction = record.workingDayReduction[month] ?? 0;
-  return Math.max(0, weekdaysInMonth(year, month) - reduction);
+  return Math.max(0, record.workingDays[month] ?? 0);
 }
 
 /** Weekdays between two dates inclusive. @param {Date} from @param {Date} to */
@@ -145,11 +145,11 @@ export function workingDaysForPeriod(country, startIso, endIso) {
     const monthStart = new Date(Date.UTC(year, month, 1));
     const monthEnd = new Date(Date.UTC(year, month + 1, 0));
 
-    // weekdaysInMonth allocates a Date per calendar day, so count once and
-    // derive the whole-month figure from it rather than calling it twice.
+    // weekdaysInMonth is still what a partial month prorates against — the
+    // stored figure is absolute working days, not a reduction off it, but
+    // the proration fraction is still "share of the month's weekdays covered."
     const totalWeekdays = weekdaysInMonth(year, month);
-    const reduction = yearRecord(country.byYear, year).workingDayReduction[month] ?? 0;
-    const whole = Math.max(0, totalWeekdays - reduction);
+    const whole = Math.max(0, yearRecord(country.byYear, year).workingDays[month] ?? 0);
     const covered = weekdaysBetween(
       start > monthStart ? start : monthStart,
       end < monthEnd ? end : monthEnd,

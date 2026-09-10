@@ -542,8 +542,14 @@ function onInput(event) {
         id: newId,
         name: target.value,
         active: true,
+        // Prefilled with the calendar's own weekday count for that year, so
+        // the field shows what a holiday-free month looks like rather than
+        // an unexplained zero (§4.3).
         byYear: Object.fromEntries(
-          years.map((year) => [year, { rate: 0, workingDayReduction: Array(12).fill(0) }]),
+          years.map((year) => [year, {
+            rate: 0,
+            workingDays: Array.from({ length: 12 }, (_, month) => E.weekdaysInMonth(Number(year), month)),
+          }]),
         ),
       };
       const caret = target.selectionStart;
@@ -559,9 +565,10 @@ function onInput(event) {
   } else if (act === 'country-rate') {
     const record = app.COUNTRIES[id].byYear[target.dataset.year];
     record.rate = F.readNumber(target.value, record.rate);
-  } else if (act === 'country-reduction') {
+  } else if (act === 'country-workday') {
     const record = app.COUNTRIES[id].byYear[target.dataset.year];
-    record.workingDayReduction[Number(target.dataset.month)] = F.readNumber(target.value, 0);
+    const month = Number(target.dataset.month);
+    record.workingDays[month] = Math.max(0, F.readNumber(target.value, record.workingDays[month]));
   } else if (act === 'person-field') {
     const person = app.PEOPLE[id];
     person[field] = field === 'capacityPct' ? F.readNumber(target.value, person.capacityPct) : target.value;
