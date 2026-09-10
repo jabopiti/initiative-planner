@@ -15,6 +15,10 @@ those are conversations before they are code (AGENTS.md).
 
 ## 0. Where this stands
 
+Judgment calls made along the way, for you to review or reverse, are logged
+separately in [REVAMP-decisions-log.md](REVAMP-decisions-log.md) rather than
+here — this table is status only.
+
 | Workstream | Status |
 |---|---|
 | Silent-write bug (§4.7, first half) | **Landed** — `ae327ab` |
