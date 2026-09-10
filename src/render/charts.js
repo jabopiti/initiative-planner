@@ -1,10 +1,11 @@
+import * as F from '../format.js';
 /**
  * Year navigation and the stacked-bar chart primitive, shared by the
  * Portfolio and team run-rate charts so the two read identically.
  */
 import * as E from '../engine.js';
 import { app, view } from '../app.js';
-import { html, raw, money } from './dom.js';
+import { html, raw } from './dom.js';
 import { icon } from './icons.js';
 
 /**
@@ -80,11 +81,11 @@ export function stackedBarsMarkup(data) {
         .map(
           (segment) => html`<span class="bars__seg"
             style="height:${(segment.cost / max) * 100}%;background:${tone(segment)}"
-            title="${segment.name}: ${money(segment.cost)}"></span>`,
+            title="${segment.name}: ${F.money(segment.cost)}"></span>`,
         )
         .join('');
       return html`<div class="bars__col ${row.month === now ? 'bars__col--now' : ''}"
-        title="${row.month}: ${money(row.total)}">
+        title="${F.month(row.month)}: ${F.money(row.total)}">
         <div class="bars__stack">${raw(stack)}</div>
         <span class="bars__label">${row.month.slice(5)}</span>
       </div>`;

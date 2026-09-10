@@ -1,3 +1,4 @@
+import * as F from '../format.js';
 /**
  * Settings: one page, sectioned by a tab strip. Each section is its own
  * region, replaced wholesale when the tab changes.
@@ -5,7 +6,7 @@
 import * as E from '../engine.js';
 import * as T from '../transfer.js';
 import { app, view, pendingImport } from '../app.js';
-import { html, raw, money, fill, numberField } from '../render/dom.js';
+import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller } from '../render/components.js';
 
@@ -62,7 +63,7 @@ function renderOverview() {
   const year = new Date().getFullYear();
   const rates = countries.map((c) => E.yearRecord(c.byYear, year).rate);
   const range = rates.length
-    ? `${money(Math.min(...rates))}–${money(Math.max(...rates))}`
+    ? `${F.money(Math.min(...rates))}–${F.money(Math.max(...rates))}`
     : '—';
 
   const since = app.GENERAL.lastExportAt

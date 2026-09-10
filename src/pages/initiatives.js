@@ -1,10 +1,11 @@
+import * as F from '../format.js';
 /**
  * Initiatives: the sortable, filterable registry of every initiative.
  */
 import * as E from '../engine.js';
 import { PROCESS } from '../process.js';
 import { app, view, STATUS_LABELS } from '../app.js';
-import { html, raw, money, fill } from '../render/dom.js';
+import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, sortHeader } from '../render/components.js';
 
@@ -78,7 +79,7 @@ export function renderInitiatives() {
           </select>
         </td>
         <td>${row.band ? row.band.name : 'Not yet known'}</td>
-        <td class="num">${money(row.total)}
+        <td class="num">${F.money(row.total)}
           <span class="micro">${row.coverage}</span></td>
         <td class="cell--action">
           <button type="button" class="btn--small" data-act="duplicate-initiative"

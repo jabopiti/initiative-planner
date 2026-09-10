@@ -1,3 +1,4 @@
+import * as F from '../format.js';
 /**
  * Initiative detail: stepper, gate, phase panels, month-by-month and the
  * per-gate comparison.
@@ -6,7 +7,7 @@ import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
 import { app, view, navigate, STATUS_LABELS, today } from '../app.js';
-import { html, raw, money, fill, numberField } from '../render/dom.js';
+import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, badge } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
@@ -206,7 +207,7 @@ export function bandPanelMarkup(initiative) {
 
   return html`<div class="panel">
     <h2>Approval track</h2>
-    <p class="results"><strong>${money(total)}</strong>
+    <p class="results"><strong>${F.money(total)}</strong>
       ${raw(badge(E.initiativeCoverage(initiative), 'info'))}
       — ${band ? band.name : 'Not yet known'}</p>
     <p class="muted">${band ? band.req : 'No configured approval track covers this total.'}</p>
@@ -220,7 +221,7 @@ export function bandPanelMarkup(initiative) {
       ? html`<p class="${move === 'escalation' ? 'warn' : 'muted'}">
           ${variance === 0
             ? 'Unchanged since the last approval.'
-            : html`${variance > 0 ? 'Up' : 'Down'} ${money(Math.abs(variance))} since
+            : html`${variance > 0 ? 'Up' : 'Down'} ${F.money(Math.abs(variance))} since
                 ${passed.band ? passed.band.name : 'the last approval'} was approved.`}
           ${raw(move === 'escalation'
             ? html`<strong>${raw(icon('warning', 'icon--lead'))}This now needs a stricter approval
@@ -285,16 +286,16 @@ function monthTableMarkup(initiative) {
           const inPeriod = E.phaseMonths(phase).includes(month);
           const gap = inPeriod && actual === undefined && estimate > 0;
 
-          return html`<td class="num">${estimate ? money(estimate) : '—'}</td>
+          return html`<td class="num">${estimate ? F.money(estimate) : '—'}</td>
             <td class="num ${gap ? 'cell--gap' : ''}">${raw(locked || !inPeriod
-              ? actual === undefined ? '—' : money(actual)
+              ? actual === undefined ? '—' : F.money(actual)
               : numberField({
                   value: actual ?? '',
                   'data-act': 'actual-month',
                   'data-id': initiative.id,
                   'data-phase': phaseId,
                   'data-month': month,
-                  'aria-label': `${E.phaseLabel(PROCESS, phaseId)} actual for ${month}`,
+                  'aria-label': `${E.phaseLabel(PROCESS, phaseId)} actual for ${F.month(month)}`,
                   placeholder: 'not recorded',
                   extraClass: 'field--money',
                 }))}</td>`;
@@ -302,9 +303,9 @@ function monthTableMarkup(initiative) {
         .join('');
 
       return html`<tr class="${month === now ? 'row--now' : ''}">
-        <td>${month} ${raw(month === now ? badge('now', 'accent') : '')}</td>
+        <td>${F.month(month)} ${raw(month === now ? badge('now', 'accent') : '')}</td>
         ${raw(cells)}
-        <td class="num" data-calc="blended-${month}"><strong>${money(blended)}</strong></td>
+        <td class="num" data-calc="blended-${F.month(month)}"><strong>${F.money(blended)}</strong></td>
       </tr>`;
     })
     .join('');
@@ -367,9 +368,9 @@ function gateComparisonMarkup(initiative) {
           ? badge('skipped', 'warn', 'skip') + html`<span class="micro">${entry.record.reason}</span>`
           : html`${row[1]}`)}</td>
         <td>${row[2]}</td>
-        ${raw(costed.map((id, i) => html`<td class="num">${money(row[3 + i])}</td>`).join(''))}
+        ${raw(costed.map((id, i) => html`<td class="num">${F.money(row[3 + i])}</td>`).join(''))}
         <td>${row[3 + costed.length]}</td>
-        <td class="num"><strong>${money(row[4 + costed.length])}</strong></td>
+        <td class="num"><strong>${F.money(row[4 + costed.length])}</strong></td>
       </tr>`;
     })
     .join('');

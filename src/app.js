@@ -1,3 +1,4 @@
+import * as F from './format.js';
 /**
  * Render layer: view state, the single dispatch, and global wiring.
  *
@@ -21,7 +22,7 @@ import * as P from './people.js';
 import * as store from './store.js';
 import { PROCESS } from './process.js';
 
-import { html, raw, money, fill, readNumber } from './render/dom.js';
+import { html, raw, fill } from './render/dom.js';
 import { SPRITE, icon } from './render/icons.js';
 import { TABLES } from './render/tables.js';
 import { chartYear } from './render/charts.js';
@@ -431,7 +432,7 @@ function refreshCalcRegions(initiative) {
 
       const figures = E.allocationFigures(phase, allocation.personId, allocation.allocationPct, at);
       if (days) days.textContent = figures.personDays.toFixed(1);
-      if (cost) cost.textContent = money(figures.cost);
+      if (cost) cost.textContent = F.money(figures.cost);
     }
 
     const total = document.querySelector(`[data-calc="total-${phaseId}"]`);
@@ -441,8 +442,8 @@ function refreshCalcRegions(initiative) {
   // Blended monthly figures share a table with the actual inputs, so they are
   // written cell by cell rather than rebuilt.
   for (const month of E.initiativeMonths(initiative)) {
-    const cell = document.querySelector(`[data-calc="blended-${month}"]`);
-    if (cell) fill(cell, html`<strong>${money(E.initiativeCostInMonth(initiative, app, month))}</strong>`);
+    const cell = document.querySelector(`[data-calc="blended-${F.month(month)}"]`);
+    if (cell) fill(cell, html`<strong>${F.money(E.initiativeCostInMonth(initiative, app, month))}</strong>`);
   }
 
   // These hold no inputs, so they are safe to rebuild whole — and have to be:
@@ -478,27 +479,27 @@ function onInput(event) {
 
   if (act === 'role-field') {
     const role = app.ROLES[id];
-    role[field] = field === 'factor' ? readNumber(target.value, role.factor) : target.value;
+    role[field] = field === 'factor' ? F.readNumber(target.value, role.factor) : target.value;
   } else if (act === 'country-field') {
     app.COUNTRIES[id][field] = target.value;
   } else if (act === 'country-rate') {
     const record = app.COUNTRIES[id].byYear[target.dataset.year];
-    record.rate = readNumber(target.value, record.rate);
+    record.rate = F.readNumber(target.value, record.rate);
   } else if (act === 'country-reduction') {
     const record = app.COUNTRIES[id].byYear[target.dataset.year];
-    record.workingDayReduction[Number(target.dataset.month)] = readNumber(target.value, 0);
+    record.workingDayReduction[Number(target.dataset.month)] = F.readNumber(target.value, 0);
   } else if (act === 'person-field') {
     const person = app.PEOPLE[id];
-    person[field] = field === 'capacityPct' ? readNumber(target.value, person.capacityPct) : target.value;
+    person[field] = field === 'capacityPct' ? F.readNumber(target.value, person.capacityPct) : target.value;
   } else if (act === 'person-custom-label') {
     app.PEOPLE[id].customRole.label = target.value;
   } else if (act === 'person-rate') {
-    P.setCustomRate(app.PEOPLE[id], target.dataset.year, readNumber(target.value, 0));
+    P.setCustomRate(app.PEOPLE[id], target.dataset.year, F.readNumber(target.value, 0));
   } else if (act === 'membership-share') {
     const person = app.PEOPLE[id];
     const team = target.dataset.team;
     const current = person.memberships.find((m) => m.teamId === team);
-    P.setMembershipShare(person, team, readNumber(target.value, current.sharePct));
+    P.setMembershipShare(person, team, F.readNumber(target.value, current.sharePct));
   } else if (act === 'people-filter' || act === 'initiatives-filter') {
     // Search is the one filter that must react per keystroke, and filtering
     // rebuilds the table the box sits above. Re-render, then put the caret
@@ -531,7 +532,7 @@ function onInput(event) {
     const current = initiative.phases[phaseId].allocations
       .find((a) => a.personId === target.dataset.person);
     L.setAllocation(app, initiative, phaseId, target.dataset.person,
-      readNumber(target.value, current.allocationPct));
+      F.readNumber(target.value, current.allocationPct));
     commitQuietly();
     return refreshCalcRegions(initiative);
   } else if (act === 'actual-month') {
@@ -539,7 +540,7 @@ function onInput(event) {
     const phaseId = target.dataset.phase;
     const raw = target.value.trim();
     L.recordActual(initiative, phaseId, target.dataset.month,
-      raw === '' ? null : readNumber(raw, 0));
+      raw === '' ? null : F.readNumber(raw, 0));
     commitQuietly();
     // Recording an actual moves the blended figures, not the structure.
     return refreshCalcRegions(initiative);
@@ -554,7 +555,7 @@ function onInput(event) {
   } else if (act === 'team-name') {
     P.renameTeam(app.TEAMS[id], target.value);
   } else if (act === 'general-field') {
-    app.GENERAL[field] = readNumber(target.value, app.GENERAL.exportReminderDays);
+    app.GENERAL[field] = F.readNumber(target.value, app.GENERAL.exportReminderDays);
   } else {
     return;
   }
@@ -750,7 +751,7 @@ function onClick(event) {
       const monthEl = document.querySelector(`[data-act="new-cost-month"][data-phase="${phaseId}"]`);
       const amountEl = document.querySelector(`[data-act="new-cost-amount"][data-phase="${phaseId}"]`);
       const month = monthEl instanceof HTMLInputElement ? monthEl.value : '';
-      const amount = amountEl instanceof HTMLInputElement ? readNumber(amountEl.value, 0) : 0;
+      const amount = amountEl instanceof HTMLInputElement ? F.readNumber(amountEl.value, 0) : 0;
       if (!month || !amount) return undefined;
       L.addOtherCost(initiative, phaseId, { name: 'New cost', month, amount });
       return commit();

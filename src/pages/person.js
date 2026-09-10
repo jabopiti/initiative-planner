@@ -1,3 +1,4 @@
+import * as F from '../format.js';
 /**
  * Person detail: identity and rate, team memberships, initiatives and
  * capacity over time.
@@ -209,7 +210,7 @@ function personCapacity(person, months) {
   const body = rows
     .map(
       (row) => html`<tr class="${row.overAllocated ? 'row--warn' : ''}">
-        <td>${row.month}</td>
+        <td>${F.month(row.month)}</td>
         <td class="num ${row.overAllocated ? 'over' : ''}">${row.allocatedPct}%${raw(
           row.overAllocated ? icon('warning', 'icon--lead') : '')}</td>
         <td class="num">${row.capacityPct}%</td>

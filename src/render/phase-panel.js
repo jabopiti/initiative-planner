@@ -1,3 +1,4 @@
+import * as F from '../format.js';
 /**
  * The per-phase estimate panel and its totals, shared by the creation wizard
  * and initiative detail so the two can never drift apart (DESIGN §2).
@@ -6,7 +7,7 @@ import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
 import { app } from '../app.js';
-import { html, raw, money, numberField } from './dom.js';
+import { html, raw, numberField } from './dom.js';
 import { icon } from './icons.js';
 import { scroller, empty, badge } from './components.js';
 import { TABLES, tableActions } from './tables.js';
@@ -62,7 +63,7 @@ function phasePanel(initiative, phaseId, editable) {
           : '')}</td>
         <td>${E.roleLabel(person, app.ROLES)}</td>
         <td>${app.COUNTRIES[person.countryId]?.name ?? ''}</td>
-        <td class="num">${money(dayRate)}</td>
+        <td class="num">${F.money(dayRate)}</td>
         <td class="num">${factor.toFixed(2)}</td>
         <td>${raw(editable
           ? numberField({
@@ -78,7 +79,7 @@ function phasePanel(initiative, phaseId, editable) {
         <td class="num" data-calc="days-${phaseId}-${person.id}">
           ${figures.personDays.toFixed(1)}</td>
         <td class="num" data-calc="cost-${phaseId}-${person.id}">
-          ${money(figures.cost)}</td>
+          ${F.money(figures.cost)}</td>
         <td class="cell--action">${raw(editable
           ? html`<button type="button" class="btn--small" data-act="allocation-remove"
               data-id="${initiative.id}" data-phase="${phaseId}" data-person="${person.id}"
@@ -102,7 +103,7 @@ function phasePanel(initiative, phaseId, editable) {
         <td>${item.month} ${raw(outOfPeriod
           ? badge('out of period', 'warn', 'warning')
           : '')}</td>
-        <td class="num">${money(item.amount)}</td>
+        <td class="num">${F.money(item.amount)}</td>
         <td class="cell--action">${raw(editable
           ? html`<button type="button" class="btn--small" data-act="cost-remove"
               data-id="${initiative.id}" data-phase="${phaseId}" data-cost="${item.id}"
@@ -204,8 +205,8 @@ export function phaseTotalsMarkup(initiative, phaseId) {
   const labour = E.phaseLabourTotal(phase, app);
   const other = E.phaseOtherTotal(phase);
 
-  return html`Labour ${money(labour)} + other ${money(other)} =
-    <strong>${money(labour + other)}</strong> ${raw(E.isFrozen(phase)
+  return html`Labour ${F.money(labour)} + other ${F.money(other)} =
+    <strong>${F.money(labour + other)}</strong> ${raw(E.isFrozen(phase)
       ? badge('as approved', 'ok')
       : '')}`;
 }
@@ -215,7 +216,7 @@ export function grandMarkup(initiative) {
   const total = E.grandTotal(initiative, app);
   const band = E.resolveBand(PROCESS.bands, total);
   const coverage = E.initiativeCoverage(initiative);
-  return html`<strong>${money(total)}</strong>
+  return html`<strong>${F.money(total)}</strong>
     ${raw(badge(coverage, 'info'))}
     — ${band ? band.name : 'Not yet known'}${raw(band
       ? html`<span class="micro">${band.req}</span>`

@@ -1,3 +1,4 @@
+import * as F from '../format.js';
 /**
  * Portfolio: the read-only cost dashboard across every team.
  */
@@ -5,7 +6,7 @@ import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
 import { app, view, STATUS_LABELS } from '../app.js';
-import { html, raw, money, fill } from '../render/dom.js';
+import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, sortHeader } from '../render/components.js';
 import { chartYear, monthsOfYear, yearNav, stackedBarsMarkup } from '../render/charts.js';
@@ -69,7 +70,7 @@ export function renderPortfolio() {
         class="tile tile--action ${selected === group.id ? 'tile--on' : ''}"
         data-act="portfolio-tile" data-band="${group.id}"
         aria-pressed="${selected === group.id}">
-        <span class="tile__value">${money(group.total)}</span>
+        <span class="tile__value">${F.money(group.total)}</span>
         <span class="tile__label">${group.name}</span>
         <span class="tile__note">${group.count} initiative${group.count === 1 ? '' : 's'}</span>
       </button>`,
@@ -105,12 +106,12 @@ export function renderPortfolio() {
         <td>${STATUS_LABELS[r.initiative.status]}</td>
         <td>${r.period.start ? `${r.period.start} → ${r.period.end ?? '?'}` : '—'}</td>
         <td>${r.band ? r.band.name : 'Not yet known'}</td>
-        <td class="num">${r.approved === null ? '—' : money(r.approved)}</td>
-        <td class="num">${money(r.effective)}
+        <td class="num">${r.approved === null ? '—' : F.money(r.approved)}</td>
+        <td class="num">${F.money(r.effective)}
           <span class="micro">${E.initiativeCoverage(r.initiative)}</span></td>
         <td class="num ${r.variance > 0 ? 'over' : ''}">${r.variance === null
           ? '—'
-          : `${r.variance > 0 ? '+' : ''}${money(r.variance)}`}</td>
+          : `${r.variance > 0 ? '+' : ''}${F.money(r.variance)}`}</td>
       </tr>`,
     )
     .join('');
@@ -130,12 +131,12 @@ export function renderPortfolio() {
         ? html`<p class="muted actions">${raw(icon('filter', 'icon--lead'))}Filtered to
             ${groups.find((g) => g.id === selected)?.name}.
             <button type="button" class="link" data-act="portfolio-tile"
-              data-band="${selected}">Clear</button></p>`
+              data-band="${F.month(selected)}">Clear</button></p>`
         : '')}
 
       <div class="panel">
         <h2>Cost per month</h2>
-        ${raw(yearNav(`${money(yearTotal)} across ${chartYear()}, active initiatives only.`))}
+        ${raw(yearNav(`${F.money(yearTotal)} across ${chartYear()}, active initiatives only.`))}
         ${raw(yearTotal === 0
           ? empty('No active initiative costs anything in this year.', { icon: 'warning' })
           : stackedBarsMarkup(data))}

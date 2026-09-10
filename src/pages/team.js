@@ -1,3 +1,4 @@
+import * as F from '../format.js';
 /**
  * Team detail: roster, initiatives, capacity grid and run rate.
  */
@@ -5,7 +6,7 @@ import * as E from '../engine.js';
 import * as P from '../people.js';
 import { PROCESS } from '../process.js';
 import { app, view, navigate } from '../app.js';
-import { html, raw, money, fill, numberField } from '../render/dom.js';
+import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, badge } from '../render/components.js';
 import { chartYear, monthsOfYear, yearNav, stackedBarsMarkup } from '../render/charts.js';
@@ -59,7 +60,7 @@ export function renderTeam() {
         <td>${initiative.name}</td>
         <td>${E.phaseLabel(PROCESS, initiative.phaseId)}</td>
         <td>${initiative.status}</td>
-        <td class="num">${money(E.grandTotal(initiative, app))}</td>
+        <td class="num">${F.money(E.grandTotal(initiative, app))}</td>
       </tr>`,
     )
     .join('');
@@ -148,13 +149,13 @@ function capacityGridMarkup(team) {
           return html`<td class="cap ${over ? 'cap--over' : ''} ${allocated ? 'cap--on' : ''}">
             ${raw(allocated
               ? html`<button type="button" class="cap__btn" data-act="capacity-cell"
-                  data-person="${row.person.id}" data-team="${team.id}" data-month="${month}"
-                  title="${row.person.name}, ${month}: ${allocated}% allocated">
+                  data-person="${row.person.id}" data-team="${team.id}" data-month="${F.month(month)}"
+                  title="${row.person.name}, ${F.month(month)}: ${allocated}% allocated">
                   ${allocated}%${raw(over ? icon('warning') : '')}</button>`
               // Focusable so arrow keys can cross it. A sparse grid you
               // cannot traverse is worse than no keyboard support at all.
               : html`<span class="cap__empty" tabindex="-1"
-                  aria-label="${row.person.name}, ${month}, nothing allocated">—</span>`)}
+                  aria-label="${row.person.name}, ${F.month(month)}, nothing allocated">—</span>`)}
           </td>`;
         })
         .join('');
@@ -176,7 +177,7 @@ function capacityGridMarkup(team) {
         (total, row) => total + E.nonInitiativeWorkCost(app, row.person.id, team.id, month),
         0,
       );
-      return html`<td class="cap cap--spare">${pct}%<span class="micro">${money(cost)}</span></td>`;
+      return html`<td class="cap cap--spare">${pct}%<span class="micro">${F.money(cost)}</span></td>`;
     })
     .join('');
 
@@ -219,14 +220,14 @@ export function capacityCellMarkup(personId, teamId, month) {
   // also exactly what an allocation outliving its membership looks like, so
   // say so rather than throwing.
   if (!membership) {
-    return html`<h3>${person.name} — ${month}</h3>
+    return html`<h3>${person.name} — ${F.month(month)}</h3>
       <ul class="popover__list">${raw(items)}</ul>
       <p class="warn">${raw(icon('warning', 'icon--lead'))}${total}% allocated, but this person
         no longer holds an active membership in this team. The work still costs; the share does
         not exist.</p>`;
   }
 
-  return html`<h3>${person.name} — ${month}</h3>
+  return html`<h3>${person.name} — ${F.month(month)}</h3>
     <ul class="popover__list">${raw(items)}</ul>
     <p class="${total > membership.sharePct ? 'warn' : 'muted'}">
       ${total}% of the ${membership.sharePct}% this team holds${raw(total > membership.sharePct
@@ -240,7 +241,7 @@ function runRateMarkup(team) {
 
   return html`<div class="panel">
     <h2>Cost run rate</h2>
-    ${raw(yearNav(`${money(yearTotal)} across ${chartYear()}.`))}
+    ${raw(yearNav(`${F.money(yearTotal)} across ${chartYear()}.`))}
     ${raw(yearTotal === 0
       ? empty('Nothing costs anything in this year yet.', { icon: 'warning' })
       : stackedBarsMarkup(data))}

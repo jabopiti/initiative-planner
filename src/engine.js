@@ -24,11 +24,6 @@ export function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ESCAPES[char]);
 }
 
-/** Format a number as currency for display. */
-export function formatMoney(amount, currency) {
-  const rounded = Math.round(amount ?? 0);
-  return `${currency}${rounded.toLocaleString('en-GB')}`;
-}
 
 /* ------------------------------------------------------------------ *
  * Months and years

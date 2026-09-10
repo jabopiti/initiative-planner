@@ -26,8 +26,8 @@ here — this table is status only.
 | §4.1 Foundation — hash routing | **Landed** |
 | §4.1 Foundation — design system | **Landed** — direction approved by Bo |
 | §4.1 Foundation — adopt Farn's accent/ok hues | **Landed** |
-| §4.1 Foundation — formatting module | Not started — **next** |
-| §4.1 Foundation — interaction patterns | Not started |
+| §4.1 Foundation — formatting module | **Landed** |
+| §4.1 Foundation — interaction patterns | Not started — **next** |
 | §4.2 Entity flows | Not started |
 | §4.3 Settings | Not started |
 | §4.4 Initiative detail | Not started |
@@ -520,6 +520,8 @@ exactly the kind of thing that document exists to carry forward.
 **Formatting.** One module owning money, dates, months and numeric parsing —
 English only, per D6. Every raw ISO string in the UI goes through it, and
 `readNumber` rejects what it cannot parse instead of silently mis-parsing it.
+
+**Landed.** Created `src/format.js` to own `money`, `month`, `date`, and `readNumber`. The `readNumber` function now rejects invalid numbers without silently misparsing (such as commas intended as decimals). Replaced inline ISO strings throughout the codebase with the `format.js` functions.
 
 **Interaction patterns**, built once and applied everywhere:
 

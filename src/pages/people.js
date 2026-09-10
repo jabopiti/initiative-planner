@@ -1,9 +1,10 @@
+import * as F from '../format.js';
 /**
  * People: the sortable, filterable roster across every team.
  */
 import * as E from '../engine.js';
 import { app, view, currentMonth } from '../app.js';
-import { html, raw, money, fill } from '../render/dom.js';
+import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, badge, sortHeader } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
@@ -16,8 +17,8 @@ function monthPicker() {
   const months = E.windowMonths(app);
   const selected = selectedMonth();
   const options = months
-    .map((month) => html`<option value="${month}" ${raw(month === selected ? 'selected' : '')}>
-      ${month}</option>`)
+    .map((month) => html`<option value="${F.month(month)}" ${raw(month === selected ? 'selected' : '')}>
+      ${F.month(month)}</option>`)
     .join('');
   return html`<label class="field-inline">
     <span>Month</span>
@@ -85,7 +86,7 @@ export function renderPeople() {
     const cmp = left < right ? -1 : left > right ? 1 : 0;
     return sort.dir === 'desc' ? -cmp : cmp;
   });
-  TABLES.people = { headers, rows: data.map((entry) => entry.row), name: `people-${month}` };
+  TABLES.people = { headers, rows: data.map((entry) => entry.row), name: `people-${F.month(month)}` };
 
   const sortableHeaders = PEOPLE_COLUMNS.map(
     (c) => sortHeader(c, sort, { 'data-act': 'sort-people' }),
@@ -99,7 +100,7 @@ export function renderPeople() {
           ${raw(entry.person.active ? '' : badge('inactive', 'quiet'))}</td>
         <td>${entry.row[1]} ${raw(entry.person.customRole ? badge('custom rate', 'info') : '')}</td>
         <td>${entry.row[2]}</td>
-        <td class="num">${money(entry.row[3])}</td>
+        <td class="num">${F.money(entry.row[3])}</td>
         <td class="num">${entry.person.capacityPct}%</td>
         <td>${entry.row[5]}</td>
         <td class="num">${entry.allocated}%</td>
@@ -154,7 +155,7 @@ export function renderPeople() {
           <span>Show inactive</span></label>
       </div>
       ${raw(data.length
-        ? scroller(`People in ${month}`, html`<table class="grid">
+        ? scroller(`People in ${F.month(month)}`, html`<table class="grid">
             <thead><tr>${raw(sortableHeaders)}<th></th></tr></thead>
             <tbody>${raw(rows)}</tbody>
           </table>`) + tableActions('people', 'table')

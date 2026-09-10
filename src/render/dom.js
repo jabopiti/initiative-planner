@@ -4,7 +4,7 @@
  * pattern AGENTS.md requires (a text input, never `type="number"`).
  */
 import * as E from '../engine.js';
-import { PROCESS } from '../process.js';
+
 
 /**
  * Tagged template that escapes every interpolation. Using this rather than
@@ -31,11 +31,6 @@ export function raw(value) {
   return { __raw: true, value };
 }
 
-/** The currency is fixed by the build, so this needs no argument. */
-export function money(value) {
-  return E.formatMoney(value, PROCESS.currency);
-}
-
 /** Replace a region's contents. The only place innerHTML is assigned. */
 export function fill(target, markup) {
   const node = typeof target === 'string' ? document.getElementById(target) : target;
@@ -55,10 +50,4 @@ export function numberField(attrs) {
   return html`<input type="text" inputmode="numeric"
     class="field field--num ${extraClass}"
     value="${value ?? ''}" ${raw(pairs)} />`;
-}
-
-/** Parse a numeric field, treating anything unparseable as unchanged. */
-export function readNumber(input, fallback = 0) {
-  const parsed = Number(String(input).replace(/[^0-9.-]/g, ''));
-  return Number.isFinite(parsed) ? parsed : fallback;
 }

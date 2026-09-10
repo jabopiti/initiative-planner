@@ -1,9 +1,10 @@
+import * as F from '../format.js';
 /**
  * Process: the read-only reference for phases, gates and approval tracks.
  */
 import * as E from '../engine.js';
 import { PROCESS } from '../process.js';
-import { html, raw, money, fill } from '../render/dom.js';
+import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, badge } from '../render/components.js';
 
@@ -44,10 +45,10 @@ export function renderProcessPage() {
     .map(
       (band) => html`<tr>
         <td>${band.name} ${raw(badge(band.abbr, 'neutral'))}</td>
-        <td class="num">${money(band.lower)}</td>
+        <td class="num">${F.money(band.lower)}</td>
         <td class="num">${band.upper === null
           ? 'no limit'
-          : money(band.upper)}</td>
+          : F.money(band.upper)}</td>
         <td class="num">${band.severity}</td>
         <td class="cell--wrap">${band.req}</td>
       </tr>`,
@@ -61,8 +62,8 @@ export function renderProcessPage() {
           .map((issue) =>
             issue.type === 'gap'
               ? html`<p class="warn">${raw(icon('warning', 'icon--lead'))}Gap: nothing covers
-                  ${money(issue.from)} to
-                  ${money(issue.to)}. A total landing there
+                  ${F.money(issue.from)} to
+                  ${F.money(issue.to)}. A total landing there
                   resolves to “Not yet known”.</p>`
               : html`<p class="warn">${raw(icon('warning', 'icon--lead'))}Overlap:
                   ${issue.message ?? 'two tracks cover the same amounts'}.</p>`,
