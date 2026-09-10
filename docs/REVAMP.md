@@ -24,8 +24,9 @@ here — this table is status only.
 | Silent-write bug (§4.7, first half) | **Landed** — `ae327ab` |
 | §4.1 Foundation — split `app.js` | **Landed** |
 | §4.1 Foundation — hash routing | **Landed** |
-| §4.1 Foundation — design system | **Landed** — awaiting aesthetic sign-off |
-| §4.1 Foundation — formatting module | Not started — **next** |
+| §4.1 Foundation — design system | **Landed** — direction approved by Bo |
+| §4.1 Foundation — adopt Farn's accent/ok hues | Not started — **next** |
+| §4.1 Foundation — formatting module | Not started |
 | §4.1 Foundation — interaction patterns | Not started |
 | §4.2 Entity flows | Not started |
 | §4.3 Settings | Not started |
@@ -34,6 +35,8 @@ here — this table is status only.
 | §4.6 Copy, states, first run, accessibility | Not started |
 | §4.7 File System Access persistence | Not started |
 | §4.8 Brand pack | Not started |
+| D3 — drop CSV, keep Copy | Not started — independent, land whenever |
+| D9 — rolling four-year window recompute | Not started — independent, land whenever |
 
 **How this gets built.** Sonnet 5 at `xhigh` effort is the default — the plan
 below is specified enough to carry it, and it is 2.5x cheaper than Opus 5.
@@ -82,6 +85,26 @@ decision.
 **D2 caveat.** A stranded allocation warns because it keeps costing (SPEC
 §5.2). A 0% allocation costs nothing and must not warn.
 
+**Two settled decisions had no row.** A pass to bring this document current
+(prompted by the Farn-hues addition above) found D3 and D9 fully decided but
+never scheduled anywhere in §4 or §0's table — an oversight in the original
+plan, not a change of mind. Both are engine/data or shared-component work
+with no dependency on the design system, formatting, or interaction-patterns
+rows, so both are addable to §0's table as independent, land-whenever rows
+rather than slotted into a specific §4.x section:
+
+- **D3 — drop CSV, keep Copy.** Remove the "Download CSV" button `tableActions()`
+  renders beside every table, and the `downloadCsv`/`toCsv` code path behind
+  it in `store.js`/`transfer.js` once nothing calls it. Edit SPEC §8, which
+  currently mandates CSV, in the same commit (AGENTS.md: a doc describing
+  behaviour the code doesn't have gets fixed in the commit that changes the
+  behaviour).
+- **D9 — the rolling four-year window recompute.** `store.load()` returns
+  stored data verbatim; DESIGN §2 says the window should extend forward on
+  load, seeding a new year from the nearest existing one. Touches
+  `store.js`'s `load()` and `masterData.js`'s `trackedYears()` (or wherever
+  the equivalent lives once this is built) — no render files.
+
 ---
 
 ## 2. What a full read of the code turned up
@@ -91,6 +114,10 @@ came first. Reading the whole app against it found four things the notes never
 reached — and one of them is a straight functional gap.
 
 ### 2.1 Reachability and shape
+
+**Resolved, all five findings below — hash routing and the design system row
+between them.** Left in place for the reasoning, which is still why each fix
+looks the way it does; nothing here still describes current behaviour.
 
 **No URL routing, and no history.** `view` is a module variable. Reloading
 always lands on Portfolio, an initiative cannot be bookmarked or linked, and
@@ -219,19 +246,21 @@ show you work you then cannot click through to. The initiative detail names
 its team in a muted line that is not a link either. Clickability is not just a
 table-row question — it is every cross-reference in the app.
 
-**Tables have no sticky headers.** The capacity grid is thirteen columns, and
-the month-by-month table scrolls inside a 28rem box. Scroll either and the
-column meanings are gone. This sits directly under the review's "input
-patterns for tables need to be much better".
+**Tables have no sticky headers — resolved by the design system row**, for
+whichever tables scroll vertically inside their own box; the design-direction
+doc's "what a wide table does" section also gave every wide table a frozen
+first column, which the original finding didn't ask for but solves the same
+problem sideways. What is *not* resolved: a discoverable hint for the
+arrow-key grid navigation two findings down — still open, still §4.1
+interaction patterns.
 
-**`.tag` means at least seven different things** — custom rate, no longer in
-this team, out of period, now, skipped, costed, band abbreviation. One visual
-treatment carrying seven semantics is a large part of why the review found
-hierarchy hard to read. The component set in §4.1 needs distinct badge kinds
-with distinct meanings.
+**`.tag` means at least seven different things — resolved by the design
+system row.** Badges now come in kinds (neutral, accent, info, ok, warn,
+danger, quiet) and each call site says which it means.
 
-**The `⚠` character is used as the warning marker** in several places, which
-renders differently on every platform and will not survive an icon system.
+**The `⚠` character is used as the warning marker — resolved by the design
+system row.** Gone from every page; the `warning` glyph in
+`src/render/icons.js`'s sprite replaced it everywhere.
 
 **Arrow-key traversal of table cells exists and is undiscoverable.**
 `onTableKeydown` implements grid navigation, including correct caret-boundary
@@ -429,6 +458,63 @@ under real keyboard input, and the frozen column holding its position while the
 rest of the table scrolls past it. Screenshots are in `design-review/`
 (gitignored).
 
+**Adopt Farn's accent and semantic hues.** Not one of the row's original five
+— inserted after Bo reviewed the design system directly against
+[farn.jbpt.de](https://farn.jbpt.de), his own design system, and asked to pull
+its colour theme in without adopting the whole thing (typography and icon
+style stay as `REVAMP-design-direction.md` already has them — see the
+comparison below for why). A CSS-only change: every token keeps its name and
+role, only the hue moves. No page, no markup, nothing outside `:root` and its
+theme blocks.
+
+Farn's palette was pulled via the `farn-painter` skill and converted to HSL to
+compare hue-for-hue against ours (`hsl()` throughout, so the two are directly
+comparable):
+
+| Role | Ours today | Farn | Landing hue |
+|---|---|---|---|
+| Accent (`--brand-hue`) | 232 (blue) | fern `#327A59` / glade `#94C5AF` → hue ~153 | **153** |
+| Ok (`--color-ok`) | 152 (near-identical to Farn's *accent*, not its ok) | moss `#567A37` → hue ~92 | **92** |
+| Danger (`--color-danger`) | 354 | ember `#C5414C` → hue ~355 | **355** (rounds off an already-close match) |
+| Warn (`--color-amber`) | 38 | grain `#8D6B20` → hue ~41 | **41** (same) |
+| Neutral ramp (canvas/surface/fg/line) | 220 (cool blue-grey) | Birch Mist (light, warm, ~45°) / Iron Night (dark, ~216-220°, already close to ours) | **unchanged** — Bo's call; see below |
+| Chart palette | six-hue cycle + spare | — | **unchanged** — a data-encoding concern per `dataviz`, not a brand-colour one (also stated in the direction doc) |
+
+Two decisions Bo made directly rather than me picking:
+
+- **The neutral ramp stays at 220 (our current cool blue-grey).** Farn's own
+  dark neutrals already sit at hue ~216-220 — essentially the same family —
+  so the only place adopting Farn's neutrals would have changed anything is
+  the *light* theme, where Farn runs warm sand/paper (~45°) against our cool
+  blue-grey. Bo chose to keep the cool tone rather than take on that warmth.
+- **Ok moves to Farn's moss hue (92°), not fern's hue.** Farn itself uses two
+  different greens for two different ideas — forest (~153°) for its
+  accent/interactive colour, moss (~92°, more olive) for success — and our ok
+  token happened to already sit at 152°, a near-collision with the *new*
+  accent hue. Moving ok to 92° keeps "this is selected/current" (accent) and
+  "this is approved/passed" (ok) visually distinct, the same separation Farn
+  itself maintains.
+
+Two colours in Farn's semantic set have no home here and are left out rather
+than force-fit: `ochre` (Farn calls it "annotation") and `heather`
+("uncommon/highlight") — our token model has no annotation or highlight role
+for either to become. If a later row invents one, these are the values to
+reach for first.
+
+**Implementation note for whoever picks this up:** keep our own
+saturation/lightness formulas (the ones already contrast-checked against our
+buttons, tints and focus states in the design-system row) and swap only the
+hue variables above — do not lift Farn's exact HSL/hex values wholesale, since
+those were tuned against Farn's own typography and components, not ours. Swapping
+hue while holding saturation/lightness constant can still read more saturated
+than the source (green tends to look more vivid than blue at the same
+mathematical saturation) — check the accent specifically in a real browser
+once it's in, and dial back saturation or lightness slightly if it reads as
+neon rather than forest-green. Update the "Colour roles" section of
+`docs/REVAMP-design-direction.md` with the new hues and the reasoning above,
+the same way the design-system row documented its original choices — this is
+exactly the kind of thing that document exists to carry forward.
+
 **Formatting.** One module owning money, dates, months and numeric parsing —
 English only, per D6. Every raw ISO string in the UI goes through it, and
 `readNumber` rejects what it cannot parse instead of silently mis-parsing it.
@@ -604,7 +690,7 @@ the actual test of "good out of the box".
 §4.7 silent-write bug — landed already, alone, ahead of everything else
    ↓
 §4.1 Foundation
-     split app.js → routing → design system → formatting → patterns
+     split app.js → routing → design system → Farn hues → formatting → patterns
    ↓
 §4.2 Entity flows     §4.3 Settings      §4.7 Storage (independent)
    ↓
