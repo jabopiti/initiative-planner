@@ -13,6 +13,8 @@ import { pageHead, scroller, empty, badge } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
 
 export function renderPerson() {
+  if (view.params.id === 'new') return renderPersonDraft();
+
   const person = app.PEOPLE[view.params.id];
   if (!person) return navigate('people');
 
@@ -35,6 +37,54 @@ export function renderPerson() {
       <div class="panel">${raw(personTeams(person, warning, stranded))}</div>
       <div class="panel">${raw(personInitiativesPanel(person, stranded))}</div>
       <div class="panel">${raw(personCapacity(person, months))}</div>`,
+  );
+}
+
+/**
+ * A person is not created until Save — Cancel leaves nothing behind (D1).
+ * Country and role are offered up front, same as the wizard offers team and
+ * starting phase, so the rate is right from the first save rather than
+ * needing a second visit; both already default sensibly if left alone.
+ */
+function renderPersonDraft() {
+  const draft = view.params.draft ?? {};
+  const countryId = draft.countryId ?? Object.keys(app.COUNTRIES)[0];
+  const roleId = draft.roleId ?? Object.keys(app.ROLES)[0];
+
+  const countryOptions = Object.values(app.COUNTRIES)
+    .filter((c) => c.active)
+    .map((c) => html`<option value="${c.id}" ${raw(c.id === countryId ? 'selected' : '')}>
+      ${c.name}</option>`)
+    .join('');
+  const roleOptions = Object.values(app.ROLES)
+    .filter((r) => r.active)
+    .map((r) => html`<option value="${r.id}" ${raw(r.id === roleId ? 'selected' : '')}>
+      ${r.name}</option>`)
+    .join('');
+
+  fill(
+    'root',
+    html`${raw(pageHead({ title: 'New person', back: { page: 'people', label: 'People' } }))}
+      <div class="panel">
+        <div class="fields">
+          <label class="field-row"><span>Name</span>
+            <input class="field" data-act="person-draft-field" data-field="name"
+              value="${draft.name ?? ''}" placeholder="Who is it?" autofocus /></label>
+          <label class="field-row"><span>Country</span>
+            <select class="field field--select" data-act="person-draft-select"
+              data-field="countryId">${raw(countryOptions)}</select></label>
+          <label class="field-row"><span>Role</span>
+            <select class="field field--select" data-act="person-draft-select"
+              data-field="roleId">${raw(roleOptions)}</select></label>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn--primary" data-act="person-draft-create"
+            ${raw((draft.name ?? '').trim() ? '' : 'disabled')}
+            >${raw(icon('add'))}Create person</button>
+          <button type="button" class="btn" data-act="person-draft-discard">Cancel</button>
+        </div>
+        ${raw((draft.name ?? '').trim() ? '' : html`<p class="muted">A name is needed first.</p>`)}
+      </div>`,
   );
 }
 

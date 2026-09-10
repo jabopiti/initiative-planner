@@ -12,6 +12,8 @@ import { pageHead, scroller, empty, badge } from '../render/components.js';
 import { chartYear, monthsOfYear, yearNav, stackedBarsMarkup } from '../render/charts.js';
 
 export function renderTeam() {
+  if (view.params.id === 'new') return renderTeamDraft();
+
   const team = app.TEAMS[view.params.id];
   if (!team) return navigate('teams');
 
@@ -119,6 +121,33 @@ export function renderTeam() {
 
       ${raw(capacityGridMarkup(team))}
       ${raw(runRateMarkup(team))}`,
+  );
+}
+
+/**
+ * A team is not created until Save — Cancel leaves nothing behind. Name is
+ * the only field createTeam() takes, so it's the only one here (D1).
+ */
+function renderTeamDraft() {
+  const draft = view.params.draft ?? {};
+
+  fill(
+    'root',
+    html`${raw(pageHead({ title: 'New team', back: { page: 'teams', label: 'Teams' } }))}
+      <div class="panel">
+        <div class="fields">
+          <label class="field-row"><span>Team name</span>
+            <input class="field" data-act="team-draft-field" data-field="name"
+              value="${draft.name ?? ''}" placeholder="What is it called?" autofocus /></label>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn btn--primary" data-act="team-draft-create"
+            ${raw((draft.name ?? '').trim() ? '' : 'disabled')}
+            >${raw(icon('add'))}Create team</button>
+          <button type="button" class="btn" data-act="team-draft-discard">Cancel</button>
+        </div>
+        ${raw((draft.name ?? '').trim() ? '' : html`<p class="muted">A name is needed first.</p>`)}
+      </div>`,
   );
 }
 

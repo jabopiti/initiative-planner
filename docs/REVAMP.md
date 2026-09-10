@@ -28,8 +28,8 @@ here — this table is status only.
 | §4.1 Foundation — adopt Farn's accent/ok hues | **Landed** |
 | §4.1 Foundation — formatting module | **Landed** |
 | §4.1 Foundation — interaction patterns | **Landed** |
-| §4.2 Entity flows | Not started — **next** |
-| §4.3 Settings | Not started |
+| §4.2 Entity flows | **Landed** |
+| §4.3 Settings | Not started — **next** |
 | §4.4 Initiative detail | Not started |
 | §4.5 Overviews, capacity, charts | Not started |
 | §4.6 Copy, states, first run, accessibility | Not started |
@@ -583,6 +583,34 @@ only, never a literal.
 Applying §4.1 to the create and edit paths for people, teams, roles,
 countries and memberships — where D1 becomes real behaviour, and where the
 review's "a person is just created with no chance to cancel" is answered.
+
+**Landed.** Roles, countries and memberships already got D1's other half —
+inline row-add with immediate creation — from the interaction-patterns row,
+so what was left here was specifically person and team creation, which
+still called `createPerson`/`createTeam` immediately on clicking "New
+person" / "New team" and navigated straight to the new record's detail
+page. Both now open a draft screen at `#/person/new` / `#/team/new` —
+`view.params.id === 'new'` is checked before the real-record lookup in
+`renderPerson`/`renderTeam`, the same sentinel the inline-add rows already
+use for "not a record yet." Nothing is created until "Create person" /
+"Create team"; "Cancel" discards the in-memory draft and returns to the
+overview with nothing persisted. The person draft also offers Country and
+Role up front — the same level of investment as the wizard's Team and
+Starting phase — so the rate is right from the first save; both default to
+the first active entry if left alone, matching `createPerson`'s own
+defaults. Team's only field is Name, matching `createTeam`'s signature.
+
+Unlike the wizard's draft, these live only in `view.params.draft` — no
+`localStorage` persistence. Losing an unsaved name on a reload is a small
+loss for a single-field form, and reusing the wizard's single global draft
+key would have meant generalizing it to three entities for a resumability
+guarantee this row doesn't need.
+
+Verified in a real browser against `examples/exports/demo.json`: opened
+each draft, confirmed "Create" starts disabled and enables on a name,
+confirmed Cancel leaves the stored dataset's `PEOPLE`/`TEAMS` counts
+unchanged, and confirmed a completed create lands on the new record with
+the chosen country/role (person) or name (team) actually persisted.
 
 ### 4.3 Settings
 

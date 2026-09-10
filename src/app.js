@@ -599,6 +599,16 @@ function onInput(event) {
     const create = document.querySelector('[data-act="draft-create"]');
     if (create instanceof HTMLButtonElement) create.disabled = !(draft.name ?? '').trim();
     return;
+  } else if (act === 'team-draft-field' || act === 'person-draft-field') {
+    // Neither team nor person exists yet, so — unlike every other draft — an
+    // in-memory params object is enough; there is nothing worth surviving a
+    // reload before a name has even been typed (D1).
+    const createAct = act === 'team-draft-field' ? 'team-draft-create' : 'person-draft-create';
+    const draft = { ...view.params.draft, [field]: target.value };
+    view.params = { ...view.params, draft };
+    const create = document.querySelector(`[data-act="${createAct}"]`);
+    if (create instanceof HTMLButtonElement) create.disabled = !(draft.name ?? '').trim();
+    return;
   } else if (act === 'allocation-pct') {
     const initiative = findInitiative(target.dataset.id);
     const phaseId = target.dataset.phase;
@@ -839,8 +849,17 @@ function onClick(event) {
       });
       return commit();
     }
-    case 'team-add': {
-      const team = P.createTeam(app);
+    case 'team-add':
+      // Nothing is created yet — Cancel on the draft below leaves no record
+      // behind (D1, and the review's "a team is just created with no chance
+      // to cancel").
+      return navigate('team', { id: 'new' });
+    case 'team-draft-discard':
+      return navigate('teams', {});
+    case 'team-draft-create': {
+      const name = (view.params.draft?.name ?? '').trim();
+      if (!name) return undefined;
+      const team = P.createTeam(app, name);
       store.save(app);
       return navigate('team', { id: team.id });
     }
@@ -857,8 +876,22 @@ function onClick(event) {
     }
 
 
-    case 'person-add': {
-      const person = P.createPerson(app);
+    case 'person-add':
+      // Nothing is created yet — Cancel on the draft below leaves no record
+      // behind (D1, and the review's "a person is just created with no
+      // chance to cancel").
+      return navigate('person', { id: 'new' });
+    case 'person-draft-discard':
+      return navigate('people', {});
+    case 'person-draft-create': {
+      const draft = view.params.draft ?? {};
+      const name = (draft.name ?? '').trim();
+      if (!name) return undefined;
+      const person = P.createPerson(app, {
+        name,
+        countryId: draft.countryId,
+        roleId: draft.roleId,
+      });
       store.save(app);
       return navigate('person', { id: person.id });
     }
@@ -934,6 +967,10 @@ function onChange(event) {
       };
       store.saveDraft(draft);
       return navigate('wizard', { ...view.params, draft });
+    }
+    case 'person-draft-select': {
+      const draft = { ...view.params.draft, [target.dataset.field]: target.value };
+      return navigate('person', { ...view.params, draft });
     }
     case 'initiatives-filter': {
       const filters = { ...(view.params.filters ?? {}) };
