@@ -27,8 +27,8 @@ here — this table is status only.
 | §4.1 Foundation — design system | **Landed** — direction approved by Bo |
 | §4.1 Foundation — adopt Farn's accent/ok hues | **Landed** |
 | §4.1 Foundation — formatting module | **Landed** |
-| §4.1 Foundation — interaction patterns | Not started — **next** |
-| §4.2 Entity flows | Not started |
+| §4.1 Foundation — interaction patterns | **Landed** |
+| §4.2 Entity flows | Not started — **next** |
 | §4.3 Settings | Not started |
 | §4.4 Initiative detail | Not started |
 | §4.5 Overviews, capacity, charts | Not started |
@@ -533,6 +533,8 @@ English only, per D6. Every raw ISO string in the UI goes through it, and
   memberships, roles, countries, cost lines.
 - *Confirm and undo* (D1) — one mechanism, not per-call-site ad-hockery.
 - *Validation at the field* — inline, warning not blocking, matching the
+
+**Landed.** Replaced implicit clicks with `.row--clickable` and `.card--clickable` stretched links. Refactored all entity lists (team memberships, allocations, roles, countries, cost lines) into editable grids with a trailing empty row for seamless inline addition. Wrapped deletions in a global `UndoStack` backed by an omnipotent snapshot, surfaced via a temporary toast. Added a keyboard traversal hint to the capacity grid.
   tool's existing "warn, never block" stance (SPEC §5.2).
 - *Cross-reference links everywhere* — a team's initiatives, a person's
   initiatives and an initiative's team are all dead text today (§2.6).

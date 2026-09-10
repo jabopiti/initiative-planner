@@ -162,3 +162,12 @@ order it's built in:
   Anything on that list is out of scope until SPEC.md itself is changed —
   and changing it is a decision to bring to the repo owner, not one to
   make while implementing a phase.
+
+### Prefer Auto-Approvable Command Shapes
+To ensure a smooth, uninterrupted "automode" experience, write shell commands in a way that remains prefix-matchable by the security sandbox. 
+
+- **Avoid shell pipes and chains:** Do not use `|`, `&&`, `||`, or `;` unless strictly necessary. (e.g., Instead of `cat file | awk ...` or `cat file | grep ...`, invoke the binary directly on the file: `awk ... file` or `grep ... file`).
+- **Avoid command substitutions and variables:** Do not use `$()` or `$VAR`. Run the inner command as its own step, read the result, and pass literal strings into the next command.
+- **Avoid wrapper binaries:** Do not use `env`, `xargs`, `eval`, or `sudo`. Call the target binary directly.
+- **Break up complex commands:** If a task requires complex shell logic, split it into multiple, simpler, separate command executions rather than stringing them together in one line.
+

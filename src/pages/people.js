@@ -94,9 +94,8 @@ export function renderPeople() {
 
   const rows = data
     .map(
-      (entry) => html`<tr class="${entry.person.active ? '' : 'row--inactive'}">
-        <td><button type="button" class="link" data-act="open-person" data-id="${entry.person.id}">
-          ${entry.person.name}</button>
+      (entry) => html`<tr class="row--clickable ${entry.person.active ? '' : 'row--inactive'}">
+        <td><a class="row-link" href="#/person/${entry.person.id}">${entry.person.name}</a>
           ${raw(entry.person.active ? '' : badge('inactive', 'quiet'))}</td>
         <td>${entry.row[1]} ${raw(entry.person.customRole ? badge('custom rate', 'info') : '')}</td>
         <td>${entry.row[2]}</td>

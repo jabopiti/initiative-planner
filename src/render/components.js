@@ -52,7 +52,10 @@ export function pageHead({ title, lede = '', actions = '', back }) {
  */
 export function scroller(label, markup, extraClass = '') {
   return html`<div class="scroller ${extraClass}" role="group" tabindex="0"
-    aria-label="${label}">${raw(markup)}</div>`;
+    aria-label="${label}">
+      <div class="scroller__hint muted micro" aria-hidden="true">Use arrow keys to navigate within the table</div>
+      ${raw(markup)}
+    </div>`;
 }
 
 /**

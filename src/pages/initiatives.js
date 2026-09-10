@@ -58,9 +58,8 @@ export function renderInitiatives() {
 
   const body = rows
     .map(
-      (row) => html`<tr>
-        <td><button type="button" class="link" data-act="open-initiative"
-          data-id="${row.initiative.id}">${row.initiative.name}</button></td>
+      (row) => html`<tr class="row--clickable">
+        <td><a class="row-link" href="#/initiative/${row.initiative.id}">${row.initiative.name}</a></td>
         <td>${row.teamName}</td>
         <td>${E.phaseLabel(PROCESS, row.initiative.phaseId)}</td>
         <td>

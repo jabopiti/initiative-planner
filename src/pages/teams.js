@@ -13,10 +13,9 @@ export function renderTeams() {
     .map((team) => {
       const summary = P.teamSummary(app, team.id);
       const deletable = P.canDeleteTeam(app, team.id);
-      return html`<div class="card ${team.active ? '' : 'card--inactive'}">
+      return html`<div class="card card--clickable ${team.active ? '' : 'card--inactive'}">
         <div>
-          <button type="button" class="link card__title" data-act="open-team" data-id="${team.id}">
-            ${team.name}</button>
+          <a class="card-link card__title" href="#/team/${team.id}">${team.name}</a>
           ${raw(team.active ? '' : badge('inactive', 'quiet'))}
         </div>
         <dl class="card__stats">

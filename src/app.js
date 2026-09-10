@@ -107,20 +107,30 @@ function renderShellActions() {
 
 /** The timer clearing the current toast, so a second one replaces the first. */
 let toastTimer = null;
+let pendingUndo = null;
 
-/**
- * One transient confirmation of something that already happened. It never
- * carries an action and never reports something needing a decision — those
- * are banners, which stay until the thing they describe is dealt with.
- */
-function showToast(text, kind = '') {
+function showToast(text, kind = '', undoCb = null) {
   const node = document.getElementById('toast');
   if (!node) return;
-  node.innerHTML = html`<div class="toast ${kind}">${raw(icon(kind ? 'warning' : 'check'))}${text}</div>`;
+  pendingUndo = undoCb;
+  node.innerHTML = html`<div class="toast ${kind}">
+    ${raw(icon(kind ? 'warning' : 'check'))}<span>${text}</span>
+    ${raw(undoCb ? html`<button type="button" class="btn--small" data-act="undo">Undo</button>` : '')}
+  </div>`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     node.innerHTML = '';
-  }, 3200);
+    pendingUndo = null;
+  }, 4000);
+}
+
+function withUndo(text, action) {
+  const snapshot = JSON.stringify(app);
+  action();
+  showToast(text, '', () => {
+    Object.assign(app, JSON.parse(snapshot));
+    commit();
+  });
 }
 
 /**
@@ -478,9 +488,42 @@ function onInput(event) {
   const field = target.dataset.field;
 
   if (act === 'role-field') {
+    if (id === 'new') {
+      const newId = L.newId('role');
+      app.ROLES[newId] = { id: newId, name: '', abbr: '', factor: 1, active: true };
+      app.ROLES[newId][field] = field === 'factor' ? F.readNumber(target.value, 1) : target.value;
+      const caret = target.selectionStart;
+      commit();
+      const restored = document.querySelector(`[data-act="role-field"][data-field="${field}"][data-id="${newId}"]`);
+      if (restored instanceof HTMLInputElement) {
+        restored.focus();
+        restored.setSelectionRange(caret, caret);
+      }
+      return;
+    }
     const role = app.ROLES[id];
     role[field] = field === 'factor' ? F.readNumber(target.value, role.factor) : target.value;
   } else if (act === 'country-field') {
+    if (id === 'new') {
+      const newId = L.newId('country');
+      const years = Object.keys(Object.values(app.COUNTRIES)[0]?.byYear ?? {});
+      app.COUNTRIES[newId] = {
+        id: newId,
+        name: target.value,
+        active: true,
+        byYear: Object.fromEntries(
+          years.map((year) => [year, { rate: 0, workingDayReduction: Array(12).fill(0) }]),
+        ),
+      };
+      const caret = target.selectionStart;
+      commit();
+      const restored = document.querySelector(`[data-act="country-field"][data-field="${field}"][data-id="${newId}"]`);
+      if (restored instanceof HTMLInputElement) {
+        restored.focus();
+        restored.setSelectionRange(caret, caret);
+      }
+      return;
+    }
     app.COUNTRIES[id][field] = target.value;
   } else if (act === 'country-rate') {
     const record = app.COUNTRIES[id].byYear[target.dataset.year];
@@ -547,11 +590,35 @@ function onInput(event) {
   } else if (act === 'checklist-note') {
     L.setChecklistNote(findInitiative(target.dataset.id), target.dataset.gate,
       target.dataset.item, target.value);
-  } else if (act === 'cost-name') {
+  } else if (act === 'cost-field') {
     const initiative = findInitiative(target.dataset.id);
-    const item = initiative.phases[target.dataset.phase].otherCosts
-      .find((c) => c.id === target.dataset.cost);
-    item.name = target.value;
+    const phaseId = target.dataset.phase;
+    const costId = target.dataset.cost;
+    const field = target.dataset.field;
+
+    if (costId === 'new') {
+      const newCost = {
+        id: L.newId('cost'),
+        name: field === 'name' ? target.value : 'New cost',
+        month: field === 'month' ? target.value : '',
+        amount: field === 'amount' ? F.readNumber(target.value, 0) : 0,
+      };
+      initiative.phases[phaseId].otherCosts.push(newCost);
+      const caret = target.selectionStart;
+      commit();
+      const restored = document.querySelector(`[data-act="cost-field"][data-field="${field}"][data-phase="${phaseId}"][data-cost="${newCost.id}"]`);
+      if (restored instanceof HTMLInputElement) {
+        restored.focus();
+        restored.setSelectionRange(caret, caret);
+      }
+      return;
+    }
+
+    const item = initiative.phases[phaseId].otherCosts.find((c) => c.id === costId);
+    if (field === 'amount') item.amount = F.readNumber(target.value, item.amount);
+    else item[field] = target.value;
+    // Changing an amount moves phase totals. Re-render the affected totals.
+    if (field === 'amount') return refreshCalcRegions(initiative);
   } else if (act === 'team-name') {
     P.renameTeam(app.TEAMS[id], target.value);
   } else if (act === 'general-field') {
@@ -584,31 +651,23 @@ function onClick(event) {
       return navigate(trigger.dataset.page);
     case 'section':
       return navigate('settings', { section: trigger.dataset.section });
+    case 'undo':
+      if (pendingUndo) {
+        pendingUndo();
+        pendingUndo = null;
+        const node = document.getElementById('toast');
+        if (node) node.innerHTML = '';
+      }
+      return undefined;
+
     case 'nav-toggle':
       return setNavOpen(!navOpen);
 
-    case 'role-add': {
-      const newId = L.newId('role');
-      app.ROLES[newId] = { id: newId, name: 'New role', abbr: 'NEW', factor: 1, active: true };
-      return commit();
-    }
+
     case 'role-active':
       app.ROLES[id].active = !app.ROLES[id].active;
       return commit();
 
-    case 'country-add': {
-      const newId = L.newId('country');
-      const years = Object.keys(Object.values(app.COUNTRIES)[0]?.byYear ?? {});
-      app.COUNTRIES[newId] = {
-        id: newId,
-        name: 'New country',
-        active: true,
-        byYear: Object.fromEntries(
-          years.map((year) => [year, { rate: 0, workingDayReduction: Array(12).fill(0) }]),
-        ),
-      };
-      return navigate('settings', { section, expanded: newId });
-    }
     case 'country-active':
       app.COUNTRIES[id].active = !app.COUNTRIES[id].active;
       return commit();
@@ -637,8 +696,7 @@ function onClick(event) {
       return navigate('settings', { section: 'overview' });
     }
 
-    case 'open-team':
-      return navigate('team', { id });
+
     case 'capacity-cell':
       return openPopover(
         trigger,
@@ -731,35 +789,21 @@ function onClick(event) {
       return navigate('initiatives', { ...view.params, sort: { key, dir } });
     }
 
-    case 'allocation-add': {
-      const initiative = findInitiative(id);
-      const phaseId = trigger.dataset.phase;
-      const pick = document.querySelector(`[data-act="allocation-pick"][data-phase="${phaseId}"]`);
-      if (pick instanceof HTMLSelectElement) {
-        L.setAllocation(app, initiative, phaseId, pick.value, 50);
-      }
-      return commit();
-    }
+
     case 'allocation-remove': {
       const initiative = findInitiative(id);
-      L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, 0);
-      return commit();
-    }
-    case 'cost-add': {
-      const initiative = findInitiative(id);
-      const phaseId = trigger.dataset.phase;
-      const monthEl = document.querySelector(`[data-act="new-cost-month"][data-phase="${phaseId}"]`);
-      const amountEl = document.querySelector(`[data-act="new-cost-amount"][data-phase="${phaseId}"]`);
-      const month = monthEl instanceof HTMLInputElement ? monthEl.value : '';
-      const amount = amountEl instanceof HTMLInputElement ? F.readNumber(amountEl.value, 0) : 0;
-      if (!month || !amount) return undefined;
-      L.addOtherCost(initiative, phaseId, { name: 'New cost', month, amount });
+      withUndo('Removed allocation', () => {
+        L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, 0);
+      });
       return commit();
     }
     case 'cost-remove': {
       const initiative = findInitiative(id);
       const phase = initiative.phases[trigger.dataset.phase];
-      phase.otherCosts = phase.otherCosts.filter((c) => c.id !== trigger.dataset.cost);
+      const cost = phase.otherCosts.find((c) => c.id === trigger.dataset.cost);
+      withUndo(`Removed ${cost.name}`, () => {
+        phase.otherCosts = phase.otherCosts.filter((c) => c.id !== trigger.dataset.cost);
+      });
       return commit();
     }
     case 'team-add': {
@@ -773,17 +817,13 @@ function onClick(event) {
     case 'team-delete': {
       // Guarded in the UI too, but never trust the disabled attribute alone.
       if (!P.canDeleteTeam(app, id).ok) return undefined;
-      P.deleteTeam(app, id);
-      return commit();
-    }
-    case 'add-member': {
-      const select = document.querySelector(`[data-act="add-member-pick"][data-id="${id}"]`);
-      if (select instanceof HTMLSelectElement) P.addMembership(app.PEOPLE[select.value], id, 0);
+      withUndo(`Deleted team ${app.TEAMS[id].name}`, () => {
+        P.deleteTeam(app, id);
+      });
       return commit();
     }
 
-    case 'open-person':
-      return navigate('person', { id });
+
     case 'person-add': {
       const person = P.createPerson(app);
       store.save(app);
@@ -893,6 +933,14 @@ function onChange(event) {
       const person = app.PEOPLE[id];
       if (target.dataset.kind === 'custom') P.useCustomRole(app, person);
       else P.useStandardRole(person);
+      return commit();
+    }
+    case 'add-member':
+      P.addMembership(app.PEOPLE[target.value], id, 0);
+      return commit();
+    case 'allocation-add': {
+      const initiative = findInitiative(id);
+      L.setAllocation(app, initiative, target.dataset.phase, target.value, 50);
       return commit();
     }
     default:

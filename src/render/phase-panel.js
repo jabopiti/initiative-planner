@@ -96,14 +96,22 @@ function phasePanel(initiative, phaseId, editable) {
         !E.monthsInRange(phase.estStartDate, phase.estEndDate).includes(item.month);
       return html`<tr>
         <td class="cell--wrap">${raw(editable
-          ? html`<input class="field" data-act="cost-name" data-id="${initiative.id}"
+          ? html`<input class="field" data-act="cost-field" data-field="name" data-id="${initiative.id}"
               data-phase="${phaseId}" data-cost="${item.id}" value="${item.name}"
               aria-label="Cost item name" />`
           : item.name)}</td>
-        <td>${item.month} ${raw(outOfPeriod
+        <td>${raw(editable
+          ? html`<input class="field field--month" data-act="cost-field" data-field="month" data-id="${initiative.id}"
+              data-phase="${phaseId}" data-cost="${item.id}" type="month" value="${item.month}"
+              aria-label="Month" />`
+          : item.month)} ${raw(outOfPeriod
           ? badge('out of period', 'warn', 'warning')
           : '')}</td>
-        <td class="num">${F.money(item.amount)}</td>
+        <td class="num">${raw(editable
+          ? numberField({ value: item.amount, 'data-act': 'cost-field', 'data-field': 'amount', 'data-id': initiative.id,
+              'data-phase': phaseId, 'data-cost': item.id, 'aria-label': 'Amount',
+              extraClass: 'field--money' })
+          : F.money(item.amount))}</td>
         <td class="cell--action">${raw(editable
           ? html`<button type="button" class="btn--small" data-act="cost-remove"
               data-id="${initiative.id}" data-phase="${phaseId}" data-cost="${item.id}"
@@ -130,43 +138,48 @@ function phasePanel(initiative, phaseId, editable) {
     </div>
 
     <h3>People</h3>
-    ${raw(phase.allocations.length
+    ${raw(phase.allocations.length || (editable && joinable.length)
       ? scroller(`${label} allocations`, html`<table class="grid">
           <thead><tr><th>Person</th><th>Role</th><th>Country</th><th>Day rate</th>
             <th>Factor</th><th>Allocation %</th><th>Person-days</th><th>Cost</th><th></th></tr></thead>
-          <tbody>${raw(allocationRows)}</tbody></table>`)
-        + registerAllocationTable(initiative, phaseId, exportRows)
+          <tbody>
+            ${raw(allocationRows)}
+            ${raw(editable && joinable.length ? html`<tr data-id="new">
+              <td><select class="field field--select" data-act="allocation-add" data-id="${initiative.id}" data-phase="${phaseId}">
+                <option value="" disabled selected>Allocate…</option>
+                ${raw(joinable.map((person) => html`<option value="${person.id}">${person.name}</option>`).join(''))}
+              </select></td>
+              <td colspan="8"></td>
+            </tr>` : '')}
+          </tbody></table>`)
+        + (phase.allocations.length ? registerAllocationTable(initiative, phaseId, exportRows) : '')
       : empty('Nobody allocated yet.'))}
     ${raw(editable && joinable.length
-      ? html`<div class="actions">
-          <select class="field field--select" data-act="allocation-pick"
-            data-phase="${phaseId}">${raw(joinable
-              .map((person) => html`<option value="${person.id}">${person.name}</option>`)
-              .join(''))}</select>
-          <button type="button" class="btn" data-act="allocation-add" data-id="${initiative.id}"
-            data-phase="${phaseId}">${raw(icon('add'))}Allocate</button>
-        </div>`
+      ? ''
       : editable
         ? html`<p class="muted">Everyone active in this team is already allocated. Add people
             to the team first.</p>`
         : '')}
 
     <h3>Other costs</h3>
-    ${raw(phase.otherCosts.length
+    ${raw(phase.otherCosts.length || editable
       ? scroller(`${label} other costs`, html`<table class="grid">
           <thead><tr><th>Item</th><th>Month</th><th>Amount</th><th></th></tr></thead>
-          <tbody>${raw(costRows)}</tbody></table>`)
+          <tbody>
+            ${raw(costRows)}
+            ${raw(editable ? html`<tr data-id="new">
+              <td class="cell--wrap"><input class="field" data-act="cost-field" data-field="name" data-id="${initiative.id}"
+                data-phase="${phaseId}" data-cost="new" placeholder="New cost item…"
+                aria-label="New cost item name" /></td>
+              <td><input class="field field--month" data-act="cost-field" data-field="month" data-id="${initiative.id}"
+                data-phase="${phaseId}" data-cost="new" type="month" aria-label="Month" /></td>
+              <td class="num">${raw(numberField({ 'data-act': 'cost-field', 'data-field': 'amount', 'data-id': initiative.id,
+                'data-phase': phaseId, 'data-cost': 'new', 'aria-label': 'Amount', placeholder: 'Amount',
+                extraClass: 'field--money' }))}</td>
+              <td></td>
+            </tr>` : '')}
+          </tbody></table>`)
       : empty('No non-labour costs.'))}
-    ${raw(editable
-      ? html`<div class="actions">
-          <input class="field field--month" data-act="new-cost-month" data-phase="${phaseId}"
-            type="month" aria-label="Month" />
-          ${raw(numberField({ value: '', 'data-act': 'new-cost-amount', 'data-phase': phaseId,
-            'aria-label': 'Amount', placeholder: 'Amount', extraClass: 'field--money' }))}
-          <button type="button" class="btn" data-act="cost-add" data-id="${initiative.id}"
-            data-phase="${phaseId}">${raw(icon('add'))}Add cost</button>
-        </div>`
-      : '')}
 
     <p class="results" data-calc="total-${phaseId}">${raw(phaseTotalsMarkup(initiative, phaseId))}</p>
   </div>`;

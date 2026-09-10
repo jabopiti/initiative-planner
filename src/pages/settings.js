@@ -98,14 +98,23 @@ function renderRoles() {
     )
     .join('');
 
+  const emptyRow = html`<tr data-id="new">
+    <td><input class="field" data-act="role-field" data-field="name" data-id="new"
+      placeholder="New role…" aria-label="New role name" /></td>
+    <td><input class="field field--abbr" data-act="role-field" data-field="abbr"
+      data-id="new" placeholder="Abbr" aria-label="Abbreviation" /></td>
+    <td>${raw(numberField({ 'data-act': 'role-field',
+      'data-field': 'factor', 'data-id': 'new', 'aria-label': 'Factor', placeholder: '100',
+      extraClass: 'field--pct' }))}</td>
+    <td></td>
+  </tr>`;
+
   return html`<p class="muted">A role's factor multiplies the day rate that comes from a
       person's country. Roles are never deleted once referenced — deactivate instead.</p>
     ${raw(scroller('Roles', html`<table class="grid">
       <thead><tr><th>Name</th><th>Abbr.</th><th>Factor</th><th></th></tr></thead>
-      <tbody>${raw(rows)}</tbody>
-    </table>`))}
-    <div class="actions"><button type="button" class="btn" data-act="role-add"
-      >${raw(icon('add'))}Add role</button></div>`;
+      <tbody>${raw(rows)}${raw(emptyRow)}</tbody>
+    </table>`))}`;
 }
 
 /* ---- countries & rates ---- */
@@ -175,15 +184,21 @@ function renderCountries() {
     })
     .join('');
 
+  const emptyRow = html`<tbody data-id="new">
+    <tr>
+      <td><input class="field" data-act="country-field" data-field="name" data-id="new"
+        placeholder="New country…" aria-label="New country name" /></td>
+      <td></td>
+    </tr>
+  </tbody>`;
+
   return html`<p class="muted">Each year carries its own day rate and its own holiday
       reductions, so a rate rise next year never moves this year's months. The window
       rolls forward automatically and keeps last year, for backfilled work.</p>
     ${raw(scroller('Countries', html`<table class="grid">
       <thead><tr><th>Name</th><th></th></tr></thead>
-      ${raw(rows)}
-    </table>`))}
-    <div class="actions"><button type="button" class="btn" data-act="country-add"
-      >${raw(icon('add'))}Add country</button></div>`;
+      ${raw(rows)}${raw(emptyRow)}
+    </table>`))}`;
 }
 
 /* ---- general ---- */

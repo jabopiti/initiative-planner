@@ -22,9 +22,8 @@ export function renderTeam() {
   const rosterRows = roster
     .map((row) => {
       const warning = P.shareWarning(row.person);
-      return html`<tr class="${row.membership.active && row.person.active ? '' : 'row--inactive'}">
-        <td><button type="button" class="link" data-act="open-person" data-id="${row.person.id}">
-          ${row.person.name}</button>
+      return html`<tr class="row--clickable ${row.membership.active && row.person.active ? '' : 'row--inactive'}">
+        <td><a class="row-link" href="#/person/${row.person.id}">${row.person.name}</a>
           ${raw(row.person.active ? '' : badge('person inactive', 'quiet'))}</td>
         <td>${E.roleLabel(row.person, app.ROLES)}</td>
         <td>${raw(numberField({
@@ -33,11 +32,11 @@ export function renderTeam() {
           'data-id': row.person.id,
           'data-team': team.id,
           'aria-label': `${row.person.name} share`,
-          extraClass: 'field--pct',
+          extraClass: `field--pct ${warning.overCommitted ? 'field--warn' : ''}`,
         }))}</td>
         <td class="num">${row.person.capacityPct}%</td>
         <td class="cell--wrap">${raw(warning.overCommitted
-          ? html`<span class="warn">${raw(icon('warning', 'icon--lead'))}${warning.totalSharePct}%
+          ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}${warning.totalSharePct}%
               of ${warning.capacityPct}% assigned across all teams</span>`
           : '')}</td>
         <td class="cell--action">
@@ -56,8 +55,8 @@ export function renderTeam() {
 
   const initiativeRows = initiatives
     .map(
-      (initiative) => html`<tr>
-        <td>${initiative.name}</td>
+      (initiative) => html`<tr class="row--clickable">
+        <td><a class="row-link" href="#/initiative/${initiative.id}">${initiative.name}</a></td>
         <td>${E.phaseLabel(PROCESS, initiative.phaseId)}</td>
         <td>${initiative.status}</td>
         <td class="num">${F.money(E.grandTotal(initiative, app))}</td>
@@ -93,17 +92,17 @@ export function renderTeam() {
           ? scroller('Team roster', html`<table class="grid">
               <thead><tr><th>Person</th><th>Role</th><th>Share %</th><th>Capacity %</th>
                 <th></th><th></th></tr></thead>
-              <tbody>${raw(rosterRows)}</tbody></table>`)
+              <tbody>
+                ${raw(rosterRows)}
+                ${raw(joinable.length ? html`<tr data-id="new">
+                  <td><select class="field field--select" data-act="add-member" data-id="${team.id}">
+                    <option value="" disabled selected>Add to team…</option>
+                    ${raw(joinable.map((p) => html`<option value="${p.id}">${p.name}</option>`).join(''))}
+                  </select></td>
+                  <td colspan="5"></td>
+                </tr>` : '')}
+              </tbody></table>`)
           : empty('Nobody has joined yet. Add someone who already exists as a person.'))}
-        ${raw(joinable.length
-          ? html`<div class="actions">
-              <select class="field field--select" data-act="add-member-pick" data-id="${team.id}">
-                ${raw(joinable.map((p) => html`<option value="${p.id}">${p.name}</option>`).join(''))}
-              </select>
-              <button type="button" class="btn" data-act="add-member" data-id="${team.id}">
-                ${raw(icon('add'))}Add to team</button>
-            </div>`
-          : html`<p class="muted">Everyone active already belongs to this team.</p>`)}
       </div>
 
       <div class="panel">

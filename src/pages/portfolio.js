@@ -98,9 +98,8 @@ export function renderPortfolio() {
 
   const body = sorted
     .map(
-      (r) => html`<tr>
-        <td><button type="button" class="link" data-act="open-initiative"
-          data-id="${r.initiative.id}">${r.initiative.name}</button></td>
+      (r) => html`<tr class="row--clickable">
+        <td><a class="row-link" href="#/initiative/${r.initiative.id}">${r.initiative.name}</a></td>
         <td>${r.teamName}</td>
         <td>${E.phaseLabel(PROCESS, r.initiative.phaseId)}</td>
         <td>${STATUS_LABELS[r.initiative.status]}</td>

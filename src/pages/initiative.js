@@ -24,7 +24,7 @@ export function renderInitiative() {
     html`${raw(pageHead({
       title: initiative.name,
       back: { page: 'initiatives', label: 'Initiatives' },
-      lede: html`${app.TEAMS[initiative.teamId]?.name ?? '—'} ·
+      lede: html`<a href="#/team/${initiative.teamId}" class="link">${app.TEAMS[initiative.teamId]?.name ?? '—'}</a> ·
         ${STATUS_LABELS[initiative.status]}`,
       actions: html`<button type="button" class="btn" data-act="duplicate-initiative"
         data-id="${initiative.id}">${raw(icon('duplicate'))}Duplicate</button>`,

@@ -109,18 +109,18 @@ function personTeams(person, warning, stranded) {
     .map((membership) => {
       const team = app.TEAMS[membership.teamId];
       const strandedHere = stranded.filter((row) => row.initiative.teamId === membership.teamId);
-      return html`<tr class="${membership.active ? '' : 'row--inactive'}">
-        <td>${team?.name ?? membership.teamId}</td>
+      return html`<tr class="row--clickable ${membership.active ? '' : 'row--inactive'}">
+        <td><a class="row-link" href="#/team/${membership.teamId}">${team?.name ?? membership.teamId}</a></td>
         <td>${raw(numberField({
           value: membership.sharePct,
           'data-act': 'membership-share',
           'data-id': person.id,
           'data-team': membership.teamId,
           'aria-label': 'Share of capacity',
-          extraClass: 'field--pct',
+          extraClass: `field--pct ${warning.overCommitted ? 'field--warn' : ''}`,
         }))}</td>
         <td class="cell--wrap">${raw(strandedHere.length
-          ? html`<span class="warn">${raw(icon('warning', 'icon--lead'))}${strandedHere.length}
+          ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}${strandedHere.length}
               allocation${strandedHere.length === 1 ? '' : 's'} still costing</span>`
           : '')}</td>
         <td class="cell--action">
@@ -175,8 +175,13 @@ function personInitiativesPanel(person, stranded) {
   const strandedIds = new Set(stranded.map((row) => `${row.initiative.id}:${row.phaseId}`));
   const body = rows
     .map(
-      (row, index) => html`<tr class="${strandedIds.has(`${row.initiative.id}:${row.phaseId}`) ? 'row--warn' : ''}">
-        ${raw(data[index].map((cell) => html`<td>${cell}</td>`).join(''))}
+      (row) => html`<tr class="row--clickable ${strandedIds.has(`${row.initiative.id}:${row.phaseId}`) ? 'row--warn' : ''}">
+        <td><a class="row-link" href="#/initiative/${row.initiative.id}">${row.initiative.name}</a></td>
+        <td><a href="#/team/${row.initiative.teamId}" style="position: relative; z-index: 2;" class="link">${app.TEAMS[row.initiative.teamId]?.name ?? row.initiative.teamId}</a></td>
+        <td>${E.phaseLabel(PROCESS, row.phaseId)}</td>
+        <td>${row.allocationPct}</td>
+        <td>${row.start ?? ''}</td>
+        <td>${row.end ?? ''}</td>
         <td>${raw(row.countsTowardCapacity ? '' : badge('not in capacity', 'quiet'))}</td>
       </tr>`,
     )
