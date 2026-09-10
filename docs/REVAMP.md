@@ -25,8 +25,8 @@ here — this table is status only.
 | §4.1 Foundation — split `app.js` | **Landed** |
 | §4.1 Foundation — hash routing | **Landed** |
 | §4.1 Foundation — design system | **Landed** — direction approved by Bo |
-| §4.1 Foundation — adopt Farn's accent/ok hues | Not started — **next** |
-| §4.1 Foundation — formatting module | Not started |
+| §4.1 Foundation — adopt Farn's accent/ok hues | **Landed** |
+| §4.1 Foundation — formatting module | Not started — **next** |
 | §4.1 Foundation — interaction patterns | Not started |
 | §4.2 Entity flows | Not started |
 | §4.3 Settings | Not started |
@@ -514,6 +514,8 @@ neon rather than forest-green. Update the "Colour roles" section of
 `docs/REVAMP-design-direction.md` with the new hues and the reasoning above,
 the same way the design-system row documented its original choices — this is
 exactly the kind of thing that document exists to carry forward.
+
+**Landed.** The hue swaps are in for the accent (153°), ok (92°), danger (355°) and amber (41°). Lightness and saturation for the accent color were dialed back slightly (`50% 40%` for light mode and `60% 65%` for dark mode) to ensure it reads as forest-green and not neon. The neutral ramp and chart tokens remained untouched. The design direction document has been updated with these decisions.
 
 **Formatting.** One module owning money, dates, months and numeric parsing —
 English only, per D6. Every raw ISO string in the UI goes through it, and

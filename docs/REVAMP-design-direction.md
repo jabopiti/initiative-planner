@@ -142,8 +142,8 @@ as a sentence.
 The palette is not the brand's to choose beyond one hue. `AGENTS.md`'s
 brand-pack contract keeps `--brand*` as the only brand-specific block, and this
 row does not widen it — §4.8 does, per D8. So the roles below are defined
-against a neutral ramp that stays at its own fixed hue, and the accent is
-whatever the brand pack says it is.
+against a neutral ramp that stays at its own fixed cool blue-grey hue (220°), rather
+than adopting a warmer tone, and the accent is whatever the brand pack says it is.
 
 - **Canvas** — the page ground. Slightly off-white in light, slightly off-black
   in dark.
@@ -157,10 +157,10 @@ whatever the brand pack says it is.
   dash standing in for an absent value.
 - **Line / line-soft** — a hairline between panels and between rows
   respectively.
-- **Accent** — the brand hue. It marks *selection and the current thing*, never
+- **Accent** — the brand hue (default 153°, Farn's forest green). It marks *selection and the current thing*, never
   severity. A primary button, the current nav item, the current phase, the
   current month.
-- **Ok / warn / danger** — outcome, not decoration. Each has a text colour and
+- **Ok / warn / danger** — outcome, not decoration. Farn's moss (92°), ember (355°), and grain (41°). Each has a text colour and
   a tint for a row background. Over-allocation, a stranded allocation and a
   skipped gate are warnings that colour; they never disable anything, which is
   `SPEC.md` §5.2's stance and not a styling choice.
