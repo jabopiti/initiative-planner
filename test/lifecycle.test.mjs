@@ -402,6 +402,18 @@ test('duplicating copies the estimate and nothing else', () => {
   assert.notEqual(initiative.phases.shape.allocations[0].allocationPct, 5, 'no shared references');
 });
 
+test('deleting an initiative removes it outright, whatever its status', () => {
+  const { app, process, teamId, people } = setup(RICH);
+  const initiative = L.createInitiative(app, process, { name: 'Doomed', teamId });
+  estimateAll(app, process, initiative, people[0]);
+  L.setStatus(initiative, 'cancelled');
+
+  L.deleteInitiative(app, initiative.id);
+
+  assert.equal(app.INITIATIVES.includes(initiative), false);
+  assert.equal(app.INITIATIVES.length, 0);
+});
+
 /* -------------------------------------------------- allocation rules */
 
 test('only an active member of the initiative\'s team can be allocated', () => {

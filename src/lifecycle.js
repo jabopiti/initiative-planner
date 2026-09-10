@@ -102,6 +102,16 @@ export function createInitiative(app, process, input) {
   return initiative;
 }
 
+/**
+ * Remove an initiative outright. Unlike a team or a role, nothing else
+ * references one by id — no membership, no allocation holds an initiative
+ * id the way it holds a person or team id — so there is no usage count to
+ * check first; a confirm step in the UI is the only guard (D1).
+ */
+export function deleteInitiative(app, initiativeId) {
+  app.INITIATIVES = app.INITIATIVES.filter((i) => i.id !== initiativeId);
+}
+
 /* ------------------------------------------------------------------ *
  * Editing
  * ------------------------------------------------------------------ */

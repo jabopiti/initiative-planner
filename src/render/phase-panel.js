@@ -136,6 +136,13 @@ function phasePanel(initiative, phaseId, editable) {
           data-id="${initiative.id}" data-phase="${phaseId}"
           value="${phase.estEndDate ?? ''}" ${raw(editable ? '' : 'disabled')} /></label>
     </div>
+    ${raw(phase.estStartDate && phase.estEndDate && phase.estEndDate < phase.estStartDate
+      ? html`<p class="field-message">${raw(icon('warning', 'icon--lead'))}Ends before it starts —
+          nothing in this period costs anything until that's fixed.</p>`
+      : editable && (phase.allocations.length || phase.otherCosts.length)
+        ? html`<p class="micro">Changing this period rescales every allocation's cost beneath
+            it.</p>`
+        : '')}
 
     <h3>People</h3>
     ${raw(phase.allocations.length || (editable && joinable.length)

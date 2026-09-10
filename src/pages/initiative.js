@@ -18,6 +18,7 @@ export function renderInitiative() {
   if (!initiative) return navigate('initiatives');
 
   const panels = costedPhasePanels(initiative);
+  const deleting = view.params.confirmDelete === true;
 
   fill(
     'root',
@@ -27,16 +28,66 @@ export function renderInitiative() {
       lede: html`<a href="#/team/${initiative.teamId}" class="link">${app.TEAMS[initiative.teamId]?.name ?? '—'}</a> ·
         ${STATUS_LABELS[initiative.status]}`,
       actions: html`<button type="button" class="btn" data-act="duplicate-initiative"
-        data-id="${initiative.id}">${raw(icon('duplicate'))}Duplicate</button>`,
+          data-id="${initiative.id}">${raw(icon('duplicate'))}Duplicate</button>
+        <button type="button" class="btn btn--danger" data-act="initiative-delete-arm"
+          data-id="${initiative.id}">${raw(icon('remove'))}Delete</button>`,
     }))}
+      ${raw(deleting ? deleteConfirmMarkup(initiative) : '')}
+      ${raw(descriptionMarkup(initiative))}
 
       ${raw(stepperMarkup(initiative))}
       ${raw(gateBannerMarkup(initiative))}
       <div data-calc="band-panel">${raw(bandPanelMarkup(initiative))}</div>
       ${raw(panels)}
       ${raw(monthTableMarkup(initiative))}
-      ${raw(gateComparisonMarkup(initiative))}`,
+      ${raw(gateComparisonMarkup(initiative))}
+      ${raw(notesMarkup(initiative))}`,
   );
+}
+
+/**
+ * Nothing else references an initiative by id, so — unlike a team or a
+ * role — there is no usage count to check first; only the confirm step
+ * guards it (D1). Named, not itemised: enumerating every allocation and
+ * cost line about to go is more machinery than a single "this cannot be
+ * undone" warrants here.
+ */
+function deleteConfirmMarkup(initiative) {
+  return html`<div class="panel banner banner--alert">
+    <p class="warn">${raw(icon('warning', 'icon--lead'))}Delete “${initiative.name}”
+      permanently? Its estimates, allocations, costs and gate history go with it. There is
+      no undo.</p>
+    <div class="actions">
+      <button type="button" class="btn btn--danger" data-act="initiative-delete-confirm"
+        data-id="${initiative.id}">${raw(icon('remove'))}Yes, delete it</button>
+      <button type="button" class="btn" data-act="initiative-delete-cancel">Cancel</button>
+    </div>
+  </div>`;
+}
+
+function descriptionMarkup(initiative) {
+  const locked = E.isFinished(initiative);
+  return html`<div class="panel">
+    <h2>Description</h2>
+    <input class="field" data-act="initiative-description" data-id="${initiative.id}"
+      value="${initiative.description}" placeholder="What is this initiative?"
+      aria-label="Description" ${raw(locked ? 'disabled' : '')} />
+  </div>`;
+}
+
+/**
+ * Stays writable when the initiative is closed or cancelled — recording why
+ * something ended is exactly what a finished initiative still needs to
+ * accept (SPEC §6.4, AGENTS.md). `setNotes` carries no `assertOpen` guard
+ * for the same reason.
+ */
+function notesMarkup(initiative) {
+  return html`<div class="panel">
+    <h2>Notes</h2>
+    <input class="field" data-act="initiative-notes" data-id="${initiative.id}"
+      value="${initiative.notes}" placeholder="Anything worth recording"
+      aria-label="Notes" />
+  </div>`;
 }
 
 /** Every phase, with passed and skipped gates visually distinct. */

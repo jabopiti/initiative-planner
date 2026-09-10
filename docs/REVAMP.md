@@ -32,7 +32,8 @@ here — this table is status only.
 | §4.3 Settings — page structure, copy/behaviour findings | **Landed** |
 | §4.3 Settings — working days as absolute values | **Landed** — `schemaVersion` 2 |
 | §4.3 Settings — bulk entry for rates/working days | **Landed** |
-| §4.4 Initiative detail | Not started — **next** |
+| §4.4 Initiative detail — description/notes, delete, period validation | **Landed** |
+| §4.4 Initiative detail — remaining items (stepper, gate panel, sticky bar, allocation table, wizard step 2, month table, sections) | Not started — **next** |
 | §4.5 Overviews, capacity, charts | Not started |
 | §4.6 Copy, states, first run, accessibility | Not started |
 | §4.7 File System Access persistence | Not started |
@@ -792,6 +793,44 @@ Northland or Southland.
   §4.6.
 - **Sections**: real separation and a way to navigate between them. This page
   is the worst case of a problem every page has.
+
+**Landed — description, notes, delete, and phase-period validation.**
+Description gets a plain single-line field (matching how it's already
+collected in the wizard, and every other free-text field in the app — no
+`<textarea>` exists anywhere yet, and this wasn't the row to introduce one);
+it disables when the initiative is finished, since `L.setDescription`
+carries the same `assertOpen` guard as a rename. Notes gets one too, always
+editable regardless of status — `L.setNotes` already had no `assertOpen`
+guard for exactly this reason, so the gap was purely that nothing rendered
+it. Both autosave on input like every other text field.
+
+Initiatives can now be deleted: a new `L.deleteInitiative` (nothing else
+references one by id, unlike a team or a role, so there's no usage count to
+check first) behind an arm → confirm/cancel step in the page head, the same
+idiom §4.3 used for role/country deactivation and the Danger zone — chosen
+over reusing `withUndo` (as team deletion does) because an initiative can
+carry months of estimate, allocation and gate history, a bigger loss than
+an empty team.
+
+A phase period whose end falls before its start now says so inline — the
+engine already defended against it (`monthsInRange` returns `[]`, so
+everything costs 0 rather than throwing or going negative), so this is
+purely making an already-safe state legible. Editing a period with any
+allocations or costs already on it shows a standing note that doing so
+rescales everything beneath.
+
+Verified in a real browser against `examples/exports/demo.json`: description
+and notes both hold their stored values and persist an edit; the delete arm
+→ cancel cycle leaves the initiative in place; delete → confirm removes it
+and returns to the Initiatives overview; setting an end date before the
+start date shows the warning immediately.
+
+**Not yet landed:** the informative stepper, the three-part gate panel
+restructure, the sticky summary bar, the allocation table's column drop
+plus D2 seeding, the wizard's step-2 ending, the month table's totals row,
+and real section navigation — all still ahead. The first three in
+particular are invention rather than execution (REVAMP.md §0's model
+guidance flags this row for Opus 5 for exactly that reason).
 
 ### 4.5 Overviews, dashboard, capacity and charts
 

@@ -672,6 +672,10 @@ function onInput(event) {
     }
   } else if (act === 'team-name') {
     P.renameTeam(app.TEAMS[id], target.value);
+  } else if (act === 'initiative-description') {
+    L.setDescription(findInitiative(id), target.value);
+  } else if (act === 'initiative-notes') {
+    L.setNotes(findInitiative(id), target.value);
   } else if (act === 'general-field') {
     // 0 is a real, meaningful value here — it turns the reminder off — so
     // the bound is only against nonsense, not against the low end.
@@ -847,6 +851,14 @@ function onClick(event) {
       store.save(app);
       return navigate('initiative', { id: copy.id });
     }
+    case 'initiative-delete-arm':
+      return navigate('initiative', { ...view.params, confirmDelete: true });
+    case 'initiative-delete-cancel':
+      return navigate('initiative', { ...view.params, confirmDelete: false });
+    case 'initiative-delete-confirm':
+      L.deleteInitiative(app, id);
+      store.save(app);
+      return navigate('initiatives', {});
     case 'portfolio-tile': {
       // Clicking the selected tile again clears the filter.
       const band = trigger.dataset.band;
