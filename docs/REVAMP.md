@@ -31,8 +31,8 @@ here — this table is status only.
 | §4.2 Entity flows | **Landed** |
 | §4.3 Settings — page structure, copy/behaviour findings | **Landed** |
 | §4.3 Settings — working days as absolute values | **Landed** — `schemaVersion` 2 |
-| §4.3 Settings — bulk entry for rates/working days | Not started — **next** |
-| §4.4 Initiative detail | Not started |
+| §4.3 Settings — bulk entry for rates/working days | **Landed** |
+| §4.4 Initiative detail | Not started — **next** |
 | §4.5 Overviews, capacity, charts | Not started |
 | §4.6 Copy, states, first run, accessibility | Not started |
 | §4.7 File System Access persistence | Not started |
@@ -689,9 +689,6 @@ confirm idiom the Danger zone already established, rather than a popover or
 anything, still takes one click. A country whose current calendar year's
 rate is 0 shows an inline warning beside its name.
 
-**Not yet landed:** bulk entry for rates/working days — still ahead, listed
-separately in §0's table.
-
 **Landed — working days as absolute values, `schemaVersion` 2.**
 `workingDayReduction` (a reduction off the calendar) is gone; a country's
 `byYear[year].workingDays` is now the absolute count per month, edited
@@ -725,6 +722,23 @@ intentional no-migration behaviour); the migrated demo data loads and
 shows realistic per-month figures; editing a working-days cell persists
 and survives a reload; a freshly created country's working days prefill
 with real weekday counts, not zero.
+
+**Landed — bulk entry for rates and working days.** Each year's row in the
+expanded Countries view now carries a small toolbar above its 12-month
+scroller: a scratch value field plus "Apply to every month" sets every
+month of that year's `workingDays` to one number in a click, and "Copy to
+other years" (hidden when a country tracks only one year) duplicates that
+year's `{ rate, workingDays }` onto every other tracked year. The scratch
+field carries no `data-act` of its own — it's read from the DOM by the
+button's click handler (`country-apply-all`), the same pattern `gate-date`
+and `skip-reason` already use for a value that isn't itself a data field.
+48 cells per country typed one at a time was the finding; this is the
+fix for both halves of it (§2.6).
+
+Verified in a real browser: typing a value and clicking "Apply to every
+month" set all 12 cells for that year; clicking "Copy to other years"
+afterward propagated both the rate and all 12 working-day values to every
+other tracked year, confirmed by reading each year's rendered fields back.
 
 Verified in a real browser against `examples/exports/demo.json`, at
 1440×900 and 400×800, in light and dark: the section nav scrolling and

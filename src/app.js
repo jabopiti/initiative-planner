@@ -736,6 +736,29 @@ function onClick(event) {
         section,
         expanded: view.params.expanded === id ? null : id,
       });
+    case 'country-apply-all': {
+      // 48 cells per country typed one at a time is the real pain (§4.3) —
+      // this is a scratch value, not itself a data field, so it carries no
+      // data-act of its own and is read here rather than committed on input.
+      const year = trigger.dataset.year;
+      const input = document.querySelector(
+        `[data-field="bulk-workdays"][data-id="${id}"][data-year="${year}"]`,
+      );
+      if (!(input instanceof HTMLInputElement)) return undefined;
+      const value = Math.max(0, F.readNumber(input.value, 0));
+      app.COUNTRIES[id].byYear[year].workingDays = Array(12).fill(value);
+      return commit();
+    }
+    case 'country-copy-year': {
+      const year = trigger.dataset.year;
+      const country = app.COUNTRIES[id];
+      const source = country.byYear[year];
+      for (const otherYear of Object.keys(country.byYear)) {
+        if (otherYear === year) continue;
+        country.byYear[otherYear] = { rate: source.rate, workingDays: [...source.workingDays] };
+      }
+      return commit();
+    }
 
     case 'theme':
       return cycleTheme();

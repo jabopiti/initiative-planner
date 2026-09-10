@@ -167,8 +167,25 @@ function renderCountries() {
               'aria-label': `${year} day rate`,
               extraClass: 'field--money',
             }))}</td>
-            <td colspan="12">${raw(scroller(`Working days in ${year}`,
-              html`<table class="months"><tbody><tr>${raw(cells)}</tr></tbody></table>`))}</td>
+            <td colspan="12">
+              <div class="actions">
+                ${raw(numberField({
+                  'data-field': 'bulk-workdays',
+                  'data-id': country.id,
+                  'data-year': year,
+                  'aria-label': `Value to apply to every month of ${year}`,
+                  placeholder: 'Value',
+                  extraClass: 'field--tiny',
+                }))}
+                <button type="button" class="btn--small" data-act="country-apply-all"
+                  data-id="${country.id}" data-year="${year}">Apply to every month</button>
+                ${raw(years.length > 1
+                  ? html`<button type="button" class="btn--small" data-act="country-copy-year"
+                      data-id="${country.id}" data-year="${year}">Copy to other years</button>`
+                  : '')}
+              </div>
+              ${raw(scroller(`Working days in ${year}`,
+                html`<table class="months"><tbody><tr>${raw(cells)}</tr></tbody></table>`))}</td>
           </tr>`;
         })
         .join('');
