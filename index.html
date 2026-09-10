@@ -19,6 +19,11 @@
 
     <main id="root" tabindex="-1"></main>
 
+    <!-- Hash routing has no page reload to announce itself, so this stands
+         in for one: navigate() and the hashchange listener write the new
+         page's heading here for assistive tech, and move focus to <main>. -->
+    <div id="route-announcer" class="sr-only" role="status" aria-live="polite"></div>
+
     <!-- Popovers are positioned from their trigger's rectangle, so they live
          at the top level rather than inside the region that opened them. -->
     <div id="popover" role="dialog" aria-modal="false" hidden></div>

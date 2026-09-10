@@ -127,3 +127,51 @@ sources actually produced") that a non-recursive scan can no longer uphold
 once the split exists. Skipping it would have meant landing a row that
 breaks its own gate, or landing a gate that silently stopped checking what
 it claims to check.
+
+---
+
+## §4.1 — hash routing: what the hash encodes
+
+**Question:** REVAMP.md said "Reload restores the page, Back works, an
+initiative has a link" but didn't say whether *every* piece of `view.params`
+(sort order, open filter text, an expanded country row, a danger-zone arm
+state, the wizard's step-1 draft, a chart's year) should survive into the
+URL, or only enough to identify *which page and which record*.
+
+**Options considered:**
+1. Encode all of `view.params` (e.g. JSON-blob it into a query string).
+   Gives perfect state restoration on reload/Back, but produces opaque,
+   unreadable URLs, and — worse — creates a real correctness hazard: several
+   `navigate()` calls bundle a param that just changed (`expanded`, `armed`)
+   together with params that didn't, and a handful of code paths call
+   `navigate()` twice in quick succession (a redirect-on-missing-record, the
+   async `hashchange` this file's own hash write triggers). Full-fidelity
+   encoding means every one of those has to be re-examined for whether the
+   second write clobbers state the first one just set.
+2. Encode nothing beyond `page` — reload always lands on the page but never
+   the record. Doesn't satisfy "an initiative has a link."
+3. Encode identity only: `page`, plus `id` for a detail (person/team/
+   initiative/wizard) or `section` for Settings. Everything else — sort,
+   filter, month, chart year, an expanded row, the danger-zone arm state —
+   stays in-memory `view.params` and resets on reload or Back, the same way
+   most sites don't restore your table's sort order when you hit Back.
+
+**Decision: option 3.** It's what the finding text's own example
+(`#/initiative/abc`) implies, it keeps URLs readable, and — the reason this
+is worth recording rather than assuming — it sidesteps a real bug I found
+while designing option 1: every existing `navigate()` call that bundles a
+transient param together with an identity change turns out to already be one
+where the identity isn't actually changing in that call (you can only reach
+the control that sets `expanded`/`armed`/etc. from the page that already has
+that identity). That's what makes `navigate()` comparing `location.hash`
+before and after safe to gate the hash write *and* the focus/announce call
+on: a filter or sort tweak recomputes to the same hash string, so it's a
+no-op on the address bar, and never steals focus from the input the user is
+typing into.
+
+**If you'd reverse this:** widening what the hash carries is possible later
+without a rewrite — `hashFor`/`parseHash` are the only two functions that
+would need to grow. Flag it if a future row wants a shareable filtered view
+(e.g. "everyone over-allocated in March," linked from outside the app) —
+that's the case most likely to justify it.
+

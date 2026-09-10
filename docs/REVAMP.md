@@ -23,8 +23,8 @@ here — this table is status only.
 |---|---|
 | Silent-write bug (§4.7, first half) | **Landed** — `ae327ab` |
 | §4.1 Foundation — split `app.js` | **Landed** |
-| §4.1 Foundation — hash routing | Not started — **next** |
-| §4.1 Foundation — design system | Not started |
+| §4.1 Foundation — hash routing | **Landed** |
+| §4.1 Foundation — design system | Not started — **next** |
 | §4.1 Foundation — formatting module | Not started |
 | §4.1 Foundation — interaction patterns | Not started |
 | §4.2 Entity flows | Not started |
@@ -338,6 +338,24 @@ since the render layer no longer lives in one file.
 `hashchange` listener driving `render()`. Reload restores the page, Back works,
 an initiative has a link. Focus moves to `main` on navigation and the change
 is announced.
+
+**Landed.** The hash encodes identity only — `#/<page>`, `#/<page>/<id>` for a
+detail or the wizard's estimates step, `#/settings/<section>` — never the
+transient view state layered on top (a sort order, an open filter, a chart's
+year), so `navigate()` only touches `location.hash` when the *place* actually
+changes; a sort or filter keystroke produces the same hash string and is a
+no-op against the address bar. `boot()` parses the hash once and canonicalises
+an empty or unrecognised one to `#/portfolio`; a `hashchange` listener (Back,
+Forward, a hand-edited hash) re-parses and re-renders the same way. Moving
+focus to `<main>` (already `tabindex="-1"` in `index.html`) and updating a new
+`#route-announcer` live region both happen from one place —
+`announceNavigation()`, called only when the hash actually changed — reading
+the just-rendered `<h1>` back rather than looking up a title separately, so
+the announcement can't say something the screen doesn't. Verified in a real
+browser: deep link + reload, Back/Forward across three pages, an invalid hash
+falling back to Portfolio, a settings section surviving a reload, and the
+filter-input caret/focus invariant (AGENTS.md) holding through a `navigate()`
+call that leaves the hash unchanged.
 
 **The design system.** `styles.css` has tokens but not a system: four spacing
 steps, four text sizes, no state layer, no elevation, no motion, no documented

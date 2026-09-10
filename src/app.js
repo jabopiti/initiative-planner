@@ -237,9 +237,66 @@ export function currentMonth() {
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
+/* ------------------------------------------------------------------ *
+ * Routing
+ * ------------------------------------------------------------------ *
+ *
+ * Hash-based, not `pushState` — `pushState` does not work when the single
+ * file is opened from `file://`, and being openable from disk is the whole
+ * point of the artifact (REVAMP.md §2.1).
+ *
+ * The hash encodes *identity* only — which page, and which record on it —
+ * never the transient view state layered on top (a sort order, an open
+ * filter, a chart's year). Reload and Back restore the place; they reset
+ * how it happens to be filtered, which is what every other page on the web
+ * already trains people to expect from an address bar.
+ */
+
+/** Pages opened by id — a detail, or the wizard's estimates step. */
+const ID_PAGES = new Set(['person', 'team', 'initiative', 'wizard']);
+const ALL_PAGE_IDS = new Set([...PAGES.map((p) => p.id), ...ID_PAGES]);
+
+function hashFor({ page, params }) {
+  if (page === 'settings') return params.section ? `#/settings/${params.section}` : '#/settings';
+  if (ID_PAGES.has(page) && params.id) return `#/${page}/${encodeURIComponent(params.id)}`;
+  return `#/${page}`;
+}
+
+/** The inverse of `hashFor`. An unrecognised or empty hash lands on Portfolio. */
+function parseHash() {
+  const [page, sub] = location.hash.replace(/^#\/?/, '').split('/');
+  if (!ALL_PAGE_IDS.has(page)) return { page: 'portfolio', params: {} };
+  if (page === 'settings') return { page, params: sub ? { section: decodeURIComponent(sub) } : {} };
+  if (ID_PAGES.has(page) && sub) return { page, params: { id: decodeURIComponent(sub) } };
+  return { page, params: {} };
+}
+
+/**
+ * Move focus to the page and tell assistive tech what changed. There is no
+ * page reload to do this for free the way there is on a normal site (§2.1).
+ * The heading is read back from what just rendered rather than looked up
+ * separately, so the announcement can never say something the screen
+ * doesn't.
+ */
+function announceNavigation() {
+  const root = document.getElementById('root');
+  root?.focus();
+  const announcer = document.getElementById('route-announcer');
+  if (announcer) announcer.textContent = root?.querySelector('h1')?.textContent.trim() ?? '';
+}
+
 export function navigate(page, params = {}) {
   view = { page, params };
   render();
+
+  // Only a change of *place* touches the address bar or moves focus — a
+  // sort, a filter, a month or a chart year keeps the same identity, so the
+  // hash comes out unchanged and this is a no-op, exactly as it should be.
+  const next = hashFor(view);
+  if (location.hash !== next) {
+    location.hash = next;
+    announceNavigation();
+  }
 }
 
 /** Persist (debounced) and re-render. */
@@ -849,6 +906,7 @@ export function boot() {
   const loaded = store.load();
   app = loaded.app;
   loadReason = loaded.reason;
+  view = parseHash();
 
   document.getElementById('wordmark').textContent = 'Initiative Planner';
   applyTheme(currentTheme());
@@ -866,8 +924,21 @@ export function boot() {
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
   document.addEventListener('change', onFileChange);
+  // Back/Forward and a manually edited hash both land here; an in-app
+  // navigate() also reaches it, asynchronously, once it writes the hash
+  // itself — re-deriving the same view from the same string, so that leg is
+  // a harmless repeat of a render that already happened.
+  window.addEventListener('hashchange', () => {
+    view = parseHash();
+    render();
+    announceNavigation();
+  });
   window.addEventListener('beforeunload', () => store.flush(app));
 
   render();
+  // Canonicalise a missing or unrecognised hash so the address bar reflects
+  // reality from the first paint, not only after the first navigation.
+  const canonical = hashFor(view);
+  if (location.hash !== canonical) location.hash = canonical;
   return loadReason;
 }
