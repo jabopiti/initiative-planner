@@ -42,7 +42,7 @@ here — this table is status only.
 | §4.6 Copy, states, first run, accessibility | Not started |
 | §4.7 File System Access persistence | Not started |
 | §4.8 Brand pack | Not started |
-| D3 — drop CSV, keep Copy | Not started — independent, land whenever |
+| D3 — drop CSV, keep Copy | **Landed** |
 | D9 — rolling four-year window recompute | Not started — independent, land whenever |
 
 **How this gets built.** Sonnet 5 at `xhigh` effort is the default — the plan
@@ -111,6 +111,15 @@ rather than slotted into a specific §4.x section:
   load, seeding a new year from the nearest existing one. Touches
   `store.js`'s `load()` and `masterData.js`'s `trackedYears()` (or wherever
   the equivalent lives once this is built) — no render files.
+
+**Landed — D3.** The "Download CSV" button is gone from `tableActions()`,
+along with its `case 'csv-table'` handler in `app.js`, `downloadCsv` in
+`store.js`, and `toCsv`/`csvCell` in `transfer.js` — `downloadBlob` stays,
+since `downloadExport` still uses it. The CSV-quoting test in
+`test/people.test.mjs` went with the code it tested; the TSV and rich-HTML
+copy tests it sat beside are untouched. SPEC §8 now says a table "can be
+copied" rather than "copied ... or downloaded as CSV." Verified by reading
+the built page: every table's action row now shows one button.
 
 ---
 
