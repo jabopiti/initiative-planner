@@ -29,6 +29,27 @@ export function escapeHtml(value) {
  * Months and years
  * ------------------------------------------------------------------ */
 
+/**
+ * Years the rolling window covers, relative to "now": last year, this year,
+ * and the next two (DESIGN §2). This is process logic, not seed data — it
+ * lives here rather than in the brand pack's `masterData.js`, so a
+ * downstream brand build cannot silently break the recompute by editing or
+ * dropping it.
+ */
+export const WINDOW_BEFORE = 1;
+export const WINDOW_AFTER = 2;
+
+/**
+ * The years the rolling window covers, oldest first.
+ * @param {number} [now] current year, injectable for tests
+ * @returns {number[]}
+ */
+export function trackedYears(now = new Date().getFullYear()) {
+  const years = [];
+  for (let y = now - WINDOW_BEFORE; y <= now + WINDOW_AFTER; y += 1) years.push(y);
+  return years;
+}
+
 /** @param {Date} date @returns {string} `YYYY-MM` */
 export function monthKey(date) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -84,6 +105,74 @@ export function yearRecord(byYear, year) {
   if (tracked.length === 0) throw new Error('per-year record is empty');
   const nearest = year < tracked[0] ? tracked[0] : tracked[tracked.length - 1];
   return byYear[nearest];
+}
+
+/**
+ * Add every year in `wanted` missing from `byYear`, cloning the nearest
+ * existing tracked year via `clone` — never from zero, which would silently
+ * make a whole year free (DESIGN §2). Never removes a year already present,
+ * even one that has fallen out of the window: a month's actual cost stays
+ * reproducible against the rate it was recorded under, which is exactly what
+ * `yearRecord`'s clamp-to-nearest fallback already relies on for anything
+ * older than the window's start.
+ *
+ * @template T
+ * @param {Record<string|number, T>} byYear
+ * @param {number[]} wanted
+ * @param {(record: T) => T} clone
+ * @returns {boolean} whether any year was added
+ */
+function extendByYear(byYear, wanted, clone) {
+  const existing = Object.keys(byYear).map(Number);
+  if (existing.length === 0) return false; // nothing to seed a new year from
+
+  let changed = false;
+  for (const year of wanted) {
+    if (byYear[year] !== undefined) continue;
+    const nearest = existing.reduce((best, y) => (Math.abs(y - year) < Math.abs(best - year) ? y : best));
+    byYear[year] = clone(byYear[nearest]);
+    existing.push(year);
+    changed = true;
+  }
+  return changed;
+}
+
+/**
+ * Extend every country's `byYear`, and every custom-rate person's, to cover
+ * the rolling window as of `now` (DESIGN §2) — the recompute `store.load()`
+ * is missing today, which is why a dataset seeded years ago still clamps
+ * every month past its original window to the nearest tracked year's rate
+ * instead of getting a year of its own.
+ *
+ * A country's working days are cloned whole (rate and the twelve-month
+ * array both), since there is no holiday calendar in the data model to
+ * recompute them from — only `masterData.js`'s seed has one, and only at
+ * seed time.
+ *
+ * Mutates `app` in place and reports whether anything changed, so a caller
+ * can skip an unnecessary write.
+ *
+ * @param {object} app
+ * @param {number} [now] current year, injectable for tests
+ * @returns {boolean}
+ */
+export function recomputeWindow(app, now = new Date().getFullYear()) {
+  const wanted = trackedYears(now);
+  let changed = false;
+
+  for (const country of Object.values(app.COUNTRIES)) {
+    const added = extendByYear(country.byYear, wanted, (record) => ({
+      rate: record.rate,
+      workingDays: [...record.workingDays],
+    }));
+    changed = changed || added;
+  }
+  for (const person of Object.values(app.PEOPLE)) {
+    if (!person.customRole) continue;
+    const added = extendByYear(person.customRole.byYear, wanted, (rate) => rate);
+    changed = changed || added;
+  }
+  return changed;
 }
 
 /* ------------------------------------------------------------------ *
@@ -720,6 +809,49 @@ export function capacityWarnings(app, personId, teamId, monthKeyStr) {
     overTeamShare: member ? inTeam > member.sharePct : inTeam > 0,
     overCapacity: overall > person.capacityPct,
   };
+}
+
+/**
+ * Every over-allocation for one month, across every active person and team
+ * (SPEC §7) — the question per-team and per-person capacity each answer on
+ * their own, but that neither answers for "anyone, anywhere."
+ *
+ * The two ceilings stay separate rather than merged into one list: capacity
+ * % and share % are never interchangeable (§5.2), and a person can be over
+ * one without being over the other.
+ *
+ * @returns {{
+ *   overCapacity: Array<{ personId: string, capacityPct: number, allocatedPct: number }>,
+ *   overShare: Array<{ personId: string, teamId: string, sharePct: number, allocatedPct: number }>,
+ * }}
+ */
+export function overAllocations(app, monthKeyStr) {
+  const overCapacity = [];
+  const overShare = [];
+
+  for (const person of Object.values(app.PEOPLE)) {
+    if (!person.active) continue;
+
+    const overall = allocatedPct(app, person.id, monthKeyStr);
+    if (overall > person.capacityPct) {
+      overCapacity.push({ personId: person.id, capacityPct: person.capacityPct, allocatedPct: overall });
+    }
+
+    for (const member of person.memberships ?? []) {
+      if (!member.active) continue;
+      const inTeam = allocatedPct(app, person.id, monthKeyStr, member.teamId);
+      if (inTeam > member.sharePct) {
+        overShare.push({
+          personId: person.id,
+          teamId: member.teamId,
+          sharePct: member.sharePct,
+          allocatedPct: inTeam,
+        });
+      }
+    }
+  }
+
+  return { overCapacity, overShare };
 }
 
 /**

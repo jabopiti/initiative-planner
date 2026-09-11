@@ -38,12 +38,12 @@ here — this table is status only.
 | §4.4 Initiative detail — the sticky summary bar, and the jump menu | **Landed** |
 | §4.4 Initiative detail — the allocation table, and D2 | **Landed** |
 | §4.4 Initiative detail — the wizard's ending, and the month table's foot | **Landed** |
-| §4.5 Overviews, capacity, charts | Not started |
+| §4.5 Overviews, capacity, charts | **Landed** |
 | §4.6 Copy, states, first run, accessibility | Not started |
 | §4.7 File System Access persistence | Not started |
 | §4.8 Brand pack | Not started |
-| D3 — drop CSV, keep Copy | Not started — independent, land whenever |
-| D9 — rolling four-year window recompute | Not started — independent, land whenever |
+| D3 — drop CSV, keep Copy | **Landed** |
+| D9 — rolling four-year window recompute | **Landed** |
 
 **How this gets built.** Sonnet 5 at `xhigh` effort is the default — the plan
 below is specified enough to carry it, and it is 2.5x cheaper than Opus 5.
@@ -111,6 +111,46 @@ rather than slotted into a specific §4.x section:
   load, seeding a new year from the nearest existing one. Touches
   `store.js`'s `load()` and `masterData.js`'s `trackedYears()` (or wherever
   the equivalent lives once this is built) — no render files.
+
+**Landed — D9.** Before coding, the question the plan flagged — whether
+`WINDOW_BEFORE`/`WINDOW_AFTER`/`trackedYears()` should move out of
+`masterData.js` (a brand-pack file) into `engine.js` — went to Bo rather
+than being decided while implementing. Bo chose the move: window length is
+process logic the build owns, not seed data a fork edits freely.
+`masterData.js` bumped to brand-pack contract version 2 and now imports
+`trackedYears` to seed against, rather than defining it.
+
+`E.recomputeWindow(app, now)` extends every country's `byYear`, and every
+custom-rate person's, to cover the window as of `now`, cloning the nearest
+existing tracked year rather than seeding from zero. It only ever adds
+years — a year that has rolled out of the window stays rather than being
+deleted, since an old month's actual cost must still be able to reproduce
+the rate it was recorded under; deleting it would trade one silent-drift
+bug for another. `store.load()` calls it on a successful load and writes
+the result back immediately via `saveNow` when anything changed, so the
+extension survives a reload with no further edit needed. No
+`schemaVersion` bump — the shape is unchanged. `render/charts.js`'s
+same-named `trackedYears()` (a different, data-driven function) needed no
+change, exactly as the plan predicted: it becomes correct for free once
+the underlying data actually has the right years.
+
+Verified in a real browser: seeded `examples/exports/demo.json`, then
+deleted 2027 and 2028 from every country's `byYear` and from the one
+custom-rate person's, to simulate a dataset seeded years ago. On reload,
+both years came back on every country and the custom-rate person, each
+equal to 2026's record (the nearest survivor) and never zero; Settings'
+Countries & rates section showed all four years with real rates and
+working days; the Portfolio chart's year nav reached 2028 (correctly
+disabled past it) with no console errors.
+
+**Landed — D3.** The "Download CSV" button is gone from `tableActions()`,
+along with its `case 'csv-table'` handler in `app.js`, `downloadCsv` in
+`store.js`, and `toCsv`/`csvCell` in `transfer.js` — `downloadBlob` stays,
+since `downloadExport` still uses it. The CSV-quoting test in
+`test/people.test.mjs` went with the code it tested; the TSV and rich-HTML
+copy tests it sat beside are untouched. SPEC §8 now says a table "can be
+copied" rather than "copied ... or downloaded as CSV." Verified by reading
+the built page: every table's action row now shows one button.
 
 ---
 
@@ -1065,6 +1105,198 @@ exactly the initiative with an unestimated phase.
   chart gets a table fallback for screen readers. Load the `dataviz` skill
   first (CLAUDE.md).
 - **Global search** across initiatives, people and teams, from the shell.
+
+**Landed — the Initiatives overview.** Status is the table's last column: a
+badge (`.badge--button`, a new variant — `.badge` itself is documented as
+non-interactive) that opens a popover menu instead of a `<select>`. The
+badge's kind makes Closed (`quiet`) and Cancelled (`danger`) read as
+different outcomes rather than one undifferentiated "finished," and Active
+(`ok`)/On hold (`warn`) read the same way status does everywhere else in the
+app now. Switching to Active or On hold is immediate and closes the menu;
+choosing Cancelled swaps the same popover's content for a confirm step
+first — "Cancel initiative" / "Never mind" — rather than a whole-page arm,
+since nothing else on the row needs to survive the round trip. Closed offers
+no menu at all: reopening is a gate action on the initiative itself, not a
+registry action.
+
+Closed and cancelled initiatives are hidden by default behind a "Show
+closed & cancelled" checkbox — the registry has no archive, so without this
+it only ever grows — and an explicit Status filter selection still wins
+over the checkbox either way, so picking "Cancelled" from that dropdown
+shows cancelled work regardless. The "needs an estimate" badge (§4.4) stays
+exactly where it was, next to the name: it was never coupled to the status
+column's position, so status moving away from it changed nothing about
+where it sits.
+
+**Found and fixed in passing.** Both this checkbox and People's existing
+"Show inactive" one threw an uncaught `InvalidStateError` on every toggle —
+the shared per-keystroke caret-restore handler in `onInput` called
+`setSelectionRange` unconditionally, which a checkbox's input type does not
+support at all. Guarded on `target.type !== 'checkbox'`.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark: the menu opens on the badge and positions off it; Active/On hold
+apply and close immediately; Cancelled arms its confirm in place without
+losing the popover's anchor, "Never mind" aborts and restores focus to the
+badge, and confirming turns the badge red and reversible back to Active; the
+checkbox default-hides Fraud scoring v2 (closed) and reveals it when
+checked; a fresh browser tab's console stayed clean through the whole
+sequence, confirming the `InvalidStateError` fix (the error had briefly
+looked unfixed because the console reader carries history across a
+same-tab reload, which cost time to notice — a fresh tab settled it).
+
+**Landed — a Capacity overview (D7).** New engine function
+`E.overAllocations(app, monthKeyStr)` finds every over-allocation for one
+month, across every active person and team, returning two lists rather than
+one merged one — capacity % and share % are never interchangeable
+(SPEC §5.2), and a person can be over one without being over the other. A
+new top-level page at `#/capacity` (in `PAGES`, between People and
+Settings) shows a month picker over two panels built from those lists —
+"Over capacity" and "Over their team's share" — each a table with a
+person/team link, the two percentages, and how far over, using the
+existing `over`/`row--warn` classes already established on the Person and
+Portfolio pages rather than inventing new ones. Written into SPEC as a new
+§7, in the gap between §6 and §8 that the plan had reserved for it.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark, at 1024px and 420px: September 2026 shows two people over capacity
+and two memberships over share with real, non-zero figures (the demo data
+already models this month realistically); switching to January 2025 shows
+both panels' empty states; the month picker and "Today" button work
+unmodified, since both already dispatch through `view.page` generically;
+clicking a person or team link navigates to its detail page; a fresh
+browser tab's console stayed clean.
+
+**Landed — Portfolio gains a capacity dimension.** The dashboard's lede used
+to disclaim the question outright ("Capacity is a per-team and per-person
+question and lives on those pages"), which read oddly once the Capacity
+overview above existed to answer it across every team at once. A new
+"Capacity this month" panel sits between the cost chart and the initiatives
+table: two tiles, reusing `E.overAllocations` for `currentMonth()` — capacity
+is a "right now" question, independent of whichever year the cost chart is
+showing — each linking to `#/capacity` rather than duplicating its table.
+The lede is now "Cost and capacity across every team, read-only," matching
+SPEC §1's "co-equal outputs" framing directly instead of disclaiming half
+of it.
+
+A non-zero count needed a new `.tile--warn` class rather than reusing `.over`
+directly on `.tile__value`: that class sets its own `color`, defined later
+in `styles.css` than `.over`, so the two would have tied on specificity and
+`.tile__value` would have silently won regardless of which was listed
+second in the markup. Scoping the color through a wrapper class fixes that
+regardless of source order.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark: September 2026 (today's month) shows "2 over capacity" and "2 over
+their team's share" in the danger colour; "Full breakdown" links to
+`#/capacity`; a fresh tab's console stayed clean.
+
+**Landed — Team cards gain a cost and capacity figure.** Cards showed
+members, share and initiative count only — no money, and "Share held" said
+what a team holds of its people without saying how much of that is actually
+committed. `P.teamSummary` now takes the month it means (cost and
+allocation are "right now" questions, not lifetime totals) and returns two
+new fields: `costThisMonth` (`E.teamRunRate` for that one month) and
+`allocatedSharePct` (allocated % summed across the active roster). Cards
+show "Cost this month" in money and "Capacity used" as
+`allocatedSharePct / totalSharePct` — a team can hold 100% of someone and
+use none of it, and this is the figure that says so. Over 100% colours the
+same as every other over-allocation in the app.
+
+The three existing `teamSummary` tests needed a month argument added; a new
+one covers the two additions directly, including that an idle month still
+costs something (unused share is non-initiative work, SPEC §5.2, never
+zero for a roster that exists). `.card__stats dd.over` was needed for the
+same reason Portfolio's `.tile--warn` was: `.card__stats dd` sets its own
+`color`, so a bare `.over` class would have tied on specificity and lost.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark, at 1440px and 420px: Platform shows a real cost figure and "115%" in
+the danger colour (it has the two over-allocated people from the Capacity
+overview above); Growth shows "0%" where nothing is currently allocated
+within the month despite carrying cost from unused share; cards wrap
+correctly at 420px; a fresh tab's console stayed clean.
+
+**Landed — a shared SVG chart primitive.** Loaded the `dataviz` skill first
+(CLAUDE.md), per its procedure: form was already decided (stacked bars),
+color follows the entity via the existing `--chart-1..6`/`--chart-spare`
+tokens (a data-encoding concern this row correctly left alone, per the Farn
+hue-adoption note earlier in this document), so the work was marks, axis,
+and interaction. `stackedBarsMarkup(data, key, label)` in `render/charts.js`
+replaces the old absolutely-positioned div bars with real SVG: a y-axis
+with "nice" round-number gridlines (`niceMax()` rounds to 1/2/5/10 × a power
+of ten), rounded data-ends square at the baseline (a `roundedTopRect()` path
+on the topmost segment only — correct for a single-segment bar too, since
+that segment is simultaneously its own top and bottom), a 2px surface gap
+between stacked segments, and the current month picked out on the x-axis.
+Native SVG `<title>` elements carry the per-segment hover value. One
+function, still shared by the Portfolio chart and every team's run rate.
+
+Each chart also gets a "View as table" toggle: a pure DOM `hidden`-attribute
+swap (not page state — a year change or filter re-renders the block back to
+its chart default, which is a deliberate call, not an oversight) between the
+SVG and a real `<table>` registered in the existing `TABLES`/`copy-table`
+machinery, so Copy comes for free and every value the picture shows is also
+reachable without it (dataviz: "a table view exists" is what lets a chart
+skip building its own keyboard/hover story for every mark). Two units of
+dead code went with it: the duplicate JSDoc block §2.5 had flagged above the
+old function, and `--bars-height`, now unused.
+
+**One bug caught in browser verification, not review.** The toggle button
+carried its own `data-chart` attribute for a
+`trigger.closest('[data-chart="..."]')` lookup — which matched the *button
+itself* first, since it carries that same attribute, and never reached the
+wrapping `.chart-block` that actually holds the two views. The click handler
+ran, found nothing inside the button, and silently did nothing. Fixed by
+matching `.chart-block`'s class instead of the attribute value.
+
+**Flagged, not fixed:** color cycles at 6 series (`% 6` against the six
+`--chart-N` tokens) and reuses a hue past that — a real anti-pattern per
+`dataviz` (fold into "Other," never cycle) but a bigger job than this
+primitive, and pre-existing rather than something this row introduced.
+Logged as a follow-up task rather than bundled in here.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark, at 1440px and 420px: Portfolio's cost chart and a team's run rate both
+show correct gridlines, values and the current month in the accent colour;
+the table toggle round-trips both directions with the right figures and a
+working Copy button; a segment's native tooltip reads correctly; a fresh
+tab's console stayed clean throughout.
+
+**Landed — global search.** A "Search" button in the shell — next to Export/
+Import/Theme, so it is on every page — opens a popover with a text field.
+Typing filters initiatives, people and teams by name live; each result
+names its kind and, when it is not in its normal active/open state, a short
+note (a status word, or "inactive"), so a search for a name doesn't drop
+you on a closed initiative with no warning. Selecting a result is a real
+`href` link — the same plain-anchor navigation every other cross-reference
+in the app already uses — so `search-select`'s handler only has to close
+the popover, exactly the way `panel` (the jump menu) already does for the
+same reason.
+
+Filtering is simpler than the existing search-box pattern
+(`initiatives-filter`/`people-filter`, which re-renders a whole page and
+then restores focus and the caret by hand): this only ever rebuilds the
+results list, a sibling of the input, so the input itself is never touched
+and there is no caret to lose in the first place.
+
+**Found in passing, fixed alongside it:** a concurrent session's git
+worktree under `.claude/worktrees/` was being swept into this repo's own
+`eslint .` — that path was never in the ignore list, so its files fell
+through to bare `eslint:recommended` (no browser globals) and threw over a
+hundred `no-undef` errors that had nothing to do with this row. Added
+`.claude/` to `eslint.config.js`'s ignores.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark: the popover opens focused on the field and positions off the Search
+button; typing narrows the list live across all three kinds, including a
+closed initiative and an on-hold one showing their status; selecting a
+result navigates there and closes the popover; Escape closes it and
+restores focus to the Search button; the button and behaviour are
+identical from Portfolio and from Settings; a fresh tab's console stayed
+clean; the search popover survives a 420px viewport.
+
+**§4.5 is complete.**
 
 ### 4.6 Copy, states, first run and accessibility
 

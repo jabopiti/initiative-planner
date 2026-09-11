@@ -295,7 +295,7 @@ export function phasePanel(initiative, phaseId, editable) {
 }
 
 /**
- * Each phase's allocations is its own named table for copy and CSV (§8).
+ * Each phase's allocations is its own named table for copy (§8).
  *
  * It keeps Day rate and Factor, which the rendered table dropped. Copying a
  * table out is the bulk version of the per-row disclosure — someone takes it

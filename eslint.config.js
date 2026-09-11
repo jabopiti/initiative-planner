@@ -2,7 +2,7 @@ import js from '@eslint/js';
 import globals from 'globals';
 
 export default [
-  { ignores: ['.build-tmp/', 'initiative-planner.html', 'node_modules/'] },
+  { ignores: ['.build-tmp/', 'initiative-planner.html', 'node_modules/', '.claude/'] },
   js.configs.recommended,
   {
     files: ['**/*.js', '**/*.mjs'],

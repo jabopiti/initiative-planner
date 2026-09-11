@@ -29,7 +29,7 @@ import { chartYear } from './render/charts.js';
 import { phaseTotalsMarkup, grandMarkup, allocationDetailMarkup } from './render/phase-panel.js';
 
 import { renderPortfolio } from './pages/portfolio.js';
-import { renderInitiatives } from './pages/initiatives.js';
+import { renderInitiatives, statusMenuMarkup, statusCancelConfirmMarkup } from './pages/initiatives.js';
 import {
   renderInitiative, bandPanelMarkup, gateMenuMarkup, jumpMenuMarkup, monthTotalsRowMarkup,
   skipDialogMarkup, summaryBarMarkup,
@@ -39,6 +39,7 @@ import { renderTeams } from './pages/teams.js';
 import { renderTeam, capacityCellMarkup } from './pages/team.js';
 import { renderPeople } from './pages/people.js';
 import { renderPerson } from './pages/person.js';
+import { renderCapacity } from './pages/capacity.js';
 import { renderSettings, importPreviewMarkup, scrollToSettingsSection } from './pages/settings.js';
 
 /* ------------------------------------------------------------------ *
@@ -92,7 +93,9 @@ function renderShellActions() {
   const theme = currentTheme();
   fill(
     'shell-actions',
-    html`<button type="button" class="btn btn--small" data-act="export">
+    html`<button type="button" class="btn btn--small" data-act="search-open" aria-haspopup="dialog">
+        ${raw(icon('search'))}Search</button>
+      <button type="button" class="btn btn--small" data-act="export">
         ${raw(icon('export'))}Export</button>
       <label class="btn btn--small btn--file">${raw(icon('import'))}Import
         <input type="file" accept="application/json,.json" data-act="import-file" hidden />
@@ -101,6 +104,50 @@ function renderShellActions() {
         aria-label="Theme: ${THEME_LABELS[theme]}. Click to change.">
         ${raw(icon('theme'))}${THEME_LABELS[theme]}</button>`,
   );
+}
+
+/* ------------------------------------------------------------------ *
+ * Global search (§4.5) — initiatives, people and teams by name, from
+ * anywhere in the shell.
+ * ------------------------------------------------------------------ */
+
+/** Every initiative, person and team whose name matches, kind by kind. */
+function searchResults(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const matches = (name) => name.toLowerCase().includes(q);
+  return [
+    ...app.INITIATIVES.filter((i) => matches(i.name)).map((i) => ({
+      kind: 'Initiative',
+      name: i.name,
+      href: `#/initiative/${i.id}`,
+      note: i.status === 'active' ? '' : STATUS_LABELS[i.status],
+    })),
+    ...Object.values(app.PEOPLE).filter((p) => matches(p.name)).map((p) => ({
+      kind: 'Person', name: p.name, href: `#/person/${p.id}`, note: p.active ? '' : 'inactive',
+    })),
+    ...Object.values(app.TEAMS).filter((t) => matches(t.name)).map((t) => ({
+      kind: 'Team', name: t.name, href: `#/team/${t.id}`, note: t.active ? '' : 'inactive',
+    })),
+  ];
+}
+
+function searchResultsMarkup(query) {
+  if (!query.trim()) return html`<p class="muted micro">Type a name to jump to it.</p>`;
+  const results = searchResults(query);
+  if (results.length === 0) return html`<p class="muted micro">No match.</p>`;
+  return html`<div class="popover__actions">${raw(results
+    .map((r) => html`<a class="btn" href="${r.href}" data-act="search-select">
+        <span class="micro muted">${r.kind}</span> ${r.name}
+        ${raw(r.note ? html`<span class="micro muted">· ${r.note}</span>` : '')}</a>`)
+    .join(''))}</div>`;
+}
+
+function searchMarkup() {
+  return html`<h3>Search</h3>
+    <input class="field" type="search" data-act="search-query"
+      placeholder="Initiatives, people, teams" aria-label="Search initiatives, people and teams" />
+    <div data-search-results>${raw(searchResultsMarkup(''))}</div>`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -358,6 +405,7 @@ export const PAGES = [
   { id: 'initiatives', label: 'Initiatives', kind: 'overview' },
   { id: 'teams', label: 'Teams', kind: 'overview' },
   { id: 'people', label: 'People', kind: 'overview' },
+  { id: 'capacity', label: 'Capacity', kind: 'overview' },
   { id: 'settings', label: 'Settings', kind: 'settings' },
 ];
 
@@ -366,6 +414,15 @@ export const STATUS_LABELS = {
   'on-hold': 'On hold',
   cancelled: 'Cancelled',
   closed: 'Closed',
+};
+
+/** Which badge kind each status reads as, so closed (done) and cancelled
+ * (abandoned) are visually distinct rather than sharing one "finished" mark. */
+export const STATUS_BADGE_KIND = {
+  active: 'ok',
+  'on-hold': 'warn',
+  cancelled: 'danger',
+  closed: 'quiet',
 };
 
 /** `YYYY-MM` for today, the month picker's default. */
@@ -477,6 +534,7 @@ export function render() {
   if (view.page === 'settings') return renderSettings();
   if (view.page === 'people') return renderPeople();
   if (view.page === 'person') return renderPerson();
+  if (view.page === 'capacity') return renderCapacity();
   if (view.page === 'teams') return renderTeams();
   if (view.page === 'team') return renderTeam();
   if (view.page === 'initiatives') return renderInitiatives();
@@ -639,16 +697,26 @@ function onInput(event) {
     // Search is the one filter that must react per keystroke, and filtering
     // rebuilds the table the box sits above. Re-render, then put the caret
     // back exactly where it was — the invariant is that typing never *loses*
-    // the caret, not that nothing may re-render.
+    // the caret, not that nothing may re-render. A checkbox (e.g. "Show
+    // inactive"/"Show closed & cancelled") also fires this event, but has no
+    // caret to restore — `setSelectionRange` throws on that input type.
     const page = act === 'people-filter' ? 'people' : 'initiatives';
-    const filters = { ...(view.params.filters ?? {}), [target.dataset.filter]: target.value };
+    const checkbox = target.type === 'checkbox';
+    const value = checkbox ? target.checked : target.value;
+    const filters = { ...(view.params.filters ?? {}), [target.dataset.filter]: value };
     const caret = target.selectionStart;
     navigate(page, { ...view.params, filters });
     const restored = document.querySelector(`[data-act="${act}"][data-filter="${target.dataset.filter}"]`);
-    if (restored instanceof HTMLInputElement) {
+    if (restored instanceof HTMLInputElement && !checkbox) {
       restored.focus();
       restored.setSelectionRange(caret, caret);
     }
+    return;
+  } else if (act === 'search-query') {
+    // Only the results list rebuilds — the input itself is never touched, so
+    // there is no caret to lose in the first place.
+    const results = document.querySelector('[data-search-results]');
+    if (results) results.innerHTML = searchResultsMarkup(target.value);
     return;
   } else if (act === 'draft-field') {
     // The draft lives in view params until step 1 is saved, so it survives
@@ -786,6 +854,13 @@ function onClick(event) {
 
     case 'nav-toggle':
       return setNavOpen(!navOpen);
+    case 'search-open':
+      return openPopover(trigger, searchMarkup());
+    case 'search-select':
+      // A real `href` does the navigating; this only has to dismiss a
+      // popover a click on its own contents does not (§4.5).
+      closePopover();
+      return undefined;
 
 
     case 'role-active':
@@ -862,6 +937,24 @@ function onClick(event) {
       });
     case 'year-today':
       return navigate(view.page, { ...view.params, year: new Date().getFullYear() });
+    case 'chart-table-toggle': {
+      // A pure DOM swap, not a re-render: which of a chart's two equivalent
+      // views is showing is not state worth tracking in `view.params`, and a
+      // full re-render would undo whatever else the page happens to be
+      // showing (a filter, a scroll position) for no reason.
+      // `.chart-block`, not `[data-chart]` — the toggle button itself also
+      // carries `data-chart`, so an attribute-value selector would match the
+      // button before it ever reaches the wrapper that holds the two views.
+      const block = trigger.closest('.chart-block');
+      const visual = block?.querySelector('.chart-block__visual');
+      const tableView = block?.querySelector('.chart-block__table');
+      if (!(visual instanceof HTMLElement) || !(tableView instanceof HTMLElement)) return undefined;
+      const showingTable = !tableView.hidden;
+      tableView.hidden = showingTable;
+      visual.hidden = !showingTable;
+      trigger.textContent = showingTable ? 'View as table' : 'View as chart';
+      return undefined;
+    }
 
     case 'wizard-start':
       return navigate('wizard', {});
@@ -953,6 +1046,23 @@ function onClick(event) {
       store.save(app);
       return navigate('initiative', { id: copy.id });
     }
+    case 'status-menu':
+      return openPopover(trigger, statusMenuMarkup(id));
+    case 'status-set':
+      closePopover();
+      L.setStatus(findInitiative(id), trigger.dataset.status);
+      return commit();
+    case 'status-cancel-arm':
+      // Same anchor as the menu it replaces: the row's badge, not this
+      // button, which is about to be replaced along with the rest of the
+      // popover's content.
+      return openPopover(popoverTrigger, statusCancelConfirmMarkup(id));
+    case 'status-cancel-confirm':
+      closePopover();
+      L.setStatus(findInitiative(id), 'cancelled');
+      return commit();
+    case 'status-cancel-abort':
+      return closePopover();
     case 'initiative-delete-arm':
       return navigate('initiative', { ...view.params, confirmDelete: true });
     case 'initiative-delete-cancel':
@@ -1099,12 +1209,6 @@ function onClick(event) {
       });
       return undefined;
     }
-    case 'csv-table': {
-      const table = TABLES[trigger.dataset.table];
-      store.downloadCsv(`${table.name}.csv`, table.headers, table.rows);
-      return undefined;
-    }
-
     case 'reset-arm':
       return navigate('settings', { section, armed: true });
     case 'reset-cancel':
@@ -1149,12 +1253,10 @@ function onChange(event) {
     }
     case 'initiatives-filter': {
       const filters = { ...(view.params.filters ?? {}) };
-      filters[target.dataset.filter] = target.value;
+      const key = target.dataset.filter;
+      filters[key] = target.type === 'checkbox' ? target.checked : target.value;
       return navigate('initiatives', { ...view.params, filters });
     }
-    case 'initiative-status':
-      L.setStatus(findInitiative(id), target.value);
-      return commit();
     case 'phase-start':
     case 'phase-end': {
       const initiative = findInitiative(id);
