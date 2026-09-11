@@ -259,7 +259,7 @@ test('a leaver stays on the roster, marked inactive rather than removed', () => 
 
   assert.equal(P.teamRoster(app, teamId).length, before, 'never a hard delete');
   assert.equal(P.teamRoster(app, teamId).find((r) => r.person.id === person.id).membership.active, false);
-  assert.equal(P.teamSummary(app, teamId).activeMembers, before - 1, 'but out of the count');
+  assert.equal(P.teamSummary(app, teamId, `${NOW}-01`).activeMembers, before - 1, 'but out of the count');
 });
 
 test('a team summary counts only what is active', () => {
@@ -268,14 +268,41 @@ test('a team summary counts only what is active', () => {
   const roster = P.teamRoster(app, teamId).filter((r) => r.membership.active);
   const expected = roster.reduce((t, r) => t + r.membership.sharePct, 0);
 
-  const summary = P.teamSummary(app, teamId);
+  const summary = P.teamSummary(app, teamId, `${NOW}-01`);
   assert.equal(summary.totalSharePct, expected);
   assert.equal(summary.activeInitiatives, 0);
 
   L.createInitiative(app, SIMPLE, { name: 'Live', teamId });
   const held = L.createInitiative(app, SIMPLE, { name: 'Paused', teamId });
   L.setStatus(held, 'on-hold');
-  assert.equal(P.teamSummary(app, teamId).activeInitiatives, 1, 'on-hold work is not active');
+  assert.equal(
+    P.teamSummary(app, teamId, `${NOW}-01`).activeInitiatives, 1, 'on-hold work is not active',
+  );
+});
+
+test('a team summary carries this month\'s cost and allocated share (§4.5)', () => {
+  const app = setup();
+  const teamId = Object.keys(app.TEAMS)[0];
+  const person = Object.values(app.PEOPLE).find((p) => E.membership(p, teamId));
+  const share = E.membership(person, teamId).sharePct;
+
+  const initiative = L.createInitiative(app, SIMPLE, { name: 'Alpha', teamId });
+  L.setPhasePeriod(initiative, 'plan', '2026-05-01', '2026-05-31');
+  L.setAllocation(app, initiative, 'plan', person.id, share);
+
+  const summary = P.teamSummary(app, teamId, '2026-05');
+  assert.equal(summary.allocatedSharePct, share, 'fully allocated, no spare share left');
+  assert.equal(
+    Math.round(summary.costThisMonth),
+    Math.round(E.teamRunRate(app, teamId, ['2026-05'])[0].total),
+  );
+
+  // A month with nothing allocated costs only whatever non-initiative work
+  // the roster's unused share still implies (SPEC §5.2) — never zero for a
+  // team with an active roster.
+  const idle = P.teamSummary(app, teamId, '2026-01');
+  assert.equal(idle.allocatedSharePct, 0);
+  assert.ok(idle.costThisMonth > 0, 'unused share still costs as non-initiative work');
 });
 
 /* -------------------------------------------------- run rate */

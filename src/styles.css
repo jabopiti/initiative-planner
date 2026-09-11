@@ -1389,6 +1389,12 @@ h3,
   color: var(--color-fg);
 }
 
+/* Over-allocation colours, never blocks (SPEC §5.2) — needs its own
+   specificity to beat `.card__stats dd`'s own color rule above. */
+.card__stats dd.over {
+  color: var(--color-danger);
+}
+
 .card__actions {
   display: flex;
   flex-wrap: wrap;

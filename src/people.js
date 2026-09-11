@@ -226,7 +226,12 @@ export function teamRoster(app, teamId) {
 }
 
 /** Summary figures for a team card. */
-export function teamSummary(app, teamId) {
+/**
+ * @param {object} app @param {string} teamId
+ * @param {string} monthKeyStr what "cost" and "allocated" mean by — both are
+ *   "right now" questions, not a whole-year total (§4.5).
+ */
+export function teamSummary(app, teamId, monthKeyStr) {
   const roster = teamRoster(app, teamId).filter((row) => row.membership.active);
   return {
     activeMembers: roster.filter((row) => row.person.active).length,
@@ -234,5 +239,10 @@ export function teamSummary(app, teamId) {
     activeInitiatives: app.INITIATIVES.filter(
       (i) => i.teamId === teamId && i.status === 'active',
     ).length,
+    costThisMonth: E.teamRunRate(app, teamId, [monthKeyStr])[0]?.total ?? 0,
+    allocatedSharePct: roster.reduce(
+      (total, row) => total + E.allocatedPct(app, row.person.id, monthKeyStr, teamId),
+      0,
+    ),
   };
 }
