@@ -26,7 +26,7 @@ import { html, raw, fill } from './render/dom.js';
 import { SPRITE, icon } from './render/icons.js';
 import { TABLES } from './render/tables.js';
 import { chartYear } from './render/charts.js';
-import { phaseTotalsMarkup, grandMarkup } from './render/phase-panel.js';
+import { phaseTotalsMarkup, grandMarkup, allocationDetailMarkup } from './render/phase-panel.js';
 
 import { renderPortfolio } from './pages/portfolio.js';
 import { renderInitiatives } from './pages/initiatives.js';
@@ -505,12 +505,22 @@ export function render() {
 function refreshCalcRegions(initiative) {
   for (const [phaseId, phase] of Object.entries(initiative.phases)) {
     const at = E.ratesFor(app, phase);
-    for (const allocation of phase.allocations) {
-      const days = document.querySelector(`[data-calc="days-${phaseId}-${allocation.personId}"]`);
-      const cost = document.querySelector(`[data-calc="cost-${phaseId}-${allocation.personId}"]`);
+    // Driven by the rows on screen rather than the allocations in the model:
+    // an allocation table lists the whole team roster while it is editable
+    // (D2), so a row can exist for someone who has no allocation record — and
+    // typing a percentage back down to 0 removes the record while leaving the
+    // row. Either way its figures still have to fall to zero.
+    const rows = Array.from(document.querySelectorAll(`[data-alloc-phase="${phaseId}"]`));
+    for (const row of rows) {
+      if (!(row instanceof HTMLElement)) continue;
+      const personId = row.dataset.allocPerson;
+      const days = row.querySelector(`[data-calc="days-${phaseId}-${personId}"]`);
+      const cost = row.querySelector(`[data-calc="cost-${phaseId}-${personId}"]`);
       if (!days && !cost) continue;
 
-      const figures = E.allocationFigures(phase, allocation.personId, allocation.allocationPct, at);
+      const allocationPct = phase.allocations
+        .find((allocation) => allocation.personId === personId)?.allocationPct ?? 0;
+      const figures = E.allocationFigures(phase, personId, allocationPct, at);
       if (days) days.textContent = figures.personDays.toFixed(1);
       if (cost) cost.textContent = F.money(figures.cost);
     }
@@ -661,10 +671,13 @@ function onInput(event) {
   } else if (act === 'allocation-pct') {
     const initiative = findInitiative(target.dataset.id);
     const phaseId = target.dataset.phase;
+    // Every roster row carries this field, allocated or not (D2), so there
+    // may be no record yet — in which case unreadable input falls back to 0
+    // rather than to a percentage that does not exist.
     const current = initiative.phases[phaseId].allocations
       .find((a) => a.personId === target.dataset.person);
     L.setAllocation(app, initiative, phaseId, target.dataset.person,
-      F.readNumber(target.value, current.allocationPct));
+      F.readNumber(target.value, current?.allocationPct ?? 0));
     commitQuietly();
     return refreshCalcRegions(initiative);
   } else if (act === 'actual-month') {
@@ -960,6 +973,27 @@ function onClick(event) {
     }
 
 
+    case 'allocation-detail':
+      return openPopover(trigger, allocationDetailMarkup(id, trigger.dataset.phase,
+        trigger.dataset.person));
+    case 'allocation-seed': {
+      // D2's first half: seeded on a click, never on a render — a panel that
+      // writes allocations merely by being looked at would be worse than the
+      // 50% magic number this replaces.
+      const initiative = findInitiative(id);
+      const from = trigger.dataset.from;
+      const phaseId = trigger.dataset.phase;
+      withUndo(`Copied ${E.phaseLabel(PROCESS, from)}'s allocations`, () => {
+        for (const allocation of initiative.phases[from].allocations) {
+          const person = app.PEOPLE[allocation.personId];
+          // Someone who has since left the team cannot be allocated afresh
+          // (SPEC §5.2); they are skipped rather than throwing the copy away.
+          if (!person?.active || !E.membership(person, initiative.teamId)) continue;
+          L.setAllocation(app, initiative, phaseId, allocation.personId, allocation.allocationPct);
+        }
+      });
+      return commit();
+    }
     case 'allocation-remove': {
       const initiative = findInitiative(id);
       withUndo('Removed allocation', () => {
@@ -1145,11 +1179,6 @@ function onChange(event) {
     case 'add-member':
       P.addMembership(app.PEOPLE[target.value], id, 0);
       return commit();
-    case 'allocation-add': {
-      const initiative = findInitiative(id);
-      L.setAllocation(app, initiative, target.dataset.phase, target.value, 50);
-      return commit();
-    }
     default:
       return undefined;
   }

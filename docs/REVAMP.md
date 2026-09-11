@@ -36,7 +36,8 @@ here — this table is status only.
 | §4.4 Initiative detail — panel structure and the process rail | **Landed** |
 | §4.4 Initiative detail — the gate panel, in three parts | **Landed** |
 | §4.4 Initiative detail — the sticky summary bar, and the jump menu | **Landed** |
-| §4.4 Initiative detail — remaining items (allocation table, wizard step 2, month table) | In progress — **next** |
+| §4.4 Initiative detail — the allocation table, and D2 | **Landed** |
+| §4.4 Initiative detail — remaining items (wizard step 2, month table) | In progress — **next** |
 | §4.5 Overviews, capacity, charts | Not started |
 | §4.6 Copy, states, first run, accessibility | Not started |
 | §4.7 File System Access persistence | Not started |
@@ -966,8 +967,47 @@ above its trigger when there is no room below and every entry scrolls to
 its panel; the bar comes to rest at the page foot. Checked at 1280px and
 420px, light and dark.
 
-**Not yet landed:** the allocation table's column drop plus D2 seeding, the
-wizard's step-2 ending, and the month table's totals row.
+**Landed — the allocation table, and D2.**
+
+Day rate and Factor are gone from the table. Neither is a number you act on
+while deciding how much of someone's time a phase needs; they are inputs to
+the two that matter. Person-days and Cost stay, so the rows still add up to
+the phase total (DESIGN §2), and the arithmetic behind a Cost sits one
+click away on the figure itself — a small ledger showing working days,
+allocation, role factor, person-days, day rate and the total ruled off,
+read against the phase's own rates so an approved figure is reproduced
+rather than recalculated. A period spanning two years says so and shows the
+effective day rate, since rates are read for each month's own year (SPEC
+§5.2).
+
+D2 landed as two different things, which is logged in
+[REVAMP-decisions-log.md](REVAMP-decisions-log.md): the roster at 0% is
+what the table *is* while the phase is editable, and the seed is a button
+("Copy Validation's allocations") above an empty table. That removes the
+"Allocate…" select and with it the hardcoded 50% — a magic number with no
+explanation — and allocating becomes typing a number next to a name.
+Nothing seeds on render; a panel that wrote allocations into the dataset
+merely by being looked at would be a worse bug than the one D2 fixes.
+
+**One thing this broke and fixed.** `refreshCalcRegions` walked
+`phase.allocations` to find the cells to update. With a roster row for
+someone who has no allocation record — and with typing a percentage back
+down to 0 *removing* the record while leaving the row — that loop would
+have left stale figures on screen. It now walks the rows in the DOM, which
+is what the function's own comment already said it should do.
+
+Verified in a real browser against `examples/exports/demo.json`: typing 25
+into a 0% roster row creates the allocation and moves person-days, cost,
+the phase total and the summary bar without rebuilding the input or moving
+the caret; typing it back to 0 removes the record and drops the row's
+figures to zero; the seed button copies the previous phase's percentages
+with an undo and then disappears; the disclosure popover positions off the
+figure and its arithmetic reconciles (125.0 × 60% × 1.25 = 93.8 person-days
+× €625 = €58,594). The toast now clears the summary bar rather than landing
+on the figures it just changed.
+
+**Not yet landed:** the wizard's step-2 ending, and the month table's
+totals row.
 
 ### 4.5 Overviews, dashboard, capacity and charts
 

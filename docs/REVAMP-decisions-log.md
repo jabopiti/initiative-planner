@@ -440,3 +440,58 @@ does nothing, is worse than a segment that only reads.
 clickable at the cost of three steps landing on the same panel. For a full
 Settings-style rail, `panelsFor` already returns exactly the `{ id, label }`
 pairs one would need.
+
+---
+
+## §4.4 — D2's two halves land as two different things
+
+**Question:** D2 says "seed a costed phase from the previous costed phase's
+allocations where there is one; otherwise show the team roster at 0%." The
+second half is a render; the first is a write. When does the write happen?
+
+**Decision:** the roster is always there while the phase is editable, and
+the seed is a button.
+
+- **The roster at 0%** is simply what the allocation table lists: every
+  active member of the team, each with a percentage field. Allocating is
+  typing a number next to a name. That removes the "Allocate…" select and
+  with it the hardcoded 50%, which was a magic number with no explanation.
+  A 0% row costs nothing and does not warn (D2's own caveat).
+- **The seed** is offered as "Copy Validation's allocations" above an empty
+  table, and writes on the click. Nothing seeds on render: a panel that
+  wrote allocations into the dataset merely by being looked at would be a
+  worse bug than the one D2 is fixing, and there is no other event to hang
+  it on — `passGate` is too late, since a gate requiring estimates cannot
+  pass until every costed phase is already estimated.
+
+**Once a gate freezes the phase the roster is gone** and only the
+allocations remain. The list of people you could still add is an editing
+affordance and there is nothing left to edit.
+
+**If you'd reverse this:** `allocationPeople()` in
+`src/render/phase-panel.js` decides who is listed — returning only
+`phase.allocations` would restore the old table, and the select would have
+to come back with it. `seedSource()` decides what the copy offer points at.
+
+---
+
+## §4.4 — the copied allocation table keeps the columns the screen dropped
+
+**Question:** Day rate and Factor leave the rendered table. Should they
+leave the Copy/CSV table too, so what you copy is what you see?
+
+**Decision:** no — the copied table keeps all eight columns.
+
+Copying a table out is the bulk version of the per-row disclosure that
+replaced those columns. Someone takes an allocation table to a spreadsheet
+for exactly one reason: to check the arithmetic. The columns that are noise
+while you are deciding how much of someone's time a phase needs are the
+ones worth having when the figure is being questioned.
+
+The other difference: only people with an allocation are exported. A roster
+row at 0% is an empty field on screen, not a line in a costing.
+
+**If you'd reverse this:** `registerAllocationTable()` in
+`src/render/phase-panel.js` builds those rows itself now, so making the
+export match the screen is a matter of dropping two columns from its
+`headers` and two values from each row.

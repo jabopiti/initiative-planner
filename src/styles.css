@@ -189,6 +189,10 @@
   --cap-min: 3.25rem;
   --scroller-tall: 28rem;
   --toast-max: 24rem;
+  /* What the toast has to clear when a page carries a summary bar. Measured,
+     like --header-height, and for the same reason: the bar's height depends
+     on its content and there is nothing in CSS to read it from. */
+  --summary-height: 4rem;
   --icon-size: 1em;
 
   /* ---- elevation ----
@@ -1618,6 +1622,14 @@ h3,
   display: none;
 }
 
+/*
+ * A page with a sticky summary bar lifts the toast above it. A confirmation
+ * that covers the figures it just changed is the one place it must not land.
+ */
+body:has(.summary) #toast {
+  bottom: calc(var(--space-5) + var(--summary-height));
+}
+
 .toast {
   display: flex;
   align-items: center;
@@ -1924,6 +1936,57 @@ h3,
 }
 
 /*
+ * A FIGURE THAT EXPLAINS ITSELF — a numeral you can click to see how it was
+ * arrived at. The dashed underline is the affordance: a number that reads as
+ * a number, marked as one you can ask about.
+ */
+.num-explain {
+  font: inherit;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  background: none;
+  border: none;
+  border-bottom: var(--size-border) dashed var(--color-faint);
+  border-radius: var(--radius-none);
+  padding: 0;
+  cursor: pointer;
+}
+
+.num-explain:hover {
+  border-bottom-color: var(--color-fg);
+  background-image: var(--state-layer-hover);
+}
+
+/* The working, one term per line, figures aligned down the right. */
+.detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-half) var(--space-3);
+  margin: 0 0 var(--space-2);
+}
+
+.detail dt {
+  color: var(--color-muted);
+}
+
+.detail dd {
+  margin: 0;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-fg);
+}
+
+/* The line that is the answer, ruled off like a total in a ledger. */
+.detail dt:last-of-type,
+.detail dd:last-of-type {
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: var(--size-border) solid var(--color-line-soft);
+  font-weight: var(--weight-semibold);
+}
+
+/*
  * THE SUMMARY BAR — the initiative detail's foot, and nowhere else's.
  *
  * Sticky rather than fixed: at the end of the page it comes to rest in the
@@ -2034,6 +2097,10 @@ h3,
   .summary__facts,
   .summary__note {
     display: none;
+  }
+
+  body:has(.summary) #toast {
+    bottom: calc(var(--space-3) + var(--summary-height) * 1.75);
   }
 }
 
