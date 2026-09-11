@@ -1099,12 +1099,6 @@ function onClick(event) {
       });
       return undefined;
     }
-    case 'csv-table': {
-      const table = TABLES[trigger.dataset.table];
-      store.downloadCsv(`${table.name}.csv`, table.headers, table.rows);
-      return undefined;
-    }
-
     case 'reset-arm':
       return navigate('settings', { section, armed: true });
     case 'reset-cancel':

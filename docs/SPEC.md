@@ -237,8 +237,9 @@ accept. Reopening unlocks everything.
   phases and gates mean something different is worse than no dataset at all.
   The rejection says which of the two failed, because "wrong process" and
   "too old" need different fixes.
-- **Copy/CSV**: every table of consequence can be copied (as plain text and
-  rich HTML) or downloaded as CSV.
+- **Copy**: every table of consequence can be copied, as both plain text and
+  rich HTML, so it lands as cells in a spreadsheet or as a table in a
+  document.
 
 ## 9. Glossary
 

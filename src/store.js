@@ -7,7 +7,7 @@
 import { SCHEMA_VERSION, createApp } from './lifecycle.js';
 import { PROCESS } from './process.js';
 import { createMasterData } from './masterData.js';
-import { serialize, exportFilename, parseImport, toCsv, toTsv, toHtmlTable } from './transfer.js';
+import { serialize, exportFilename, parseImport, toTsv, toHtmlTable } from './transfer.js';
 
 export const STORAGE_KEY = 'initiative-planner/v1';
 const SAVE_DEBOUNCE_MS = 200;
@@ -218,9 +218,4 @@ export async function copyTable(headers, rows) {
       return 'failed';
     }
   }
-}
-
-/** Download a named table as CSV. */
-export function downloadCsv(filename, headers, rows) {
-  return downloadBlob(new Blob([toCsv(headers, rows)], { type: 'text/csv' }), filename);
 }

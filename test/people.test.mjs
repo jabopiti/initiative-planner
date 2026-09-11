@@ -156,15 +156,6 @@ test('a person\'s initiatives include on-hold work, which still costs', () => {
 
 /* -------------------------------------------------- table export */
 
-test('CSV quotes only the cells that need it', () => {
-  const csv = T.toCsv(['Name', 'Note'], [['Ada', 'plain'], ['Bo, Jr', 'said "hi"'], ['Cy', 'two\nlines']]);
-  const lines = csv.split('\r\n');
-  assert.equal(lines[0], 'Name,Note');
-  assert.equal(lines[1], 'Ada,plain');
-  assert.equal(lines[2], '"Bo, Jr","said ""hi"""');
-  assert.ok(csv.includes('"two\nlines"'), 'a newline inside a cell stays quoted');
-});
-
 test('the plain-text copy is tab-separated and single-line per row', () => {
   const tsv = T.toTsv(['A', 'B'], [['one\ttwo', 'three\nfour']]);
   assert.equal(tsv.split('\n').length, 2, 'an embedded newline must not split the row');

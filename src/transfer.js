@@ -191,20 +191,6 @@ export function applyImport(current, incoming, mode) {
  * Table export (SPEC §8)
  * ------------------------------------------------------------------ */
 
-/** Quote a CSV field only when it needs it, doubling any embedded quotes. */
-function csvCell(value) {
-  const text = String(value ?? '');
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-/**
- * A named table as CSV. Rows are arrays of primitives, in header order.
- * @param {string[]} headers @param {Array<Array<unknown>>} rows
- */
-export function toCsv(headers, rows) {
-  return [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
-}
-
 /**
  * The same table as tab-separated text. This is what a spreadsheet reads off
  * the clipboard, so it is the plain-text half of a copy.
