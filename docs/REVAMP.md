@@ -1145,6 +1145,28 @@ sequence, confirming the `InvalidStateError` fix (the error had briefly
 looked unfixed because the console reader carries history across a
 same-tab reload, which cost time to notice — a fresh tab settled it).
 
+**Landed — a Capacity overview (D7).** New engine function
+`E.overAllocations(app, monthKeyStr)` finds every over-allocation for one
+month, across every active person and team, returning two lists rather than
+one merged one — capacity % and share % are never interchangeable
+(SPEC §5.2), and a person can be over one without being over the other. A
+new top-level page at `#/capacity` (in `PAGES`, between People and
+Settings) shows a month picker over two panels built from those lists —
+"Over capacity" and "Over their team's share" — each a table with a
+person/team link, the two percentages, and how far over, using the
+existing `over`/`row--warn` classes already established on the Person and
+Portfolio pages rather than inventing new ones. Written into SPEC as a new
+§7, in the gap between §6 and §8 that the plan had reserved for it.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark, at 1024px and 420px: September 2026 shows two people over capacity
+and two memberships over share with real, non-zero figures (the demo data
+already models this month realistically); switching to January 2025 shows
+both panels' empty states; the month picker and "Today" button work
+unmodified, since both already dispatch through `view.page` generically;
+clicking a person or team link navigates to its detail page; a fresh
+browser tab's console stayed clean.
+
 ### 4.6 Copy, states, first run and accessibility
 
 - **Placeholders vs. states vs. hints.** A placeholder shows an example of
