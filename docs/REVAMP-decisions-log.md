@@ -550,3 +550,60 @@ rolls forward," never "prune and extend."
 second pass deleting any `byYear` key outside `trackedYears(now)` — but
 first check whether any stored actual cost still depends on the year being
 removed, since that's exactly the case this call exists to protect.
+
+---
+
+## §4.5 — where "last column" put the status badge relative to Duplicate
+
+**Question:** "status moves to the last column" on the Initiatives overview
+could mean the true last `<th>` in the table, or the last column that
+carries a heading at all — the trailing `<th></th>` over the Duplicate
+button has never had one.
+
+**Decision:** status is the truly last column, after Duplicate. The
+unlabelled action column keeps its existing position rather than being
+absorbed into the status badge's popover menu, since Duplicate is unrelated
+to status and folding it in would blur what that menu is for.
+
+**If you'd reverse this:** in `src/pages/initiatives.js`, move the
+`statusColumn` header and each row's status `<td>` back to before the
+`cell--action` column in both `headers` and `body`.
+
+---
+
+## §4.5 — status badge colours: closed vs. cancelled read as different outcomes
+
+**Question:** the old `<select>` gave every status the same neutral
+treatment. A badge needed a `kind` per status, and nothing in SPEC/DESIGN
+picks one.
+
+**Decision:** `active` → `ok` (green), `on-hold` → `warn` (amber),
+`cancelled` → `danger` (red), `closed` → `quiet` (grey) — `STATUS_BADGE_KIND`
+in `src/app.js`. Closed and cancelled deliberately do **not** share a
+colour: one is a process reaching its governed end, the other is work
+abandoned before it did, and conflating them as "both finished, both grey"
+would erase a distinction SPEC §6.4 itself treats as meaningful.
+
+**If you'd reverse this:** it's one object literal to edit; nothing else
+derives from these specific colour choices.
+
+---
+
+## §4.5 — a team card's "capacity" figure is share utilisation, not a count
+
+**Question:** "Team cards gain a cost and capacity figure" doesn't say what
+"capacity" means here. Candidates considered: a count of over-allocated
+members (mirrors the Capacity overview's framing), or how much of the
+team's held share is actually committed this month.
+
+**Decision:** utilisation — `allocatedSharePct / totalSharePct` as a
+percentage, coloured `over` past 100%. A count would duplicate the Capacity
+overview's own job at a coarser grain; utilisation answers a question that
+page doesn't: not just *is* anyone over-allocated, but *how much of what
+this team holds is actually being used* — which "Share held" alone
+couldn't say, since it only reports what the team holds, not what it uses.
+
+**If you'd reverse this:** `P.teamSummary`'s `allocatedSharePct` field is
+still there either way; `src/pages/teams.js` would just compute a count via
+`E.overAllocations(app, month).overShare.filter(r => roster has r.personId)`
+instead of the ratio, and change the `<dt>` label to match.
