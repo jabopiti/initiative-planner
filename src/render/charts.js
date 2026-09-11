@@ -84,6 +84,48 @@ const CHART_MARGIN = { top: 12, right: 8, bottom: 24, left: 68 };
 const CHART_TICKS = 4;
 const CHART_GAP = 2;
 
+/** Distinct `--chart-N` tokens available for non-spare series. */
+const CHART_TOKENS = 6;
+/** How many of the highest-cost series keep their own color once folding kicks in. */
+const KEPT_SERIES = CHART_TOKENS - 1;
+
+/**
+ * There are only `CHART_TOKENS` colors. Cycling past that would give two
+ * series the same color and make them indistinguishable in the picture
+ * itself (dataviz skill: "a 9th series is never a generated hue — it folds
+ * into 'Other'"). So once a chart's data carries more than `CHART_TOKENS`
+ * distinct non-spare series, the lowest-cost ones fold into a single "Other"
+ * segment per month for the visual — the top `KEPT_SERIES` keep their own
+ * color, everyone else is summed into one. The table view is built from the
+ * unfolded data, so every series still gets its own exact column there
+ * (dataviz: "a table view exists"); only the picture needs the fold.
+ */
+function foldExcessSeries(data) {
+  const totals = new Map();
+  for (const row of data) {
+    for (const segment of row.segments) {
+      if (segment.kind === 'spare') continue;
+      totals.set(segment.name, (totals.get(segment.name) ?? 0) + segment.cost);
+    }
+  }
+  if (totals.size <= CHART_TOKENS) return data;
+
+  const kept = new Set(
+    [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, KEPT_SERIES).map(([name]) => name),
+  );
+  return data.map((row) => {
+    const spare = row.segments.filter((s) => s.kind === 'spare');
+    const keptSegments = row.segments.filter((s) => s.kind !== 'spare' && kept.has(s.name));
+    const otherCost = row.segments
+      .filter((s) => s.kind !== 'spare' && !kept.has(s.name))
+      .reduce((total, s) => total + s.cost, 0);
+    const other = otherCost > 0
+      ? [{ id: 'chart-other', name: 'Other', cost: otherCost, kind: 'other' }]
+      : [];
+    return { ...row, segments: [...keptSegments, ...other, ...spare] };
+  });
+}
+
 /**
  * A stacked bar chart as SVG: an axis with a real scale, gridlines, and
  * rounded data-ends with a surface gap between segments, in place of the
@@ -102,24 +144,25 @@ const CHART_GAP = 2;
  * @param {string} label what the chart is, for its table's name and caption
  */
 export function stackedBarsMarkup(data, key, label) {
-  const max = Math.max(...data.map((row) => row.total), 0);
+  const visual = foldExcessSeries(data);
+  const max = Math.max(...visual.map((row) => row.total), 0);
   const scaleMax = niceMax(max);
   const now = E.monthKey(new Date());
 
-  // Colours cycle through chart tokens, so any number of segments works.
   // Segments are told apart by `kind`, never by their label — labels are free
-  // to change, ids and kinds are not.
+  // to change, ids and kinds are not. Folding above guarantees at most
+  // `CHART_TOKENS` distinct non-spare names reach here, so this never cycles.
   const cycling = [...new Set(
-    data.flatMap((row) => row.segments.filter((s) => s.kind !== 'spare').map((s) => s.name)),
+    visual.flatMap((row) => row.segments.filter((s) => s.kind !== 'spare').map((s) => s.name)),
   )];
   const tone = (segment) =>
     segment.kind === 'spare'
       ? 'var(--chart-spare)'
-      : `var(--chart-${(cycling.indexOf(segment.name) % 6) + 1})`;
+      : `var(--chart-${(cycling.indexOf(segment.name) % CHART_TOKENS) + 1})`;
 
   const plotW = CHART_W - CHART_MARGIN.left - CHART_MARGIN.right;
   const plotH = CHART_H - CHART_MARGIN.top - CHART_MARGIN.bottom;
-  const bandW = plotW / data.length;
+  const bandW = plotW / visual.length;
   const barW = Math.min(24, bandW * 0.6);
   const yFor = (cost) => CHART_MARGIN.top + plotH * (1 - cost / scaleMax);
   const baseline = CHART_MARGIN.top + plotH;
@@ -133,7 +176,7 @@ export function stackedBarsMarkup(data, key, label) {
         dominant-baseline="middle">${F.money(value)}</text>`;
   }).join('');
 
-  const bars = data
+  const bars = visual
     .map((row, i) => {
       const x = CHART_MARGIN.left + bandW * i + (bandW - barW) / 2;
       const withCost = row.segments.filter((s) => s.cost > 0);
@@ -174,15 +217,20 @@ export function stackedBarsMarkup(data, key, label) {
     ${raw(bars)}
   </svg>`;
 
-  const seen = new Map();
-  for (const row of data) for (const s of row.segments) seen.set(s.name, s);
-  const legend = [...seen.values()]
+  const seenVisual = new Map();
+  for (const row of visual) for (const s of row.segments) seenVisual.set(s.name, s);
+  const legend = [...seenVisual.values()]
     .map(
       (segment) => html`<span class="legend__item">
         <span class="swatch" style="background:${tone(segment)}"></span> ${segment.name}</span>`,
     )
     .join('');
 
+  // The table is built from the unfolded data, not `visual` — every series
+  // keeps its own exact column here even when the picture above folds the
+  // tail into "Other" (dataviz: "a table view exists").
+  const seen = new Map();
+  for (const row of data) for (const s of row.segments) seen.set(s.name, s);
   const seriesNames = [...seen.keys()];
   const tableHeaders = ['Month', ...seriesNames, 'Total'];
   TABLES[key] = {
