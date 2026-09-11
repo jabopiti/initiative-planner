@@ -1106,6 +1106,45 @@ exactly the initiative with an unestimated phase.
   first (CLAUDE.md).
 - **Global search** across initiatives, people and teams, from the shell.
 
+**Landed — the Initiatives overview.** Status is the table's last column: a
+badge (`.badge--button`, a new variant — `.badge` itself is documented as
+non-interactive) that opens a popover menu instead of a `<select>`. The
+badge's kind makes Closed (`quiet`) and Cancelled (`danger`) read as
+different outcomes rather than one undifferentiated "finished," and Active
+(`ok`)/On hold (`warn`) read the same way status does everywhere else in the
+app now. Switching to Active or On hold is immediate and closes the menu;
+choosing Cancelled swaps the same popover's content for a confirm step
+first — "Cancel initiative" / "Never mind" — rather than a whole-page arm,
+since nothing else on the row needs to survive the round trip. Closed offers
+no menu at all: reopening is a gate action on the initiative itself, not a
+registry action.
+
+Closed and cancelled initiatives are hidden by default behind a "Show
+closed & cancelled" checkbox — the registry has no archive, so without this
+it only ever grows — and an explicit Status filter selection still wins
+over the checkbox either way, so picking "Cancelled" from that dropdown
+shows cancelled work regardless. The "needs an estimate" badge (§4.4) stays
+exactly where it was, next to the name: it was never coupled to the status
+column's position, so status moving away from it changed nothing about
+where it sits.
+
+**Found and fixed in passing.** Both this checkbox and People's existing
+"Show inactive" one threw an uncaught `InvalidStateError` on every toggle —
+the shared per-keystroke caret-restore handler in `onInput` called
+`setSelectionRange` unconditionally, which a checkbox's input type does not
+support at all. Guarded on `target.type !== 'checkbox'`.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark: the menu opens on the badge and positions off it; Active/On hold
+apply and close immediately; Cancelled arms its confirm in place without
+losing the popover's anchor, "Never mind" aborts and restores focus to the
+badge, and confirming turns the badge red and reversible back to Active; the
+checkbox default-hides Fraud scoring v2 (closed) and reveals it when
+checked; a fresh browser tab's console stayed clean through the whole
+sequence, confirming the `InvalidStateError` fix (the error had briefly
+looked unfixed because the console reader carries history across a
+same-tab reload, which cost time to notice — a fresh tab settled it).
+
 ### 4.6 Copy, states, first run and accessibility
 
 - **Placeholders vs. states vs. hints.** A placeholder shows an example of
