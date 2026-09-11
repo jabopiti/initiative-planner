@@ -93,7 +93,9 @@ function renderShellActions() {
   const theme = currentTheme();
   fill(
     'shell-actions',
-    html`<button type="button" class="btn btn--small" data-act="export">
+    html`<button type="button" class="btn btn--small" data-act="search-open" aria-haspopup="dialog">
+        ${raw(icon('search'))}Search</button>
+      <button type="button" class="btn btn--small" data-act="export">
         ${raw(icon('export'))}Export</button>
       <label class="btn btn--small btn--file">${raw(icon('import'))}Import
         <input type="file" accept="application/json,.json" data-act="import-file" hidden />
@@ -102,6 +104,50 @@ function renderShellActions() {
         aria-label="Theme: ${THEME_LABELS[theme]}. Click to change.">
         ${raw(icon('theme'))}${THEME_LABELS[theme]}</button>`,
   );
+}
+
+/* ------------------------------------------------------------------ *
+ * Global search (§4.5) — initiatives, people and teams by name, from
+ * anywhere in the shell.
+ * ------------------------------------------------------------------ */
+
+/** Every initiative, person and team whose name matches, kind by kind. */
+function searchResults(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const matches = (name) => name.toLowerCase().includes(q);
+  return [
+    ...app.INITIATIVES.filter((i) => matches(i.name)).map((i) => ({
+      kind: 'Initiative',
+      name: i.name,
+      href: `#/initiative/${i.id}`,
+      note: i.status === 'active' ? '' : STATUS_LABELS[i.status],
+    })),
+    ...Object.values(app.PEOPLE).filter((p) => matches(p.name)).map((p) => ({
+      kind: 'Person', name: p.name, href: `#/person/${p.id}`, note: p.active ? '' : 'inactive',
+    })),
+    ...Object.values(app.TEAMS).filter((t) => matches(t.name)).map((t) => ({
+      kind: 'Team', name: t.name, href: `#/team/${t.id}`, note: t.active ? '' : 'inactive',
+    })),
+  ];
+}
+
+function searchResultsMarkup(query) {
+  if (!query.trim()) return html`<p class="muted micro">Type a name to jump to it.</p>`;
+  const results = searchResults(query);
+  if (results.length === 0) return html`<p class="muted micro">No match.</p>`;
+  return html`<div class="popover__actions">${raw(results
+    .map((r) => html`<a class="btn" href="${r.href}" data-act="search-select">
+        <span class="micro muted">${r.kind}</span> ${r.name}
+        ${raw(r.note ? html`<span class="micro muted">· ${r.note}</span>` : '')}</a>`)
+    .join(''))}</div>`;
+}
+
+function searchMarkup() {
+  return html`<h3>Search</h3>
+    <input class="field" type="search" data-act="search-query"
+      placeholder="Initiatives, people, teams" aria-label="Search initiatives, people and teams" />
+    <div data-search-results>${raw(searchResultsMarkup(''))}</div>`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -666,6 +712,12 @@ function onInput(event) {
       restored.setSelectionRange(caret, caret);
     }
     return;
+  } else if (act === 'search-query') {
+    // Only the results list rebuilds — the input itself is never touched, so
+    // there is no caret to lose in the first place.
+    const results = document.querySelector('[data-search-results]');
+    if (results) results.innerHTML = searchResultsMarkup(target.value);
+    return;
   } else if (act === 'draft-field') {
     // The draft lives in view params until step 1 is saved, so it survives
     // re-renders without an initiative existing yet.
@@ -802,6 +854,13 @@ function onClick(event) {
 
     case 'nav-toggle':
       return setNavOpen(!navOpen);
+    case 'search-open':
+      return openPopover(trigger, searchMarkup());
+    case 'search-select':
+      // A real `href` does the navigating; this only has to dismiss a
+      // popover a click on its own contents does not (§4.5).
+      closePopover();
+      return undefined;
 
 
     case 'role-active':
