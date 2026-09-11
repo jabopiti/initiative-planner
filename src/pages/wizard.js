@@ -2,12 +2,13 @@
  * The creation wizard: two steps, resumable.
  */
 import * as E from '../engine.js';
+import * as L from '../lifecycle.js';
 import * as store from '../store.js';
 import { PROCESS } from '../process.js';
 import { app, view } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, empty } from '../render/components.js';
+import { pageHead, empty, panel } from '../render/components.js';
 import { costedPhasePanels, grandMarkup } from '../render/phase-panel.js';
 
 /**
@@ -88,30 +89,74 @@ function renderWizardGeneral() {
   );
 }
 
+/**
+ * Step 2, and how it ends.
+ *
+ * The initiative is real from step 1 — that is what makes the flow
+ * resumable — so leaving here is not "cancelling a form", it is deciding what
+ * to do with a record that already exists. The old single "Done" button said
+ * none of that: it navigated, and walking away instead left a half-formed
+ * initiative in the registry with nothing marking it (§2.6).
+ *
+ * Three named exits, and the step says first whether the estimate is
+ * complete, so whichever one is taken is taken knowingly. An incomplete
+ * estimate is still fine to leave — the gate is what blocks progress, not
+ * this step — but it is now something you are told rather than something you
+ * find out later at a gate.
+ */
 function renderWizardEstimates(initiative) {
   const panels = costedPhasePanels(initiative);
+  const missing = L.unestimatedPhases(PROCESS, initiative);
+  const discarding = view.params.confirmDiscard === true;
 
   fill(
     'root',
     html`${raw(pageHead({
       title: initiative.name,
-      lede: 'Fill in as much as you know. Finishing with an incomplete estimate is fine — the '
-        + 'gate is what blocks progress later, not this step.',
+      lede: 'Fill in as much as you know. An incomplete estimate is fine to leave — the gate '
+        + 'is what blocks progress later, not this step.',
     }))}
       <ol class="steps"><li>General</li><li aria-current="step">Estimates</li></ol>
 
-      <div class="panel panel--inset">
-        <h2>Grand total</h2>
-        <p data-calc="grand">${raw(grandMarkup(initiative))}</p>
-      </div>
+      ${raw(panel({
+        id: 'wizard-total',
+        title: 'Grand total',
+        extraClass: 'panel--inset',
+        body: html`<p data-calc="grand">${raw(grandMarkup(initiative))}</p>
+          <p class="${missing.length ? 'warn' : 'muted'}">${raw(missing.length
+            ? html`${raw(icon('warning', 'icon--lead'))}${missing
+                .map((phaseId) => E.phaseLabel(PROCESS, phaseId)).join(' and ')}
+              still ${missing.length === 1 ? 'needs' : 'need'} a period and at least one person
+              allocated.`
+            : html`${raw(icon('check', 'icon--lead'))}Every costed phase has a period and
+              someone allocated.`)}</p>`,
+      }))}
 
       ${raw(panels)}
 
+      ${raw(discarding
+        ? html`<div class="panel banner banner--alert">
+            <p class="warn">${raw(icon('warning', 'icon--lead'))}Discard “${initiative.name}”?
+              It was created when you finished the first step, so this deletes it — the
+              periods, allocations and costs below go with it. There is no undo.</p>
+            <div class="actions">
+              <button type="button" class="btn btn--danger" data-act="wizard-discard-confirm"
+                data-id="${initiative.id}">${raw(icon('remove'))}Yes, discard it</button>
+              <button type="button" class="btn" data-act="wizard-discard-cancel"
+                data-id="${initiative.id}">Cancel</button>
+            </div>
+          </div>`
+        : '')}
+
       <div class="actions">
         <button type="button" class="btn btn--primary" data-act="open-initiative"
-          data-id="${initiative.id}">${raw(icon('check'))}Done</button>
+          data-id="${initiative.id}">${raw(icon('check'))}Finish</button>
         <button type="button" class="btn" data-act="page" data-page="initiatives">
-          Back to initiatives</button>
-      </div>`,
+          Come back to it later</button>
+        <button type="button" class="btn btn--danger" data-act="wizard-discard-arm"
+          data-id="${initiative.id}">${raw(icon('remove'))}Discard this initiative</button>
+      </div>
+      <p class="micro">Finishing opens it in full. Coming back to it later leaves it in the
+        registry, marked as still needing an estimate.</p>`,
   );
 }

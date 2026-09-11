@@ -3,11 +3,12 @@ import * as F from '../format.js';
  * Initiatives: the sortable, filterable registry of every initiative.
  */
 import * as E from '../engine.js';
+import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
 import { app, view, STATUS_LABELS } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, sortHeader } from '../render/components.js';
+import { pageHead, scroller, empty, sortHeader, badge } from '../render/components.js';
 
 /** Sortable columns, each with how to read the value it sorts on. */
 const INITIATIVE_COLUMNS = [
@@ -34,6 +35,11 @@ export function renderInitiatives() {
       teamName: app.TEAMS[initiative.teamId]?.name ?? '—',
       phaseIndex: order.indexOf(initiative.phaseId),
       coverage: E.initiativeCoverage(initiative),
+      // An initiative whose costed phases are not all estimated cannot pass
+      // a gate that requires them. Most often that is one the creation
+      // wizard was walked away from, which used to leave nothing behind to
+      // say so (§2.6).
+      unestimated: L.unestimatedPhases(PROCESS, initiative).length,
     };
   }).filter((row) => {
     if (filters.teamId && row.initiative.teamId !== filters.teamId) return false;
@@ -59,7 +65,8 @@ export function renderInitiatives() {
   const body = rows
     .map(
       (row) => html`<tr class="row--clickable">
-        <td><a class="row-link" href="#/initiative/${row.initiative.id}">${row.initiative.name}</a></td>
+        <td><a class="row-link" href="#/initiative/${row.initiative.id}">${row.initiative.name}</a>
+          ${raw(row.unestimated ? badge('needs an estimate', 'warn', 'warning') : '')}</td>
         <td>${row.teamName}</td>
         <td>${E.phaseLabel(PROCESS, row.initiative.phaseId)}</td>
         <td>

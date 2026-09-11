@@ -37,7 +37,7 @@ here — this table is status only.
 | §4.4 Initiative detail — the gate panel, in three parts | **Landed** |
 | §4.4 Initiative detail — the sticky summary bar, and the jump menu | **Landed** |
 | §4.4 Initiative detail — the allocation table, and D2 | **Landed** |
-| §4.4 Initiative detail — remaining items (wizard step 2, month table) | In progress — **next** |
+| §4.4 Initiative detail — the wizard's ending, and the month table's foot | **Landed** |
 | §4.5 Overviews, capacity, charts | Not started |
 | §4.6 Copy, states, first run, accessibility | Not started |
 | §4.7 File System Access persistence | Not started |
@@ -1006,8 +1006,45 @@ figure and its arithmetic reconciles (125.0 × 60% × 1.25 = 93.8 person-days
 × €625 = €58,594). The toast now clears the summary bar rather than landing
 on the figures it just changed.
 
-**Not yet landed:** the wizard's step-2 ending, and the month table's
-totals row.
+**Landed — the month table's foot, and the wizard's ending.**
+
+**Month by month** gets a totals row: a sticky `<tfoot>` per column, ruled
+off and weighted the way a total is in a ledger, which stays legible while
+the rows above it scroll inside their own box. It reconciles with the
+summary bar by construction — both read the same months. It travels with a
+copy of the table too; a month-by-month table pasted into a spreadsheet
+without its totals is one somebody then has to total by hand. And
+`placeholder="not recorded"` is gone (§4.6): it was an example, a state and
+a hint at once, and the cell's own tint already says which months were
+expected and not recorded.
+
+**The wizard's second step ends deliberately.** The initiative is real from
+step 1 — that is what makes the flow resumable — so leaving is not
+cancelling a form, it is deciding what to do with a record that already
+exists, and a single "Done" button that only navigated said none of that.
+Three named exits now: **Finish** opens it in full, **Come back to it
+later** leaves it in the registry, and **Discard this initiative** deletes
+it behind the same arm → confirm as everywhere else. Above them, the step
+says whether every costed phase has a period and someone allocated, so
+whichever exit is taken is taken knowingly.
+
+The other half of that finding — "nothing marking it as unfinished" — is a
+badge on the registry: a new `L.unestimatedPhases` (the same test a gate
+requiring estimates already applied, lifted out so two places can use it
+without needing a gate) marks any initiative whose costed phases are not
+all estimated. It is true more generally than the abandoned-wizard case it
+came from: such an initiative cannot pass a gate that requires estimates,
+whatever left it that way. §4.5 reworks that row's status column and will
+sit beside this rather than replace it.
+
+Verified in a real browser against `examples/exports/demo.json`: typing an
+actual moves the foot and the summary bar together without rebuilding the
+input or moving the caret, and the foot stays stuck to the bottom of the
+scroller with its first cell frozen at 420px; the wizard names what is
+missing, its discard arms, cancels and deletes, and the badge appears on
+exactly the initiative with an unestimated phase.
+
+**§4.4 is complete.**
 
 ### 4.5 Overviews, dashboard, capacity and charts
 

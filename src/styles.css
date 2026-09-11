@@ -972,7 +972,9 @@ h3,
  */
 .grid > thead > tr > th:first-child,
 .grid > tbody > tr > th:first-child,
-.grid > tbody > tr > td:first-child {
+.grid > tbody > tr > td:first-child,
+.grid > tfoot > tr > th:first-child,
+.grid > tfoot > tr > td:first-child {
   position: sticky;
   left: 0;
   z-index: var(--z-cell);
@@ -1058,8 +1060,28 @@ h3,
   font-weight: var(--weight-regular);
 }
 
-.grid tbody th {
+.grid tbody th,
+.grid tfoot th {
   font-weight: var(--weight-medium);
+}
+
+/*
+ * The foot of a table of figures. Ruled off above and weighted, the way a
+ * total is in a ledger — and sticky, so it stays legible while the rows
+ * above it scroll inside their own box.
+ */
+.grid > tfoot > tr > th,
+.grid > tfoot > tr > td {
+  position: sticky;
+  bottom: 0;
+  --cell-bg: var(--color-canvas);
+  border-top: var(--size-thick) solid var(--color-line);
+  font-weight: var(--weight-semibold);
+}
+
+.grid > tfoot > tr > th:first-child,
+.grid > tfoot > tr > td:first-child {
+  z-index: var(--z-row-head);
 }
 
 .row--inactive > td,

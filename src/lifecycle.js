@@ -282,6 +282,21 @@ function phaseIsEstimated(phase) {
 }
 
 /**
+ * Costed phases that are not estimated yet: no period, or nobody allocated.
+ *
+ * The same test a gate requiring estimates applies, exposed on its own
+ * because two places need it without needing a gate — the wizard's second
+ * step, which says what is still missing before you leave it, and the
+ * registry, which marks an initiative nobody finished estimating.
+ *
+ * @returns {string[]} phase ids, in process order
+ */
+export function unestimatedPhases(process, initiative) {
+  return E.costedPhaseIds(process)
+    .filter((phaseId) => !phaseIsEstimated(initiative.phases[phaseId]));
+}
+
+/**
  * Everything this gate needs, each with its own state — including the ones
  * already satisfied.
  *
@@ -320,9 +335,7 @@ export function gateRequirements(app, process, initiative, gateId) {
   }
 
   if (gate.requiresEstimates) {
-    const missing = E.costedPhaseIds(process).filter(
-      (phaseId) => !phaseIsEstimated(initiative.phases[phaseId]),
-    );
+    const missing = unestimatedPhases(process, initiative);
     const names = missing.map((id) => E.phaseLabel(process, id)).join(' and ');
     out.push({
       id: 'estimates',

@@ -31,8 +31,8 @@ import { phaseTotalsMarkup, grandMarkup, allocationDetailMarkup } from './render
 import { renderPortfolio } from './pages/portfolio.js';
 import { renderInitiatives } from './pages/initiatives.js';
 import {
-  renderInitiative, bandPanelMarkup, gateMenuMarkup, jumpMenuMarkup, skipDialogMarkup,
-  summaryBarMarkup,
+  renderInitiative, bandPanelMarkup, gateMenuMarkup, jumpMenuMarkup, monthTotalsRowMarkup,
+  skipDialogMarkup, summaryBarMarkup,
 } from './pages/initiative.js';
 import { renderWizard } from './pages/wizard.js';
 import { renderTeams } from './pages/teams.js';
@@ -536,6 +536,9 @@ function refreshCalcRegions(initiative) {
     if (cell) fill(cell, html`<strong>${F.money(E.initiativeCostInMonth(initiative, app, month))}</strong>`);
   }
 
+  const monthFoot = document.querySelector('[data-calc="month-totals"]');
+  if (monthFoot) fill(monthFoot, monthTotalsRowMarkup(initiative));
+
   // These hold no inputs, so they are safe to rebuild whole — and have to be:
   // the total, its track, the marker and the variance all move together.
   const panel = document.querySelector('[data-calc="band-panel"]');
@@ -879,6 +882,17 @@ function onClick(event) {
       store.save(app);
       return navigate('wizard', { id: initiative.id });
     }
+    case 'wizard-discard-arm':
+      return navigate('wizard', { ...view.params, confirmDiscard: true });
+    case 'wizard-discard-cancel':
+      return navigate('wizard', { ...view.params, confirmDiscard: false });
+    case 'wizard-discard-confirm':
+      // The initiative is real from step 1, so abandoning the flow has to be
+      // able to remove it — otherwise walking away leaves a half-formed
+      // record in the registry, which is the finding this answers (§2.6).
+      L.deleteInitiative(app, id);
+      store.save(app);
+      return navigate('initiatives', {});
     case 'pass-gate': {
       const initiative = findInitiative(id);
       const date = document.querySelector('[data-field="gate-date"]');

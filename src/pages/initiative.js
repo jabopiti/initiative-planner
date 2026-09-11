@@ -673,7 +673,21 @@ function monthTableMarkup(initiative) {
     cells.push(Math.round(blended));
     return cells;
   });
-  TABLES.months = { headers, rows: data, name: `${initiative.name}-months` };
+
+  // The foot is part of the table, so it travels with a copy of it: a
+  // month-by-month table pasted into a spreadsheet without its totals is a
+  // table someone then has to total by hand.
+  const totals = monthTotals(initiative, costed);
+  TABLES.months = {
+    headers,
+    rows: [
+      ...data,
+      ['Total', ...costed.flatMap((id) => [
+        Math.round(totals.estimate[id]), Math.round(totals.actual[id]),
+      ]), Math.round(totals.blended)],
+    ],
+    name: `${initiative.name}-months`,
+  };
 
   const body = months
     .map((month) => {
@@ -697,7 +711,6 @@ function monthTableMarkup(initiative) {
                   'data-phase': phaseId,
                   'data-month': month,
                   'aria-label': `${E.phaseLabel(PROCESS, phaseId)} actual for ${F.month(month)}`,
-                  placeholder: 'not recorded',
                   extraClass: 'field--money',
                 }))}</td>`;
         })
@@ -722,9 +735,60 @@ function monthTableMarkup(initiative) {
     ${raw(scroller('Cost month by month', html`<table class="grid">
       <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
       <tbody>${raw(body)}</tbody>
+      <tfoot data-calc="month-totals">${raw(monthTotalsRowMarkup(initiative))}</tfoot>
     </table>`, 'scroller--tall'))}
     ${raw(tableActions('months', 'months'))}`,
   });
+}
+
+/**
+ * What each column of the month table adds up to.
+ *
+ * The estimate columns sum only the months the table shows, which is every
+ * month any costed phase touches (`initiativeMonths`), so the foot reconciles
+ * with the column above it rather than with a separately-derived phase total.
+ */
+function monthTotals(initiative, costed) {
+  const months = E.initiativeMonths(initiative);
+  /** @type {Record<string, number>} */
+  const estimate = {};
+  /** @type {Record<string, number>} */
+  const actual = {};
+  let blended = 0;
+
+  for (const phaseId of costed) {
+    const phase = initiative.phases[phaseId];
+    const byMonth = E.phaseEstimateByMonth(phase, app);
+    const blendedByMonth = E.phaseBlendedByMonth(phase, app);
+    estimate[phaseId] = 0;
+    actual[phaseId] = 0;
+    for (const month of months) {
+      estimate[phaseId] += byMonth[month] ?? 0;
+      actual[phaseId] += phase.actualMonths[month] ?? 0;
+      blended += blendedByMonth[month] ?? 0;
+    }
+  }
+
+  return { estimate, actual, blended };
+}
+
+/**
+ * The foot of the month table. A column of figures with nothing at the bottom
+ * of it is the one thing a ledger never does.
+ */
+export function monthTotalsRowMarkup(initiative) {
+  const costed = E.costedPhaseIds(PROCESS).filter((id) => initiative.phases[id]);
+  const totals = monthTotals(initiative, costed);
+  const cells = costed
+    .map((phaseId) => html`<td class="num">${F.money(totals.estimate[phaseId])}</td>
+      <td class="num">${F.money(totals.actual[phaseId])}</td>`)
+    .join('');
+
+  return html`<tr class="row--total">
+    <th scope="row">Total</th>
+    ${raw(cells)}
+    <td class="num"><strong>${F.money(totals.blended)}</strong></td>
+  </tr>`;
 }
 
 /** Every gate left so far, beside the live figures. */
