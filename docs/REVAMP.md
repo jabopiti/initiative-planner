@@ -35,7 +35,8 @@ here — this table is status only.
 | §4.4 Initiative detail — description/notes, delete, period validation | **Landed** |
 | §4.4 Initiative detail — panel structure and the process rail | **Landed** |
 | §4.4 Initiative detail — the gate panel, in three parts | **Landed** |
-| §4.4 Initiative detail — remaining items (sticky bar, allocation table, wizard step 2, month table) | In progress — **next** |
+| §4.4 Initiative detail — the sticky summary bar, and the jump menu | **Landed** |
+| §4.4 Initiative detail — remaining items (allocation table, wizard step 2, month table) | In progress — **next** |
 | §4.5 Overviews, capacity, charts | Not started |
 | §4.6 Copy, states, first run, accessibility | Not started |
 | §4.7 File System Access persistence | Not started |
@@ -925,9 +926,48 @@ on Cancel and on Escape with focus back on the button that opened it, and a
 completed skip advances the rail. Checked at 1280px and 420px in light and
 dark.
 
-**Not yet landed:** the sticky summary bar, the allocation table's column
-drop plus D2 seeding, the wizard's step-2 ending, and the month table's
-totals row.
+**Landed — the summary bar, and with it the jump menu.**
+
+A sticky bar at the foot carrying the three totals SPEC §4 names —
+Estimate, Forecast, Actual — with the one the initiative currently reads as
+in the accent and the count behind the word under Actual ("3 of 10
+months"), so "forecast" is a fact rather than a label. Beside them the
+approval track with an escalation mark if it has moved, and the phase with
+its blocker count. A new `E.initiativeTotals` computes all of it in one
+place; Actual is the money recorded and nothing else, which is the
+difference between it and the blended total it sits next to.
+
+The bar is sticky rather than fixed, so at the end of the page it comes to
+rest in the flow instead of permanently covering the last panel, and it
+holds no inputs, which is what lets a recalculation rebuild it whole while
+someone is typing four panels above. Below 48rem the track and the phase
+drop out: both are already on the rail and in the gate panel, and three
+rows of sticky chrome on a phone costs more than the repetition is worth.
+
+**The action is a jump, never the act.** The bar says "Pass Gate 2" or
+"Clear the blocker" and both scroll to the gate panel. Passing a gate
+freezes a phase and sets the approval baseline every later escalation is
+measured against; doing that from a strip at the bottom of the screen,
+without the blockers, the date and the consequences in view, is not
+something this tool should make easy.
+
+Next to it, **"Jump to"** opens a popover listing every panel on the page,
+built from the same `panelsFor()` list the rail's targets come from. That
+is the other half of §4.4's "a way to navigate between them": the rail
+covers the phases, this covers everything else, and neither can name a
+panel the page does not have. It is the one navigation control reachable
+from the bottom of a five-screen page, which is where the problem actually
+bites.
+
+Verified in a real browser against `examples/exports/demo.json`: typing an
+allocation percentage moves Estimate and Forecast in the bar without
+rebuilding the input or moving the caret; the jump menu positions itself
+above its trigger when there is no room below and every entry scrolls to
+its panel; the bar comes to rest at the page foot. Checked at 1280px and
+420px, light and dark.
+
+**Not yet landed:** the allocation table's column drop plus D2 seeding, the
+wizard's step-2 ending, and the month table's totals row.
 
 ### 4.5 Overviews, dashboard, capacity and charts
 

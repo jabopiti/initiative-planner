@@ -30,7 +30,10 @@ import { phaseTotalsMarkup, grandMarkup } from './render/phase-panel.js';
 
 import { renderPortfolio } from './pages/portfolio.js';
 import { renderInitiatives } from './pages/initiatives.js';
-import { renderInitiative, bandPanelMarkup, gateMenuMarkup, skipDialogMarkup } from './pages/initiative.js';
+import {
+  renderInitiative, bandPanelMarkup, gateMenuMarkup, jumpMenuMarkup, skipDialogMarkup,
+  summaryBarMarkup,
+} from './pages/initiative.js';
 import { renderWizard } from './pages/wizard.js';
 import { renderTeams } from './pages/teams.js';
 import { renderTeam, capacityCellMarkup } from './pages/team.js';
@@ -529,6 +532,8 @@ function refreshCalcRegions(initiative) {
   if (panel) fill(panel, bandPanelMarkup(initiative));
   const grand = document.querySelector('[data-calc="grand"]');
   if (grand) fill(grand, grandMarkup(initiative));
+  const summary = document.querySelector('[data-calc="summary"]');
+  if (summary) fill(summary, summaryBarMarkup(initiative));
 }
 
 /* ------------------------------------------------------------------ *
@@ -749,6 +754,9 @@ function onClick(event) {
     // navigation: nothing about the view changed, so nothing re-renders and
     // nothing touches the address bar or the caret.
     case 'panel':
+      // Reachable from inside the jump menu, which a click on its own items
+      // does not dismiss.
+      closePopover();
       document.getElementById(trigger.dataset.panel)?.scrollIntoView({ block: 'start' });
       return undefined;
     case 'undo':
@@ -867,6 +875,8 @@ function onClick(event) {
     }
     case 'gate-menu':
       return openPopover(trigger, gateMenuMarkup(id));
+    case 'jump-menu':
+      return openPopover(trigger, jumpMenuMarkup(id));
     case 'skip-gate-open':
       // Out of the menu and into the dialog: closing first is what puts the
       // focus the native dialog restores on the button that opened the menu.

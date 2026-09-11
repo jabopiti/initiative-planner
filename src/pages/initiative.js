@@ -41,7 +41,10 @@ export function renderInitiative() {
       ${raw(stepperMarkup(initiative))}
       <div class="panel-stack">${raw(panelsFor(initiative)
         .map((entry) => entry.render(initiative))
-        .join(''))}</div>`,
+        .join(''))}</div>
+      <div class="summary" data-calc="summary" role="region"
+        aria-label="Totals, approval track and what is next"
+        >${raw(summaryBarMarkup(initiative))}</div>`,
   );
 }
 
@@ -269,6 +272,95 @@ function stepperMarkup(initiative) {
   return html`<nav class="rail" aria-label="Phases">
     <ol class="stepper">${raw(items)}</ol>
   </nav>`;
+}
+
+/* ------------------------------------------------------------------ *
+ * The summary bar
+ * ------------------------------------------------------------------ */
+
+/**
+ * The figures, the track and what is next, kept at the foot of the viewport.
+ *
+ * This page earns a sticky bar and no other page in the app does. It is five
+ * screens long, every figure on it moves as you type an allocation percentage
+ * four panels down, and the question you are editing against — what does this
+ * now cost, and what does that mean for who has to approve it — is answered
+ * at the top. A bar that follows keeps the answer beside the edit.
+ *
+ * Sticky rather than fixed, so at the foot of the page it comes to rest in
+ * the flow and stops covering anything. It holds no inputs, which is what
+ * lets a recalculation rebuild it whole without ever touching a caret.
+ *
+ * The action is a jump to the gate, never the gate action itself: passing a
+ * gate freezes a phase and sets an approval baseline, and doing that from a
+ * strip at the bottom of the screen — without the blockers, the date and the
+ * consequences in view — is not a thing this tool should make easy.
+ */
+export function summaryBarMarkup(initiative) {
+  const totals = E.initiativeTotals(initiative, app);
+  const band = E.resolveBand(PROCESS.bands, totals.forecast);
+  const passed = L.lastPassedGate(PROCESS, initiative);
+  const escalated = passed && E.compareBands(passed.band, band) === 'escalation';
+  const finished = E.isFinished(initiative);
+
+  const blockers = finished
+    ? 0
+    : L.gateRequirements(app, PROCESS, initiative, E.gateForPhase(PROCESS, initiative.phaseId).id)
+      .filter((requirement) => requirement.state === 'blocker').length;
+
+  const figure = (label, value, on, note = '') => html`<div
+    class="summary__figure ${on ? 'summary__figure--on' : ''}">
+    <dt>${label}</dt>
+    <dd>${F.money(value)}${raw(note ? html`<span class="summary__note">${note}</span>` : '')}</dd>
+  </div>`;
+
+  return html`<dl class="summary__figures">
+      ${raw(figure('Estimate', totals.estimate, totals.coverage === 'estimate'))}
+      ${raw(figure('Forecast', totals.forecast, totals.coverage === 'forecast'))}
+      ${raw(figure('Actual', totals.actual, totals.coverage === 'actual',
+        totals.months ? `${totals.recorded} of ${totals.months} months` : ''))}
+    </dl>
+
+    <div class="summary__facts">
+      <p class="summary__fact">
+        <span class="label-voice">Approval track</span>
+        <span>${band ? band.name : 'Not yet known'}${raw(escalated
+          ? html` ${raw(badge('escalated', 'warn', 'warning'))}`
+          : '')}</span>
+      </p>
+      <p class="summary__fact">
+        <span class="label-voice">Phase</span>
+        <span>${finished
+          ? STATUS_LABELS[initiative.status]
+          : E.phaseLabel(PROCESS, initiative.phaseId)}${raw(blockers
+          ? html` ${raw(badge(`${blockers} ${blockers === 1 ? 'blocker' : 'blockers'}`,
+              'warn', 'warning'))}`
+          : '')}</span>
+      </p>
+    </div>
+
+    <div class="summary__actions">
+      ${raw(finished
+        ? ''
+        : html`<button type="button" class="btn ${blockers ? '' : 'btn--primary'}"
+            data-act="panel" data-panel="panel-gate">${blockers
+              ? `Clear ${blockers === 1 ? 'the blocker' : 'the blockers'}`
+              : `Pass ${E.gateForPhase(PROCESS, initiative.phaseId).label}`}</button>`)}
+      <button type="button" class="btn" data-act="jump-menu" data-id="${initiative.id}"
+        aria-haspopup="menu">Jump to${raw(icon('chevron-down'))}</button>
+    </div>`;
+}
+
+/** Every panel on this page, as somewhere to go. */
+export function jumpMenuMarkup(initiativeId) {
+  const initiative = app.INITIATIVES.find((i) => i.id === initiativeId);
+  const items = panelsFor(initiative)
+    .map((entry) => html`<button type="button" class="btn" data-act="panel"
+      data-panel="${entry.id}">${entry.label}</button>`)
+    .join('');
+
+  return html`<h3>On this page</h3>
+    <div class="popover__actions">${raw(items)}</div>`;
 }
 
 /* ------------------------------------------------------------------ *

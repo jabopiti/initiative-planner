@@ -1923,6 +1923,120 @@ h3,
   color: var(--color-muted);
 }
 
+/*
+ * THE SUMMARY BAR — the initiative detail's foot, and nowhere else's.
+ *
+ * Sticky rather than fixed: at the end of the page it comes to rest in the
+ * flow instead of permanently covering the last panel. Flat, because it is
+ * anchored in the page rather than floating above it — the surface step and a
+ * heavy top rule are what separate it from whatever scrolls underneath.
+ *
+ * The three figures are the page's display numerals, and the one the
+ * initiative currently reads as (SPEC §4: Estimate / Forecast / Actual) takes
+ * the accent, since "which of these is the real number right now" is the
+ * question a reader brings to three money figures in a row.
+ */
+.summary {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-header);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: var(--size-border) solid var(--color-line);
+  border-top: var(--size-thick) solid var(--color-line);
+}
+
+.summary__figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin: 0;
+}
+
+.summary__figure dt {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-muted);
+}
+
+.summary__figure dd {
+  margin: 0;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-muted);
+}
+
+.summary__figure--on dd {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--color-accent);
+}
+
+.summary__note {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-regular);
+  letter-spacing: normal;
+  color: var(--color-muted);
+}
+
+.summary__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+
+.summary__fact {
+  margin: 0;
+  color: var(--color-fg);
+}
+
+.summary__fact .label-voice {
+  display: block;
+}
+
+/* Pushed to the far end, so the thing to do next is always in the same place. */
+.summary__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/*
+ * On a narrow viewport the bar has to earn its height against a much shorter
+ * screen. The figures are why it exists and stay; the approval track and the
+ * phase go, because both are already on the rail and in the gate panel a
+ * short scroll away, and three rows of sticky chrome on a phone costs more
+ * than the repetition is worth.
+ */
+@media (max-width: 48rem) {
+  .summary {
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .summary__figures {
+    gap: var(--space-4);
+  }
+
+  .summary__facts,
+  .summary__note {
+    display: none;
+  }
+}
+
 /* The wizard's two-step counter, which is a different thing from the rail. */
 .steps {
   counter-reset: step;

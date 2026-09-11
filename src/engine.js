@@ -439,6 +439,49 @@ export function phaseCosts(initiative, app) {
   );
 }
 
+/**
+ * The three totals side by side, plus how far the actuals reach.
+ *
+ * SPEC §4 names Estimate, Forecast and Actual as three different readings of
+ * the same initiative, and the first two already have functions. This is the
+ * third — the money actually recorded — and the count behind the word, so a
+ * reader can see that "forecast" means nine months of sixteen rather than
+ * having to take the label's word for it.
+ *
+ * Actual is the sum of what has been recorded and nothing else. It is not a
+ * projection and deliberately does not fill its gaps from the estimate; that
+ * is what the blended total is for.
+ *
+ * @returns {{ estimate: number, forecast: number, actual: number,
+ *   recorded: number, months: number, coverage: 'estimate'|'forecast'|'actual' }}
+ */
+export function initiativeTotals(initiative, app) {
+  const phases = costedPhases(initiative);
+  let actual = 0;
+  let recorded = 0;
+  let months = 0;
+
+  for (const phase of phases) {
+    const actuals = phase.actualMonths ?? {};
+    for (const key of phaseMonths(phase)) {
+      months += 1;
+      if (actuals[key] !== undefined) {
+        recorded += 1;
+        actual += actuals[key];
+      }
+    }
+  }
+
+  return {
+    estimate: phases.reduce((total, phase) => total + phaseEstimateTotal(phase, app), 0),
+    forecast: grandTotal(initiative, app),
+    actual,
+    recorded,
+    months,
+    coverage: initiativeCoverage(initiative),
+  };
+}
+
 /** Coverage across every costed phase. @returns {'estimate'|'forecast'|'actual'} */
 export function initiativeCoverage(initiative) {
   const labels = costedPhases(initiative).map(phaseCoverage);
