@@ -1528,6 +1528,25 @@ h3,
 }
 
 /*
+ * A badge that is a real button: it reads as a state but opens a menu rather
+ * than looking like a form field (§4.5 — the initiatives registry's status
+ * column). Same kinds as a plain badge; this only adds the affordance.
+ */
+.badge--button {
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.badge--button:hover {
+  background-image: var(--state-layer-hover);
+}
+
+.badge--button:active {
+  background-image: var(--state-layer-active);
+}
+
+/*
  * EMPTY STATE — an invitation, not an apology. One line saying what is not
  * there and, where there is one, the control that fixes it.
  */

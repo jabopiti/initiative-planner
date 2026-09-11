@@ -29,7 +29,7 @@ import { chartYear } from './render/charts.js';
 import { phaseTotalsMarkup, grandMarkup, allocationDetailMarkup } from './render/phase-panel.js';
 
 import { renderPortfolio } from './pages/portfolio.js';
-import { renderInitiatives } from './pages/initiatives.js';
+import { renderInitiatives, statusMenuMarkup, statusCancelConfirmMarkup } from './pages/initiatives.js';
 import {
   renderInitiative, bandPanelMarkup, gateMenuMarkup, jumpMenuMarkup, monthTotalsRowMarkup,
   skipDialogMarkup, summaryBarMarkup,
@@ -368,6 +368,15 @@ export const STATUS_LABELS = {
   closed: 'Closed',
 };
 
+/** Which badge kind each status reads as, so closed (done) and cancelled
+ * (abandoned) are visually distinct rather than sharing one "finished" mark. */
+export const STATUS_BADGE_KIND = {
+  active: 'ok',
+  'on-hold': 'warn',
+  cancelled: 'danger',
+  closed: 'quiet',
+};
+
 /** `YYYY-MM` for today, the month picker's default. */
 export function currentMonth() {
   return E.monthKey(new Date());
@@ -639,13 +648,17 @@ function onInput(event) {
     // Search is the one filter that must react per keystroke, and filtering
     // rebuilds the table the box sits above. Re-render, then put the caret
     // back exactly where it was — the invariant is that typing never *loses*
-    // the caret, not that nothing may re-render.
+    // the caret, not that nothing may re-render. A checkbox (e.g. "Show
+    // inactive"/"Show closed & cancelled") also fires this event, but has no
+    // caret to restore — `setSelectionRange` throws on that input type.
     const page = act === 'people-filter' ? 'people' : 'initiatives';
-    const filters = { ...(view.params.filters ?? {}), [target.dataset.filter]: target.value };
+    const checkbox = target.type === 'checkbox';
+    const value = checkbox ? target.checked : target.value;
+    const filters = { ...(view.params.filters ?? {}), [target.dataset.filter]: value };
     const caret = target.selectionStart;
     navigate(page, { ...view.params, filters });
     const restored = document.querySelector(`[data-act="${act}"][data-filter="${target.dataset.filter}"]`);
-    if (restored instanceof HTMLInputElement) {
+    if (restored instanceof HTMLInputElement && !checkbox) {
       restored.focus();
       restored.setSelectionRange(caret, caret);
     }
@@ -953,6 +966,23 @@ function onClick(event) {
       store.save(app);
       return navigate('initiative', { id: copy.id });
     }
+    case 'status-menu':
+      return openPopover(trigger, statusMenuMarkup(id));
+    case 'status-set':
+      closePopover();
+      L.setStatus(findInitiative(id), trigger.dataset.status);
+      return commit();
+    case 'status-cancel-arm':
+      // Same anchor as the menu it replaces: the row's badge, not this
+      // button, which is about to be replaced along with the rest of the
+      // popover's content.
+      return openPopover(popoverTrigger, statusCancelConfirmMarkup(id));
+    case 'status-cancel-confirm':
+      closePopover();
+      L.setStatus(findInitiative(id), 'cancelled');
+      return commit();
+    case 'status-cancel-abort':
+      return closePopover();
     case 'initiative-delete-arm':
       return navigate('initiative', { ...view.params, confirmDelete: true });
     case 'initiative-delete-cancel':
@@ -1143,12 +1173,10 @@ function onChange(event) {
     }
     case 'initiatives-filter': {
       const filters = { ...(view.params.filters ?? {}) };
-      filters[target.dataset.filter] = target.value;
+      const key = target.dataset.filter;
+      filters[key] = target.type === 'checkbox' ? target.checked : target.value;
       return navigate('initiatives', { ...view.params, filters });
     }
-    case 'initiative-status':
-      L.setStatus(findInitiative(id), target.value);
-      return commit();
     case 'phase-start':
     case 'phase-end': {
       const initiative = findInitiative(id);
