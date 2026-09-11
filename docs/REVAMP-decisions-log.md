@@ -607,3 +607,32 @@ couldn't say, since it only reports what the team holds, not what it uses.
 still there either way; `src/pages/teams.js` would just compute a count via
 `E.overAllocations(app, month).overShare.filter(r => roster has r.personId)`
 instead of the ratio, and change the `<dt>` label to match.
+
+---
+
+## §4.6 — aria-live on page-level totals only, not per-row figures
+
+**Question:** "aria-live on the regions that recalculate" could mean every
+`data-calc` region in the app — including the per-row allocation
+cost/person-days cells and the per-month blended-cost cells inside large
+tables, both of which update on every character typed into a nearby field.
+
+**Decision:** `aria-live="polite" aria-atomic="true"` went on four
+page/panel-level totals only — the initiative's sticky summary bar, the
+approval-track panel, the month table's `<tfoot>`, and the wizard's grand
+total. The granular per-row and per-cell figures inside the allocation
+table and the month-by-month table were deliberately left without it.
+
+Wiring live regions to something that updates once per keystroke, in a
+table that can hold a dozen rows or twelve months, would announce a
+cascade of intermediate values to a screen reader on every character typed
+into any one of them — the well-known "live region chatter" failure mode,
+worse than saying nothing. The four regions that got it are exactly the
+ones a reader would want summarized after a change, not mid-keystroke
+noise.
+
+**If you'd reverse this:** the `[data-calc="cost-…"]`, `[data-calc="days-…"]`
+and `[data-calc="blended-…"]` elements in `src/render/phase-panel.js` and
+`src/pages/initiative.js` are where the additional attributes would go —
+but debounce first (announce only after typing pauses), or the chatter
+problem this call exists to avoid comes right back.

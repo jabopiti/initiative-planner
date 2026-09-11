@@ -39,7 +39,7 @@ here — this table is status only.
 | §4.4 Initiative detail — the allocation table, and D2 | **Landed** |
 | §4.4 Initiative detail — the wizard's ending, and the month table's foot | **Landed** |
 | §4.5 Overviews, capacity, charts | **Landed** |
-| §4.6 Copy, states, first run, accessibility | Not started |
+| §4.6 Copy, states, first run, accessibility | **Landed** |
 | §4.7 File System Access persistence | Not started |
 | §4.8 Brand pack | Not started |
 | D3 — drop CSV, keep Copy | **Landed** |
@@ -1311,6 +1311,55 @@ clean; the search popover survives a 420px viewport.
 - Focus order, focus-visible rings, `aria-live` on the regions that
   recalculate, contrast checked in all three themes.
 - Motion on state changes and disclosures, honouring `prefers-reduced-motion`.
+
+**Landed.** The placeholder sweep turned up nothing left to fix: the one
+offender the finding named (`placeholder="not recorded"`) was already
+removed in §4.4's month-table-foot row, and every remaining `placeholder=`
+in the app is a genuine example of valid input. Motion needed nothing
+either — `prefers-reduced-motion: reduce` already collapses every
+`--motion-*` token to near-zero at the root in `styles.css`, from the
+design-system row, and since every transition and animation in the
+stylesheet reads those tokens rather than a literal duration, one media
+query already cancels motion app-wide. Focus order and focus-visible rings
+were §4.1's landed work already.
+
+What was left: `store.load()` computed a reason (`empty`/`schema`/
+`process`/`unreadable`) and `boot()` returned it to nobody. A schema or
+process mismatch is worse than an empty store — the incompatible bytes are
+still sitting in the browser, and the first save from this session
+overwrites them for good — so `renderBanner()` now shows a dismissible,
+reason-specific warning for those three outcomes, outranking the export
+reminder the same way the write-failure banner does. A plain `empty` reason
+(a genuine fresh install, nothing lost) gets no banner; the per-page empty
+states already say what to do first, which is where the second bullet's
+work landed instead — four fixed to say what to do next (Portfolio's
+initiatives table, a team's initiatives panel, a person's allocations
+panel) plus one that was an outright bug: a team's roster panel hid its own
+inline add-row behind the empty-state message whenever the roster was
+literally empty, even with people available to add, since the add-row
+lived inside the very table the empty state replaced. `aria-live="polite"
+aria-atomic="true"` went on four page/panel-level totals (the initiative
+summary bar, the approval-track panel, the month table's foot, the
+wizard's grand total) — deliberately not on granular per-row, per-keystroke
+figures, where announcing every table cell on every character typed would
+be live-region chatter, not help. And a leftover named in §2.5 but never
+folded into a §4.x bullet — negative day rates and custom rates accepted
+silently — now warn inline the same way the zero-rate and over-share
+warnings already do, never blocking (SPEC §5.2).
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark, 1440px and 420px: a fresh install shows no banner; a schema mismatch
+and a process mismatch each show their own wording, dismiss correctly, and
+fall back to the export reminder underneath; a brand-new team's roster
+table shows its add-row and a person can actually be added through it;
+typing an allocation percentage updates the summary bar and month totals
+live while the caret and focus stay put; a negative day rate shows its
+warning after the next render, matching the existing zero-rate warning's
+own timing; contrast checked programmatically (WCAG ratios computed from
+actual computed colors, not eyeballed) on the new banner and existing
+tile/legend/chart-axis text in both themes — all pass AA with margin.
+
+**§4.6 is complete.**
 
 ### 4.7 Storage (D4/D5)
 
