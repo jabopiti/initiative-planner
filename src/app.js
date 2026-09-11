@@ -39,6 +39,7 @@ import { renderTeams } from './pages/teams.js';
 import { renderTeam, capacityCellMarkup } from './pages/team.js';
 import { renderPeople } from './pages/people.js';
 import { renderPerson } from './pages/person.js';
+import { renderCapacity } from './pages/capacity.js';
 import { renderSettings, importPreviewMarkup, scrollToSettingsSection } from './pages/settings.js';
 
 /* ------------------------------------------------------------------ *
@@ -358,6 +359,7 @@ export const PAGES = [
   { id: 'initiatives', label: 'Initiatives', kind: 'overview' },
   { id: 'teams', label: 'Teams', kind: 'overview' },
   { id: 'people', label: 'People', kind: 'overview' },
+  { id: 'capacity', label: 'Capacity', kind: 'overview' },
   { id: 'settings', label: 'Settings', kind: 'settings' },
 ];
 
@@ -486,6 +488,7 @@ export function render() {
   if (view.page === 'settings') return renderSettings();
   if (view.page === 'people') return renderPeople();
   if (view.page === 'person') return renderPerson();
+  if (view.page === 'capacity') return renderCapacity();
   if (view.page === 'teams') return renderTeams();
   if (view.page === 'team') return renderTeam();
   if (view.page === 'initiatives') return renderInitiatives();

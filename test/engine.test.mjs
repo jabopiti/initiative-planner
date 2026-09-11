@@ -450,6 +450,74 @@ test('both ceilings warn and neither blocks', () => {
   assert.equal(E.nonInitiativeWorkPct(a, person.id, first.teamId, '2026-07'), 0, 'never negative');
 });
 
+test('overAllocations (D7) finds every over-share membership and over-capacity person for a month', () => {
+  const a = app();
+  const person = splitPerson(a);
+  const [first, second] = person.memberships.filter((m) => m.active);
+
+  // Over this one membership's share, but not yet over the person's total.
+  a.INITIATIVES.push(initiative(a, {
+    id: 'init_share',
+    teamId: first.teamId,
+    phases: {
+      plan: phase({
+        estStartDate: '2026-08-01',
+        estEndDate: '2026-08-31',
+        allocations: [{ personId: person.id, allocationPct: first.sharePct + 10 }],
+      }),
+    },
+  }));
+
+  let { overCapacity, overShare } = E.overAllocations(a, '2026-08');
+  assert.deepEqual(overCapacity, [], 'not over their own capacity yet');
+  assert.equal(overShare.length, 1);
+  assert.equal(overShare[0].personId, person.id);
+  assert.equal(overShare[0].teamId, first.teamId);
+  assert.equal(overShare[0].sharePct, first.sharePct);
+
+  // Now push them over their own total capacity too, via the other team.
+  a.INITIATIVES.push(initiative(a, {
+    id: 'init_capacity',
+    teamId: second.teamId,
+    phases: {
+      plan: phase({
+        estStartDate: '2026-08-01',
+        estEndDate: '2026-08-31',
+        allocations: [{ personId: person.id, allocationPct: person.capacityPct }],
+      }),
+    },
+  }));
+
+  ({ overCapacity, overShare } = E.overAllocations(a, '2026-08'));
+  assert.equal(overCapacity.length, 1);
+  assert.equal(overCapacity[0].personId, person.id);
+  assert.ok(overCapacity[0].allocatedPct > person.capacityPct);
+  // A different month is untouched — these are one-phase allocations.
+  assert.deepEqual(E.overAllocations(a, '2026-01').overCapacity, []);
+});
+
+test('overAllocations ignores inactive people, even one over every ceiling', () => {
+  const a = app();
+  const person = splitPerson(a);
+  const [first] = person.memberships.filter((m) => m.active);
+  a.INITIATIVES.push(initiative(a, {
+    id: 'init_inactive_over',
+    teamId: first.teamId,
+    phases: {
+      plan: phase({
+        estStartDate: '2026-09-01',
+        estEndDate: '2026-09-30',
+        allocations: [{ personId: person.id, allocationPct: first.sharePct + 20 }],
+      }),
+    },
+  }));
+  person.active = false;
+
+  const { overCapacity, overShare } = E.overAllocations(a, '2026-09');
+  assert.deepEqual(overCapacity, []);
+  assert.deepEqual(overShare, []);
+});
+
 /* -------------------------------------------------- stage progression */
 
 /* -------------------------------------------------- module hygiene */

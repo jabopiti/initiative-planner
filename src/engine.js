@@ -812,6 +812,49 @@ export function capacityWarnings(app, personId, teamId, monthKeyStr) {
 }
 
 /**
+ * Every over-allocation for one month, across every active person and team
+ * (SPEC §7) — the question per-team and per-person capacity each answer on
+ * their own, but that neither answers for "anyone, anywhere."
+ *
+ * The two ceilings stay separate rather than merged into one list: capacity
+ * % and share % are never interchangeable (§5.2), and a person can be over
+ * one without being over the other.
+ *
+ * @returns {{
+ *   overCapacity: Array<{ personId: string, capacityPct: number, allocatedPct: number }>,
+ *   overShare: Array<{ personId: string, teamId: string, sharePct: number, allocatedPct: number }>,
+ * }}
+ */
+export function overAllocations(app, monthKeyStr) {
+  const overCapacity = [];
+  const overShare = [];
+
+  for (const person of Object.values(app.PEOPLE)) {
+    if (!person.active) continue;
+
+    const overall = allocatedPct(app, person.id, monthKeyStr);
+    if (overall > person.capacityPct) {
+      overCapacity.push({ personId: person.id, capacityPct: person.capacityPct, allocatedPct: overall });
+    }
+
+    for (const member of person.memberships ?? []) {
+      if (!member.active) continue;
+      const inTeam = allocatedPct(app, person.id, monthKeyStr, member.teamId);
+      if (inTeam > member.sharePct) {
+        overShare.push({
+          personId: person.id,
+          teamId: member.teamId,
+          sharePct: member.sharePct,
+          allocatedPct: inTeam,
+        });
+      }
+    }
+  }
+
+  return { overCapacity, overShare };
+}
+
+/**
  * Every allocation a person holds, across all initiatives and both phases,
  * regardless of month. The Person detail page's "where does this person's
  * time go?" table.

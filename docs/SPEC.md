@@ -225,6 +225,28 @@ The single exception is **notes**, which stays writable, because recording
 why something ended is exactly what a finished initiative still needs to
 accept. Reopening unlocks everything.
 
+## 7. Capacity overview
+
+Per-team and per-person capacity each answer "is this one team, or this one
+person, over-allocated" — but not "is anyone, anywhere, over-allocated this
+month," which used to have no single answer (§1's capacity/cost being
+co-equal outputs implied one, and there wasn't one). The Capacity overview
+answers it: every over-allocation across every team and person, for one
+selected month at a time.
+
+It surfaces both ceilings §5.2 defines, kept separate because they are
+never interchangeable:
+
+- **Over capacity** — a person whose total allocation across every team
+  exceeds their own **capacity %**.
+- **Over their team's share** — a membership whose allocation within that
+  one team exceeds the **share %** that membership holds.
+
+Like every other ceiling in this tool, both **warn and never block** (§5.2).
+Only active people and active initiatives count, matching how capacity
+accounting works everywhere else (§3: On Hold and Cancelled initiatives are
+excluded from it).
+
 ## 8. Cross-cutting rules
 
 - **Theming**: System (follows the OS), Light or Dark, cycled by one control
