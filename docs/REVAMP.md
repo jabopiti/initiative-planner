@@ -41,7 +41,7 @@ here — this table is status only.
 | §4.5 Overviews, capacity, charts | **Landed** |
 | §4.6 Copy, states, first run, accessibility | **Landed** |
 | §4.7 File System Access persistence | Not started |
-| §4.8 Brand pack | Not started |
+| §4.8 Brand pack | **Landed** |
 | D3 — drop CSV, keep Copy | **Landed** |
 | D9 — rolling four-year window recompute | **Landed** |
 
@@ -1383,6 +1383,44 @@ wordmark — and fix the wordmark hole (§2.5). No locale, per D6. Bump the bran
 version, since the shape changes. Document the whole surface in DESIGN §4, and
 verify the default still looks intentional with every knob left alone: that is
 the actual test of "good out of the box".
+
+**Landed.** Four new knobs joined the accent triad and `--brand-font`, each
+with a white-label default that reproduces this tool's current look exactly:
+`--brand-neutral-hue` (220) drives the whole neutral ramp — canvas, surface,
+text, lines, and the band/scrim/spare tints — independent of the accent hue,
+which is the separation Farn itself draws between its accent and its
+neutrals. `--chart-spare` was deliberately left out of that ramp and kept at
+its own fixed hue, matching the rest of the chart palette (data-encoding,
+not brand colour, per the Farn-hue-adoption note earlier in this document).
+`--brand-radius` (0, square) replaces `--radius-none` as what all eleven
+`border-radius` call sites actually read. `--brand-density` (1) is a
+unitless multiplier over row padding and control heights. `--brand-text-base`
+(0.875rem) is the number the rest of the `--text-*` scale is now a fixed
+ratio of. `styles.css`'s own brand-pack contract comment bumped to version
+2 to match `masterData.js` and `process.js`.
+
+`PROCESS.wordmark` (§2.5's hole) fixes what was a straightforward bug:
+`boot()` read a literal `'Initiative Planner'` string while `index.html`'s
+own comment claimed the wordmark came from the data model, which was
+false. It now reads `PROCESS.wordmark` into both the shell element and the
+document title — `currency` was already build-fixed identity living in
+`process.js`, and wordmark is the same kind of thing. `process.js` bumped
+to contract version 2 alongside it. DESIGN §4 now documents the full
+seven-knob surface in one table; AGENTS.md needed no change to its
+brand-pack section, since its existing `--brand*` wildcard wording already
+covered every new name.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark, 1440px and 420px: the default render is pixel-identical to before
+this row on Portfolio and Settings — confirming every new knob's default
+reproduces the current look, which is the actual test this row names. A
+single combined override (`--brand-hue: 260`, `--brand-neutral-hue: 30`,
+`--brand-radius: 8px`, `--brand-density: 1.3`, `--brand-text-base: 1rem`)
+correctly repainted the accent, the neutral ramp, corner rounding, row
+density and type size all at once, in both themes, with no reload and no
+console errors — the mechanism itself, not just the tokens existing.
+
+**§4.8 is complete.**
 
 ---
 
