@@ -171,6 +171,11 @@
   --field-select: 9rem;
 
   /* ---- layout sizes ---- */
+  /* An approximation of .shell-header's rendered height, read by everything
+     that has to clear it: a second sticky element below it, and the
+     scroll-margin that keeps a jump target from landing underneath it. Change
+     the header's padding or type and this is the one value to re-measure. */
+  --header-height: 3.5rem;
   --tile-min: 10rem;
   --card-min: 16rem;
   --step-min: 8rem;
@@ -1153,6 +1158,27 @@ h3,
   margin-top: var(--space-4);
 }
 
+/*
+ * A run of panels that something navigates between. The wider gap is the
+ * separation: one panel ends and the next begins, rather than a stack of
+ * boxes a reader has to parse into groups. Every panel is a jump target, so
+ * each clears the sticky header when something scrolls to it — without this a
+ * jump lands with the heading hidden underneath it.
+ */
+.panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.panel-stack > .panel + .panel {
+  margin-top: 0;
+}
+
+.panel {
+  scroll-margin-top: calc(var(--header-height) + var(--space-3));
+}
+
 .panel > .scroller {
   border-inline: none;
 }
@@ -1527,9 +1553,10 @@ h3,
  * the scroll; a sticky bar on narrow, where there is no room for a rail
  * beside the content.
  *
- * 3.5rem approximates .shell-header's rendered height, so the narrow-mode
- * bar sticks directly under it rather than the two sticky elements
- * overlapping — CSS does not stack sequential sticky elements on its own.
+ * --header-height approximates .shell-header's rendered height, so the
+ * narrow-mode bar sticks directly under it rather than the two sticky
+ * elements overlapping — CSS does not stack sequential sticky elements on
+ * its own.
  */
 .settings-layout {
   display: grid;
@@ -1543,9 +1570,9 @@ h3,
   flex-direction: column;
   gap: var(--space-1);
   position: sticky;
-  /* 3.5rem clears .shell-header, which is sticky at top:0 itself — without
-     this, the rail sticks underneath it instead of below it. */
-  top: calc(3.5rem + var(--space-4));
+  /* --header-height clears .shell-header, which is sticky at top:0 itself —
+     without this, the rail sticks underneath it instead of below it. */
+  top: calc(var(--header-height) + var(--space-4));
 }
 
 .settings-nav button {
@@ -1589,7 +1616,7 @@ h3,
     flex-direction: row;
     flex-wrap: nowrap;
     overflow-x: auto;
-    top: 3.5rem;
+    top: var(--header-height);
     z-index: var(--z-header);
     background: var(--color-canvas);
     border-bottom: var(--size-border) solid var(--color-line);
@@ -1615,21 +1642,70 @@ h3,
  * Phases abut into one horizontal line that changes colour where a gate was
  * crossed. A skipped gate is dashed and never reads as a passed one: that
  * difference is the reason a skip is recorded at all.
+ *
+ * It is also this page's primary navigation: each segment is a button that
+ * scrolls to the panel behind it. A phase with nothing on the page — one
+ * still ahead that carries no cost — renders as a plain span instead, because
+ * a control that goes nowhere is worse than a label.
+ *
+ * Each segment carries three lines: the phase, what is worth knowing about it
+ * from a distance, and its figure set as a numeral. The current segment is
+ * the dominant one — accent cap, accent tint, a wider share of the row and a
+ * larger figure — since "where is this now" is the question the rail exists
+ * to answer.
  */
+.rail {
+  margin-bottom: var(--space-5);
+}
+
 .stepper {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-half);
   list-style: none;
-  margin: 0 0 var(--space-4);
+  margin: 0;
   padding: 0;
 }
 
 .step {
+  display: flex;
   flex: 1 1 var(--step-min);
   background: var(--color-surface);
   border-top: var(--size-thick) solid var(--color-line);
+}
+
+.step__hit {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: none;
+  border-radius: var(--radius-none);
   padding: var(--space-2) var(--space-3) var(--space-3);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.step__hit:hover {
+  background-image: var(--state-layer-hover);
+}
+
+.step__hit:active {
+  background-image: var(--state-layer-active);
+}
+
+/* The segments that read rather than navigate: same box, no affordance. */
+.step__hit--static {
+  cursor: default;
+}
+
+.step__hit--static:hover,
+.step__hit--static:active {
+  background-image: none;
 }
 
 .step__name {
@@ -1638,6 +1714,42 @@ h3,
   gap: var(--space-1);
   color: var(--color-fg);
   font-weight: var(--weight-semibold);
+}
+
+/* A skip reason is a sentence, so this one opts out of the one-line rule. */
+.step__meta {
+  font-size: var(--text-xs);
+  line-height: var(--leading-tight);
+  color: var(--color-muted);
+}
+
+.step__figure {
+  margin-top: auto;
+  padding-top: var(--space-1);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-fg);
+}
+
+.step__qual {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.step__flag {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--color-danger);
 }
 
 .step--passed {
@@ -1658,6 +1770,7 @@ h3,
 }
 
 .step--current {
+  flex-grow: 1.6;
   border-top-color: var(--color-accent);
   background: var(--state-selected);
 }
@@ -1666,9 +1779,18 @@ h3,
   color: var(--color-accent);
 }
 
+.step--current .step__figure {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+}
+
 .step--ahead .step__name {
   color: var(--color-muted);
   font-weight: var(--weight-regular);
+}
+
+.step--ahead .step__figure {
+  color: var(--color-muted);
 }
 
 /* The wizard's two-step counter, which is a different thing from the rail. */

@@ -120,9 +120,16 @@ scrolled.
 
 **Watch for:** a change to `.shell-header`'s padding, font size, or content
 (a second row, a taller wordmark) will silently reopen this — there's no
-structural link between the two values, only this note. Introducing a real
-`--header-height` custom property, computed once and read by both rules,
-would remove the fragility if this bites again.
+structural link between the two values, only this note.
+
+**Superseded by §4.4:** it bit again. The initiative detail's panels are jump
+targets, so their `scroll-margin-top` needs the same clearance, which would
+have been a third literal `3.5rem`. The value is now a single
+`--header-height` token in `:root`, read by both `.settings-nav` rules and by
+`.panel`'s scroll margin. It is still a measured approximation rather than
+something computed from the header — the watch-for above still applies — but
+there is now one place to re-measure instead of three. Measured again while
+building the rail: the header renders 55px against the token's 56px.
 
 ---
 
@@ -394,3 +401,42 @@ choice rather than something that silently starts wrapping.
 
 **Watch for:** a new table column carrying a sentence will run off the side
 instead of wrapping. That is the intended failure — add `.cell--wrap` to it.
+
+---
+
+## §4.4 — the process rail is the page's navigation, and a dead step is not a button
+
+**Question:** §4.4 wants "sections: real separation and a way to navigate
+between them," and §4.3 had just built one for Settings — a sticky rail plus
+one scrolling page. Copy it here?
+
+**Decision: no rail, and no second navigation device for phases.** This page
+already has a horizontal stepper across the top doing most of that job, and
+Settings' rail was built because Settings had nothing. Instead:
+
+- Every panel is a `<section>` with an id, rendered from **one list**
+  (`panelsFor` in `src/pages/initiative.js`) so the page, the rail's jump
+  targets and the jump menu can never disagree about what exists.
+- A step on the rail scrolls to the panel behind its phase.
+- Separation is `.panel-stack` — a wider gap between panels, and
+  `scroll-margin-top` on every panel so a jump lands with the heading clear
+  of the sticky header rather than under it. (That also fixes Settings'
+  section jumps, which had the same defect and nobody had noticed.)
+
+**A jump is a scroll, not a navigation.** `data-act="panel"` calls
+`scrollIntoView` and nothing else: no `navigate()`, no re-render, nothing
+written to the address bar, and no `aria-current` to keep honest. The section
+identity in Settings' hash exists because a settings section is a place worth
+linking someone to; a panel on one initiative is not — the initiative is the
+place, and it already has a link.
+
+**A step whose phase has nothing on the page is a `<span>`, not a button.**
+A phase still ahead that carries no cost and has left no gate has no panel to
+jump to. Rendering it as a disabled-looking button, or as one that silently
+does nothing, is worse than a segment that only reads.
+
+**If you'd reverse this:** the jump targets are computed in `stepDetail`'s
+`target`; returning `'panel-gate'` as a fallback would make every step
+clickable at the cost of three steps landing on the same panel. For a full
+Settings-style rail, `panelsFor` already returns exactly the `{ id, label }`
+pairs one would need.

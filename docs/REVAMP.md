@@ -33,7 +33,8 @@ here — this table is status only.
 | §4.3 Settings — working days as absolute values | **Landed** — `schemaVersion` 2 |
 | §4.3 Settings — bulk entry for rates/working days | **Landed** |
 | §4.4 Initiative detail — description/notes, delete, period validation | **Landed** |
-| §4.4 Initiative detail — remaining items (stepper, gate panel, sticky bar, allocation table, wizard step 2, month table, sections) | Not started — **next** |
+| §4.4 Initiative detail — panel structure and the process rail | **Landed** |
+| §4.4 Initiative detail — remaining items (gate panel, sticky bar, allocation table, wizard step 2, month table) | In progress — **next** |
 | §4.5 Overviews, capacity, charts | Not started |
 | §4.6 Copy, states, first run, accessibility | Not started |
 | §4.7 File System Access persistence | Not started |
@@ -825,12 +826,48 @@ and notes both hold their stored values and persist an edit; the delete arm
 and returns to the Initiatives overview; setting an end date before the
 start date shows the warning immediately.
 
-**Not yet landed:** the informative stepper, the three-part gate panel
-restructure, the sticky summary bar, the allocation table's column drop
-plus D2 seeding, the wizard's step-2 ending, the month table's totals row,
-and real section navigation — all still ahead. The first three in
-particular are invention rather than execution (REVAMP.md §0's model
-guidance flags this row for Opus 5 for exactly that reason).
+**Landed — panel structure, and the process rail made informative.**
+
+The page's panels now come from one list, `panelsFor()` in
+`src/pages/initiative.js`: element id, the name the panel is known by, and
+how it renders. The page, the rail's jump targets and (next) the jump menu
+all read that list, so none of them can offer a destination the page does
+not have — the gate comparison, which does not exist before a gate has been
+left, is simply absent from the list rather than rendering an empty panel.
+A new `panel()` component in `render/components.js` gives every one of them
+the same three things it was previously getting wrong separately: a
+heading, an accessible name matching it, and a stable id. Separation is
+`.panel-stack` — a wider gap, plus `scroll-margin-top` on every panel so a
+jump lands with the heading clear of the sticky header. That margin reads a
+new `--header-height` token, which replaces the third copy of a literal
+`3.5rem` and fixes Settings' section jumps at the same time: they had
+landed under the header since §4.3 and nobody had noticed.
+
+The rail carries what is worth knowing about each phase from a distance,
+and is the page's navigation. A passed step shows its gate, the date, and
+the **frozen** total with "approved" under it — the figure that was
+approved, not the one that has moved since. A skipped step shows the date
+and the reason and no figure at all, because a skip approves nothing. The
+current step shows its gate, its period, its blocker count in the warning
+colour, and its live total with the coverage word under it; it takes a
+larger share of the row and the accent tint, so "where is this now" is
+answerable from across the room. A step ahead shows costed or no-cost and
+any estimate already entered. Figures sit at the foot of each segment so
+they line up across the rail whatever prose sits above them. Clicking a
+step scrolls to that phase's panel; a phase with nothing on the page — one
+still ahead, carrying no cost, no gate left — renders as a span rather than
+a button that goes nowhere.
+
+Verified in a real browser against `examples/exports/demo.json` at 1280px
+and 420px, light and dark: all four step states render correctly on
+Warehouse automation (skipped / passed / current-with-a-blocker / ahead),
+clicking Validation lands its panel 13px below the header rather than
+under it, the rail stacks to one segment per row on a narrow viewport, and
+the wizard's shared phase panels still render unchanged.
+
+**Not yet landed:** the three-part gate panel restructure, the sticky
+summary bar, the allocation table's column drop plus D2 seeding, the
+wizard's step-2 ending, and the month table's totals row.
 
 ### 4.5 Overviews, dashboard, capacity and charts
 

@@ -1,7 +1,13 @@
 import * as F from '../format.js';
 /**
- * Initiative detail: stepper, gate, phase panels, month-by-month and the
- * per-gate comparison.
+ * Initiative detail: the process rail, the gate, the phase panels,
+ * month-by-month and the per-gate comparison.
+ *
+ * This is the longest page in the app — five screens of panels that all move
+ * when one allocation percentage changes. Two devices hold it together: the
+ * rail across the top, which says where the initiative is and jumps to the
+ * panel behind each step, and `panelsFor`, the one list of panels that the
+ * rail and the jump menu both address.
  */
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
@@ -9,15 +15,14 @@ import { PROCESS } from '../process.js';
 import { app, view, navigate, STATUS_LABELS, today } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, badge } from '../render/components.js';
+import { pageHead, scroller, empty, badge, panel } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
-import { costedPhasePanels } from '../render/phase-panel.js';
+import { phasePanel } from '../render/phase-panel.js';
 
 export function renderInitiative() {
   const initiative = app.INITIATIVES.find((i) => i.id === view.params.id);
   if (!initiative) return navigate('initiatives');
 
-  const panels = costedPhasePanels(initiative);
   const deleting = view.params.confirmDelete === true;
 
   fill(
@@ -33,16 +38,61 @@ export function renderInitiative() {
           data-id="${initiative.id}">${raw(icon('remove'))}Delete</button>`,
     }))}
       ${raw(deleting ? deleteConfirmMarkup(initiative) : '')}
-      ${raw(descriptionMarkup(initiative))}
-
       ${raw(stepperMarkup(initiative))}
-      ${raw(gateBannerMarkup(initiative))}
-      <div data-calc="band-panel">${raw(bandPanelMarkup(initiative))}</div>
-      ${raw(panels)}
-      ${raw(monthTableMarkup(initiative))}
-      ${raw(gateComparisonMarkup(initiative))}
-      ${raw(notesMarkup(initiative))}`,
+      <div class="panel-stack">${raw(panelsFor(initiative)
+        .map((entry) => entry.render(initiative))
+        .join(''))}</div>`,
   );
+}
+
+/**
+ * Every panel on this page, in the order it appears: its element id, the name
+ * it is known by, and how it renders.
+ *
+ * One list rather than a hand-written sequence inside `renderInitiative`,
+ * because three things have to agree on it — the page, the rail's jump
+ * targets, and the jump menu. A panel that does not always exist (the gate
+ * comparison before any gate has been left) is absent from the list rather
+ * than rendering empty, so nothing offers to jump somewhere that is not
+ * there.
+ *
+ * @returns {Array<{ id: string, label: string, render: (initiative: object) => string }>}
+ */
+export function panelsFor(initiative) {
+  const costed = E.costedPhaseIds(PROCESS).filter((phaseId) => initiative.phases[phaseId]);
+  const left = PROCESS.phases.some((phase) => initiative.gates[phase.gate.id]);
+
+  return [
+    { id: 'panel-description', label: 'Description', render: descriptionMarkup },
+    { id: 'panel-gate', label: gatePanelLabel(initiative), render: gateBannerMarkup },
+    {
+      id: 'panel-approval',
+      label: 'Approval track',
+      // The whole body is rebuilt in place when a figure moves: the total,
+      // its track, the marker and the variance all change together, and none
+      // of them is an input under a caret.
+      render: (subject) => panel({
+        id: 'panel-approval',
+        title: 'Approval track',
+        body: html`<div data-calc="band-panel">${raw(bandPanelMarkup(subject))}</div>`,
+      }),
+    },
+    ...costed.map((phaseId) => ({
+      id: `panel-phase-${phaseId}`,
+      label: E.phaseLabel(PROCESS, phaseId),
+      render: (subject) => phasePanel(subject, phaseId, L.isPhaseEditable(subject, phaseId)),
+    })),
+    { id: 'panel-months', label: 'Month by month', render: monthTableMarkup },
+    ...(left ? [{ id: 'panel-gates', label: 'At each gate', render: gateComparisonMarkup }] : []),
+    { id: 'panel-notes', label: 'Notes', render: notesMarkup },
+  ];
+}
+
+/** What the gate panel is called, which depends on what state it is in. */
+function gatePanelLabel(initiative) {
+  if (initiative.status === 'closed') return 'Closed';
+  if (initiative.status === 'cancelled') return 'Cancelled';
+  return E.gateForPhase(PROCESS, initiative.phaseId).label;
 }
 
 /**
@@ -67,12 +117,13 @@ function deleteConfirmMarkup(initiative) {
 
 function descriptionMarkup(initiative) {
   const locked = E.isFinished(initiative);
-  return html`<div class="panel">
-    <h2>Description</h2>
-    <input class="field" data-act="initiative-description" data-id="${initiative.id}"
+  return panel({
+    id: 'panel-description',
+    title: 'Description',
+    body: html`<input class="field" data-act="initiative-description" data-id="${initiative.id}"
       value="${initiative.description}" placeholder="What is this initiative?"
-      aria-label="Description" ${raw(locked ? 'disabled' : '')} />
-  </div>`;
+      aria-label="Description" ${raw(locked ? 'disabled' : '')} />`,
+  });
 }
 
 /**
@@ -82,15 +133,98 @@ function descriptionMarkup(initiative) {
  * for the same reason.
  */
 function notesMarkup(initiative) {
-  return html`<div class="panel">
-    <h2>Notes</h2>
-    <input class="field" data-act="initiative-notes" data-id="${initiative.id}"
+  return panel({
+    id: 'panel-notes',
+    title: 'Notes',
+    body: html`<input class="field" data-act="initiative-notes" data-id="${initiative.id}"
       value="${initiative.notes}" placeholder="Anything worth recording"
-      aria-label="Notes" />
-  </div>`;
+      aria-label="Notes" />`,
+  });
 }
 
-/** Every phase, with passed and skipped gates visually distinct. */
+/* ------------------------------------------------------------------ *
+ * The process rail
+ * ------------------------------------------------------------------ */
+
+/**
+ * What one step of the rail says under its name, and where clicking it goes.
+ *
+ * A rail that only shows outcome answers "where am I" and nothing else, which
+ * is a waste of the widest component on the page. Each step carries what is
+ * actually worth knowing about that phase from a distance, and the three
+ * states carry different things because they are different questions: a
+ * passed phase is a settled figure, the current one is a piece of work with
+ * something in its way, and one still ahead is a promise of cost.
+ *
+ * @returns {{ meta: string, figure: string, qualifier: string, target: string }}
+ */
+function stepDetail(initiative, phase, state) {
+  const record = initiative.gates[phase.gate.id];
+  const costedPhase = initiative.phases[phase.id];
+  // A costed phase has a panel of its own; anything else is read at the gate.
+  const target = costedPhase
+    ? `panel-phase-${phase.id}`
+    : state === 'current'
+      ? 'panel-gate'
+      : record
+        ? 'panel-gates'
+        : '';
+
+  if (state === 'passed') {
+    return {
+      meta: html`${phase.gate.label} passed · ${F.date(record.takenAt)}`,
+      // The frozen figure, not the live one: what a passed gate approved is
+      // the number worth showing beside it, and it cannot move afterwards.
+      figure: costedPhase?.frozen ? F.money(costedPhase.frozen.estimatedPhaseCost) : '',
+      qualifier: costedPhase?.frozen ? 'approved' : '',
+      target,
+    };
+  }
+
+  if (state === 'skipped') {
+    return {
+      // A skip approves nothing, so it carries no figure — only why.
+      meta: html`Skipped${raw(record.takenAt ? html` · ${F.date(record.takenAt)}` : '')} — ${record.reason}`,
+      figure: '',
+      qualifier: '',
+      target,
+    };
+  }
+
+  const period = costedPhase?.estStartDate && costedPhase?.estEndDate
+    ? html`${F.month(costedPhase.estStartDate.slice(0, 7))} – ${F.month(costedPhase.estEndDate.slice(0, 7))}`
+    : '';
+  const total = costedPhase ? E.phaseBlendedTotal(costedPhase, app) : 0;
+
+  if (state === 'current') {
+    return {
+      meta: period
+        ? html`${phase.gate.label} · ${raw(period)}`
+        : html`${phase.gate.label}${raw(costedPhase ? ' · no period set' : '')}`,
+      figure: costedPhase ? F.money(total) : '',
+      qualifier: costedPhase ? E.phaseCoverage(costedPhase) : '',
+      target,
+    };
+  }
+
+  return {
+    meta: costedPhase
+      ? period || 'Costed, no period set'
+      : 'No cost',
+    figure: costedPhase && total > 0 ? F.money(total) : '',
+    qualifier: costedPhase && total > 0 ? E.phaseCoverage(costedPhase) : '',
+    target,
+  };
+}
+
+/**
+ * The rail: one segment per phase, capped by its gate's outcome, and the
+ * page's primary navigation.
+ *
+ * A step whose phase has nothing on this page — a phase ahead that carries no
+ * cost and has left no gate — is not a button. Offering a jump to a place
+ * that does not exist is worse than a segment that only reads.
+ */
 function stepperMarkup(initiative) {
   const order = E.phaseOrder(PROCESS);
   const currentIndex = order.indexOf(initiative.phaseId);
@@ -104,26 +238,42 @@ function stepperMarkup(initiative) {
           ? 'current'
           : 'ahead';
 
-      const note = record
-        ? record.outcome === 'skipped'
-          ? html`<span class="micro">Skipped${raw(record.takenAt ? html` · ${record.takenAt}` : '')}
-              — ${record.reason}</span>`
-          : html`<span class="micro">${phase.gate.label} passed · ${record.takenAt}</span>`
-        : html`<span class="micro">${phase.costed ? 'Costed' : 'No cost'}</span>`;
-
+      const detail = stepDetail(initiative, phase, state);
       // A skipped gate must never read as a passed one; the glyph says which
       // before the colour does, and survives being printed in grey.
       const mark = state === 'passed' ? 'check' : state === 'skipped' ? 'skip' : '';
+      const blockers = state === 'current'
+        ? L.gatePrecondition(app, PROCESS, initiative, phase.gate.id).blockers.length
+        : 0;
 
-      return html`<li class="step step--${state}">
-        <span class="step__name">${raw(mark ? icon(mark) : '')}${phase.label}</span>
-        ${raw(note)}
-      </li>`;
+      // The figure last and pushed to the foot, so figures line up across the
+      // rail however much prose the segments above them carry.
+      const body = html`<span class="step__name">${raw(mark ? icon(mark) : '')}${phase.label}</span>
+        <span class="step__meta">${raw(detail.meta)}</span>
+        ${raw(state === 'current' && blockers
+          ? html`<span class="step__flag">${raw(icon('warning', 'icon--lead'))}${blockers}
+              ${blockers === 1 ? 'blocker' : 'blockers'}</span>`
+          : '')}
+        ${raw(detail.figure
+          ? html`<span class="step__figure">${detail.figure}<span class="step__qual"
+              >${detail.qualifier}</span></span>`
+          : '')}`;
+
+      return html`<li class="step step--${state}">${raw(detail.target
+        ? html`<button type="button" class="step__hit" data-act="panel"
+            data-panel="${detail.target}">${raw(body)}</button>`
+        : html`<span class="step__hit step__hit--static">${raw(body)}</span>`)}</li>`;
     })
     .join('');
 
-  return html`<ol class="stepper">${raw(items)}</ol>`;
+  return html`<nav class="rail" aria-label="Phases">
+    <ol class="stepper">${raw(items)}</ol>
+  </nav>`;
 }
+
+/* ------------------------------------------------------------------ *
+ * The gate
+ * ------------------------------------------------------------------ */
 
 /**
  * What this phase's gate needs, and the actions for it. A gate action is
@@ -132,21 +282,26 @@ function stepperMarkup(initiative) {
  */
 function gateBannerMarkup(initiative) {
   if (initiative.status === 'closed') {
-    return html`<div class="panel banner banner--done">
-      <h2>Closed</h2>
-      <p class="muted">This initiative is finished and frozen. Only notes stay writable.</p>
-      <div class="actions">
-        <button type="button" class="btn" data-act="reopen" data-id="${initiative.id}">
-          Reopen the final gate</button>
-      </div>
-    </div>`;
+    return panel({
+      id: 'panel-gate',
+      title: 'Closed',
+      extraClass: 'banner banner--done',
+      body: html`<p class="muted">This initiative is finished and frozen. Only notes stay
+          writable.</p>
+        <div class="actions">
+          <button type="button" class="btn" data-act="reopen" data-id="${initiative.id}">
+            Reopen the final gate</button>
+        </div>`,
+    });
   }
   if (initiative.status === 'cancelled') {
-    return html`<div class="panel banner">
-      <h2>Cancelled</h2>
-      <p class="muted">Abandoned before the process finished, and frozen. Set the status back
-        to Active from the registry to work on it again.</p>
-    </div>`;
+    return panel({
+      id: 'panel-gate',
+      title: 'Cancelled',
+      extraClass: 'banner',
+      body: html`<p class="muted">Abandoned before the process finished, and frozen. Set the
+        status back to Active from the registry to work on it again.</p>`,
+    });
   }
 
   const phase = E.phaseById(PROCESS, initiative.phaseId);
@@ -163,10 +318,12 @@ function gateBannerMarkup(initiative) {
         )}</ul>`
       : '';
 
-  return html`<div class="panel banner">
-    <h2>${phase.label} — ${gate.label}</h2>
-    <p class="micro"><button type="button" class="link" data-act="section" data-section="process"
-      >${gate.label} in the process definition</button></p>
+  return panel({
+    id: 'panel-gate',
+    title: html`${phase.label} — ${gate.label}`,
+    extraClass: 'banner',
+    body: html`<p class="micro"><button type="button" class="link" data-act="section"
+      data-section="process">${gate.label} in the process definition</button></p>
     <p class="muted">${closes
       ? 'This is the last gate. Passing it closes the initiative.'
       : `Passing it moves to ${E.phaseLabel(PROCESS, E.nextPhase(PROCESS, phase.id))}.`}
@@ -202,8 +359,8 @@ function gateBannerMarkup(initiative) {
           editable. The reason is recorded and shown wherever the gate appears.</p>`
       : html`<p class="micro">${gate.label} cannot be skipped.</p>`)}
 
-    ${raw((gate.checklist ?? []).length ? checklistMarkup(initiative, gate) : '')}
-  </div>`;
+    ${raw((gate.checklist ?? []).length ? checklistMarkup(initiative, gate) : '')}`,
+  });
 }
 
 const CHECK_LABELS = { red: 'Not resolved', amber: 'Partly', green: 'Resolved' };
@@ -237,6 +394,10 @@ function checklistMarkup(initiative, gate) {
       <tbody>${raw(rows)}</tbody></table>`))}`;
 }
 
+/* ------------------------------------------------------------------ *
+ * Figures
+ * ------------------------------------------------------------------ */
+
 /** The grand total, its track, where it sits among the bands, and variance. */
 export function bandPanelMarkup(initiative) {
   const total = E.grandTotal(initiative, app);
@@ -258,9 +419,7 @@ export function bandPanelMarkup(initiative) {
   const variance = passed ? total - passed.grandTotal : null;
   const move = passed ? E.compareBands(passed.band, band) : 'unknown';
 
-  return html`<div class="panel">
-    <h2>Approval track</h2>
-    <p class="results"><strong>${F.money(total)}</strong>
+  return html`<p class="results"><strong>${F.money(total)}</strong>
       ${raw(badge(E.initiativeCoverage(initiative), 'info'))}
       — ${band ? band.name : 'Not yet known'}</p>
     <p class="muted">${band ? band.req : 'No configured approval track covers this total.'}</p>
@@ -283,8 +442,7 @@ export function bandPanelMarkup(initiative) {
               ? 'It now falls under a lighter track than the one approved.'
               : '')}</p>`
       : html`<p class="muted">No gate has been passed yet, so there is nothing to compare
-          against. A skipped gate approves nothing and never sets that baseline.</p>`)}
-  </div>`;
+          against. A skipped gate approves nothing and never sets that baseline.</p>`)}`;
 }
 
 /**
@@ -302,8 +460,11 @@ function monthTableMarkup(initiative) {
   const now = E.monthKey(new Date());
 
   if (months.length === 0) {
-    return html`<div class="panel"><h2>Month by month</h2>
-      ${raw(empty('Nothing is costed yet. Give a phase a period and allocate someone.'))}</div>`;
+    return panel({
+      id: 'panel-months',
+      title: 'Month by month',
+      body: empty('Nothing is costed yet. Give a phase a period and allocate someone.'),
+    });
   }
 
   const headers = ['Month', ...costed.flatMap((id) => {
@@ -363,9 +524,10 @@ function monthTableMarkup(initiative) {
     })
     .join('');
 
-  return html`<div class="panel">
-    <h2>Month by month</h2>
-    <p class="legend">
+  return panel({
+    id: 'panel-months',
+    title: 'Month by month',
+    body: html`<p class="legend">
       <span class="legend__item"><span class="swatch swatch--edit"></span> record an actual here</span>
       <span class="legend__item"><span class="swatch swatch--gap"></span> expected but not recorded</span>
       <span class="legend__item"><span class="swatch swatch--now"></span> current month</span>
@@ -374,8 +536,8 @@ function monthTableMarkup(initiative) {
       <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
       <tbody>${raw(body)}</tbody>
     </table>`, 'scroller--tall'))}
-    ${raw(tableActions('months', 'months'))}
-  </div>`;
+    ${raw(tableActions('months', 'months'))}`,
+  });
 }
 
 /** Every gate left so far, beside the live figures. */
@@ -383,8 +545,6 @@ function gateComparisonMarkup(initiative) {
   const left = PROCESS.phases
     .map((phase) => ({ phase, record: initiative.gates[phase.gate.id] }))
     .filter((entry) => entry.record);
-
-  if (left.length === 0) return '';
 
   const costed = E.costedPhaseIds(PROCESS);
   const headers = ['Gate', 'Outcome', 'Date', ...costed.map((id) => E.phaseLabel(PROCESS, id)),
@@ -420,7 +580,7 @@ function gateComparisonMarkup(initiative) {
         <td class="cell--wrap">${raw(skipped
           ? badge('skipped', 'warn', 'skip') + html`<span class="micro">${entry.record.reason}</span>`
           : html`${row[1]}`)}</td>
-        <td>${row[2]}</td>
+        <td>${F.date(String(row[2]))}</td>
         ${raw(costed.map((id, i) => html`<td class="num">${F.money(row[3 + i])}</td>`).join(''))}
         <td>${row[3 + costed.length]}</td>
         <td class="num"><strong>${F.money(row[4 + costed.length])}</strong></td>
@@ -428,14 +588,15 @@ function gateComparisonMarkup(initiative) {
     })
     .join('');
 
-  return html`<div class="panel">
-    <h2>At each gate</h2>
-    <p class="muted">What the figures were when each gate was left, beside where they stand
-      now. A skipped gate approved nothing — its numbers are a record, not a baseline.</p>
+  return panel({
+    id: 'panel-gates',
+    title: 'At each gate',
+    body: html`<p class="muted">What the figures were when each gate was left, beside where they
+      stand now. A skipped gate approved nothing — its numbers are a record, not a baseline.</p>
     ${raw(scroller('Figures at each gate', html`<table class="grid">
       <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
       <tbody>${raw(body)}</tbody>
     </table>`))}
-    ${raw(tableActions('gates', 'comparison'))}
-  </div>`;
+    ${raw(tableActions('gates', 'comparison'))}`,
+  });
 }

@@ -37,6 +37,30 @@ export function pageHead({ title, lede = '', actions = '', back }) {
 }
 
 /**
+ * A titled block of one page, with an id so something can jump to it.
+ *
+ * Every panel on a long page needs the same three things and gets them wrong
+ * separately otherwise: a heading, an accessible name that matches it, and a
+ * stable element id for a jump target. The id is the panel's identity — the
+ * page's own panel list, the process rail and the jump menu all address a
+ * panel by it — so it is required rather than optional.
+ *
+ * `title` is text and is escaped. `mark` and `body` are markup: build them
+ * with the `html` tag, never by concatenating a stored string. A `mark` sits
+ * in the heading and is read as part of the panel's name, which is what a
+ * badge saying "approved and frozen" should be.
+ *
+ * @param {{ id: string, title: string, mark?: string, body: string,
+ *   extraClass?: string }} spec
+ */
+export function panel({ id, title, mark = '', body, extraClass = '' }) {
+  return html`<section class="panel ${extraClass}" id="${id}" aria-labelledby="${id}-heading">
+    <h2 id="${id}-heading">${title}${raw(mark ? ` ${mark}` : '')}</h2>
+    ${raw(body)}
+  </section>`;
+}
+
+/**
  * The region a wide table lives in.
  *
  * Focusable and named, because a region that scrolls and cannot be focused is

@@ -709,6 +709,12 @@ function onClick(event) {
       return navigate(trigger.dataset.page);
     case 'section':
       return navigate('settings', { section: trigger.dataset.section });
+    // Jumping to a panel on the page you are already on is a scroll, not a
+    // navigation: nothing about the view changed, so nothing re-renders and
+    // nothing touches the address bar or the caret.
+    case 'panel':
+      document.getElementById(trigger.dataset.panel)?.scrollIntoView({ block: 'start' });
+      return undefined;
     case 'undo':
       if (pendingUndo) {
         pendingUndo();

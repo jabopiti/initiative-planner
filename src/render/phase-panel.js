@@ -9,7 +9,7 @@ import { PROCESS } from '../process.js';
 import { app } from '../app.js';
 import { html, raw, numberField } from './dom.js';
 import { icon } from './icons.js';
-import { scroller, empty, badge } from './components.js';
+import { scroller, empty, badge, panel } from './components.js';
 import { TABLES, tableActions } from './tables.js';
 
 /**
@@ -20,7 +20,7 @@ import { TABLES, tableActions } from './tables.js';
  * keystroke: typing an allocation percentage updates those cells in place,
  * never the input under the caret (AGENTS.md).
  */
-function phasePanel(initiative, phaseId, editable) {
+export function phasePanel(initiative, phaseId, editable) {
   const phase = initiative.phases[phaseId];
   const label = E.phaseLabel(PROCESS, phaseId);
   const frozen = E.isFrozen(phase);
@@ -123,10 +123,12 @@ function phasePanel(initiative, phaseId, editable) {
 
   // A frozen phase is settled by the process, so its mark is the `ok` kind,
   // not a warning: nothing here needs looking at.
-  return html`<div class="panel ${frozen ? 'banner banner--done' : ''}">
-    <h2>${label} ${raw(frozen ? badge('approved and frozen', 'ok', 'check') : '')}</h2>
-
-    <div class="fields">
+  return panel({
+    id: `panel-phase-${phaseId}`,
+    title: label,
+    mark: frozen ? badge('approved and frozen', 'ok', 'check') : '',
+    extraClass: frozen ? 'banner banner--done' : '',
+    body: html`<div class="fields">
       <label class="field-row"><span>From</span>
         <input type="date" class="field field--date" data-act="phase-start"
           data-id="${initiative.id}" data-phase="${phaseId}"
@@ -188,8 +190,8 @@ function phasePanel(initiative, phaseId, editable) {
           </tbody></table>`)
       : empty('No non-labour costs.'))}
 
-    <p class="results" data-calc="total-${phaseId}">${raw(phaseTotalsMarkup(initiative, phaseId))}</p>
-  </div>`;
+    <p class="results" data-calc="total-${phaseId}">${raw(phaseTotalsMarkup(initiative, phaseId))}</p>`,
+  });
 }
 
 /** Each phase's allocations is its own named table for copy and CSV (§8). */
