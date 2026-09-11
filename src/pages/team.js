@@ -272,6 +272,6 @@ function runRateMarkup(team) {
     ${raw(yearNav(`${F.money(yearTotal)} across ${chartYear()}.`))}
     ${raw(yearTotal === 0
       ? empty('Nothing costs anything in this year yet.', { icon: 'warning' })
-      : stackedBarsMarkup(data))}
+      : stackedBarsMarkup(data, 'teamRunRate', 'Run rate'))}
   </div>`;
 }

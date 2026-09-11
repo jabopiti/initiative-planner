@@ -105,6 +105,9 @@
   --state-layer-hover: linear-gradient(var(--state-hover), var(--state-hover));
   --state-layer-active: linear-gradient(var(--state-active), var(--state-active));
   --opacity-disabled: 0.5;
+  /* A chart mark lightens on hover — SVG fills have no state-layer background
+     to compose over, so opacity is the mechanism here instead. */
+  --opacity-hover-mark: 0.85;
   /* Foreground, not accent: an accent ring vanishes on an accent-filled
      button, and a brand pack may set the accent to any luminance. */
   --color-focus: var(--color-fg);
@@ -185,7 +188,6 @@
   --swatch: 0.75rem;
   --popover-max: 22rem;
   --dialog-max: 32rem;
-  --bars-height: 11rem;
   --cap-min: 3.25rem;
   --scroller-tall: 28rem;
   --toast-max: 24rem;
@@ -2346,47 +2348,49 @@ body:has(.summary) #toast {
   color: var(--color-muted);
 }
 
-/* ---- run-rate bars ---- */
+/* ---- stacked bar chart (SVG) ---- */
 
-.bars {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-1);
-  height: var(--bars-height);
+.chart-block {
   margin: var(--space-3) 0;
 }
 
-.bars__col {
-  flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  height: 100%;
-}
-
-.bars__stack {
-  display: flex;
-  flex-direction: column-reverse;
-  height: 100%;
-  justify-content: flex-start;
-}
-
-.bars__seg {
+.chart-svg {
   display: block;
   width: 100%;
+  height: auto;
 }
 
-.bars__label {
-  text-align: center;
+.chart-grid {
+  stroke: var(--color-line-soft);
+  stroke-width: 1;
+}
+
+.chart-axis-label {
+  fill: var(--color-muted);
   font-size: var(--text-2xs);
   font-variant-numeric: tabular-nums;
-  color: var(--color-muted);
-  padding-top: var(--space-1);
 }
 
-.bars__col--now .bars__label {
-  color: var(--color-accent);
+.chart-month-label {
+  fill: var(--color-muted);
+  font-size: var(--text-2xs);
+}
+
+.chart-month-label--now {
+  fill: var(--color-accent);
   font-weight: var(--weight-semibold);
+}
+
+.chart-seg {
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+
+.chart-seg:hover {
+  opacity: var(--opacity-hover-mark);
+}
+
+.chart-block__table {
+  margin: var(--space-2) 0;
 }
 
 /* ---- visually hidden ---- */

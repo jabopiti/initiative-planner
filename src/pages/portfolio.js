@@ -143,7 +143,7 @@ export function renderPortfolio() {
         ${raw(yearNav(`${F.money(yearTotal)} across ${chartYear()}, active initiatives only.`))}
         ${raw(yearTotal === 0
           ? empty('No active initiative costs anything in this year.', { icon: 'warning' })
-          : stackedBarsMarkup(data))}
+          : stackedBarsMarkup(data, 'portfolioCost', 'Cost per month'))}
       </div>
 
       <div class="panel">

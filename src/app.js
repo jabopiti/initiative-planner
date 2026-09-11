@@ -878,6 +878,24 @@ function onClick(event) {
       });
     case 'year-today':
       return navigate(view.page, { ...view.params, year: new Date().getFullYear() });
+    case 'chart-table-toggle': {
+      // A pure DOM swap, not a re-render: which of a chart's two equivalent
+      // views is showing is not state worth tracking in `view.params`, and a
+      // full re-render would undo whatever else the page happens to be
+      // showing (a filter, a scroll position) for no reason.
+      // `.chart-block`, not `[data-chart]` — the toggle button itself also
+      // carries `data-chart`, so an attribute-value selector would match the
+      // button before it ever reaches the wrapper that holds the two views.
+      const block = trigger.closest('.chart-block');
+      const visual = block?.querySelector('.chart-block__visual');
+      const tableView = block?.querySelector('.chart-block__table');
+      if (!(visual instanceof HTMLElement) || !(tableView instanceof HTMLElement)) return undefined;
+      const showingTable = !tableView.hidden;
+      tableView.hidden = showingTable;
+      visual.hidden = !showingTable;
+      trigger.textContent = showingTable ? 'View as table' : 'View as chart';
+      return undefined;
+    }
 
     case 'wizard-start':
       return navigate('wizard', {});
