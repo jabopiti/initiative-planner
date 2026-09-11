@@ -104,16 +104,21 @@ function personIdentity(person) {
   const years = Object.keys(app.COUNTRIES[person.countryId].byYear).map(Number).sort((a, b) => a - b);
   const rateRows = custom
     ? years
-        .map(
-          (year) => html`<tr><th scope="row">${year}</th><td>${raw(numberField({
-            value: person.customRole.byYear[year] ?? 0,
-            'data-act': 'person-rate',
-            'data-id': person.id,
-            'data-year': year,
-            'aria-label': `${year} day rate`,
-            extraClass: 'field--money',
-          }))}</td></tr>`,
-        )
+        .map((year) => {
+          const rate = person.customRole.byYear[year] ?? 0;
+          return html`<tr><th scope="row">${year}</th><td>${raw(numberField({
+              value: rate,
+              'data-act': 'person-rate',
+              'data-id': person.id,
+              'data-year': year,
+              'aria-label': `${year} day rate`,
+              extraClass: `field--money ${rate < 0 ? 'field--warn' : ''}`,
+            }))}
+            ${raw(rate < 0
+              ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}A negative
+                  rate pays this person to work.</span>`
+              : '')}</td></tr>`;
+        })
         .join('')
     : '';
 
@@ -247,7 +252,8 @@ function personInitiativesPanel(person, stranded) {
       ? scroller('Initiatives this person is allocated to', html`<table class="grid">
           <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}<th></th></tr></thead>
           <tbody>${raw(body)}</tbody></table>`) + tableActions('personInitiatives', 'initiatives')
-      : empty('Not allocated to anything yet.'))}`;
+      : empty('Not allocated to anything yet. Allocate them from a costed phase on an '
+          + 'initiative their team owns.'))}`;
 }
 
 function personCapacity(person, months) {

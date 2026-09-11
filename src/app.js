@@ -206,6 +206,34 @@ function renderBanner() {
     return;
   }
 
+  // A dataset dropped for a schema or process mismatch, or one that could not
+  // even be read, is worse than an empty store: the bytes are still sitting
+  // in this browser, unreadable to this build, and the first save from here
+  // overwrites them for good. Silently reseeding instead of saying so would
+  // be data loss with no warning at all (§2.5) — this is the one load
+  // outcome with no fix inside this build, so the only honest action is
+  // "stop and go find a build that can still read it," not a retry button.
+  if (loadReason !== 'stored' && loadReason !== 'empty' && !loadWarningDismissed) {
+    const why = {
+      schema: 'was written by a different version of this tool and no longer matches ' +
+        "this build's data shape",
+      process: 'was written against a different process — its phases and gates would ' +
+        'mean something else here',
+      unreadable: "could not be read — this browser's storage may be blocked, or what " +
+        'was stored is corrupted',
+    }[loadReason];
+    node.hidden = false;
+    node.innerHTML = html`<div class="banner-bar banner-bar--severe" role="alert">
+      <span>${raw(icon('warning', 'icon--lead'))}<strong>Starting fresh, not from what was
+          here.</strong> The data stored in this browser ${why}, so this session began from
+        the seed data instead. Nothing has been deleted yet, but saving anything here will
+        overwrite it — if you need it back, open it in a build that still recognises it
+        before doing anything else in this one.</span>
+      <button type="button" class="btn btn--small" data-act="dismiss-load-warning">Dismiss</button>
+    </div>`;
+    return;
+  }
+
   const threshold = app.GENERAL.exportReminderDays;
   const last = app.GENERAL.lastExportAt ? Date.parse(app.GENERAL.lastExportAt) : null;
   const days = last === null ? null : Math.floor((Date.now() - last) / 86400000);
@@ -396,6 +424,8 @@ function closeDialog() {
 /** The whole dataset, and how it was loaded. */
 export let app = null;
 let loadReason = 'empty';
+/** Whether the load-reason warning below has been acknowledged this session. */
+let loadWarningDismissed = false;
 
 /** Current page plus its params (DESIGN §5). */
 export let view = { page: 'portfolio', params: {} };
@@ -911,6 +941,10 @@ function onClick(event) {
       if (!store.downloadExport(app)) return undefined;
       app.GENERAL.lastExportAt = new Date().toISOString();
       return commit();
+    case 'dismiss-load-warning':
+      loadWarningDismissed = true;
+      renderBanner();
+      return undefined;
     case 'import-mode':
       pendingImport.mode = trigger.dataset.mode;
       return fill('import-preview', importPreviewMarkup());

@@ -168,7 +168,9 @@ export function renderPortfolio() {
           ? scroller('Initiatives by cost', html`<table class="grid">
               <thead><tr>${raw(headers)}</tr></thead>
               <tbody>${raw(body)}</tbody></table>`)
-          : empty('Nothing to show.'))}
+          : empty(selected
+              ? 'No initiative in this track.'
+              : 'No initiatives yet. Create one from Initiatives.'))}
       </div>`,
   );
 }

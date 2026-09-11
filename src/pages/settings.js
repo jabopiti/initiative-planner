@@ -165,8 +165,12 @@ function renderCountries() {
               'data-id': country.id,
               'data-year': year,
               'aria-label': `${year} day rate`,
-              extraClass: 'field--money',
-            }))}</td>
+              extraClass: `field--money ${record.rate < 0 ? 'field--warn' : ''}`,
+            }))}
+              ${raw(record.rate < 0
+                ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}A negative
+                    rate pays people to work.</span>`
+                : '')}</td>
             <td colspan="12">
               <div class="actions">
                 ${raw(numberField({
