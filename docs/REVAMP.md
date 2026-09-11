@@ -1191,6 +1191,32 @@ dark: September 2026 (today's month) shows "2 over capacity" and "2 over
 their team's share" in the danger colour; "Full breakdown" links to
 `#/capacity`; a fresh tab's console stayed clean.
 
+**Landed — Team cards gain a cost and capacity figure.** Cards showed
+members, share and initiative count only — no money, and "Share held" said
+what a team holds of its people without saying how much of that is actually
+committed. `P.teamSummary` now takes the month it means (cost and
+allocation are "right now" questions, not lifetime totals) and returns two
+new fields: `costThisMonth` (`E.teamRunRate` for that one month) and
+`allocatedSharePct` (allocated % summed across the active roster). Cards
+show "Cost this month" in money and "Capacity used" as
+`allocatedSharePct / totalSharePct` — a team can hold 100% of someone and
+use none of it, and this is the figure that says so. Over 100% colours the
+same as every other over-allocation in the app.
+
+The three existing `teamSummary` tests needed a month argument added; a new
+one covers the two additions directly, including that an idle month still
+costs something (unused share is non-initiative work, SPEC §5.2, never
+zero for a roster that exists). `.card__stats dd.over` was needed for the
+same reason Portfolio's `.tile--warn` was: `.card__stats dd` sets its own
+`color`, so a bare `.over` class would have tied on specificity and lost.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark, at 1440px and 420px: Platform shows a real cost figure and "115%" in
+the danger colour (it has the two over-allocated people from the Capacity
+overview above); Growth shows "0%" where nothing is currently allocated
+within the month despite carrying cost from unused share; cards wrap
+correctly at 420px; a fresh tab's console stayed clean.
+
 ### 4.6 Copy, states, first run and accessibility
 
 - **Placeholders vs. states vs. hints.** A placeholder shows an example of
