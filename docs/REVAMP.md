@@ -1217,6 +1217,52 @@ overview above); Growth shows "0%" where nothing is currently allocated
 within the month despite carrying cost from unused share; cards wrap
 correctly at 420px; a fresh tab's console stayed clean.
 
+**Landed — a shared SVG chart primitive.** Loaded the `dataviz` skill first
+(CLAUDE.md), per its procedure: form was already decided (stacked bars),
+color follows the entity via the existing `--chart-1..6`/`--chart-spare`
+tokens (a data-encoding concern this row correctly left alone, per the Farn
+hue-adoption note earlier in this document), so the work was marks, axis,
+and interaction. `stackedBarsMarkup(data, key, label)` in `render/charts.js`
+replaces the old absolutely-positioned div bars with real SVG: a y-axis
+with "nice" round-number gridlines (`niceMax()` rounds to 1/2/5/10 × a power
+of ten), rounded data-ends square at the baseline (a `roundedTopRect()` path
+on the topmost segment only — correct for a single-segment bar too, since
+that segment is simultaneously its own top and bottom), a 2px surface gap
+between stacked segments, and the current month picked out on the x-axis.
+Native SVG `<title>` elements carry the per-segment hover value. One
+function, still shared by the Portfolio chart and every team's run rate.
+
+Each chart also gets a "View as table" toggle: a pure DOM `hidden`-attribute
+swap (not page state — a year change or filter re-renders the block back to
+its chart default, which is a deliberate call, not an oversight) between the
+SVG and a real `<table>` registered in the existing `TABLES`/`copy-table`
+machinery, so Copy comes for free and every value the picture shows is also
+reachable without it (dataviz: "a table view exists" is what lets a chart
+skip building its own keyboard/hover story for every mark). Two units of
+dead code went with it: the duplicate JSDoc block §2.5 had flagged above the
+old function, and `--bars-height`, now unused.
+
+**One bug caught in browser verification, not review.** The toggle button
+carried its own `data-chart` attribute for a
+`trigger.closest('[data-chart="..."]')` lookup — which matched the *button
+itself* first, since it carries that same attribute, and never reached the
+wrapping `.chart-block` that actually holds the two views. The click handler
+ran, found nothing inside the button, and silently did nothing. Fixed by
+matching `.chart-block`'s class instead of the attribute value.
+
+**Flagged, not fixed:** color cycles at 6 series (`% 6` against the six
+`--chart-N` tokens) and reuses a hue past that — a real anti-pattern per
+`dataviz` (fold into "Other," never cycle) but a bigger job than this
+primitive, and pre-existing rather than something this row introduced.
+Logged as a follow-up task rather than bundled in here.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark, at 1440px and 420px: Portfolio's cost chart and a team's run rate both
+show correct gridlines, values and the current month in the accent colour;
+the table toggle round-trips both directions with the right figures and a
+working Copy button; a segment's native tooltip reads correctly; a fresh
+tab's console stayed clean throughout.
+
 ### 4.6 Copy, states, first run and accessibility
 
 - **Placeholders vs. states vs. hints.** A placeholder shows an example of
