@@ -44,7 +44,7 @@ export function renderInitiative() {
         .join(''))}</div>
       <div class="summary" data-calc="summary" role="region"
         aria-label="Totals, approval track and what is next"
-        >${raw(summaryBarMarkup(initiative))}</div>`,
+        aria-live="polite" aria-atomic="true">${raw(summaryBarMarkup(initiative))}</div>`,
   );
 }
 
@@ -77,7 +77,8 @@ export function panelsFor(initiative) {
       render: (subject) => panel({
         id: 'panel-approval',
         title: 'Approval track',
-        body: html`<div data-calc="band-panel">${raw(bandPanelMarkup(subject))}</div>`,
+        body: html`<div data-calc="band-panel" aria-live="polite" aria-atomic="true">
+          ${raw(bandPanelMarkup(subject))}</div>`,
       }),
     },
     ...costed.map((phaseId) => ({
@@ -735,7 +736,8 @@ function monthTableMarkup(initiative) {
     ${raw(scroller('Cost month by month', html`<table class="grid">
       <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
       <tbody>${raw(body)}</tbody>
-      <tfoot data-calc="month-totals">${raw(monthTotalsRowMarkup(initiative))}</tfoot>
+      <tfoot data-calc="month-totals" aria-live="polite" aria-atomic="true">
+        ${raw(monthTotalsRowMarkup(initiative))}</tfoot>
     </table>`, 'scroller--tall'))}
     ${raw(tableActions('months', 'months'))}`,
   });

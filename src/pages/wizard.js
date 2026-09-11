@@ -122,7 +122,8 @@ function renderWizardEstimates(initiative) {
         id: 'wizard-total',
         title: 'Grand total',
         extraClass: 'panel--inset',
-        body: html`<p data-calc="grand">${raw(grandMarkup(initiative))}</p>
+        body: html`<p data-calc="grand" aria-live="polite" aria-atomic="true">
+            ${raw(grandMarkup(initiative))}</p>
           <p class="${missing.length ? 'warn' : 'muted'}">${raw(missing.length
             ? html`${raw(icon('warning', 'icon--lead'))}${missing
                 .map((phaseId) => E.phaseLabel(PROCESS, phaseId)).join(' and ')}
