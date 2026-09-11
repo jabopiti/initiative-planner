@@ -1167,6 +1167,30 @@ unmodified, since both already dispatch through `view.page` generically;
 clicking a person or team link navigates to its detail page; a fresh
 browser tab's console stayed clean.
 
+**Landed — Portfolio gains a capacity dimension.** The dashboard's lede used
+to disclaim the question outright ("Capacity is a per-team and per-person
+question and lives on those pages"), which read oddly once the Capacity
+overview above existed to answer it across every team at once. A new
+"Capacity this month" panel sits between the cost chart and the initiatives
+table: two tiles, reusing `E.overAllocations` for `currentMonth()` — capacity
+is a "right now" question, independent of whichever year the cost chart is
+showing — each linking to `#/capacity` rather than duplicating its table.
+The lede is now "Cost and capacity across every team, read-only," matching
+SPEC §1's "co-equal outputs" framing directly instead of disclaiming half
+of it.
+
+A non-zero count needed a new `.tile--warn` class rather than reusing `.over`
+directly on `.tile__value`: that class sets its own `color`, defined later
+in `styles.css` than `.over`, so the two would have tied on specificity and
+`.tile__value` would have silently won regardless of which was listed
+second in the markup. Scoping the color through a wrapper class fixes that
+regardless of source order.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark: September 2026 (today's month) shows "2 over capacity" and "2 over
+their team's share" in the danger colour; "Full breakdown" links to
+`#/capacity`; a fresh tab's console stayed clean.
+
 ### 4.6 Copy, states, first run and accessibility
 
 - **Placeholders vs. states vs. hints.** A placeholder shows an example of
