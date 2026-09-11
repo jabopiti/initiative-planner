@@ -495,3 +495,58 @@ row at 0% is an empty field on screen, not a line in a costing.
 `src/render/phase-panel.js` builds those rows itself now, so making the
 export match the screen is a matter of dropping two columns from its
 `headers` and two values from each row.
+
+---
+
+## D9 — the recompute writes back immediately, not on the next save
+
+**Question:** the plan flagged this explicitly as a judgment call. Once
+`store.load()` extends a stale dataset's window, does the extension get
+written to storage right away, or only ride along whenever the app next
+calls `save()` for an unrelated edit?
+
+**Decision:** write it back immediately, with a synchronous `saveNow`
+inside `load()` itself, and only when `recomputeWindow` reports it actually
+changed something.
+
+Waiting for the next edit means a session that only reads data — someone
+opens the app, looks at a report, closes the tab — never persists the new
+years at all. The next load would redo the same recompute from the same
+stale starting point, which is harmless but pointless, and leaves the
+extension one crash or force-quit away from vanishing rather than one edit
+away. `load()` already reaches into `localStorage` directly (that's the
+whole module's job), so a synchronous write inside it isn't a new kind of
+side effect, just an unconditional one — gated on `changed` so a dataset
+already covering the window takes no extra write on every boot.
+
+**If you'd reverse this:** drop the `if (recomputeWindow(stored, now))
+saveNow(stored);` line in `store.js`'s `load()` and instead let the
+mutated-in-memory `app` ride along on whatever `save()` call happens next
+from normal use — the risk being a read-only session never sees it
+persisted.
+
+---
+
+## D9 — a year that rolls out of the window is kept, never deleted
+
+**Question:** DESIGN §2 calls it a "rolling four-year window," which could
+be read as "always exactly these four years" — implying old years get
+pruned as new ones are added, the same way the window's start moves forward
+each calendar year.
+
+**Decision:** `recomputeWindow` only ever adds years; it never removes one
+that has aged out.
+
+An old year still backs whatever actual cost was recorded against it —
+that's the entire reason `yearRecord()`'s clamp-to-nearest fallback exists
+for anything older than the window's current start. Deleting a year the
+moment it rolls out would force every backfilled month from that year onto
+a different rate the instant the window moved, which is the same
+silent-drift failure D9 exists to fix, just triggered by cleanup instead of
+by neglect. The plan's own wording backs this: "extend... as the window
+rolls forward," never "prune and extend."
+
+**If you'd reverse this:** `recomputeWindow` in `engine.js` would need a
+second pass deleting any `byYear` key outside `trackedYears(now)` — but
+first check whether any stored actual cost still depends on the year being
+removed, since that's exactly the case this call exists to protect.

@@ -43,7 +43,7 @@ here — this table is status only.
 | §4.7 File System Access persistence | Not started |
 | §4.8 Brand pack | Not started |
 | D3 — drop CSV, keep Copy | **Landed** |
-| D9 — rolling four-year window recompute | Not started — independent, land whenever |
+| D9 — rolling four-year window recompute | **Landed** |
 
 **How this gets built.** Sonnet 5 at `xhigh` effort is the default — the plan
 below is specified enough to carry it, and it is 2.5x cheaper than Opus 5.
@@ -111,6 +111,37 @@ rather than slotted into a specific §4.x section:
   load, seeding a new year from the nearest existing one. Touches
   `store.js`'s `load()` and `masterData.js`'s `trackedYears()` (or wherever
   the equivalent lives once this is built) — no render files.
+
+**Landed — D9.** Before coding, the question the plan flagged — whether
+`WINDOW_BEFORE`/`WINDOW_AFTER`/`trackedYears()` should move out of
+`masterData.js` (a brand-pack file) into `engine.js` — went to Bo rather
+than being decided while implementing. Bo chose the move: window length is
+process logic the build owns, not seed data a fork edits freely.
+`masterData.js` bumped to brand-pack contract version 2 and now imports
+`trackedYears` to seed against, rather than defining it.
+
+`E.recomputeWindow(app, now)` extends every country's `byYear`, and every
+custom-rate person's, to cover the window as of `now`, cloning the nearest
+existing tracked year rather than seeding from zero. It only ever adds
+years — a year that has rolled out of the window stays rather than being
+deleted, since an old month's actual cost must still be able to reproduce
+the rate it was recorded under; deleting it would trade one silent-drift
+bug for another. `store.load()` calls it on a successful load and writes
+the result back immediately via `saveNow` when anything changed, so the
+extension survives a reload with no further edit needed. No
+`schemaVersion` bump — the shape is unchanged. `render/charts.js`'s
+same-named `trackedYears()` (a different, data-driven function) needed no
+change, exactly as the plan predicted: it becomes correct for free once
+the underlying data actually has the right years.
+
+Verified in a real browser: seeded `examples/exports/demo.json`, then
+deleted 2027 and 2028 from every country's `byYear` and from the one
+custom-rate person's, to simulate a dataset seeded years ago. On reload,
+both years came back on every country and the custom-rate person, each
+equal to 2026's record (the nearest survivor) and never zero; Settings'
+Countries & rates section showed all four years with real rates and
+working days; the Portfolio chart's year nav reached 2028 (correctly
+disabled past it) with no console errors.
 
 **Landed — D3.** The "Download CSV" button is gone from `tableActions()`,
 along with its `case 'csv-table'` handler in `app.js`, `downloadCsv` in
