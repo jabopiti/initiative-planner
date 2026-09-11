@@ -103,8 +103,11 @@ Renaming a label is free.
 on their concrete values, only on their shape:
 
 1. **`src/process.js`** — the compiled-in process and approval tracks, the
-   governance the build fixes (SPEC §2). That file is the shape; read it
-   rather than a copy of it here.
+   governance the build fixes (SPEC §2), plus two build-fixed identity
+   fields that aren't process structure but have nowhere more agnostic to
+   live: `currency` and `wordmark` (§4.8 — the app's own name, read once at
+   boot into the shell and the document title). That file is the shape;
+   read it rather than a copy of it here.
 
    Every phase has a gate, including the last, whose gate closes the
    initiative (SPEC §6). Ids in it are permanent — they end up in stored
@@ -117,15 +120,26 @@ on their concrete values, only on their shape:
    repeated seeding (across tests, say) must not leak mutations between
    calls. It supplies `{ ROLES, COUNTRIES, PEOPLE, TEAMS, GENERAL }`.
 
-3. **CSS custom properties** in `src/styles.css`'s `:root` — a `--brand`
-   family of colors and a `--brand-font` variable that a font-embedding
-   `@font-face` block (if any) feeds into. Every other rule in the
-   stylesheet reads colors/fonts through these properties, never a literal
-   value, so re-theming never requires touching any rule but these.
-   `--font-ui`/`--font-cond`-style properties should read
-   `var(--brand-font, <generic fallback stack>)` so that omitting
-   `--brand-font` entirely (the white-label default) still produces a
-   fully valid, sensible font stack with no embedded font.
+3. **CSS custom properties** in `src/styles.css`'s `:root`, inside the
+   block marked `brand pack: replace this block, and nothing else`. Seven
+   knobs (§4.8), each with a white-label default that already reads as a
+   deliberate, good-looking tool — verifying that is the actual test of
+   "good out of the box", since it's the one combination no brand build
+   will ever hand-tune:
+
+   | Knob | Default | What it drives |
+   |---|---|---|
+   | `--brand-hue` | `153` | The accent — selection, the current thing, links. |
+   | `--brand`, `--brand-contrast`, `--brand-tint` | derived from the hue | The accent's fill, its contrast text, and its tint background. A brand build may override these directly instead of the hue, if its accent doesn't reduce to one hue at fixed saturation/lightness. |
+   | `--brand-font` | unset | An embedded font family; every `--font-*` stack reads `var(--brand-font, <generic fallback>)`, so leaving it unset still produces a fully valid stack with nothing embedded. |
+   | `--brand-neutral-hue` | `220` (cool blue-grey) | The whole neutral ramp — canvas, surface, text, lines — independent of the accent hue. A rebrand's accent and its neutrals are separate choices (Farn itself pairs a forest-green accent with warm paper neutrals). |
+   | `--brand-radius` | `0` (square) | Every component's corners. Circular elements (status dots) use `--radius-round` instead and are never affected. |
+   | `--brand-density` | `1` | A unitless multiplier over row padding and control heights. Above 1 for more air; this tool's own default is already denser than a typical enterprise table, on purpose (§4.1). |
+   | `--brand-text-base` | `0.875rem` (14px) | The whole type scale — every `--text-*` size is a fixed ratio of this one number, so a brand sizes up or down from one value instead of seven. |
+
+   Every other rule in the stylesheet reads these, or a token derived from
+   them, never a literal color, size, space or radius — so a rebrand never
+   requires touching any rule outside this one block.
 
 Mark each brand-pack file with a short header comment stating its
 "contract version" — a number bumped whenever the *shape* changes, so a

@@ -1419,7 +1419,11 @@ export function boot() {
   loadReason = loaded.reason;
   view = parseHash();
 
-  document.getElementById('wordmark').textContent = 'Initiative Planner';
+  document.getElementById('wordmark').textContent = PROCESS.wordmark;
+  // index.html's static <title> is a sensible no-script fallback, the same
+  // way the CSS brand tokens have one — this is what turns it into the
+  // brand's own name once the process loads.
+  document.title = PROCESS.wordmark;
   // One sprite for the whole app, injected before the first render so no
   // <use> ever points at a symbol that is not there yet.
   fill('sprite', SPRITE);

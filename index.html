@@ -7,9 +7,11 @@
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <!-- Shell only. No brand content here: the wordmark text, like every
-         other label, comes from the data model. That goes for the skip
-         link's own label too, which boot() writes. -->
+    <!-- Shell only. No brand content here: the wordmark text comes from
+         PROCESS.wordmark (src/process.js) — build-fixed identity, the same
+         kind of thing currency already is — and boot() writes it into both
+         this element and the document title. That goes for the skip link's
+         own label too, which boot() writes. -->
 
     <!-- First thing in the tab order. A button rather than an anchor: the
          address fragment belongs to the router, so an href="#root" would be

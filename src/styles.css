@@ -1,10 +1,16 @@
 /*
- * BRAND PACK — contract version 1
+ * BRAND PACK — contract version 2
  *
  * The `--brand*` block below is the only brand-specific CSS in this
  * repository (AGENTS.md). A downstream brand build replaces that block, and
  * optionally adds an @font-face whose family it points --brand-font at.
  * Nothing else in this file may change to support a rebrand.
+ *
+ * v2 (§4.8): widened from four properties (the accent triad plus
+ * --brand-font) to seven — added --brand-neutral-hue, --brand-radius,
+ * --brand-density and --brand-text-base, so a rebrand can own the neutral
+ * ramp, corner radius, control density and type scale without touching any
+ * rule outside this block. See DESIGN §4 for the full table.
  *
  * Every other rule reads a token: no literal color, size, space or radius
  * anywhere below the token blocks. Corners are square except for explicitly
@@ -32,7 +38,10 @@
  */
 
 :root {
-  /* ---- brand pack: replace this block, and nothing else ---- */
+  /* ---- brand pack: replace this block, and nothing else (§4.8) ----
+     Seven knobs, each with a white-label default that renders as a good
+     tool on its own — the actual test of "good out of the box" is this
+     block changing nothing else when every value here is left alone. */
   --brand-hue: 153;
   --brand: hsl(var(--brand-hue) 50% 40%);
   --brand-contrast: hsl(0 0% 100%);
@@ -40,6 +49,23 @@
   /* No embedded font in the white-label default: --brand-font stays unset so
      every consumer below falls through to its own generic stack. */
   /* --brand-font: "Some Brand Sans"; */
+  /* The neutral ramp's hue — canvas, surface, text, lines. Cool blue-grey by
+     default; a brand with warm paper-and-ink neutrals sets this instead of
+     touching every hsl() below that reads it. */
+  --brand-neutral-hue: 220;
+  /* 0 keeps every corner square, per the design direction. A brand that
+     wants a softer edge sets one radius here; every component reads it. */
+  --brand-radius: 0;
+  /* A unitless multiplier over the row padding and control heights below.
+     1 is this tool's own "denser than an enterprise app" default (§4.1); a
+     brand build that wants more air sets this above 1 rather than
+     re-deriving every dimension. */
+  --brand-density: 1;
+  /* The base of the type scale every other --text-* size is a fixed ratio
+     of, so a brand can size the whole scale up or down from one number
+     instead of seven. 0.875rem (14px against a 16px root) is this tool's
+     own base. */
+  --brand-text-base: 0.875rem;
   /* ---- end brand pack ---- */
 
   --font-ui: var(--brand-font, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif);
@@ -48,17 +74,18 @@
   /* ---- colour: the neutral ramp ----
      Canvas is the page ground, surface is what sits on it. The one step
      between them is what lets a sticky header and a frozen first column read
-     as raised without a shadow. The ramp keeps its own fixed hue rather than
-     following --brand-hue; widening the brand pack to own it is §4.8's row,
-     not this one. */
-  --color-canvas: hsl(220 22% 97%);
+     as raised without a shadow. The ramp follows --brand-neutral-hue rather
+     than --brand-hue: a rebrand's accent and its neutrals are independent
+     choices (Farn itself pairs a forest-green accent with warm paper
+     neutrals, not a tinted-green grey). */
+  --color-canvas: hsl(var(--brand-neutral-hue) 22% 97%);
   --color-surface: hsl(0 0% 100%);
   --color-surface-raised: hsl(0 0% 100%);
-  --color-fg: hsl(220 18% 12%);
-  --color-muted: hsl(220 9% 42%);
-  --color-faint: hsl(220 8% 58%);
-  --color-line: hsl(220 14% 84%);
-  --color-line-soft: hsl(220 14% 91%);
+  --color-fg: hsl(var(--brand-neutral-hue) 18% 12%);
+  --color-muted: hsl(var(--brand-neutral-hue) 9% 42%);
+  --color-faint: hsl(var(--brand-neutral-hue) 8% 58%);
+  --color-line: hsl(var(--brand-neutral-hue) 14% 84%);
+  --color-line-soft: hsl(var(--brand-neutral-hue) 14% 91%);
   color-scheme: light dark;
 
   /* ---- colour: semantic roles ----
@@ -77,11 +104,14 @@
   /* The current month reads as "the thing you are on", which is what accent
      means — deriving it rather than repeating a hue keeps a rebrand honest. */
   --color-now-tint: var(--color-accent-tint);
-  --color-band: hsl(220 14% 90%);
+  --color-band: hsl(var(--brand-neutral-hue) 14% 90%);
   /* The modal's backdrop: the page dimmed, not a colour of its own. */
-  --color-scrim: hsl(220 20% 10% / 0.4);
-  --color-spare-tint: hsl(220 14% 96%);
+  --color-scrim: hsl(var(--brand-neutral-hue) 20% 10% / 0.4);
+  --color-spare-tint: hsl(var(--brand-neutral-hue) 14% 96%);
 
+  /* The chart palette, --chart-spare included, keeps its own fixed hues
+     regardless of --brand-neutral-hue: it is a data-encoding concern, not a
+     brand-colour one (see the Farn-hue-adoption note in REVAMP.md). */
   --chart-1: hsl(232 62% 56%);
   --chart-2: hsl(188 62% 38%);
   --chart-3: hsl(280 45% 55%);
@@ -113,15 +143,17 @@
   --color-focus: var(--color-fg);
 
   /* ---- typography ----
-     Base is 14px. A tight ratio, so eight levels coexist without any of them
-     shouting over the data. */
-  --text-2xs: 0.6875rem;
-  --text-xs: 0.75rem;
-  --text-sm: 0.8125rem;
-  --text-md: 0.875rem;
-  --text-lg: 1rem;
-  --text-xl: 1.25rem;
-  --text-display: 1.75rem;
+     Every size is --brand-text-base times a fixed ratio, so a brand dials
+     the whole scale from that one number rather than seven. A tight ratio
+     between steps, so eight levels coexist without any of them shouting
+     over the data. */
+  --text-2xs: calc(var(--brand-text-base) * 0.7857);
+  --text-xs: calc(var(--brand-text-base) * 0.8571);
+  --text-sm: calc(var(--brand-text-base) * 0.9286);
+  --text-md: var(--brand-text-base);
+  --text-lg: calc(var(--brand-text-base) * 1.1429);
+  --text-xl: calc(var(--brand-text-base) * 1.4286);
+  --text-display: calc(var(--brand-text-base) * 2);
 
   --weight-regular: 400;
   --weight-medium: 500;
@@ -149,17 +181,20 @@
   --space-8: 4rem;
 
   /* ---- density ----
-     A 13px cell with 8px of padding lands a row near 31px. That is denser
-     than the 40px an enterprise table usually calls "condensed", on purpose:
-     this is a tool someone reads for an hour, not a page someone visits. */
-  --row-pad-y: var(--space-2);
-  --row-pad-x: var(--space-3);
-  --control-height: 2rem;
-  --control-height-sm: 1.625rem;
+     A 13px cell with 8px of padding lands a row near 31px at
+     --brand-density: 1. That is denser than the 40px an enterprise table
+     usually calls "condensed", on purpose: this is a tool someone reads for
+     an hour, not a page someone visits. Every dimension below scales off
+     that one multiplier rather than each being its own brand knob. */
+  --row-pad-y: calc(var(--space-2) * var(--brand-density));
+  --row-pad-x: calc(var(--space-3) * var(--brand-density));
+  --control-height: calc(2rem * var(--brand-density));
+  --control-height-sm: calc(1.625rem * var(--brand-density));
 
   --size-border: 1px;
   --size-thick: 2px;
-  --radius-none: 0;
+  /* Every corner reads --brand-radius; square is this tool's own default
+     (AGENTS.md), not a fixed constant a brand pack has to fight. */
   --radius-round: 50%;
 
   /* ---- field widths, sized to what goes in them ----
@@ -201,8 +236,8 @@
      Two levels. Flat is everything anchored in the page; raised is what
      floats above it and a click elsewhere dismisses. There is no third. */
   --elevation-raised:
-    0 1px 2px hsl(220 20% 10% / 0.08),
-    0 8px 24px hsl(220 20% 10% / 0.16);
+    0 1px 2px hsl(var(--brand-neutral-hue) 20% 10% / 0.08),
+    0 8px 24px hsl(var(--brand-neutral-hue) 20% 10% / 0.16);
 
   /* ---- motion ----
      Short, decisive, asymmetric: things leave faster than they arrive. */
@@ -238,17 +273,17 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --brand: hsl(var(--brand-hue) 60% 65%);
-    --brand-contrast: hsl(220 22% 8%);
+    --brand-contrast: hsl(var(--brand-neutral-hue) 22% 8%);
     --brand-tint: hsl(var(--brand-hue) 38% 20%);
 
-    --color-canvas: hsl(220 20% 9%);
-    --color-surface: hsl(220 18% 12%);
-    --color-surface-raised: hsl(220 16% 16%);
-    --color-fg: hsl(220 16% 93%);
-    --color-muted: hsl(220 10% 64%);
-    --color-faint: hsl(220 9% 50%);
-    --color-line: hsl(220 12% 27%);
-    --color-line-soft: hsl(220 12% 20%);
+    --color-canvas: hsl(var(--brand-neutral-hue) 20% 9%);
+    --color-surface: hsl(var(--brand-neutral-hue) 18% 12%);
+    --color-surface-raised: hsl(var(--brand-neutral-hue) 16% 16%);
+    --color-fg: hsl(var(--brand-neutral-hue) 16% 93%);
+    --color-muted: hsl(var(--brand-neutral-hue) 10% 64%);
+    --color-faint: hsl(var(--brand-neutral-hue) 9% 50%);
+    --color-line: hsl(var(--brand-neutral-hue) 12% 27%);
+    --color-line-soft: hsl(var(--brand-neutral-hue) 12% 20%);
 
     --color-danger: hsl(355 76% 70%);
     --color-warn-tint: hsl(355 34% 20%);
@@ -256,8 +291,8 @@
     --color-ok-tint: hsl(92 32% 18%);
     --color-amber: hsl(41 78% 64%);
     --color-amber-tint: hsl(41 42% 20%);
-    --color-band: hsl(220 12% 25%);
-    --color-spare-tint: hsl(220 12% 16%);
+    --color-band: hsl(var(--brand-neutral-hue) 12% 25%);
+    --color-spare-tint: hsl(var(--brand-neutral-hue) 12% 16%);
 
     --chart-1: hsl(232 62% 68%);
     --chart-2: hsl(188 55% 54%);
@@ -275,17 +310,17 @@
 
 :root[data-theme='dark'] {
   --brand: hsl(var(--brand-hue) 60% 65%);
-  --brand-contrast: hsl(220 22% 8%);
+  --brand-contrast: hsl(var(--brand-neutral-hue) 22% 8%);
   --brand-tint: hsl(var(--brand-hue) 38% 20%);
 
-  --color-canvas: hsl(220 20% 9%);
-  --color-surface: hsl(220 18% 12%);
-  --color-surface-raised: hsl(220 16% 16%);
-  --color-fg: hsl(220 16% 93%);
-  --color-muted: hsl(220 10% 64%);
-  --color-faint: hsl(220 9% 50%);
-  --color-line: hsl(220 12% 27%);
-  --color-line-soft: hsl(220 12% 20%);
+  --color-canvas: hsl(var(--brand-neutral-hue) 20% 9%);
+  --color-surface: hsl(var(--brand-neutral-hue) 18% 12%);
+  --color-surface-raised: hsl(var(--brand-neutral-hue) 16% 16%);
+  --color-fg: hsl(var(--brand-neutral-hue) 16% 93%);
+  --color-muted: hsl(var(--brand-neutral-hue) 10% 64%);
+  --color-faint: hsl(var(--brand-neutral-hue) 9% 50%);
+  --color-line: hsl(var(--brand-neutral-hue) 12% 27%);
+  --color-line-soft: hsl(var(--brand-neutral-hue) 12% 20%);
 
   --color-danger: hsl(355 76% 70%);
   --color-warn-tint: hsl(355 34% 20%);
@@ -293,8 +328,8 @@
   --color-ok-tint: hsl(92 32% 18%);
   --color-amber: hsl(41 78% 64%);
   --color-amber-tint: hsl(41 42% 20%);
-  --color-band: hsl(220 12% 25%);
-  --color-spare-tint: hsl(220 12% 16%);
+  --color-band: hsl(var(--brand-neutral-hue) 12% 25%);
+  --color-spare-tint: hsl(var(--brand-neutral-hue) 12% 16%);
 
   --chart-1: hsl(232 62% 68%);
   --chart-2: hsl(188 55% 54%);
@@ -458,7 +493,7 @@ h3,
   color: var(--color-accent-contrast);
   background: var(--color-accent);
   border: var(--size-thick) solid var(--color-accent);
-  border-radius: var(--radius-none);
+  border-radius: var(--brand-radius);
   padding: var(--space-2) var(--space-3);
   cursor: pointer;
   transform: translateY(calc(-100% - var(--space-5)));
@@ -502,7 +537,7 @@ h3,
   background: none;
   border: none;
   border-bottom: var(--size-thick) solid transparent;
-  border-radius: var(--radius-none);
+  border-radius: var(--brand-radius);
   padding: var(--space-2) var(--space-3);
   cursor: pointer;
   transition: color var(--motion-fast) var(--ease-standard),
@@ -627,7 +662,7 @@ h3,
   color: var(--color-fg);
   background: var(--color-surface);
   border: var(--size-border) solid var(--color-line);
-  border-radius: var(--radius-none);
+  border-radius: var(--brand-radius);
   padding: var(--space-1) var(--space-3);
   cursor: pointer;
   white-space: nowrap;
@@ -750,7 +785,7 @@ h3,
   color: var(--color-accent);
   background: none;
   border: none;
-  border-radius: var(--radius-none);
+  border-radius: var(--brand-radius);
   padding: 0;
   cursor: pointer;
   text-align: left;
@@ -788,7 +823,7 @@ h3,
   color: var(--color-fg);
   background: var(--color-surface);
   border: var(--size-border) solid var(--color-line);
-  border-radius: var(--radius-none);
+  border-radius: var(--brand-radius);
   padding: var(--space-1) var(--space-2);
   min-height: var(--control-height);
   width: 100%;
@@ -1645,7 +1680,7 @@ h3,
   background: var(--color-surface-raised);
   border: var(--size-border) solid var(--color-line);
   border-left: var(--size-thick) solid var(--color-accent);
-  border-radius: var(--radius-none);
+  border-radius: var(--brand-radius);
   box-shadow: var(--elevation-raised);
   padding: var(--space-4);
 }
@@ -1729,7 +1764,7 @@ body:has(.summary) #toast {
   background: none;
   border: none;
   border-bottom: var(--size-thick) solid transparent;
-  border-radius: var(--radius-none);
+  border-radius: var(--brand-radius);
   padding: var(--space-2) var(--space-3);
   cursor: pointer;
   transition: color var(--motion-fast) var(--ease-standard),
@@ -1781,7 +1816,7 @@ body:has(.summary) #toast {
   background: none;
   border: none;
   border-left: var(--size-thick) solid transparent;
-  border-radius: var(--radius-none);
+  border-radius: var(--brand-radius);
   padding: var(--space-2) var(--space-3);
   cursor: pointer;
   transition: color var(--motion-fast) var(--ease-standard),
@@ -1883,7 +1918,7 @@ body:has(.summary) #toast {
   color: inherit;
   background: none;
   border: none;
-  border-radius: var(--radius-none);
+  border-radius: var(--brand-radius);
   padding: var(--space-2) var(--space-3) var(--space-3);
   cursor: pointer;
   transition: background-color var(--motion-fast) var(--ease-standard);
@@ -2005,7 +2040,7 @@ body:has(.summary) #toast {
   background: none;
   border: none;
   border-bottom: var(--size-border) dashed var(--color-faint);
-  border-radius: var(--radius-none);
+  border-radius: var(--brand-radius);
   padding: 0;
   cursor: pointer;
 }
@@ -2330,7 +2365,7 @@ body:has(.summary) #toast {
   color: inherit;
   background: none;
   border: none;
-  border-radius: var(--radius-none);
+  border-radius: var(--brand-radius);
   padding: var(--space-1);
   cursor: pointer;
   width: 100%;

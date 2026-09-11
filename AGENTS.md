@@ -37,8 +37,8 @@ exists to protect.
 Two source files and one CSS block are ever brand-specific:
 
 - `src/process.js` — the compiled-in process: phases, their gates,
-  checklist definitions, approval tracks, the currency, and a process
-  id/version. **Governance the user cannot change.**
+  checklist definitions, approval tracks, a process id/version, the
+  currency, and the wordmark. **Governance the user cannot change.**
 - `src/masterData.js` — the seed factory: roles, countries, people and
   teams. **A starting point the user edits freely afterwards.**
 - The `--brand*` and `--brand-font` custom properties in `src/styles.css`'s

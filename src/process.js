@@ -1,5 +1,5 @@
 /**
- * BRAND PACK — contract version 1
+ * BRAND PACK — contract version 2
  *
  * The compiled-in process: which phases exist, which of them carry cost,
  * what each gate requires, and the approval tracks. This is **governance the
@@ -14,6 +14,12 @@
  * end up in stored data**, so changing one is a breaking change and must
  * come with a `version` bump; changing a `label` is free.
  *
+ * v2 (§4.8): added `wordmark` — the app's own name, read once at boot and
+ * written into the shell. It belongs here, not as a literal in `app.js`:
+ * it is build-fixed identity, the same kind of thing `currency` already is,
+ * and a brand build free to pick its own has nowhere else agnostic code
+ * could source it from.
+ *
  * Everything here is fictional placeholder content, shaped to exercise the
  * model rather than to look tidy: four phases, only two of them costed, a
  * mix of skippable and mandatory gates, and checklists on some gates but not
@@ -24,6 +30,7 @@ export const PROCESS = {
   id: 'placeholder-process',
   version: 1,
   currency: '€',
+  wordmark: 'Initiative Planner',
 
   phases: [
     {
