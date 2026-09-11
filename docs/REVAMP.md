@@ -38,7 +38,7 @@ here — this table is status only.
 | §4.4 Initiative detail — the sticky summary bar, and the jump menu | **Landed** |
 | §4.4 Initiative detail — the allocation table, and D2 | **Landed** |
 | §4.4 Initiative detail — the wizard's ending, and the month table's foot | **Landed** |
-| §4.5 Overviews, capacity, charts | Not started |
+| §4.5 Overviews, capacity, charts | **Landed** |
 | §4.6 Copy, states, first run, accessibility | Not started |
 | §4.7 File System Access persistence | Not started |
 | §4.8 Brand pack | Not started |
@@ -1262,6 +1262,41 @@ show correct gridlines, values and the current month in the accent colour;
 the table toggle round-trips both directions with the right figures and a
 working Copy button; a segment's native tooltip reads correctly; a fresh
 tab's console stayed clean throughout.
+
+**Landed — global search.** A "Search" button in the shell — next to Export/
+Import/Theme, so it is on every page — opens a popover with a text field.
+Typing filters initiatives, people and teams by name live; each result
+names its kind and, when it is not in its normal active/open state, a short
+note (a status word, or "inactive"), so a search for a name doesn't drop
+you on a closed initiative with no warning. Selecting a result is a real
+`href` link — the same plain-anchor navigation every other cross-reference
+in the app already uses — so `search-select`'s handler only has to close
+the popover, exactly the way `panel` (the jump menu) already does for the
+same reason.
+
+Filtering is simpler than the existing search-box pattern
+(`initiatives-filter`/`people-filter`, which re-renders a whole page and
+then restores focus and the caret by hand): this only ever rebuilds the
+results list, a sibling of the input, so the input itself is never touched
+and there is no caret to lose in the first place.
+
+**Found in passing, fixed alongside it:** a concurrent session's git
+worktree under `.claude/worktrees/` was being swept into this repo's own
+`eslint .` — that path was never in the ignore list, so its files fell
+through to bare `eslint:recommended` (no browser globals) and threw over a
+hundred `no-undef` errors that had nothing to do with this row. Added
+`.claude/` to `eslint.config.js`'s ignores.
+
+Verified in a real browser against `examples/exports/demo.json`, light and
+dark: the popover opens focused on the field and positions off the Search
+button; typing narrows the list live across all three kinds, including a
+closed initiative and an on-hold one showing their status; selecting a
+result navigates there and closes the popover; Escape closes it and
+restores focus to the Search button; the button and behaviour are
+identical from Portfolio and from Settings; a fresh tab's console stayed
+clean; the search popover survives a 420px viewport.
+
+**§4.5 is complete.**
 
 ### 4.6 Copy, states, first run and accessibility
 
