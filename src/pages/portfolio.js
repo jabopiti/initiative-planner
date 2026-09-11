@@ -5,7 +5,7 @@ import * as F from '../format.js';
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
-import { app, view, STATUS_LABELS } from '../app.js';
+import { app, view, STATUS_LABELS, currentMonth } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, sortHeader } from '../render/components.js';
@@ -83,6 +83,12 @@ export function renderPortfolio() {
   const data = E.runRate(app, charted, monthsOfYear(chartYear()));
   const yearTotal = data.reduce((t, row) => t + row.total, 0);
 
+  // Capacity is read for the current month, not the chart's selected year —
+  // it is a "right now" question, independent of which year the cost chart
+  // happens to be showing (SPEC §7).
+  const capacityMonth = currentMonth();
+  const { overCapacity, overShare } = E.overAllocations(app, capacityMonth);
+
   const sort = view.params.sort ?? { key: 'effective', dir: 'desc' };
   const column = PORTFOLIO_COLUMNS.find((c) => c.key === sort.key) ?? PORTFOLIO_COLUMNS[0];
   const sorted = [...rows].sort((a, b) => {
@@ -119,8 +125,7 @@ export function renderPortfolio() {
     'root',
     html`${raw(pageHead({
       title: 'Portfolio',
-      lede: 'Cost across every team, read-only. Capacity is a per-team and per-person question '
-        + 'and lives on those pages.',
+      lede: 'Cost and capacity across every team, read-only.',
     }))}
 
       <div class="tiles">${raw(tiles)}</div>
@@ -139,6 +144,22 @@ export function renderPortfolio() {
         ${raw(yearTotal === 0
           ? empty('No active initiative costs anything in this year.', { icon: 'warning' })
           : stackedBarsMarkup(data))}
+      </div>
+
+      <div class="panel">
+        <h2>Capacity this month</h2>
+        <p class="muted">Over-allocation across every team and person, right now
+          (${F.month(capacityMonth)}). <a href="#/capacity" class="link">Full breakdown</a></p>
+        <div class="tiles">
+          <div class="tile ${overCapacity.length ? 'tile--warn' : ''}">
+            <span class="tile__value">${overCapacity.length}</span>
+            <span class="tile__label">over capacity</span>
+          </div>
+          <div class="tile ${overShare.length ? 'tile--warn' : ''}">
+            <span class="tile__value">${overShare.length}</span>
+            <span class="tile__label">over their team's share</span>
+          </div>
+        </div>
       </div>
 
       <div class="panel">

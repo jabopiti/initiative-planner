@@ -1466,6 +1466,14 @@ h3,
   font-size: var(--text-xl);
 }
 
+/* A tile whose figure is a count of something wrong (an over-allocation),
+   never a block (SPEC §5.2) — colours the same way `.over` does elsewhere,
+   scoped through the tile so it wins over `.tile__value`'s own color rule
+   regardless of source order. */
+.tile--warn .tile__value {
+  color: var(--color-danger);
+}
+
 /*
  * BADGE — a short, non-interactive mark on a value.
  *
