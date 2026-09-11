@@ -276,9 +276,18 @@ function stepperMarkup(initiative) {
  * ------------------------------------------------------------------ */
 
 /**
- * What this phase's gate needs, and the actions for it. A gate action is
- * disabled with its reasons spelled out rather than hidden — being told why
- * is the difference between a blocked user and a stuck one.
+ * The gate, in three parts: what state it is in, what it needs, and what you
+ * can do about it.
+ *
+ * It used to be one run of markup holding a heading, prose, two lists, a date
+ * field, two buttons, an always-visible skip box, micro-copy and a checklist
+ * table — with the same checklist item named twice, once as a blocker and
+ * again as a row with a control on it. The three parts separate the reading
+ * from the doing, and each requirement now carries the control that resolves
+ * it instead of a sentence describing what you would have to go and find.
+ *
+ * A gate action is disabled with its reasons spelled out rather than hidden:
+ * being told why is the difference between a blocked user and a stuck one.
  */
 function gateBannerMarkup(initiative) {
   if (initiative.status === 'closed') {
@@ -306,92 +315,178 @@ function gateBannerMarkup(initiative) {
 
   const phase = E.phaseById(PROCESS, initiative.phaseId);
   const gate = phase.gate;
-  const check = L.gatePrecondition(app, PROCESS, initiative, gate.id);
-  const order = E.phaseOrder(PROCESS);
-  const canReopen = order.indexOf(initiative.phaseId) > 0;
+  const requirements = L.gateRequirements(app, PROCESS, initiative, gate.id);
+  const blockers = requirements.filter((r) => r.state === 'blocker').length;
   const closes = E.isFinalPhase(PROCESS, initiative.phaseId);
-
-  const list = (items, kind) =>
-    items.length
-      ? html`<ul class="issues issues--${kind}">${raw(
-          items.map((text) => html`<li class="${kind === 'blocker' ? 'warn' : 'muted'}">${text}</li>`).join(''),
-        )}</ul>`
-      : '';
 
   return panel({
     id: 'panel-gate',
-    title: html`${phase.label} — ${gate.label}`,
+    title: `${phase.label} — ${gate.label}`,
+    mark: blockers
+      ? badge(`${blockers} ${blockers === 1 ? 'blocker' : 'blockers'}`, 'warn', 'warning')
+      : badge('ready to pass', 'ok', 'check'),
     extraClass: 'banner',
-    body: html`<p class="micro"><button type="button" class="link" data-act="section"
-      data-section="process">${gate.label} in the process definition</button></p>
-    <p class="muted">${closes
-      ? 'This is the last gate. Passing it closes the initiative.'
-      : `Passing it moves to ${E.phaseLabel(PROCESS, E.nextPhase(PROCESS, phase.id))}.`}
-      ${gate.requiresEstimates
-        ? 'It requires a complete estimate for every costed phase.'
-        : 'It has no cost requirement.'}</p>
+    body: html`<div class="gate__part">
+        <p class="muted">${closes
+          ? 'This is the last gate. Passing it closes the initiative.'
+          : `Passing it moves to ${E.phaseLabel(PROCESS, E.nextPhase(PROCESS, phase.id))}.`}
+          ${gate.requiresEstimates
+            ? 'It requires a complete estimate for every costed phase.'
+            : 'It has no cost requirement.'}</p>
+        <p class="micro"><button type="button" class="link" data-act="section"
+          data-section="process">${gate.label} in the process definition</button></p>
+      </div>
 
-    ${raw(list(check.blockers, 'blocker'))}
-    ${raw(list(check.warnings, 'warning'))}
+      <div class="gate__part">
+        <h3>What this gate needs</h3>
+        ${raw(requirementsMarkup(initiative, gate, requirements))}
+      </div>
 
-    <div class="actions">
-      <label class="field-inline"><span>Gate date</span>
-        <input type="date" class="field field--date" data-field="gate-date"
-          value="${today()}" /></label>
-      <button type="button" class="btn btn--primary" data-act="pass-gate"
-        data-id="${initiative.id}" data-gate="${gate.id}" ${raw(check.ok ? '' : 'disabled')}>
-        ${raw(icon('check'))}${closes ? `Pass ${gate.label} and close` : `Pass ${gate.label}`}</button>
-      ${raw(canReopen
-        ? html`<button type="button" class="btn" data-act="reopen" data-id="${initiative.id}">
-            Reopen previous phase</button>`
-        : '')}
-    </div>
-
-    ${raw(gate.skippable
-      ? html`<div class="actions">
-          <label class="field-inline"><span>Skip reason</span>
-            <input class="field" data-field="skip-reason"
-              placeholder="Why is this gate not needed?" /></label>
-          <button type="button" class="btn" data-act="skip-gate" data-id="${initiative.id}"
-            data-gate="${gate.id}">${raw(icon('skip'))}Skip this gate</button>
-        </div>
-        <p class="micro">A skip approves nothing and freezes nothing, so this phase stays
-          editable. The reason is recorded and shown wherever the gate appears.</p>`
-      : html`<p class="micro">${gate.label} cannot be skipped.</p>`)}
-
-    ${raw((gate.checklist ?? []).length ? checklistMarkup(initiative, gate) : '')}`,
+      ${raw(gateActionsMarkup(initiative, gate, closes, blockers === 0))}`,
   });
 }
 
 const CHECK_LABELS = { red: 'Not resolved', amber: 'Partly', green: 'Resolved' };
 
-function checklistMarkup(initiative, gate) {
-  const rows = L.checklistState(initiative, gate)
-    .map(
-      (item) => html`<tr class="check check--${item.status}">
-        <td class="cell--wrap"><strong>${item.name}</strong>
-          <span class="micro">${item.description}</span></td>
-        <td>
-          <select class="field field--select" data-act="checklist-status"
+/**
+ * Every requirement, each with the control that settles it.
+ *
+ * A checklist item is resolved where it is read — the status select and the
+ * note sit on the row that names it. The two that cannot be settled in a
+ * sentence-sized control (an estimate, a missing actual) offer the trip to
+ * where they can, which is the honest version of "resolvable in place": the
+ * control is a period and a table of people, not something that fits here.
+ */
+function requirementsMarkup(initiative, gate, requirements) {
+  const checklist = L.checklistState(initiative, gate);
+  const itemFor = (id) => checklist.find((item) => item.id === id);
+
+  const items = requirements
+    .map((requirement) => {
+      const mark = requirement.state === 'met' ? 'check' : 'warning';
+      const item = requirement.kind === 'checklist' ? itemFor(requirement.itemId) : null;
+
+      const fix = item
+        ? html`<select class="field field--select" data-act="checklist-status"
             data-id="${initiative.id}" data-gate="${gate.id}" data-item="${item.id}"
-            aria-label="${item.name} status">
+            aria-label="${requirement.text}">
             ${raw(L.CHECKLIST_STATUSES.map((status) => html`<option value="${status}"
-              ${raw(item.status === status ? 'selected' : '')}>${CHECK_LABELS[status]}</option>`).join(''))}
-          </select>
-        </td>
-        <td class="cell--wrap"><input class="field" data-act="checklist-note"
-          data-id="${initiative.id}" data-gate="${gate.id}" data-item="${item.id}"
-          value="${item.note}" placeholder="Note" aria-label="${item.name} note" /></td>
-      </tr>`,
-    )
+              ${raw(item.status === status ? 'selected' : '')}
+              >${CHECK_LABELS[status]}</option>`).join(''))}
+          </select>`
+        : requirement.kind === 'estimates' && requirement.phaseIds?.length
+          ? requirement.phaseIds.map((phaseId) => html`<button type="button" class="btn btn--small"
+              data-act="panel" data-panel="panel-phase-${phaseId}"
+              >${E.phaseLabel(PROCESS, phaseId)}${raw(icon('chevron-right'))}</button>`).join('')
+          : requirement.kind === 'actuals' && requirement.state === 'warning'
+            ? html`<button type="button" class="btn btn--small" data-act="panel"
+                data-panel="panel-months">Month by month${raw(icon('chevron-right'))}</button>`
+            : '';
+
+      return html`<li class="req req--${requirement.state}">
+        <span class="req__mark">${raw(icon(mark))}</span>
+        <div class="req__body">
+          <p class="req__text">${requirement.text}</p>
+          ${raw(item
+            ? html`<p class="micro">${item.description}</p>
+              <label class="field-inline"><span>Note</span>
+                <input class="field" data-act="checklist-note" data-id="${initiative.id}"
+                  data-gate="${gate.id}" data-item="${item.id}" value="${item.note}" /></label>`
+            : '')}
+        </div>
+        <div class="req__fix">${raw(fix)}</div>
+      </li>`;
+    })
     .join('');
 
-  return html`<h3>Checklist</h3>
-    <p class="muted">Items start unresolved, so a gate with a checklist is blocked until
-      someone has looked at each one. “Partly” lets the gate pass with a warning.</p>
-    ${raw(scroller(`${gate.label} checklist`, html`<table class="grid">
-      <thead><tr><th>Item</th><th>Status</th><th>Note</th></tr></thead>
-      <tbody>${raw(rows)}</tbody></table>`))}`;
+  return html`<ul class="reqs">${raw(items)}</ul>
+    ${raw((gate.checklist ?? []).length
+      ? html`<p class="micro">Checklist items start unresolved, so a gate with one is blocked
+          until someone has looked at each. “Partly” lets the gate pass with a warning.</p>`
+      : '')}`;
+}
+
+/**
+ * One primary action, and everything else behind a menu.
+ *
+ * Skipping and reopening are both rarer than passing and both undo or bypass
+ * governance, so neither belongs beside the button people actually press.
+ * The menu is absent rather than empty when this gate offers neither.
+ */
+function gateActionsMarkup(initiative, gate, closes, ready) {
+  const canReopen = E.phaseOrder(PROCESS).indexOf(initiative.phaseId) > 0;
+  const hasMenu = gate.skippable || canReopen;
+
+  return html`<div class="gate__part gate__part--actions">
+    <label class="field-inline"><span>Gate date</span>
+      <input type="date" class="field field--date" data-field="gate-date"
+        value="${today()}" /></label>
+    <button type="button" class="btn btn--primary" data-act="pass-gate"
+      data-id="${initiative.id}" data-gate="${gate.id}" ${raw(ready ? '' : 'disabled')}>
+      ${raw(icon('check'))}${closes ? `Pass ${gate.label} and close` : `Pass ${gate.label}`}</button>
+    ${raw(hasMenu
+      ? html`<button type="button" class="btn" data-act="gate-menu" data-id="${initiative.id}"
+          aria-haspopup="menu">More${raw(icon('chevron-down'))}</button>`
+      : '')}
+  </div>`;
+}
+
+/** What the gate's secondary menu offers, which depends on the gate. */
+export function gateMenuMarkup(initiativeId) {
+  const initiative = app.INITIATIVES.find((i) => i.id === initiativeId);
+  const gate = E.gateForPhase(PROCESS, initiative.phaseId);
+  const canReopen = E.phaseOrder(PROCESS).indexOf(initiative.phaseId) > 0;
+
+  return html`<h3>${gate.label}</h3>
+    <div class="popover__actions">
+      ${raw(gate.skippable
+        ? html`<button type="button" class="btn" data-act="skip-gate-open"
+            data-id="${initiative.id}" data-gate="${gate.id}"
+            >${raw(icon('skip'))}Skip this gate…</button>`
+        : '')}
+      ${raw(canReopen
+        ? html`<button type="button" class="btn" data-act="reopen" data-id="${initiative.id}"
+            >Reopen previous phase</button>`
+        : '')}
+    </div>
+    ${raw(gate.skippable
+      ? html`<p class="micro">A skip approves nothing and freezes nothing, so this phase stays
+          editable.</p>`
+      : html`<p class="micro">${gate.label} cannot be skipped.</p>`)}`;
+}
+
+/**
+ * The skip dialog.
+ *
+ * Modal, and deliberately so: a skip cannot proceed without a reason, and the
+ * two things that could lose a half-typed one — a click anywhere else, a
+ * scroll away from the field — are exactly what a popover does for free. It
+ * is the app's only modal for the same reason it is the app's only required
+ * field.
+ */
+export function skipDialogMarkup(initiativeId, gateId) {
+  const initiative = app.INITIATIVES.find((i) => i.id === initiativeId);
+  const gate = E.gateForPhase(PROCESS, initiative.phaseId);
+
+  return html`<h2 id="dialog-heading">Skip ${gate.label}</h2>
+    <p class="muted">A skip records that this gate was passed over and why. It approves
+      nothing and freezes nothing, so ${E.phaseLabel(PROCESS, initiative.phaseId)} stays
+      editable and no figure here becomes a baseline.</p>
+    <div class="fields">
+      <label class="field-row"><span>Reason</span>
+        <input class="field" data-field="skip-reason"
+          placeholder="Why is this gate not needed?" /></label>
+      <label class="field-row"><span>Date</span>
+        <input type="date" class="field field--date" data-field="skip-date"
+          value="${today()}" /></label>
+    </div>
+    <p class="field-message" data-note="skip-error" hidden>${raw(icon('warning', 'icon--lead'))}A
+      reason is required before a gate can be skipped.</p>
+    <div class="actions">
+      <button type="button" class="btn btn--primary" data-act="skip-gate"
+        data-id="${initiative.id}" data-gate="${gateId}">${raw(icon('skip'))}Skip ${gate.label}</button>
+      <button type="button" class="btn" data-act="dialog-cancel">Cancel</button>
+    </div>`;
 }
 
 /* ------------------------------------------------------------------ *

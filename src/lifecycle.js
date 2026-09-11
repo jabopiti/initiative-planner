@@ -282,48 +282,105 @@ function phaseIsEstimated(phase) {
 }
 
 /**
- * Whether the current phase's gate can be passed, and what is stopping it.
+ * Everything this gate needs, each with its own state — including the ones
+ * already satisfied.
  *
  * A gate requiring estimates needs *every* costed phase estimated, not just
  * the one behind it: passing a gate approves the whole initiative's budget,
  * which is why the requirement looks forward as well as back (SPEC §6.1).
  *
- * @returns {{ ok: boolean, blockers: string[], warnings: string[] }}
+ * Met requirements are reported alongside unmet ones because the interface
+ * asks a different question than `passGate` does. `passGate` needs to know
+ * whether it may proceed; a reader needs to know what this gate is *for*, and
+ * a list that shows only what is wrong cannot answer that. The `kind` says
+ * what sort of thing each one is, so the panel can offer the control that
+ * resolves it rather than a sentence about it.
+ *
+ * @returns {Array<{ id: string, kind: 'state'|'estimates'|'checklist'|'actuals',
+ *   state: 'blocker'|'warning'|'met', text: string, itemId?: string,
+ *   phaseIds?: string[] }>}
  */
-export function gatePrecondition(app, process, initiative, gateId) {
+export function gateRequirements(app, process, initiative, gateId) {
   const phase = E.phaseForGate(process, gateId);
   const gate = phase.gate;
-  const blockers = [];
-  const warnings = [];
+  /** @type {Array<any>} */
+  const out = [];
 
   if (initiative.phaseId !== phase.id) {
-    blockers.push(`this initiative is not in ${phase.label}`);
+    out.push({ id: 'phase', kind: 'state', state: 'blocker',
+      text: `this initiative is not in ${phase.label}` });
   }
-  if (initiative.gates[gate.id]) blockers.push(`${gate.label} has already been left`);
-  if (E.isFinished(initiative)) blockers.push(`this initiative is ${initiative.status}`);
+  if (initiative.gates[gate.id]) {
+    out.push({ id: 'left', kind: 'state', state: 'blocker',
+      text: `${gate.label} has already been left` });
+  }
+  if (E.isFinished(initiative)) {
+    out.push({ id: 'finished', kind: 'state', state: 'blocker',
+      text: `this initiative is ${initiative.status}` });
+  }
 
   if (gate.requiresEstimates) {
     const missing = E.costedPhaseIds(process).filter(
       (phaseId) => !phaseIsEstimated(initiative.phases[phaseId]),
     );
-    if (missing.length > 0) {
-      const names = missing.map((id) => E.phaseLabel(process, id)).join(' and ');
-      blockers.push(`${names} needs a complete period and at least one person allocated`);
-    }
+    const names = missing.map((id) => E.phaseLabel(process, id)).join(' and ');
+    out.push({
+      id: 'estimates',
+      kind: 'estimates',
+      state: missing.length > 0 ? 'blocker' : 'met',
+      text: missing.length > 0
+        ? `${names} needs a complete period and at least one person allocated`
+        : 'every costed phase has a period and someone allocated',
+      phaseIds: missing,
+    });
   }
 
   for (const item of checklistState(initiative, gate)) {
-    if (item.status === 'red') blockers.push(`“${item.name}” is not resolved`);
-    else if (item.status === 'amber') warnings.push(`“${item.name}” is only partly resolved`);
+    out.push({
+      id: `checklist:${item.id}`,
+      kind: 'checklist',
+      itemId: item.id,
+      state: item.status === 'red' ? 'blocker' : item.status === 'amber' ? 'warning' : 'met',
+      text: item.status === 'red'
+        ? `“${item.name}” is not resolved`
+        : item.status === 'amber'
+          ? `“${item.name}” is only partly resolved`
+          : `“${item.name}” is resolved`,
+    });
   }
 
   // Missing actuals never block; they only warn (SPEC §6.1).
-  const gaps = missingActuals(initiative);
-  if (gaps.length > 0) {
-    warnings.push(`${gaps.length} costed month${gaps.length === 1 ? '' : 's'} without an actual`);
+  const costedMonths = Object.values(initiative.phases ?? {})
+    .reduce((count, phase_) => count + E.phaseMonths(phase_).length, 0);
+  if (costedMonths > 0) {
+    const gaps = missingActuals(initiative);
+    out.push({
+      id: 'actuals',
+      kind: 'actuals',
+      state: gaps.length > 0 ? 'warning' : 'met',
+      text: gaps.length > 0
+        ? `${gaps.length} costed month${gaps.length === 1 ? '' : 's'} without an actual`
+        : 'every costed month has an actual recorded',
+    });
   }
 
-  return { ok: blockers.length === 0, blockers, warnings };
+  return out;
+}
+
+/**
+ * Whether the current phase's gate can be passed, and what is stopping it.
+ *
+ * Derived from `gateRequirements` rather than computed a second time: two
+ * implementations of "what does this gate need" is exactly how a panel ends
+ * up disagreeing with the button on it.
+ *
+ * @returns {{ ok: boolean, blockers: string[], warnings: string[] }}
+ */
+export function gatePrecondition(app, process, initiative, gateId) {
+  const requirements = gateRequirements(app, process, initiative, gateId);
+  const of = (state) => requirements.filter((r) => r.state === state).map((r) => r.text);
+  const blockers = of('blocker');
+  return { ok: blockers.length === 0, blockers, warnings: of('warning') };
 }
 
 /** Snapshot everything an approved figure depends on, so it can never move. */

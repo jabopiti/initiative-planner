@@ -113,6 +113,45 @@ test('a gate requiring estimates needs every costed phase, not just its own', ()
   assert.equal(L.gatePrecondition(app, process, initiative, gateId).ok, true);
 });
 
+test('gateRequirements reports what a gate needs, met items included', () => {
+  // The panel asks a different question than passGate does: it has to say
+  // what the gate is *for*, not only what is wrong with it. A requirement
+  // that is satisfied still has to appear, and has to carry enough shape for
+  // the interface to offer the control that settles it.
+  const { app, process, teamId, people } = setup(RICH);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+  const gateId = 'g_discover';
+  const gate = E.phaseForGate(process, gateId).gate;
+
+  const fresh = L.gateRequirements(app, process, initiative, gateId);
+  const checklist = fresh.filter((r) => r.kind === 'checklist');
+  assert.equal(checklist.length, (gate.checklist ?? []).length, 'one per checklist item');
+  assert.ok(checklist.every((r) => r.state === 'blocker'), 'items start unresolved');
+  assert.ok(checklist.every((r) => gate.checklist.some((item) => item.id === r.itemId)),
+    'each names the item it is about, so a control can be bound to it');
+
+  setChecklist(process, initiative, gateId, 'green');
+  const resolved = L.gateRequirements(app, process, initiative, gateId);
+  assert.ok(resolved.filter((r) => r.kind === 'checklist').every((r) => r.state === 'met'),
+    'a satisfied requirement is reported as met, not dropped');
+  assert.deepEqual(L.gatePrecondition(app, process, initiative, gateId).blockers, [],
+    'and the derived precondition agrees');
+
+  // An unestimated phase names the phases to go to, not just the trouble.
+  const estimates = L.gateRequirements(
+    app, process, initiative, E.gateForPhase(process, 'shape').id,
+  ).find((r) => r.kind === 'estimates');
+  assert.ok(estimates, 'a gate requiring estimates carries that requirement');
+  assert.equal(estimates.state, 'blocker');
+  assert.deepEqual([...estimates.phaseIds].sort(), [...E.costedPhaseIds(process)].sort());
+
+  estimateAll(app, process, initiative, people[0]);
+  const met = L.gateRequirements(app, process, initiative, E.gateForPhase(process, 'shape').id)
+    .find((r) => r.kind === 'estimates');
+  assert.equal(met.state, 'met');
+  assert.deepEqual(met.phaseIds, [], 'nothing left to go and fix');
+});
+
 test('a red checklist item blocks; amber warns but passes; items start red', () => {
   const { app, process, teamId, people } = setup(RICH);
   const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });

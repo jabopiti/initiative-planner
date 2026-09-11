@@ -78,6 +78,8 @@
      means — deriving it rather than repeating a hue keeps a rebrand honest. */
   --color-now-tint: var(--color-accent-tint);
   --color-band: hsl(220 14% 90%);
+  /* The modal's backdrop: the page dimmed, not a colour of its own. */
+  --color-scrim: hsl(220 20% 10% / 0.4);
   --color-spare-tint: hsl(220 14% 96%);
 
   --chart-1: hsl(232 62% 56%);
@@ -182,6 +184,7 @@
   --bar-height: 1.75rem;
   --swatch: 0.75rem;
   --popover-max: 22rem;
+  --dialog-max: 32rem;
   --bars-height: 11rem;
   --cap-min: 3.25rem;
   --scroller-tall: 28rem;
@@ -317,6 +320,16 @@
 
 * {
   box-sizing: border-box;
+}
+
+/*
+ * `hidden` is a state, and a component setting its own `display` beats the
+ * UA's rule for it silently. Declared once here so no component has to
+ * remember — the skip dialog's error message was showing on open because
+ * `.field-message` set `display: block`.
+ */
+[hidden] {
+  display: none !important;
 }
 
 body {
@@ -1003,23 +1016,23 @@ h3,
 
 .row-link:focus-visible::after,
 .card-link:focus-visible::after {
-  outline: 2px solid var(--color-accent);
-  outline-offset: -2px;
+  outline: var(--size-thick) solid var(--color-accent);
+  outline-offset: calc(-1 * var(--size-thick));
 }
 
 .field--warn {
-  border-color: var(--color-warn);
+  border-color: var(--color-danger);
 }
 
 .field--warn:focus-visible {
-  outline-color: var(--color-warn);
+  outline-color: var(--color-danger);
 }
 
 .field-message {
   display: block;
-  font-size: var(--text-micro);
-  color: var(--color-warn);
-  margin-top: var(--space-2xs);
+  font-size: var(--text-xs);
+  color: var(--color-danger);
+  margin-top: var(--space-1);
 }
 
 /* Prevent controls from being swallowed by the stretched link */
@@ -1068,17 +1081,6 @@ h3,
   --cell-bg: var(--color-amber-tint);
 }
 
-.check--red {
-  --cell-bg: var(--color-warn-tint);
-}
-
-.check--amber {
-  --cell-bg: var(--color-amber-tint);
-}
-
-.check--green {
-  --cell-bg: var(--color-ok-tint);
-}
 
 .row--live > td {
   border-top: var(--size-thick) solid var(--color-line);
@@ -1131,9 +1133,9 @@ h3,
 
 .scroller__hint {
   text-align: right;
-  padding: var(--space-2xs) var(--space-xs);
+  padding: var(--space-1) var(--space-2);
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--motion-base) var(--ease-standard);
   pointer-events: none;
   background: var(--color-surface);
   position: sticky;
@@ -1216,11 +1218,99 @@ h3,
   max-width: var(--measure);
 }
 
-.issues--blocker,
-.issues--warning {
-  margin: var(--space-2) 0;
-  padding-left: var(--space-4);
+/*
+ * THE GATE PANEL — three parts, in reading order: what state the gate is in,
+ * what it needs, and what can be done about it.
+ *
+ * The rule between them is the separation. They are not three panels: one
+ * gate is one thing, and a reader moves down it once. The actions part is
+ * last and is the only one holding controls that change the process.
+ */
+.gate__part + .gate__part {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: var(--size-border) solid var(--color-line-soft);
 }
+
+.gate__part--actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+/*
+ * A REQUIREMENT — one thing this gate needs, with the control that settles
+ * it on the same row. The state is carried by the mark's colour and by the
+ * glyph, so it survives both a greyscale print and a reader who does not
+ * separate the two greens.
+ */
+.reqs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.req {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: var(--size-border) solid var(--color-line-soft);
+}
+
+.req:first-child {
+  border-top: none;
+}
+
+.req__mark {
+  display: flex;
+  padding-top: var(--space-half);
+}
+
+.req__text {
+  margin: 0;
+  font-weight: var(--weight-medium);
+}
+
+.req__body {
+  min-width: 0;
+  max-width: var(--measure);
+}
+
+.req__body .field-inline {
+  margin-top: var(--space-2);
+}
+
+.req__fix {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
+
+.req--blocker .req__mark {
+  color: var(--color-danger);
+}
+
+.req--warning .req__mark {
+  color: var(--color-amber);
+}
+
+/* Met is settled, so it recedes: the list is read for what is left. */
+.req--met .req__mark {
+  color: var(--color-ok);
+}
+
+.req--met .req__text {
+  color: var(--color-muted);
+  font-weight: var(--weight-regular);
+}
+
 
 /*
  * CARD and TILE — a grid of one-line summaries. A tile shows a figure; a
@@ -1469,6 +1559,46 @@ h3,
 .popover__list {
   margin: 0 0 var(--space-2);
   padding-left: var(--space-4);
+}
+
+.popover__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+}
+
+.popover__actions .btn {
+  justify-content: flex-start;
+}
+
+/*
+ * DIALOG — the one modal, for a decision that cannot proceed without an
+ * answer. Raised like a popover, but it is not dismissed by a click
+ * elsewhere: that is the whole reason it is not one.
+ */
+#dialog {
+  max-width: var(--dialog-max);
+  width: calc(100% - var(--space-6));
+  color: var(--color-fg);
+  background: var(--color-surface-raised);
+  border: var(--size-border) solid var(--color-line);
+  border-left: var(--size-thick) solid var(--color-accent);
+  border-radius: var(--radius-none);
+  box-shadow: var(--elevation-raised);
+  padding: var(--space-4);
+}
+
+#dialog::backdrop {
+  background: var(--color-scrim);
+}
+
+#dialog h2 {
+  margin-top: 0;
+}
+
+#dialog .actions {
+  margin-top: var(--space-4);
 }
 
 /*

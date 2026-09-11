@@ -34,7 +34,8 @@ here — this table is status only.
 | §4.3 Settings — bulk entry for rates/working days | **Landed** |
 | §4.4 Initiative detail — description/notes, delete, period validation | **Landed** |
 | §4.4 Initiative detail — panel structure and the process rail | **Landed** |
-| §4.4 Initiative detail — remaining items (gate panel, sticky bar, allocation table, wizard step 2, month table) | In progress — **next** |
+| §4.4 Initiative detail — the gate panel, in three parts | **Landed** |
+| §4.4 Initiative detail — remaining items (sticky bar, allocation table, wizard step 2, month table) | In progress — **next** |
 | §4.5 Overviews, capacity, charts | Not started |
 | §4.6 Copy, states, first run, accessibility | Not started |
 | §4.7 File System Access persistence | Not started |
@@ -865,9 +866,68 @@ clicking Validation lands its panel 13px below the header rather than
 under it, the rail stacks to one segment per row on a narrow viewport, and
 the wizard's shared phase panels still render unchanged.
 
-**Not yet landed:** the three-part gate panel restructure, the sticky
-summary bar, the allocation table's column drop plus D2 seeding, the
-wizard's step-2 ending, and the month table's totals row.
+**Landed — the gate panel, in three parts.**
+
+State, then what is needed, then what you can do — separated by rules, in
+that reading order. The first part is the gate's own prose plus a badge
+saying either how many blockers it has or that it is ready to pass. The
+second is the requirements list. The third is one primary button, the gate
+date, and a menu.
+
+The requirements list is the piece that needed a change underneath it.
+`gatePrecondition` returned two arrays of sentences, so the panel could
+only print them — which is why the same checklist item appeared twice on
+the old panel, once as the sentence "“Ready to release” is not resolved"
+and again as a table row with the control that would resolve it.
+`L.gateRequirements` now returns every requirement the gate has, **met ones
+included**, each with a `kind` and its state; `gatePrecondition` is derived
+from it in four lines, so there is still exactly one implementation of what
+a gate needs and the existing tests did not move. The panel renders one row
+per requirement with the control that settles it: a checklist item carries
+its status select and its note, and the two that cannot be settled in a
+sentence-sized control — an unestimated phase, a month without an actual —
+carry the trip to where they can. Met requirements recede rather than
+disappear, because a list showing only what is wrong cannot say what the
+gate is *for*.
+
+Skipping moved out of the panel and into a modal dialog, reached through
+the menu. The permanently-visible skip box was noise on a gate you are
+trying to pass, and a popover is the wrong container for the opposite
+reason: it dismisses on a click anywhere else, which is exactly what must
+not happen to a half-typed required reason. A native `<dialog>` with
+`showModal()` brings the focus trap, Escape, the inert page and focus
+restored to the opener without any of it being written here — the app's
+first and, for now, only modal. The missing reason now says so in a message
+under the field instead of overwriting the placeholder with an error, which
+was §4.6's "a placeholder that reads as three things" in miniature.
+
+**Two bugs found while building it.** `.field-message` and `.field--warn`
+referenced `--color-warn`, `--text-micro` and `--space-2xs`, none of which
+exist — leftovers from before the design-system row, so the error message
+had no colour, size or spacing of its own. And the message rendered
+*visible on open* despite its `hidden` attribute, because `.field-message`
+sets `display: block` and beats the UA rule silently; there is now a base
+`[hidden] { display: none !important }` so no component has to remember.
+`.scroller__hint` had the same stale-token problem and is fixed with them.
+
+**Still open from §2.6:** the gate-date field carries no `data-act`, so it
+is read by query at click time and resets to today whenever that region
+re-renders — which now includes resolving a checklist item. It works, and
+it is a smaller thing than it was before the restructure, but it is not
+fixed.
+
+Verified in a real browser against `examples/exports/demo.json`: typing a
+checklist note does not rebuild the input or move the caret; resolving an
+item rebuilds its row and leaves focus on the replacement select with the
+note intact; the menu positions off its trigger; the dialog traps focus,
+refuses an empty reason with the field marked and the message shown, closes
+on Cancel and on Escape with focus back on the button that opened it, and a
+completed skip advances the rail. Checked at 1280px and 420px in light and
+dark.
+
+**Not yet landed:** the sticky summary bar, the allocation table's column
+drop plus D2 seeding, the wizard's step-2 ending, and the month table's
+totals row.
 
 ### 4.5 Overviews, dashboard, capacity and charts
 

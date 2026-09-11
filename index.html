@@ -42,6 +42,12 @@
          content has nothing focusable of its own. -->
     <div id="popover" role="dialog" aria-modal="false" tabindex="-1" hidden></div>
 
+    <!-- The app's one modal. A dialog rather than a popover only where a
+         decision cannot proceed without an answer: native showModal() gives
+         the focus trap, Escape and the backdrop, and — unlike a popover — a
+         click elsewhere does not throw away what has been typed. -->
+    <dialog id="dialog" aria-labelledby="dialog-heading"></dialog>
+
     <!-- One transient confirmation at a time, announced politely. -->
     <div id="toast" role="status" aria-live="polite"></div>
 

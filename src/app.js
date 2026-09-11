@@ -30,7 +30,7 @@ import { phaseTotalsMarkup, grandMarkup } from './render/phase-panel.js';
 
 import { renderPortfolio } from './pages/portfolio.js';
 import { renderInitiatives } from './pages/initiatives.js';
-import { renderInitiative, bandPanelMarkup } from './pages/initiative.js';
+import { renderInitiative, bandPanelMarkup, gateMenuMarkup, skipDialogMarkup } from './pages/initiative.js';
 import { renderWizard } from './pages/wizard.js';
 import { renderTeams } from './pages/teams.js';
 import { renderTeam, capacityCellMarkup } from './pages/team.js';
@@ -301,6 +301,42 @@ function trapPopoverTab(event) {
     event.preventDefault();
     if (first instanceof HTMLElement) first.focus();
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * The modal dialog
+ * ------------------------------------------------------------------ */
+
+/**
+ * The app's one modal, and the only place it is used is a decision that
+ * cannot proceed without an answer (skipping a gate needs a reason).
+ *
+ * A native `<dialog>` rather than the popover above: `showModal()` brings the
+ * focus trap, Escape, the inert page behind it and focus restored to whatever
+ * opened it, none of which has to be written here. The property that decided
+ * it, though, is the one a popover has backwards — a click anywhere else
+ * dismisses a popover, which is right for something you are reading and wrong
+ * for something you are half-way through typing.
+ */
+function openDialog(markup) {
+  const node = document.getElementById('dialog');
+  if (!(node instanceof HTMLDialogElement)) return;
+  node.innerHTML = markup;
+  node.showModal();
+  const focusable = node.querySelector(FOCUSABLE);
+  if (focusable instanceof HTMLElement) focusable.focus();
+}
+
+/**
+ * Emptied here rather than on the element's own `close` event: Escape closes
+ * a native dialog without passing through this function, so the keyboard path
+ * calls it too and one place does the clearing either way.
+ */
+function closeDialog() {
+  const node = document.getElementById('dialog');
+  if (!(node instanceof HTMLDialogElement)) return;
+  if (node.open) node.close();
+  node.innerHTML = '';
 }
 
 /* ------------------------------------------------------------------ *
@@ -829,24 +865,47 @@ function onClick(event) {
         date instanceof HTMLInputElement && date.value ? date.value : today());
       return commit();
     }
+    case 'gate-menu':
+      return openPopover(trigger, gateMenuMarkup(id));
+    case 'skip-gate-open':
+      // Out of the menu and into the dialog: closing first is what puts the
+      // focus the native dialog restores on the button that opened the menu.
+      closePopover();
+      return openDialog(skipDialogMarkup(id, trigger.dataset.gate));
+    case 'dialog-cancel':
+      return closeDialog();
     case 'skip-gate': {
       const initiative = findInitiative(id);
       const field = document.querySelector('[data-field="skip-reason"]');
       const reason = field instanceof HTMLInputElement ? field.value.trim() : '';
       if (!reason) {
-        // Refusing silently would look broken; say what is missing.
+        // Refusing silently would look broken; say what is missing, as a
+        // message under the field rather than by overwriting its placeholder
+        // with an error — a placeholder is an example, not a state (§4.6).
+        const message = document.querySelector('[data-note="skip-error"]');
+        if (message instanceof HTMLElement) message.hidden = false;
         if (field instanceof HTMLInputElement) {
-          field.placeholder = 'A reason is required before a gate can be skipped';
+          field.classList.add('field--warn');
           field.focus();
         }
         return undefined;
       }
-      const date = document.querySelector('[data-field="gate-date"]');
+      const date = document.querySelector('[data-field="skip-date"]');
       L.skipGate(app, PROCESS, initiative, trigger.dataset.gate, reason,
         date instanceof HTMLInputElement && date.value ? date.value : today());
-      return commit();
+      closeDialog();
+      commit();
+      // The dialog hands focus back to the button that opened it, which the
+      // re-render has just removed — so put it on the page rather than
+      // letting it fall to <body>, where the next Tab starts from the top of
+      // the browser chrome.
+      document.getElementById('root')?.focus();
+      return undefined;
     }
     case 'reopen':
+      // Reachable from inside the gate menu, which a click on its own items
+      // does not dismiss.
+      closePopover();
       L.reopen(PROCESS, findInitiative(id));
       return commit();
 
@@ -1047,10 +1106,20 @@ function onChange(event) {
       L.setPhasePeriod(initiative, target.dataset.phase, start || null, end || null);
       return commit();
     }
-    case 'checklist-status':
+    case 'checklist-status': {
+      // Resolving an item changes what the requirement says about itself, so
+      // the row is rebuilt — and the control that did it goes with it. Put
+      // focus back on its replacement, or working down a checklist by
+      // keyboard drops you at the top of the page after every item.
       L.setChecklistStatus(findInitiative(id), target.dataset.gate, target.dataset.item,
         target.value);
-      return commit();
+      commit();
+      const restored = document.querySelector(
+        `[data-act="checklist-status"][data-item="${target.dataset.item}"]`,
+      );
+      if (restored instanceof HTMLSelectElement) restored.focus();
+      return undefined;
+    }
     case 'person-country':
       app.PEOPLE[id].countryId = target.value;
       return commit();
@@ -1183,6 +1252,7 @@ export function boot() {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       setNavOpen(false);
+      closeDialog();
       return closePopover();
     }
     if (event.key === 'Tab') trapPopoverTab(event);

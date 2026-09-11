@@ -151,7 +151,7 @@ than adopting a warmer tone, and the accent is whatever the brand pack says it i
   in both themes, so a surface reads as raised without a shadow. This
   separation is what lets a sticky table header and a frozen first column be
   legible over the rows behind them.
-- **Surface raised** — popovers and toasts only.
+- **Surface raised** — popovers, the toast and the dialog only.
 - **Foreground / muted / faint** — three text weights, in that order of
   emphasis. `muted` is for supporting prose; `faint` is for a placeholder or a
   dash standing in for an absent value.
@@ -198,9 +198,17 @@ Two levels, and the rule for choosing is not "how important is this".
 - **Flat** — everything anchored in the page: panels, cards, tiles, tables,
   fields, the header. Separated by rules and by the canvas/surface step. No
   shadow, ever.
-- **Raised** — things floating above the page that a click elsewhere
-  dismisses: popovers, the toast. Shadow plus the raised surface colour, since
-  a shadow alone barely reads in dark mode.
+- **Raised** — things floating above the page: popovers, the toast, and the
+  one modal dialog. Shadow plus the raised surface colour, since a shadow
+  alone barely reads in dark mode.
+
+The dialog is the exception to "a click elsewhere dismisses it", and that is
+the whole reason it exists as a separate thing. It is used only where a
+decision cannot proceed without an answer — skipping a gate needs a reason —
+and there a click elsewhere would throw away what has been typed. Everything
+else that floats is a popover. A native `<dialog>` with `showModal()`, so the
+focus trap, Escape, the inert page behind it and focus restored to whatever
+opened it all come from the platform rather than from this codebase.
 
 ## Motion
 
@@ -268,7 +276,14 @@ alone on a destructive action — Remove and Delete keep their words.
 Documented in the stylesheet at the block that defines each one, and used
 everywhere rather than re-invented per page: button (default, primary, danger,
 ghost, small, icon-only), field, select, table, panel, card, tile, badge,
-banner, popover, toast, empty state.
+banner, popover, dialog, toast, empty state.
+
+The panel is worth one line of its own, because it is the unit a long page is
+navigated by. Every panel carries an id, a heading, and an accessible name
+that matches the heading; a page that has more panels than fit on a screen
+builds a list of them once and lets its navigation, its rail and its jump menu
+all address that list, rather than each keeping its own idea of what the page
+contains.
 
 The badge is the one worth calling out. `.tag` previously carried at least
 seven unrelated meanings — a custom rate, a stranded membership, an
