@@ -7,6 +7,7 @@
 import { SCHEMA_VERSION, createApp } from './lifecycle.js';
 import { PROCESS } from './process.js';
 import { createMasterData } from './masterData.js';
+import { recomputeWindow } from './engine.js';
 import { serialize, exportFilename, parseImport, toTsv, toHtmlTable } from './transfer.js';
 
 export const STORAGE_KEY = 'initiative-planner/v1';
@@ -17,10 +18,18 @@ const SAVE_DEBOUNCE_MS = 200;
  * build doesn't read all fall back to fresh seed data — there is no migration
  * path, by design (AGENTS.md).
  *
+ * A dataset that loads successfully has its rolling four-year window
+ * extended forward to cover `now`, if it doesn't already (DESIGN §2, D9) —
+ * fresh seed data needs no such recompute, since `createMasterData()` builds
+ * its window against `now` already. The extension is written back
+ * immediately rather than waiting for the next edit, so it survives a reload
+ * even if nothing else changes first.
+ *
+ * @param {number} [now] current year, injectable for tests
  * @returns {{ app: object, reason: 'stored'|'empty'|'unreadable'|'schema'|'process' }}
  */
-export function load() {
-  const fresh = () => createApp(createMasterData(), PROCESS);
+export function load(now = new Date().getFullYear()) {
+  const fresh = () => createApp(createMasterData(now), PROCESS);
 
   let raw = null;
   try {
@@ -44,6 +53,7 @@ export function load() {
   if (stored.processId !== PROCESS.id) {
     return { app: fresh(), reason: 'process' };
   }
+  if (recomputeWindow(stored, now)) saveNow(stored);
   return { app: stored, reason: 'stored' };
 }
 

@@ -4,9 +4,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createMasterData, trackedYears } from '../src/masterData.js';
+import { createMasterData } from '../src/masterData.js';
 import * as E from '../src/engine.js';
 import { SIMPLE, RICH } from './processes.mjs';
+
+const { trackedYears } = E;
 
 const NOW = 2026;
 const app = () => ({ ...createMasterData(NOW), INITIATIVES: [] });
@@ -156,6 +158,55 @@ test('a backfilled month costs against its own year, not the current one', () =>
   const days = E.workingDaysInMonth(country, `${lastYear}-03`);
   const expected = days * 1 * a.ROLES[person.roleId].factor * country.byYear[lastYear].rate;
   assert.equal(cost, expected);
+});
+
+/* -------------------------------------------------- the rolling window (D9) */
+
+test('the window rolls forward, seeding new years from the nearest existing one, never zero', () => {
+  const a = app();
+  const country = Object.values(a.COUNTRIES)[0];
+  const lastTrackedYear = trackedYears(NOW).at(-1);
+  const nextYear = lastTrackedYear + 1;
+
+  const changed = E.recomputeWindow(a, NOW + 1);
+  assert.equal(changed, true);
+  assert.ok(country.byYear[nextYear], 'a new year appears once the window advances past it');
+  assert.deepEqual(country.byYear[nextYear], country.byYear[lastTrackedYear],
+    'seeded from the year nearest to it, not from zero');
+});
+
+test('a custom-rate person\'s byYear rolls forward the same way', () => {
+  const a = app();
+  const person = customPerson(a);
+  const lastTrackedYear = trackedYears(NOW).at(-1);
+  const nextYear = lastTrackedYear + 1;
+
+  E.recomputeWindow(a, NOW + 1);
+  assert.equal(person.customRole.byYear[nextYear], person.customRole.byYear[lastTrackedYear]);
+});
+
+test('a year already present is left untouched, even one edited away from the seed', () => {
+  const a = app();
+  const country = Object.values(a.COUNTRIES)[0];
+  const firstTrackedYear = trackedYears(NOW)[0];
+  country.byYear[firstTrackedYear].rate = 999999;
+
+  E.recomputeWindow(a, NOW);
+  assert.equal(country.byYear[firstTrackedYear].rate, 999999);
+});
+
+test('a year that has fallen out of the window is kept, not deleted', () => {
+  const a = app();
+  const country = Object.values(a.COUNTRIES)[0];
+  const firstTrackedYear = trackedYears(NOW)[0];
+
+  E.recomputeWindow(a, NOW + 3);
+  assert.ok(country.byYear[firstTrackedYear], 'an old actual must still be able to reproduce its rate');
+});
+
+test('recompute against an unchanged window reports nothing changed', () => {
+  const a = app();
+  assert.equal(E.recomputeWindow(a, NOW), false);
 });
 
 /* -------------------------------------------------- phase cost */

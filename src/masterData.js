@@ -1,10 +1,15 @@
 /**
- * BRAND PACK — contract version 1
+ * BRAND PACK — contract version 2
  *
  * The only brand-specific source file in this repository (AGENTS.md). A
  * downstream brand build replaces it wholesale; nothing else should need to
  * change. Bump the contract version whenever the *shape* below changes, so a
  * brand build can detect drift instead of silently seeding stale data.
+ *
+ * v2: `WINDOW_BEFORE`/`WINDOW_AFTER`/`trackedYears()` moved to `engine.js`
+ * (D9) — the rolling window is process logic a build recomputes on every
+ * load, not seed data a brand build owns. This file now imports
+ * `trackedYears` to seed against, rather than defining it.
  *
  * Everything here is fictional placeholder content. The engine must never
  * depend on these concrete values — only on their shape.
@@ -15,7 +20,7 @@
  * so the figures are realistic rather than a round test-friendly number,
  * and so they correctly differ year to year as weekday alignment shifts.
  */
-import { weekdaysInMonth } from './engine.js';
+import { weekdaysInMonth, trackedYears } from './engine.js';
 
 /** A rough public-holiday calendar: reduction off each month's weekdays. */
 const NORTH_HOLIDAYS = [2, 1, 1, 2, 2, 0, 0, 3, 0, 1, 1, 4];
@@ -24,21 +29,6 @@ const SOUTH_HOLIDAYS = [1, 0, 2, 1, 3, 1, 0, 2, 1, 0, 2, 3];
 /** @param {number} year @param {number[]} holidays reduction per month */
 function workingDaysByMonth(year, holidays) {
   return holidays.map((reduction, month) => Math.max(0, weekdaysInMonth(year, month) - reduction));
-}
-
-/** Years the rolling window covers: last year, this year, the next two. */
-export const WINDOW_BEFORE = 1;
-export const WINDOW_AFTER = 2;
-
-/**
- * The years currently tracked, oldest first.
- * @param {number} [now] current year, injectable for tests
- * @returns {number[]}
- */
-export function trackedYears(now = new Date().getFullYear()) {
-  const years = [];
-  for (let y = now - WINDOW_BEFORE; y <= now + WINDOW_AFTER; y += 1) years.push(y);
-  return years;
 }
 
 /**

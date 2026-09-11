@@ -59,6 +59,28 @@ test('a stored dataset comes back as it went in', () => {
   assert.equal(reloaded.app.INITIATIVES[0].name, 'Kept');
 });
 
+test('a stored dataset behind the window is extended forward and the extension persists (D9)', () => {
+  const NOW = 2026;
+  const { app } = store.load(NOW);
+  store.saveNow(app);
+
+  const country = Object.values(app.COUNTRIES)[0];
+  const lastTrackedYear = Math.max(...Object.keys(country.byYear).map(Number));
+  assert.equal(country.byYear[lastTrackedYear + 1], undefined, 'not tracked yet');
+
+  const { app: rolled } = store.load(NOW + 1);
+  const rolledCountry = rolled.COUNTRIES[country.id];
+  assert.deepEqual(
+    rolledCountry.byYear[lastTrackedYear + 1],
+    rolledCountry.byYear[lastTrackedYear],
+    'the new year is seeded from the one nearest to it',
+  );
+
+  // The extension must have been written back, not just held in memory.
+  const reloaded = store.load(NOW + 1);
+  assert.ok(reloaded.app.COUNTRIES[country.id].byYear[lastTrackedYear + 1], 'survives without a further edit');
+});
+
 test('an unknown schema version falls back to seed data, never a migration', () => {
   const map = stubStorage();
   map.set(store.STORAGE_KEY, JSON.stringify({ schemaVersion: 999, PEOPLE: {} }));
