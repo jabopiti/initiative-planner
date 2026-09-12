@@ -8,8 +8,17 @@ import { PROCESS } from '../process.js';
 import { app, view, navigate, commit, commitQuietly, openPopover, withUndo } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, badge } from '../render/components.js';
+import { pageHead, scroller, empty, badge, panel, railNav } from '../render/components.js';
 import { chartYear, monthsOfYear, yearNav, stackedBarsMarkup } from '../render/charts.js';
+
+/** Every panel on this page, in the order it appears — the rail nav's list. */
+const TEAM_PANELS = [
+  { id: 'panel-name', label: 'Name' },
+  { id: 'panel-roster', label: 'Roster' },
+  { id: 'panel-initiatives', label: 'Initiatives' },
+  { id: 'panel-capacity', label: 'Capacity' },
+  { id: 'panel-run-rate', label: 'Cost run rate' },
+];
 
 export function renderTeam() {
   if (view.params.id === 'new') return renderTeamDraft();
@@ -77,56 +86,64 @@ export function renderTeam() {
       ${raw(team.active ? '' : html`<p class="panel banner banner--alert warn">
         ${raw(icon('warning', 'icon--lead'))}This team is deactivated.</p>`)}
 
-      <div class="panel">
-        <h2>Name</h2>
-        <div class="fields"><label class="field-row"><span>Team name</span>
-          <input class="field" data-act="team-name" data-id="${team.id}"
-            value="${team.name}" /></label></div>
-      </div>
+      <div class="rail-layout">
+        ${raw(railNav(TEAM_PANELS))}
+        <div class="rail-sections panel-stack">
+          ${raw(panel({
+            id: 'panel-name',
+            title: 'Name',
+            body: html`<div class="fields"><label class="field-row"><span>Team name</span>
+              <input class="field" data-act="team-name" data-id="${team.id}"
+                value="${team.name}" /></label></div>`,
+          }))}
 
-      <div class="panel">
-        <h2>Roster</h2>
-        <p class="muted">A share is how much of a person this team holds. Editing it here is
-          the same edit as editing it on the person — there is one record, seen from two
-          sides. People are added by assigning someone who already exists, and removed by
-          leaving the team, never by deletion.</p>
-        ${raw(roster.length || joinable.length
-          // The inline add-row lives inside this table, so a team with an
-          // empty roster still needs the table rendered whenever there is
-          // anyone left to add — hiding it behind the empty state would hide
-          // the only control that fixes it (§4.6).
-          ? scroller('Team roster', html`<table class="grid">
-              <thead><tr><th>Person</th><th>Role</th><th>Share %</th><th>Capacity %</th>
-                <th></th><th></th></tr></thead>
-              <tbody>
-                ${raw(rosterRows)}
-                ${raw(joinable.length ? html`<tr data-id="new">
-                  <td><select class="field field--select" data-act="add-member" data-id="${team.id}">
-                    <option value="" disabled selected>Add to team…</option>
-                    ${raw(joinable.map((p) => html`<option value="${p.id}">${p.name}</option>`).join(''))}
-                  </select></td>
-                  <td colspan="5"></td>
-                </tr>` : '')}
-              </tbody></table>`)
-          : empty('Nobody to add — every active person already belongs here, or there are '
-              + 'no active people yet.'))}
-      </div>
+          ${raw(panel({
+            id: 'panel-roster',
+            title: 'Roster',
+            body: html`<p class="muted">A share is how much of a person this team holds. Editing
+                it here is the same edit as editing it on the person — there is one record, seen
+                from two sides. People are added by assigning someone who already exists, and
+                removed by leaving the team, never by deletion.</p>
+              ${raw(roster.length || joinable.length
+                // The inline add-row lives inside this table, so a team with an
+                // empty roster still needs the table rendered whenever there is
+                // anyone left to add — hiding it behind the empty state would hide
+                // the only control that fixes it (§4.6).
+                ? scroller('Team roster', html`<table class="grid">
+                    <thead><tr><th>Person</th><th>Role</th><th>Share %</th><th>Capacity %</th>
+                      <th></th><th></th></tr></thead>
+                    <tbody>
+                      ${raw(rosterRows)}
+                      ${raw(joinable.length ? html`<tr data-id="new">
+                        <td><select class="field field--select" data-act="add-member" data-id="${team.id}">
+                          <option value="" disabled selected>Add to team…</option>
+                          ${raw(joinable.map((p) => html`<option value="${p.id}">${p.name}</option>`).join(''))}
+                        </select></td>
+                        <td colspan="5"></td>
+                      </tr>` : '')}
+                    </tbody></table>`)
+                : empty('Nobody to add — every active person already belongs here, or there are '
+                    + 'no active people yet.'))}`,
+          }))}
 
-      <div class="panel">
-        <h2>Initiatives</h2>
-        ${raw(initiatives.length
-          ? scroller('Initiatives owned by this team', html`<table class="grid">
-              <thead><tr><th>Name</th><th>Phase</th><th>Status</th><th>Total</th></tr></thead>
-              <tbody>${raw(initiativeRows)}</tbody></table>`)
-          : empty('This team has no initiatives yet. Create one from Initiatives, with this '
-              + 'team selected.'))}
-        ${raw(deletable.ok
-          ? ''
-          : html`<p class="muted">This team cannot be deleted while it owns initiatives.</p>`)}
-      </div>
+          ${raw(panel({
+            id: 'panel-initiatives',
+            title: 'Initiatives',
+            body: html`${raw(initiatives.length
+                ? scroller('Initiatives owned by this team', html`<table class="grid">
+                    <thead><tr><th>Name</th><th>Phase</th><th>Status</th><th>Total</th></tr></thead>
+                    <tbody>${raw(initiativeRows)}</tbody></table>`)
+                : empty('This team has no initiatives yet. Create one from Initiatives, with this '
+                    + 'team selected.'))}
+              ${raw(deletable.ok
+                ? ''
+                : html`<p class="muted">This team cannot be deleted while it owns initiatives.</p>`)}`,
+          }))}
 
-      ${raw(capacityGridMarkup(team))}
-      ${raw(runRateMarkup(team))}`,
+          ${raw(capacityGridMarkup(team))}
+          ${raw(runRateMarkup(team))}
+        </div>
+      </div>`,
   );
 }
 
@@ -169,7 +186,7 @@ function capacityGridMarkup(team) {
   );
 
   if (roster.length === 0) {
-    return html`<div class="panel"><h2>Capacity</h2>
+    return html`<div class="panel" id="panel-capacity"><h2>Capacity</h2>
       ${raw(empty('Nobody active in this team yet.'))}</div>`;
   }
 
@@ -215,7 +232,7 @@ function capacityGridMarkup(team) {
     })
     .join('');
 
-  return html`<div class="panel">
+  return html`<div class="panel" id="panel-capacity">
     <h2>Capacity</h2>
     ${raw(yearNav('Allocation against each member’s share of this team.'))}
     <p class="muted">Over-allocation past a member’s share is flagged, never blocked. Click a
@@ -273,7 +290,7 @@ function runRateMarkup(team) {
   const data = E.teamRunRate(app, team.id, monthsOfYear(chartYear()));
   const yearTotal = data.reduce((t, row) => t + row.total, 0);
 
-  return html`<div class="panel">
+  return html`<div class="panel" id="panel-run-rate">
     <h2>Cost run rate</h2>
     ${raw(yearNav(`${F.money(yearTotal)} across ${chartYear()}.`))}
     ${raw(yearTotal === 0

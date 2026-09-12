@@ -14,7 +14,7 @@ import {
 } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller } from '../render/components.js';
+import { pageHead, scroller, railNav } from '../render/components.js';
 import { processSectionMarkup } from '../render/process.js';
 
 const SETTINGS_SECTIONS = [
@@ -29,11 +29,6 @@ const SETTINGS_SECTIONS = [
 export function renderSettings() {
   const section = view.params.section ?? SETTINGS_SECTIONS[0].id;
 
-  const nav = SETTINGS_SECTIONS.map(
-    (item) => html`<button type="button" data-act="section" data-section="${item.id}"
-      ${raw(item.id === section ? 'aria-current="location"' : '')}>${item.label}</button>`,
-  ).join('');
-
   const sections = SETTINGS_SECTIONS.map(
     (item) => html`<section id="settings-section-${item.id}" class="panel"
       aria-labelledby="settings-heading-${item.id}">
@@ -45,9 +40,9 @@ export function renderSettings() {
   fill(
     'root',
     html`${raw(pageHead({ title: 'Settings' }))}
-      <div class="settings-layout">
-        <nav class="settings-nav" aria-label="Settings sections">${raw(nav)}</nav>
-        <div class="settings-sections">${raw(sections)}</div>
+      <div class="rail-layout">
+        ${raw(railNav(SETTINGS_SECTIONS, { activeId: section, act: 'section', attr: 'section' }))}
+        <div class="rail-sections">${raw(sections)}</div>
       </div>`,
   );
 }

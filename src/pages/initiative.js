@@ -5,9 +5,11 @@ import * as F from '../format.js';
  *
  * This is the longest page in the app — five screens of panels that all move
  * when one allocation percentage changes. Two devices hold it together: the
- * rail across the top, which says where the initiative is and jumps to the
- * panel behind each step, and `panelsFor`, the one list of panels that the
- * rail and the jump menu both address.
+ * process rail across the top, which says where the initiative is and jumps
+ * to the panel behind each step, and the left-hand section nav (a page-jump
+ * rail, sticky, highlighted by scroll position rather than a route since
+ * this page has none per panel) — both address panels through `panelsFor`,
+ * the one list of every panel on the page.
  */
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
@@ -19,7 +21,7 @@ import {
 } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, badge, panel } from '../render/components.js';
+import { pageHead, scroller, empty, badge, panel, railNav } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
 import { phasePanel } from '../render/phase-panel.js';
 
@@ -43,9 +45,12 @@ export function renderInitiative() {
     }))}
       ${raw(deleting ? deleteConfirmMarkup(initiative) : '')}
       ${raw(stepperMarkup(initiative))}
-      <div class="panel-stack">${raw(panelsFor(initiative)
-        .map((entry) => entry.render(initiative))
-        .join(''))}</div>
+      <div class="rail-layout">
+        ${raw(railNav(panelsFor(initiative)))}
+        <div class="rail-sections panel-stack">${raw(panelsFor(initiative)
+          .map((entry) => entry.render(initiative))
+          .join(''))}</div>
+      </div>
       <div class="summary" data-calc="summary" role="region"
         aria-label="Totals, approval track and what is next"
         aria-live="polite" aria-atomic="true">${raw(summaryBarMarkup(initiative))}</div>`,
@@ -351,21 +356,7 @@ export function summaryBarMarkup(initiative) {
             data-act="panel" data-panel="panel-gate">${blockers
               ? `Clear ${blockers === 1 ? 'the blocker' : 'the blockers'}`
               : `Pass ${E.gateForPhase(PROCESS, initiative.phaseId).label}`}</button>`)}
-      <button type="button" class="btn" data-act="jump-menu" data-id="${initiative.id}"
-        aria-haspopup="menu">Jump to${raw(icon('chevron-down'))}</button>
     </div>`;
-}
-
-/** Every panel on this page, as somewhere to go. */
-export function jumpMenuMarkup(initiativeId) {
-  const initiative = app.INITIATIVES.find((i) => i.id === initiativeId);
-  const items = panelsFor(initiative)
-    .map((entry) => html`<button type="button" class="btn" data-act="panel"
-      data-panel="${entry.id}">${entry.label}</button>`)
-    .join('');
-
-  return html`<h3>On this page</h3>
-    <div class="popover__actions">${raw(items)}</div>`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -876,7 +867,6 @@ export const initiativeClickActions = {
     return commit();
   },
   'gate-menu': ({ trigger, id }) => openPopover(trigger, gateMenuMarkup(id)),
-  'jump-menu': ({ trigger, id }) => openPopover(trigger, jumpMenuMarkup(id)),
   // Out of the menu and into the dialog: closing first is what puts the
   // focus the native dialog restores on the button that opened the menu.
   'skip-gate-open': ({ trigger, id }) => {

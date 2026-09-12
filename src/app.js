@@ -401,6 +401,40 @@ function positionPopover() {
   node.style.top = `${Math.max(margin, top)}px`;
 }
 
+/**
+ * Highlight whichever panel is currently at the top of the viewport in a
+ * page's rail nav (`render/components.js`'s `railNav`, called with no
+ * `activeId`) — Initiative and Team detail have no per-panel route the way
+ * Settings does, so their "current" section is read back from scroll
+ * position instead of the address bar. A no-op on any page without such a
+ * nav, so it is safe to call from one scroll listener installed once
+ * (AGENTS.md) rather than wired per page.
+ */
+export function syncRailNav() {
+  const nav = document.querySelector('.rail-nav[data-scrollspy]');
+  if (!nav) return;
+  const buttons = Array.from(nav.querySelectorAll('button[data-panel]'))
+    .filter((el) => el instanceof HTMLElement);
+  if (buttons.length === 0) return;
+
+  const threshold = document.querySelector('.shell-header')?.getBoundingClientRect().bottom ?? 0;
+  let activeId = buttons[0].dataset.panel;
+  for (const button of buttons) {
+    const target = document.getElementById(button.dataset.panel);
+    if (target && target.getBoundingClientRect().top - threshold <= 1) activeId = button.dataset.panel;
+  }
+  // The last panel can be shorter than the viewport below it, in which case
+  // its top never reaches the threshold above — scrolling to the very
+  // bottom of the page is what "on the last panel" means in that case.
+  if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 1) {
+    activeId = buttons[buttons.length - 1].dataset.panel;
+  }
+  for (const button of buttons) {
+    if (button.dataset.panel === activeId) button.setAttribute('aria-current', 'location');
+    else button.removeAttribute('aria-current');
+  }
+}
+
 const FOCUSABLE = 'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 export function openPopover(trigger, markup) {
@@ -684,22 +718,25 @@ export function render() {
   // written back onto it rather than surviving in the DOM.
   renderNavToggle();
 
-  if (view.page === 'settings') return renderSettings();
-  if (view.page === 'people') return renderPeople();
-  if (view.page === 'person') return renderPerson();
-  if (view.page === 'capacity') return renderCapacity();
-  if (view.page === 'teams') return renderTeams();
-  if (view.page === 'team') return renderTeam();
-  if (view.page === 'initiatives') return renderInitiatives();
-  if (view.page === 'wizard') return renderWizard();
-  if (view.page === 'initiative') return renderInitiative();
-  if (view.page === 'portfolio') return renderPortfolio();
-
-  fill(
-    'root',
-    html`<h1>${current.label}</h1>
-      <p class="muted">Not built yet — this ${current.kind} page arrives in a later phase.</p>`,
-  );
+  if (view.page === 'settings') renderSettings();
+  else if (view.page === 'people') renderPeople();
+  else if (view.page === 'person') renderPerson();
+  else if (view.page === 'capacity') renderCapacity();
+  else if (view.page === 'teams') renderTeams();
+  else if (view.page === 'team') renderTeam();
+  else if (view.page === 'initiatives') renderInitiatives();
+  else if (view.page === 'wizard') renderWizard();
+  else if (view.page === 'initiative') renderInitiative();
+  else if (view.page === 'portfolio') renderPortfolio();
+  else {
+    fill(
+      'root',
+      html`<h1>${current.label}</h1>
+        <p class="muted">Not built yet — this ${current.kind} page arrives in a later phase.</p>`,
+    );
+  }
+  // A no-op on any page without a scroll-driven rail nav (Initiative, Team).
+  syncRailNav();
 }
 
 /**
@@ -1106,6 +1143,18 @@ export function boot() {
   // Fixed positioning does not track the trigger, so follow it explicitly.
   window.addEventListener('scroll', positionPopover, { passive: true, capture: true });
   window.addEventListener('resize', positionPopover);
+  // rAF-throttled: a raw scroll listener fires far more often than the rail
+  // nav's highlight needs to update.
+  let railNavRaf = null;
+  const scheduleSyncRailNav = () => {
+    if (railNavRaf) return;
+    railNavRaf = requestAnimationFrame(() => {
+      railNavRaf = null;
+      syncRailNav();
+    });
+  };
+  window.addEventListener('scroll', scheduleSyncRailNav, { passive: true });
+  window.addEventListener('resize', scheduleSyncRailNav);
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
   document.addEventListener('change', onFileChange);

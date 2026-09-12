@@ -61,6 +61,28 @@ export function panel({ id, title, mark = '', body, extraClass = '' }) {
 }
 
 /**
+ * The side rail (a sticky bar on narrow viewports) linking to every panel on
+ * a long page — Settings' own section nav, and Initiative/Team detail's
+ * jump-to-panel nav, are the same component (`styles.css`'s `.rail-nav`).
+ *
+ * Settings knows its current section from the route and passes `activeId`
+ * directly. Initiative and Team detail have no per-panel route — they omit
+ * `activeId` and get `data-scrollspy` instead, which app.js's `syncRailNav`
+ * (a single scroll listener installed once, per AGENTS.md) uses to toggle
+ * `aria-current` as the reader scrolls past each panel.
+ *
+ * @param {Array<{ id: string, label: string }>} items
+ * @param {{ activeId?: string, act?: string, attr?: string }} [opts]
+ */
+export function railNav(items, { activeId, act = 'panel', attr = 'panel' } = {}) {
+  const buttons = items.map((item) => html`<button type="button" data-act="${act}"
+    data-${attr}="${item.id}" ${raw(item.id === activeId ? 'aria-current="location"' : '')}
+    >${item.label}</button>`).join('');
+  return html`<nav class="rail-nav" aria-label="Page sections"
+    ${raw(activeId === undefined ? 'data-scrollspy' : '')}>${raw(buttons)}</nav>`;
+}
+
+/**
  * The region a wide table lives in.
  *
  * Focusable and named, because a region that scrolls and cannot be focused is
