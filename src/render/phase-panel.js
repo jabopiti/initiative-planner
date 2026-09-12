@@ -78,11 +78,13 @@ function seedSource(initiative, phaseId) {
  */
 function allocationRowsFor(initiative, phaseId, editable, at) {
   const phase = initiative.phases[phaseId];
+  const allocationByPerson = new Map(
+    phase.allocations.map((allocation) => [allocation.personId, allocation.allocationPct]),
+  );
 
   return allocationPeople(initiative, phase, editable, at)
     .map((person) => {
-      const allocationPct = phase.allocations
-        .find((allocation) => allocation.personId === person.id)?.allocationPct ?? 0;
+      const allocationPct = allocationByPerson.get(person.id) ?? 0;
       const figures = E.allocationFigures(phase, person.id, allocationPct, at);
       const stranded = !E.membership(person, initiative.teamId);
 

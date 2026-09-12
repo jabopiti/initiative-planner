@@ -121,8 +121,15 @@ export function empty(text, spec = {}) {
  * @param {'neutral'|'accent'|'info'|'ok'|'warn'|'danger'|'quiet'} [kind]
  * @param {string} [iconName]
  */
+/** The `badge--<kind>` modifier class, or none for `neutral`. Shared with anything that needs
+ * the badge look without the fixed `<span>` shape `badge()` renders — a status menu's trigger
+ * button, say. */
+export function badgeClass(kind) {
+  return kind === 'neutral' ? '' : `badge--${kind}`;
+}
+
 export function badge(text, kind = 'neutral', iconName = '') {
-  return html`<span class="badge ${kind === 'neutral' ? '' : `badge--${kind}`}"
+  return html`<span class="badge ${badgeClass(kind)}"
     >${raw(iconName ? icon(iconName) : '')}${text}</span>`;
 }
 
@@ -147,4 +154,24 @@ export function sortHeader(column, sort, attrs) {
   return html`<th aria-sort="${on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}">
     <button type="button" class="link" ${raw(pairs)} data-key="${column.key}">
       ${column.label}${raw(icon(glyph))}</button></th>`;
+}
+
+/**
+ * Sort table rows by a `sortHeader` column definition, without mutating the
+ * input array.
+ *
+ * @template T
+ * @param {T[]} rows
+ * @param {Array<{ key: string, value: (row: T) => unknown }>} columns
+ * @param {{ key: string, dir: 'asc'|'desc' }} sort
+ * @returns {T[]}
+ */
+export function sortRows(rows, columns, sort) {
+  const column = columns.find((c) => c.key === sort.key) ?? columns[0];
+  return [...rows].sort((a, b) => {
+    const left = column.value(a);
+    const right = column.value(b);
+    const cmp = left < right ? -1 : left > right ? 1 : 0;
+    return sort.dir === 'desc' ? -cmp : cmp;
+  });
 }

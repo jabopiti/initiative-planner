@@ -63,6 +63,15 @@ export function load(now = new Date().getFullYear()) {
  * is reported through a handler rather than a return value nobody is left to
  * read.
  */
+/**
+ * Call `notify` only when a failing/ok flag actually flips — a store or a
+ * linked file that has been failing for twenty writes should say so once,
+ * and recovering should clear it once, not on every attempt in between.
+ */
+function reportOnChange(wasFailing, isFailing, notify) {
+  if (isFailing !== wasFailing) notify();
+}
+
 let writeFailed = false;
 
 /** @type {((persisting: boolean) => void) | null} */
@@ -104,7 +113,7 @@ export function saveNow(app) {
   // keystrokes should say so once, and recovering should clear it.
   const wasFailing = writeFailed;
   writeFailed = !ok;
-  if (writeFailed !== wasFailing) onPersistenceChange?.(ok);
+  reportOnChange(wasFailing, writeFailed, () => onPersistenceChange?.(ok));
 
   // Fire-and-forget: the linked file is a mirror, not a dependency of the
   // save this function promises (D4), so nothing here awaits it.
@@ -406,7 +415,7 @@ async function writeToLinkedFile(app) {
   }
   const wasFailing = fileWriteFailed;
   fileWriteFailed = !ok;
-  if (fileWriteFailed !== wasFailing) notifyFileBinding();
+  reportOnChange(wasFailing, fileWriteFailed, notifyFileBinding);
 }
 
 /* ------------------------------------------------------------------ *

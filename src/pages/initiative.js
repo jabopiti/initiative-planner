@@ -737,7 +737,7 @@ function monthTableMarkup(initiative) {
       <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
       <tbody>${raw(body)}</tbody>
       <tfoot data-calc="month-totals" aria-live="polite" aria-atomic="true">
-        ${raw(monthTotalsRowMarkup(initiative))}</tfoot>
+        ${raw(monthTotalsRow(costed, totals))}</tfoot>
     </table>`, 'scroller--tall'))}
     ${raw(tableActions('months', 'months'))}`,
   });
@@ -775,12 +775,11 @@ function monthTotals(initiative, costed) {
 }
 
 /**
- * The foot of the month table. A column of figures with nothing at the bottom
- * of it is the one thing a ledger never does.
+ * The foot of the month table, from already-computed totals. A column of
+ * figures with nothing at the bottom of it is the one thing a ledger never
+ * does.
  */
-export function monthTotalsRowMarkup(initiative) {
-  const costed = E.costedPhaseIds(PROCESS).filter((id) => initiative.phases[id]);
-  const totals = monthTotals(initiative, costed);
+function monthTotalsRow(costed, totals) {
   const cells = costed
     .map((phaseId) => html`<td class="num">${F.money(totals.estimate[phaseId])}</td>
       <td class="num">${F.money(totals.actual[phaseId])}</td>`)
@@ -791,6 +790,16 @@ export function monthTotalsRowMarkup(initiative) {
     ${raw(cells)}
     <td class="num"><strong>${F.money(totals.blended)}</strong></td>
   </tr>`;
+}
+
+/**
+ * The same foot, recomputing its own totals — for refreshCalcRegions' live
+ * update, where monthTableMarkup's own copy of `costed`/`totals` is long out
+ * of scope.
+ */
+export function monthTotalsRowMarkup(initiative) {
+  const costed = E.costedPhaseIds(PROCESS).filter((id) => initiative.phases[id]);
+  return monthTotalsRow(costed, monthTotals(initiative, costed));
 }
 
 /** Every gate left so far, beside the live figures. */

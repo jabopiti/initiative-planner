@@ -19,7 +19,7 @@ export const SCHEMA_VERSION = 2;
  * ------------------------------------------------------------------ */
 
 /** An empty costed phase record. Only costed phases get one. */
-export function createPhase() {
+function createPhase() {
   return {
     estStartDate: null,
     estEndDate: null,
@@ -492,7 +492,7 @@ export function lastPassedGate(process, initiative) {
 }
 
 /** Months in a costed phase that have no actual recorded. */
-export function missingActuals(initiative) {
+function missingActuals(initiative) {
   const gaps = [];
   for (const [phaseId, phase] of Object.entries(initiative.phases ?? {})) {
     for (const month of E.phaseMonths(phase)) {

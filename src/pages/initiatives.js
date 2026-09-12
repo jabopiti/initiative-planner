@@ -8,7 +8,7 @@ import { PROCESS } from '../process.js';
 import { app, view, STATUS_LABELS, STATUS_BADGE_KIND } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, sortHeader, badge } from '../render/components.js';
+import { pageHead, scroller, empty, sortHeader, sortRows, badge, badgeClass } from '../render/components.js';
 
 /**
  * Sortable columns, each with how to read the value it sorts on. `status` is
@@ -30,7 +30,7 @@ export function renderInitiatives() {
   const query = (filters.q ?? '').toLowerCase();
   const order = E.phaseOrder(PROCESS);
 
-  let rows = app.INITIATIVES.map((initiative) => {
+  const filtered = app.INITIATIVES.map((initiative) => {
     const total = E.grandTotal(initiative, app);
     return {
       initiative,
@@ -63,13 +63,7 @@ export function renderInitiatives() {
     return true;
   });
 
-  const column = INITIATIVE_COLUMNS.find((c) => c.key === sort.key) ?? INITIATIVE_COLUMNS[0];
-  rows.sort((a, b) => {
-    const left = column.value(a);
-    const right = column.value(b);
-    const cmp = left < right ? -1 : left > right ? 1 : 0;
-    return sort.dir === 'desc' ? -cmp : cmp;
-  });
+  const rows = sortRows(filtered, INITIATIVE_COLUMNS, sort);
 
   // Status renders last: sortable like every other column, but its `<th>`
   // sits after the unlabelled action column so the badge lands where the
@@ -158,7 +152,7 @@ function statusCellMarkup(initiative) {
   const label = STATUS_LABELS[initiative.status];
   const kind = STATUS_BADGE_KIND[initiative.status];
   if (initiative.status === 'closed') return badge(label, kind);
-  return html`<button type="button" class="badge badge--button ${kind === 'neutral' ? '' : `badge--${kind}`}"
+  return html`<button type="button" class="badge badge--button ${badgeClass(kind)}"
     data-act="status-menu" data-id="${initiative.id}" aria-haspopup="menu">
     ${label}${raw(icon('chevron-down'))}</button>`;
 }

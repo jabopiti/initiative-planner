@@ -164,13 +164,13 @@ function showToast(text, kind = '', undoCb = null) {
   const node = document.getElementById('toast');
   if (!node) return;
   pendingUndo = undoCb;
-  node.innerHTML = html`<div class="toast ${kind}">
+  fill(node, html`<div class="toast ${kind}">
     ${raw(icon(kind ? 'warning' : 'check'))}<span>${text}</span>
     ${raw(undoCb ? html`<button type="button" class="btn--small" data-act="undo">Undo</button>` : '')}
-  </div>`;
+  </div>`);
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
-    node.innerHTML = '';
+    fill(node, '');
     pendingUndo = null;
   }, 4000);
 }
@@ -197,14 +197,18 @@ function renderBanner() {
   const node = document.getElementById('banner');
   if (!node) return;
 
-  if (!store.isPersisting()) {
+  const showBanner = (markup) => {
     node.hidden = false;
-    node.innerHTML = html`<div class="banner-bar banner-bar--severe" role="alert">
+    fill(node, markup);
+  };
+
+  if (!store.isPersisting()) {
+    showBanner(html`<div class="banner-bar banner-bar--severe" role="alert">
       <span>${raw(icon('warning', 'icon--lead'))}<strong>Changes are no longer being saved.</strong> This browser's storage is
         full or blocked. Export now — anything edited since this appeared exists only on
         this page, and closing it loses the lot.</span>
       <button type="button" class="btn btn--small" data-act="export">Export now</button>
-    </div>`;
+    </div>`);
     return;
   }
 
@@ -214,13 +218,12 @@ function renderBanner() {
   // true, so a reload (a fresh module, a fresh read) is the only way out
   // (§4.7, D5: no real-time sync between tabs, only a courtesy warning).
   if (store.externalChangePending()) {
-    node.hidden = false;
-    node.innerHTML = html`<div class="banner-bar banner-bar--severe" role="alert">
+    showBanner(html`<div class="banner-bar banner-bar--severe" role="alert">
       <span>${raw(icon('warning', 'icon--lead'))}<strong>This dataset changed in another
           tab.</strong> Further edits here won't be saved — reload to pick up the newer
         version. Anything typed here since the other tab saved will be lost.</span>
       <button type="button" class="btn btn--small" data-act="reload-tab">Reload</button>
-    </div>`;
+    </div>`);
     return;
   }
 
@@ -240,15 +243,14 @@ function renderBanner() {
       unreadable: "could not be read — this browser's storage may be blocked, or what " +
         'was stored is corrupted',
     }[loadReason];
-    node.hidden = false;
-    node.innerHTML = html`<div class="banner-bar banner-bar--severe" role="alert">
+    showBanner(html`<div class="banner-bar banner-bar--severe" role="alert">
       <span>${raw(icon('warning', 'icon--lead'))}<strong>Starting fresh, not from what was
           here.</strong> The data stored in this browser ${why}, so this session began from
         the seed data instead. Nothing has been deleted yet, but saving anything here will
         overwrite it — if you need it back, open it in a build that still recognises it
         before doing anything else in this one.</span>
       <button type="button" class="btn btn--small" data-act="dismiss-load-warning">Dismiss</button>
-    </div>`;
+    </div>`);
     return;
   }
 
@@ -258,7 +260,7 @@ function renderBanner() {
 
   if (!threshold || (days !== null && days < threshold)) {
     node.hidden = true;
-    node.innerHTML = '';
+    fill(node, '');
     return;
   }
 
@@ -270,13 +272,12 @@ function renderBanner() {
     ? 'This data has never been exported.'
     : `It has been ${days} days since the last export.`;
 
-  node.hidden = false;
-  node.innerHTML = html`<div class="banner-bar banner-bar--${level}">
+  showBanner(html`<div class="banner-bar banner-bar--${level}">
     <span>${raw(level === 'mild' ? '' : icon('warning', 'icon--lead'))}${said} An export is the
       only backup — everything here lives in this browser alone.</span>
     <button type="button" class="btn btn--small" data-act="export">
       ${raw(icon('export'))}Export now</button>
-  </div>`;
+  </div>`);
 }
 
 /**
@@ -368,7 +369,7 @@ function openPopover(trigger, markup) {
   const node = document.getElementById('popover');
   if (!node) return;
   popoverTrigger = trigger;
-  node.innerHTML = markup;
+  fill(node, markup);
   node.hidden = false;
   positionPopover();
   // Non-modal (aria-modal="false"): move focus in and trap Tab only when
@@ -383,7 +384,7 @@ function closePopover() {
   const node = document.getElementById('popover');
   if (!node || node.hidden) return;
   node.hidden = true;
-  node.innerHTML = '';
+  fill(node, '');
   const trigger = popoverTrigger;
   popoverTrigger = null;
   // Escape and outside-click both route here; a click on a different
@@ -427,7 +428,7 @@ function trapPopoverTab(event) {
 function openDialog(markup) {
   const node = document.getElementById('dialog');
   if (!(node instanceof HTMLDialogElement)) return;
-  node.innerHTML = markup;
+  fill(node, markup);
   node.showModal();
   const focusable = node.querySelector(FOCUSABLE);
   if (focusable instanceof HTMLElement) focusable.focus();
@@ -442,7 +443,7 @@ function closeDialog() {
   const node = document.getElementById('dialog');
   if (!(node instanceof HTMLDialogElement)) return;
   if (node.open) node.close();
-  node.innerHTML = '';
+  fill(node, '');
 }
 
 /* ------------------------------------------------------------------ *
@@ -458,7 +459,7 @@ let loadWarningDismissed = false;
 /** Current page plus its params (DESIGN §5). */
 export let view = { page: 'portfolio', params: {} };
 
-export const PAGES = [
+const PAGES = [
   { id: 'portfolio', label: 'Portfolio', kind: 'dashboard' },
   { id: 'initiatives', label: 'Initiatives', kind: 'overview' },
   { id: 'teams', label: 'Teams', kind: 'overview' },
@@ -559,13 +560,13 @@ export function navigate(page, params = {}) {
 }
 
 /** Persist (debounced) and re-render. */
-export function commit() {
+function commit() {
   store.save(app);
   render();
 }
 
 /** Persist without re-rendering — for edits made under the caret. */
-export function commitQuietly() {
+function commitQuietly() {
   store.save(app);
 }
 
@@ -627,6 +628,9 @@ function refreshCalcRegions(initiative) {
     // typing a percentage back down to 0 removes the record while leaving the
     // row. Either way its figures still have to fall to zero.
     const rows = Array.from(document.querySelectorAll(`[data-alloc-phase="${phaseId}"]`));
+    const allocationByPerson = new Map(
+      phase.allocations.map((allocation) => [allocation.personId, allocation.allocationPct]),
+    );
     for (const row of rows) {
       if (!(row instanceof HTMLElement)) continue;
       const personId = row.dataset.allocPerson;
@@ -634,8 +638,7 @@ function refreshCalcRegions(initiative) {
       const cost = row.querySelector(`[data-calc="cost-${phaseId}-${personId}"]`);
       if (!days && !cost) continue;
 
-      const allocationPct = phase.allocations
-        .find((allocation) => allocation.personId === personId)?.allocationPct ?? 0;
+      const allocationPct = allocationByPerson.get(personId) ?? 0;
       const figures = E.allocationFigures(phase, personId, allocationPct, at);
       if (days) days.textContent = figures.personDays.toFixed(1);
       if (cost) cost.textContent = F.money(figures.cost);
@@ -679,6 +682,23 @@ function findInitiative(id) {
 }
 
 /** Typing: update the model in place, never the structure. */
+/**
+ * Focus and restore the caret on a freshly rendered replacement for `target`,
+ * after an action (usually `commit()`) that rebuilds it under a new id — a
+ * brand-new role/country/cost row is a fresh DOM node, but the invariant
+ * that typing never *loses* the caret still applies to the field the user
+ * was in the middle of typing into.
+ */
+function restoreCaretAfter(target, selector, action) {
+  const caret = target.selectionStart;
+  action();
+  const restored = document.querySelector(selector);
+  if (restored instanceof HTMLInputElement) {
+    restored.focus();
+    restored.setSelectionRange(caret, caret);
+  }
+}
+
 function onInput(event) {
   const target = event.target;
   if (!(target instanceof HTMLInputElement)) return;
@@ -693,13 +713,7 @@ function onInput(event) {
       const newId = L.newId('role');
       app.ROLES[newId] = { id: newId, name: '', abbr: '', factor: 1, active: true };
       app.ROLES[newId][field] = field === 'factor' ? F.readNumber(target.value, 1) : target.value;
-      const caret = target.selectionStart;
-      commit();
-      const restored = document.querySelector(`[data-act="role-field"][data-field="${field}"][data-id="${newId}"]`);
-      if (restored instanceof HTMLInputElement) {
-        restored.focus();
-        restored.setSelectionRange(caret, caret);
-      }
+      restoreCaretAfter(target, `[data-act="role-field"][data-field="${field}"][data-id="${newId}"]`, commit);
       return;
     }
     const role = app.ROLES[id];
@@ -722,13 +736,7 @@ function onInput(event) {
           }]),
         ),
       };
-      const caret = target.selectionStart;
-      commit();
-      const restored = document.querySelector(`[data-act="country-field"][data-field="${field}"][data-id="${newId}"]`);
-      if (restored instanceof HTMLInputElement) {
-        restored.focus();
-        restored.setSelectionRange(caret, caret);
-      }
+      restoreCaretAfter(target, `[data-act="country-field"][data-field="${field}"][data-id="${newId}"]`, commit);
       return;
     }
     app.COUNTRIES[id][field] = target.value;
@@ -773,8 +781,7 @@ function onInput(event) {
   } else if (act === 'search-query') {
     // Only the results list rebuilds — the input itself is never touched, so
     // there is no caret to lose in the first place.
-    const results = document.querySelector('[data-search-results]');
-    if (results) results.innerHTML = searchResultsMarkup(target.value);
+    fill(document.querySelector('[data-search-results]'), searchResultsMarkup(target.value));
     return;
   } else if (act === 'draft-field') {
     // The draft lives in view params until step 1 is saved, so it survives
@@ -835,13 +842,11 @@ function onInput(event) {
         amount: field === 'amount' ? F.readNumber(target.value, 0) : 0,
       };
       initiative.phases[phaseId].otherCosts.push(newCost);
-      const caret = target.selectionStart;
-      commit();
-      const restored = document.querySelector(`[data-act="cost-field"][data-field="${field}"][data-phase="${phaseId}"][data-cost="${newCost.id}"]`);
-      if (restored instanceof HTMLInputElement) {
-        restored.focus();
-        restored.setSelectionRange(caret, caret);
-      }
+      restoreCaretAfter(
+        target,
+        `[data-act="cost-field"][data-field="${field}"][data-phase="${phaseId}"][data-cost="${newCost.id}"]`,
+        commit,
+      );
       return;
     }
 
@@ -905,8 +910,7 @@ function onClick(event) {
       if (pendingUndo) {
         pendingUndo();
         pendingUndo = null;
-        const node = document.getElementById('toast');
-        if (node) node.innerHTML = '';
+        fill('toast', '');
       }
       return undefined;
 
@@ -1313,11 +1317,12 @@ function onChange(event) {
   switch (act) {
     case 'month-picker':
       return navigate(view.page, { ...view.params, month: target.value });
-    case 'people-filter': {
+    case 'people-filter':
+    case 'initiatives-filter': {
       const filters = { ...(view.params.filters ?? {}) };
       const key = target.dataset.filter;
       filters[key] = target.type === 'checkbox' ? target.checked : target.value;
-      return navigate('people', { ...view.params, filters });
+      return navigate(act === 'people-filter' ? 'people' : 'initiatives', { ...view.params, filters });
     }
     case 'draft-select': {
       const draft = {
@@ -1330,12 +1335,6 @@ function onChange(event) {
     case 'person-draft-select': {
       const draft = { ...view.params.draft, [target.dataset.field]: target.value };
       return navigate('person', { ...view.params, draft });
-    }
-    case 'initiatives-filter': {
-      const filters = { ...(view.params.filters ?? {}) };
-      const key = target.dataset.filter;
-      filters[key] = target.type === 'checkbox' ? target.checked : target.value;
-      return navigate('initiatives', { ...view.params, filters });
     }
     case 'phase-start':
     case 'phase-end': {

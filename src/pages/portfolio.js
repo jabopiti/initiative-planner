@@ -8,7 +8,7 @@ import { PROCESS } from '../process.js';
 import { app, view, STATUS_LABELS, currentMonth } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, sortHeader } from '../render/components.js';
+import { pageHead, scroller, empty, sortHeader, sortRows } from '../render/components.js';
 import { chartYear, monthsOfYear, yearNav, stackedBarsMarkup } from '../render/charts.js';
 
 const NO_BAND = 'none';
@@ -90,13 +90,7 @@ export function renderPortfolio() {
   const { overCapacity, overShare } = E.overAllocations(app, capacityMonth);
 
   const sort = view.params.sort ?? { key: 'effective', dir: 'desc' };
-  const column = PORTFOLIO_COLUMNS.find((c) => c.key === sort.key) ?? PORTFOLIO_COLUMNS[0];
-  const sorted = [...rows].sort((a, b) => {
-    const left = column.value(a);
-    const right = column.value(b);
-    const cmp = left < right ? -1 : left > right ? 1 : 0;
-    return sort.dir === 'desc' ? -cmp : cmp;
-  });
+  const sorted = sortRows(rows, PORTFOLIO_COLUMNS, sort);
 
   const headers = PORTFOLIO_COLUMNS.map(
     (c) => sortHeader(c, sort, { 'data-act': 'sort-portfolio' }),

@@ -6,7 +6,7 @@ import * as E from '../engine.js';
 import { app, view, currentMonth } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, badge, sortHeader } from '../render/components.js';
+import { pageHead, scroller, empty, badge, sortHeader, sortRows } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
 
 function selectedMonth() {
@@ -63,10 +63,14 @@ export function renderPeople() {
       .filter((m) => m.active)
       .map((m) => `${app.TEAMS[m.teamId]?.name ?? m.teamId} ${m.sharePct}%`)
       .join(', ');
+    // Computed once and reused below rather than re-derived per column: this
+    // runs on every keystroke in the search box above.
+    const allocated = E.allocatedPct(app, person.id, month);
+    const utilisation = person.capacityPct ? (allocated / person.capacityPct) * 100 : 0;
     return {
       person,
-      allocated: E.allocatedPct(app, person.id, month),
-      utilisation: E.utilisationPct(app, person.id, month),
+      allocated,
+      utilisation,
       row: [
         person.name,
         E.roleLabel(person, app.ROLES),
@@ -74,25 +78,19 @@ export function renderPeople() {
         Math.round(dayRate * factor),
         person.capacityPct,
         teams || '—',
-        E.allocatedPct(app, person.id, month),
-        Math.round(E.utilisationPct(app, person.id, month)),
+        allocated,
+        Math.round(utilisation),
       ],
     };
   });
-  const column = PEOPLE_COLUMNS.find((c) => c.key === sort.key) ?? PEOPLE_COLUMNS[0];
-  data.sort((a, b) => {
-    const left = column.value(a);
-    const right = column.value(b);
-    const cmp = left < right ? -1 : left > right ? 1 : 0;
-    return sort.dir === 'desc' ? -cmp : cmp;
-  });
-  TABLES.people = { headers, rows: data.map((entry) => entry.row), name: `people-${F.month(month)}` };
+  const sorted = sortRows(data, PEOPLE_COLUMNS, sort);
+  TABLES.people = { headers, rows: sorted.map((entry) => entry.row), name: `people-${F.month(month)}` };
 
   const sortableHeaders = PEOPLE_COLUMNS.map(
     (c) => sortHeader(c, sort, { 'data-act': 'sort-people' }),
   ).join('');
 
-  const rows = data
+  const rows = sorted
     .map(
       (entry) => html`<tr class="row--clickable ${entry.person.active ? '' : 'row--inactive'}">
         <td><a class="row-link" href="#/person/${entry.person.id}">${entry.person.name}</a>

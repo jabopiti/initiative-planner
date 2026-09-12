@@ -62,7 +62,7 @@ export function parseMonthKey(key) {
 }
 
 /** @param {string} iso `YYYY-MM-DD` @returns {Date} */
-export function parseDate(iso) {
+function parseDate(iso) {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d));
 }
@@ -826,20 +826,40 @@ export function capacityWarnings(app, personId, teamId, monthKeyStr) {
  * }}
  */
 export function overAllocations(app, monthKeyStr) {
+  // One pass over every active initiative's allocations for this month,
+  // rather than re-walking them once per person and again per membership —
+  // allocatedPct() does exactly that walk on every call, which is fine for a
+  // single lookup but adds up called from a loop over every person and every
+  // one of their memberships.
+  const overallByPerson = new Map();
+  const shareByPersonTeam = new Map();
+  const add = (map, key, pct) => map.set(key, (map.get(key) ?? 0) + pct);
+
+  for (const initiative of app.INITIATIVES) {
+    if (initiative.status !== 'active') continue;
+    for (const phase of Object.values(initiative.phases ?? {})) {
+      if (!phaseMonths(phase).includes(monthKeyStr)) continue;
+      for (const allocation of phase.allocations ?? []) {
+        if (allocation.allocationPct <= 0) continue;
+        add(overallByPerson, allocation.personId, allocation.allocationPct);
+        add(shareByPersonTeam, `${allocation.personId}:${initiative.teamId}`, allocation.allocationPct);
+      }
+    }
+  }
+
   const overCapacity = [];
   const overShare = [];
-
   for (const person of Object.values(app.PEOPLE)) {
     if (!person.active) continue;
 
-    const overall = allocatedPct(app, person.id, monthKeyStr);
+    const overall = overallByPerson.get(person.id) ?? 0;
     if (overall > person.capacityPct) {
       overCapacity.push({ personId: person.id, capacityPct: person.capacityPct, allocatedPct: overall });
     }
 
     for (const member of person.memberships ?? []) {
       if (!member.active) continue;
-      const inTeam = allocatedPct(app, person.id, monthKeyStr, member.teamId);
+      const inTeam = shareByPersonTeam.get(`${person.id}:${member.teamId}`) ?? 0;
       if (inTeam > member.sharePct) {
         overShare.push({
           personId: person.id,
