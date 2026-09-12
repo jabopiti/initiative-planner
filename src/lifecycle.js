@@ -425,6 +425,20 @@ function advance(process, initiative, phaseId) {
   initiative.phaseId = E.nextPhase(process, phaseId);
 }
 
+/** The gate record shared by passing and skipping: the figures frozen at the moment either happens. */
+function buildGateRecord(app, process, initiative, outcome, reason, takenAt) {
+  const total = E.grandTotal(initiative, app);
+  const band = E.resolveBand(process.bands, total);
+  return {
+    outcome,
+    takenAt,
+    reason,
+    grandTotal: total,
+    band: band && { id: band.id, name: band.name, abbr: band.abbr, severity: band.severity },
+    phaseCosts: E.phaseCosts(initiative, app),
+  };
+}
+
 /**
  * Pass a gate: freeze the phase behind it if costed, record the gate, and
  * move on. The final gate is what closes the initiative — finishing is a
@@ -435,19 +449,10 @@ export function passGate(app, process, initiative, gateId, takenAt) {
   if (!check.ok) throw new Error(check.blockers.join('; '));
 
   const phase = E.phaseForGate(process, gateId);
-  const total = E.grandTotal(initiative, app);
-  const band = E.resolveBand(process.bands, total);
 
   freeze(app, initiative, phase.id);
 
-  initiative.gates[gateId] = {
-    outcome: 'passed',
-    takenAt,
-    reason: null,
-    grandTotal: total,
-    band: band && { id: band.id, name: band.name, abbr: band.abbr, severity: band.severity },
-    phaseCosts: E.phaseCosts(initiative, app),
-  };
+  initiative.gates[gateId] = buildGateRecord(app, process, initiative, 'passed', null, takenAt);
 
   advance(process, initiative, phase.id);
   return initiative.gates[gateId];
@@ -466,17 +471,7 @@ export function skipGate(app, process, initiative, gateId, reason, takenAt) {
   if (E.isFinished(initiative)) throw new Error(`this initiative is ${initiative.status}`);
   if (!reason || !String(reason).trim()) throw new Error('skipping a gate requires a reason');
 
-  const total = E.grandTotal(initiative, app);
-  const band = E.resolveBand(process.bands, total);
-
-  initiative.gates[gateId] = {
-    outcome: 'skipped',
-    takenAt,
-    reason: String(reason).trim(),
-    grandTotal: total,
-    band: band && { id: band.id, name: band.name, abbr: band.abbr, severity: band.severity },
-    phaseCosts: E.phaseCosts(initiative, app),
-  };
+  initiative.gates[gateId] = buildGateRecord(app, process, initiative, 'skipped', String(reason).trim(), takenAt);
 
   advance(process, initiative, phase.id);
   return initiative.gates[gateId];

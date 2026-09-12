@@ -819,7 +819,7 @@ function gateComparisonMarkup(initiative) {
   ];
 
   const liveCosts = E.phaseCosts(initiative, app);
-  const liveTotal = Object.values(liveCosts).reduce((t, v) => t + v, 0);
+  const liveTotal = E.sum(liveCosts);
   const data = [
     ...left.map((entry) => rowFor(
       entry.phase.gate.label,

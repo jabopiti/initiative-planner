@@ -247,13 +247,26 @@ const HANDLE_STORE = 'file-handles';
 const HANDLE_KEY = 'linked';
 
 /** One object store, one record — this is not a general-purpose database. */
+let handleDb = null;
+// The real browser global never changes at runtime; only a test stubbing a
+// fresh `indexedDB` between cases does. Keyed on it so the cache reopens
+// against a new stub instead of serving a connection to the old one.
+let handleDbSource = null;
+
 function openHandleDb() {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(HANDLE_DB, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(HANDLE_STORE);
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
+  if (!handleDb || handleDbSource !== indexedDB) {
+    handleDbSource = indexedDB;
+    handleDb = new Promise((resolve, reject) => {
+      const request = indexedDB.open(HANDLE_DB, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(HANDLE_STORE);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => {
+        handleDb = null;
+        reject(request.error);
+      };
+    });
+  }
+  return handleDb;
 }
 
 async function idbGet(key) {
@@ -352,8 +365,10 @@ export async function linkFile(app) {
   linkedHandle = handle;
   linkedPermission = 'granted';
   try {
-    await idbSet(HANDLE_KEY, handle);
-    await writeToLinkedFile(app);
+    // Independent writes — the handle's own persistence and the file's first
+    // mirrored write touch different stores, so nothing here needs the other
+    // to finish first.
+    await Promise.all([idbSet(HANDLE_KEY, handle), writeToLinkedFile(app)]);
   } catch {
     // A file was picked but never actually became the link — IndexedDB
     // refused it, most likely. Roll the in-memory state back to unlinked

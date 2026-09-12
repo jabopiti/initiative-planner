@@ -183,7 +183,7 @@ function capacityGridMarkup(team) {
           return html`<td class="cap ${over ? 'cap--over' : ''} ${allocated ? 'cap--on' : ''}">
             ${raw(allocated
               ? html`<button type="button" class="cap__btn" data-act="capacity-cell"
-                  data-person="${row.person.id}" data-team="${team.id}" data-month="${F.month(month)}"
+                  data-person="${row.person.id}" data-team="${team.id}" data-month="${month}"
                   title="${row.person.name}, ${F.month(month)}: ${allocated}% allocated">
                   ${allocated}%${raw(over ? icon('warning') : '')}</button>`
               // Focusable so arrow keys can cross it. A sparse grid you

@@ -71,8 +71,8 @@ export function renderInitiatives() {
   const dataColumns = INITIATIVE_COLUMNS.filter((c) => c.key !== 'status');
   const statusColumn = INITIATIVE_COLUMNS.find((c) => c.key === 'status');
   const headers = dataColumns.map(
-    (c) => sortHeader(c, sort, { 'data-act': 'sort-initiatives' }),
-  ).join('') + '<th></th>' + sortHeader(statusColumn, sort, { 'data-act': 'sort-initiatives' });
+    (c) => sortHeader(c, sort, { 'data-act': 'sort' }),
+  ).join('') + '<th></th>' + sortHeader(statusColumn, sort, { 'data-act': 'sort' });
 
   const body = rows
     .map(
@@ -93,7 +93,7 @@ export function renderInitiatives() {
     .join('');
 
   const options = (name, list, selected) =>
-    html`<select class="field field--select" data-act="initiatives-filter" data-filter="${name}">
+    html`<select class="field field--select" data-act="filter" data-filter="${name}">
       <option value="">All</option>
       ${raw(list.map((o) => html`<option value="${o.value}"
         ${raw(selected === o.value ? 'selected' : '')}>${o.label}</option>`).join(''))}
@@ -109,7 +109,7 @@ export function renderInitiatives() {
     }))}
       <div class="toolbar">
         <label class="field-inline">${raw(icon('search'))}<span class="sr-only">Search</span>
-          <input class="field field--search" data-act="initiatives-filter" data-filter="q"
+          <input class="field field--search" data-act="filter" data-filter="q"
             value="${filters.q ?? ''}" placeholder="Search by name" /></label>
         <label class="field-inline"><span>Team</span>${raw(options('teamId',
           Object.values(app.TEAMS).map((t) => ({ value: t.id, label: t.name })),
@@ -124,7 +124,7 @@ export function renderInitiatives() {
           [...PROCESS.bands.map((b) => ({ value: b.id, label: b.name })),
            { value: 'none', label: 'Not yet known' }],
           filters.bandId))}</label>
-        <label class="field-inline"><input type="checkbox" data-act="initiatives-filter"
+        <label class="field-inline"><input type="checkbox" data-act="filter"
           data-filter="showFinished" ${raw(filters.showFinished ? 'checked' : '')} />
           <span>Show closed &amp; cancelled</span></label>
       </div>

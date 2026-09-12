@@ -4,7 +4,6 @@
  * once; the nav and the address bar (`#/settings/<section>`) exist to jump
  * between them, not to swap content in and out.
  */
-import * as E from '../engine.js';
 import * as T from '../transfer.js';
 import * as store from '../store.js';
 import { app, view, pendingImport } from '../app.js';
@@ -63,9 +62,13 @@ export function scrollToSettingsSection() {
 
 function renderRoles() {
   const confirming = view.params.confirmDeactivate;
+  const usageByRole = new Map();
+  for (const person of Object.values(app.PEOPLE)) {
+    usageByRole.set(person.roleId, (usageByRole.get(person.roleId) ?? 0) + 1);
+  }
   const rows = Object.values(app.ROLES)
     .map((role) => {
-      const usage = E.roleUsageCount(app, role.id);
+      const usage = usageByRole.get(role.id) ?? 0;
       const action = role.active && confirming === role.id
         ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}Used by
               ${usage} ${usage === 1 ? 'person' : 'people'}.</span>
@@ -119,12 +122,16 @@ function renderCountries() {
   const expanded = view.params.expanded ?? null;
   const confirming = view.params.confirmDeactivate;
   const thisYear = new Date().getFullYear();
+  const usageByCountry = new Map();
+  for (const person of Object.values(app.PEOPLE)) {
+    usageByCountry.set(person.countryId, (usageByCountry.get(person.countryId) ?? 0) + 1);
+  }
 
   const rows = Object.values(app.COUNTRIES)
     .map((country) => {
       const years = Object.keys(country.byYear).map(Number).sort((a, b) => a - b);
       const open = expanded === country.id;
-      const usage = E.countryUsageCount(app, country.id);
+      const usage = usageByCountry.get(country.id) ?? 0;
       const zeroRate = (country.byYear[thisYear]?.rate ?? 0) === 0;
 
       const action = country.active && confirming === country.id

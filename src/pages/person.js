@@ -19,7 +19,8 @@ export function renderPerson() {
   if (!person) return navigate('people');
 
   const warning = P.shareWarning(person);
-  const stranded = E.strandedAllocations(app, person.id);
+  const initiativeRows = E.personInitiatives(app, person.id);
+  const stranded = E.strandedAllocations(app, person.id, initiativeRows);
   const months = E.windowMonths(app);
 
   fill(
@@ -35,7 +36,7 @@ export function renderPerson() {
         keep costing; they draw no new capacity.</p>`)}
       <div class="panel">${raw(personIdentity(person))}</div>
       <div class="panel">${raw(personTeams(person, warning, stranded))}</div>
-      <div class="panel">${raw(personInitiativesPanel(person, stranded))}</div>
+      <div class="panel">${raw(personInitiativesPanel(person, initiativeRows, stranded))}</div>
       <div class="panel">${raw(personCapacity(person, months))}</div>`,
   );
 }
@@ -214,8 +215,7 @@ function personTeams(person, warning, stranded) {
       : '')}`;
 }
 
-function personInitiativesPanel(person, stranded) {
-  const rows = E.personInitiatives(app, person.id);
+function personInitiativesPanel(person, rows, stranded) {
   const headers = ['Initiative', 'Team', 'Phase', 'Allocation %', 'From', 'To'];
   const data = rows.map((row) => [
     row.initiative.name,

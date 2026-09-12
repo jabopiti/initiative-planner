@@ -278,16 +278,6 @@ export function roleLabel(person, roles) {
   return person.customRole ? person.customRole.label : roles[person.roleId]?.name ?? '';
 }
 
-/** How many people currently use this role, so deactivating it is never blind. */
-export function roleUsageCount(app, roleId) {
-  return Object.values(app.PEOPLE).filter((person) => person.roleId === roleId).length;
-}
-
-/** How many people currently use this country, so deactivating it is never blind. */
-export function countryUsageCount(app, countryId) {
-  return Object.values(app.PEOPLE).filter((person) => person.countryId === countryId).length;
-}
-
 /* ------------------------------------------------------------------ *
  * Phase cost
  * ------------------------------------------------------------------ */
@@ -731,12 +721,27 @@ export function nonInitiativeWorkCost(app, personId, teamId, monthKeyStr) {
   return days * (pct / 100) * factor * dayRate;
 }
 
+/**
+ * An initiative's blended cost for every month it spans, across all its
+ * costed phases — each phase's own month-by-month map is computed once and
+ * summed in, rather than once per month asked about (the shape a caller
+ * wanting several months, like a run-rate chart, should use).
+ * @returns {Record<string, number>}
+ */
+export function initiativeCostByMonth(initiative, app) {
+  /** @type {Record<string, number>} */
+  const totals = {};
+  for (const phase of costedPhases(initiative)) {
+    for (const [month, cost] of Object.entries(phaseBlendedByMonth(phase, app))) {
+      totals[month] = (totals[month] ?? 0) + cost;
+    }
+  }
+  return totals;
+}
+
 /** One initiative's blended cost in a month, across all its costed phases. */
 export function initiativeCostInMonth(initiative, app, monthKeyStr) {
-  return costedPhases(initiative).reduce(
-    (total, phase) => total + (phaseBlendedByMonth(phase, app)[monthKeyStr] ?? 0),
-    0,
-  );
+  return initiativeCostByMonth(initiative, app)[monthKeyStr] ?? 0;
 }
 
 /**
@@ -747,12 +752,15 @@ export function initiativeCostInMonth(initiative, app, monthKeyStr) {
  * @returns {Array<{ month: string, segments: Array<{ id: string, name: string, cost: number }>, total: number }>}
  */
 export function runRate(app, initiatives, months) {
+  const costByMonth = new Map(
+    initiatives.map((initiative) => [initiative.id, initiativeCostByMonth(initiative, app)]),
+  );
   return months.map((month) => {
     const segments = initiatives
       .map((initiative) => ({
         id: initiative.id,
         name: initiative.name,
-        cost: initiativeCostInMonth(initiative, app, month),
+        cost: costByMonth.get(initiative.id)[month] ?? 0,
       }))
       .filter((segment) => segment.cost > 0)
       .map((segment) => ({ ...segment, kind: 'initiative' }));
@@ -907,11 +915,9 @@ export function personInitiatives(app, personId) {
  * of. These keep costing rather than being dropped (SPEC §5.2), so both the
  * Person and Team pages surface them by name.
  */
-export function strandedAllocations(app, personId) {
+export function strandedAllocations(app, personId, rows = personInitiatives(app, personId)) {
   const person = app.PEOPLE[personId];
-  return personInitiatives(app, personId).filter(
-    (row) => !membership(person, row.initiative.teamId),
-  );
+  return rows.filter((row) => !membership(person, row.initiative.teamId));
 }
 
 /** Every month in the rolling window, oldest first. */

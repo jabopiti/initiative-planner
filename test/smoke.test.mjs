@@ -30,7 +30,7 @@ async function ensureBuilt() {
   const sources = [
     `${root}index.html`,
     ...(await readdir(`${root}src`, { recursive: true }))
-      .filter((name) => name.endsWith('.js'))
+      .filter((name) => name.endsWith('.js') || name.endsWith('.css'))
       .map((name) => `${root}src/${name}`),
   ];
   const newest = Math.max(...(await Promise.all(sources.map((f) => stat(f).then((s) => s.mtimeMs)))));

@@ -142,7 +142,7 @@ export function allocationDetailMarkup(initiativeId, phaseId, personId) {
 
   const days = E.workingDaysForPeriod(at.COUNTRIES[person.countryId],
     phase.estStartDate, phase.estEndDate);
-  const workingDays = Object.values(days).reduce((total, value) => total + value, 0);
+  const workingDays = E.sum(days);
   const years = new Set(Object.keys(days).map((key) => E.parseMonthKey(key).year));
   const figures = E.allocationFigures(phase, personId, allocationPct, at);
   const effective = figures.personDays > 0 ? figures.cost / figures.personDays : 0;

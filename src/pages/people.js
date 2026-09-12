@@ -87,7 +87,7 @@ export function renderPeople() {
   TABLES.people = { headers, rows: sorted.map((entry) => entry.row), name: `people-${F.month(month)}` };
 
   const sortableHeaders = PEOPLE_COLUMNS.map(
-    (c) => sortHeader(c, sort, { 'data-act': 'sort-people' }),
+    (c) => sortHeader(c, sort, { 'data-act': 'sort' }),
   ).join('');
 
   const rows = sorted
@@ -130,24 +130,24 @@ export function renderPeople() {
       <div class="toolbar">
         ${raw(monthPicker())}
         <label class="field-inline">${raw(icon('search'))}<span class="sr-only">Search</span>
-          <input class="field field--search" data-act="people-filter" data-filter="q"
+          <input class="field field--search" data-act="filter" data-filter="q"
             value="${filters.q ?? ''}" placeholder="Search by name" /></label>
         <label class="field-inline"><span>Team</span>
-          <select class="field field--select" data-act="people-filter" data-filter="teamId">
+          <select class="field field--select" data-act="filter" data-filter="teamId">
             <option value="">All</option>${raw(teamOptions)}</select></label>
         <label class="field-inline"><span>Role</span>
-          <select class="field field--select" data-act="people-filter" data-filter="roleId">
+          <select class="field field--select" data-act="filter" data-filter="roleId">
             <option value="">All</option>${raw(Object.values(app.ROLES)
               .map((role) => html`<option value="${role.id}"
                 ${raw(filters.roleId === role.id ? 'selected' : '')}>${role.name}</option>`)
               .join(''))}</select></label>
         <label class="field-inline"><span>Country</span>
-          <select class="field field--select" data-act="people-filter" data-filter="countryId">
+          <select class="field field--select" data-act="filter" data-filter="countryId">
             <option value="">All</option>${raw(Object.values(app.COUNTRIES)
               .map((c) => html`<option value="${c.id}"
                 ${raw(filters.countryId === c.id ? 'selected' : '')}>${c.name}</option>`)
               .join(''))}</select></label>
-        <label class="field-inline"><input type="checkbox" data-act="people-filter"
+        <label class="field-inline"><input type="checkbox" data-act="filter"
           data-filter="showInactive" ${raw(filters.showInactive ? 'checked' : '')} />
           <span>Show inactive</span></label>
       </div>

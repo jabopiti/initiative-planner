@@ -93,7 +93,7 @@ export function renderPortfolio() {
   const sorted = sortRows(rows, PORTFOLIO_COLUMNS, sort);
 
   const headers = PORTFOLIO_COLUMNS.map(
-    (c) => sortHeader(c, sort, { 'data-act': 'sort-portfolio' }),
+    (c) => sortHeader(c, sort, { 'data-act': 'sort' }),
   ).join('');
 
   const body = sorted
@@ -129,7 +129,7 @@ export function renderPortfolio() {
         ? html`<p class="muted actions">${raw(icon('filter', 'icon--lead'))}Filtered to
             ${groups.find((g) => g.id === selected)?.name}.
             <button type="button" class="link" data-act="portfolio-tile"
-              data-band="${F.month(selected)}">Clear</button></p>`
+              data-band="${selected}">Clear</button></p>`
         : '')}
 
       <div class="panel">

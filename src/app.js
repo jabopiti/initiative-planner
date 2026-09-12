@@ -510,6 +510,13 @@ export const today = () => new Date().toISOString().slice(0, 10);
 const ID_PAGES = new Set(['person', 'team', 'initiative', 'wizard']);
 const ALL_PAGE_IDS = new Set([...PAGES.map((p) => p.id), ...ID_PAGES]);
 
+/** Each sortable page's starting column and direction, read by the shared 'sort' action. */
+const SORT_DEFAULTS = {
+  people: { key: 'name', dir: 'asc' },
+  initiatives: { key: 'name', dir: 'asc' },
+  portfolio: { key: 'effective', dir: 'desc' },
+};
+
 function hashFor({ page, params }) {
   if (page === 'settings') return params.section ? `#/settings/${params.section}` : '#/settings';
   if (ID_PAGES.has(page) && params.id) return `#/${page}/${encodeURIComponent(params.id)}`;
@@ -650,9 +657,10 @@ function refreshCalcRegions(initiative) {
 
   // Blended monthly figures share a table with the actual inputs, so they are
   // written cell by cell rather than rebuilt.
+  const costByMonth = E.initiativeCostByMonth(initiative, app);
   for (const month of E.initiativeMonths(initiative)) {
     const cell = document.querySelector(`[data-calc="blended-${F.month(month)}"]`);
-    if (cell) fill(cell, html`<strong>${F.money(E.initiativeCostInMonth(initiative, app, month))}</strong>`);
+    if (cell) fill(cell, html`<strong>${F.money(costByMonth[month] ?? 0)}</strong>`);
   }
 
   const monthFoot = document.querySelector('[data-calc="month-totals"]');
@@ -690,12 +698,15 @@ function findInitiative(id) {
  * was in the middle of typing into.
  */
 function restoreCaretAfter(target, selector, action) {
+  // `selectionStart` reads as null on an input type that doesn't support
+  // selection (e.g. the cost row's `type="month"` field) — a signal to skip
+  // `setSelectionRange` below, which throws outright on those same types.
   const caret = target.selectionStart;
   action();
   const restored = document.querySelector(selector);
   if (restored instanceof HTMLInputElement) {
     restored.focus();
-    restored.setSelectionRange(caret, caret);
+    if (caret !== null) restored.setSelectionRange(caret, caret);
   }
 }
 
@@ -759,24 +770,22 @@ function onInput(event) {
     const team = target.dataset.team;
     const current = person.memberships.find((m) => m.teamId === team);
     P.setMembershipShare(person, team, F.readNumber(target.value, current.sharePct));
-  } else if (act === 'people-filter' || act === 'initiatives-filter') {
+  } else if (act === 'filter') {
     // Search is the one filter that must react per keystroke, and filtering
-    // rebuilds the table the box sits above. Re-render, then put the caret
-    // back exactly where it was — the invariant is that typing never *loses*
-    // the caret, not that nothing may re-render. A checkbox (e.g. "Show
-    // inactive"/"Show closed & cancelled") also fires this event, but has no
-    // caret to restore — `setSelectionRange` throws on that input type.
-    const page = act === 'people-filter' ? 'people' : 'initiatives';
+    // rebuilds the table the box sits above. restoreCaretAfter re-renders,
+    // then puts the caret back exactly where it was — the invariant is that
+    // typing never *loses* the caret, not that nothing may re-render. A
+    // checkbox (e.g. "Show inactive"/"Show closed & cancelled") also fires
+    // this event; its `selectionStart` reads null, which is restoreCaretAfter's
+    // own signal to skip the caret restore and just refocus it.
     const checkbox = target.type === 'checkbox';
     const value = checkbox ? target.checked : target.value;
     const filters = { ...(view.params.filters ?? {}), [target.dataset.filter]: value };
-    const caret = target.selectionStart;
-    navigate(page, { ...view.params, filters });
-    const restored = document.querySelector(`[data-act="${act}"][data-filter="${target.dataset.filter}"]`);
-    if (restored instanceof HTMLInputElement && !checkbox) {
-      restored.focus();
-      restored.setSelectionRange(caret, caret);
-    }
+    restoreCaretAfter(
+      target,
+      `[data-act="filter"][data-filter="${target.dataset.filter}"]`,
+      () => navigate(view.page, { ...view.params, filters }),
+    );
     return;
   } else if (act === 'search-query') {
     // Only the results list rebuilds — the input itself is never touched, so
@@ -962,7 +971,9 @@ function onClick(event) {
       const source = country.byYear[year];
       for (const otherYear of Object.keys(country.byYear)) {
         if (otherYear === year) continue;
-        country.byYear[otherYear] = { rate: source.rate, workingDays: [...source.workingDays] };
+        // Working days only — each year keeps its own rate (a rate rise next
+        // year must never move this year's months, and vice versa).
+        country.byYear[otherYear].workingDays = [...source.workingDays];
       }
       return commit();
     }
@@ -1161,23 +1172,15 @@ function onClick(event) {
       const next = view.params.bandId === band ? null : band;
       return navigate('portfolio', { ...view.params, bandId: next });
     }
-    case 'sort-people': {
-      const current = view.params.sort ?? { key: 'name', dir: 'asc' };
+    case 'sort': {
+      // One case for every sortable table, keyed off the page it's on —
+      // same as month-picker/month-today already are — rather than a
+      // separate case per page repeating the same toggle logic.
+      const fallback = SORT_DEFAULTS[view.page];
+      const current = view.params.sort ?? fallback;
       const key = trigger.dataset.key;
-      const dir = current.key === key && current.dir === 'asc' ? 'desc' : 'asc';
-      return navigate('people', { ...view.params, sort: { key, dir } });
-    }
-    case 'sort-portfolio': {
-      const current = view.params.sort ?? { key: 'effective', dir: 'desc' };
-      const key = trigger.dataset.key;
-      const dir = current.key === key && current.dir === 'desc' ? 'asc' : 'desc';
-      return navigate('portfolio', { ...view.params, sort: { key, dir } });
-    }
-    case 'sort-initiatives': {
-      const current = view.params.sort ?? { key: 'name', dir: 'asc' };
-      const key = trigger.dataset.key;
-      const dir = current.key === key && current.dir === 'asc' ? 'desc' : 'asc';
-      return navigate('initiatives', { ...view.params, sort: { key, dir } });
+      const dir = current.key === key ? (current.dir === 'asc' ? 'desc' : 'asc') : fallback.dir;
+      return navigate(view.page, { ...view.params, sort: { key, dir } });
     }
 
 
@@ -1317,12 +1320,11 @@ function onChange(event) {
   switch (act) {
     case 'month-picker':
       return navigate(view.page, { ...view.params, month: target.value });
-    case 'people-filter':
-    case 'initiatives-filter': {
+    case 'filter': {
       const filters = { ...(view.params.filters ?? {}) };
       const key = target.dataset.filter;
       filters[key] = target.type === 'checkbox' ? target.checked : target.value;
-      return navigate(act === 'people-filter' ? 'people' : 'initiatives', { ...view.params, filters });
+      return navigate(view.page, { ...view.params, filters });
     }
     case 'draft-select': {
       const draft = {
