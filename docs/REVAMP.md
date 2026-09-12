@@ -40,7 +40,7 @@ here — this table is status only.
 | §4.4 Initiative detail — the wizard's ending, and the month table's foot | **Landed** |
 | §4.5 Overviews, capacity, charts | **Landed** |
 | §4.6 Copy, states, first run, accessibility | **Landed** |
-| §4.7 File System Access persistence | Not started |
+| §4.7 File System Access persistence | **Landed** |
 | §4.8 Brand pack | **Landed** |
 | D3 — drop CSV, keep Copy | **Landed** |
 | D9 — rolling four-year window recompute | **Landed** |
@@ -1374,6 +1374,44 @@ System Access API, feature-detected, with localStorage unchanged underneath as
 the fallback and the non-Chromium path. Multi-tab writes are worth a thought at the same
 time — two tabs on the same dataset today is last-writer-wins with no `storage`
 listener and no warning.
+
+**Landed.** A linked file mirrors every `localStorage` write to a real file
+via `showSaveFilePicker`/`FileSystemFileHandle`, feature-detected so the
+whole thing renders nothing where the API doesn't exist. Linking never
+changes what `load()` reads from — `localStorage` stays the single source
+of truth, and reconciling a file edited elsewhere is still Import's job,
+exactly as it already was for a manually-taken export (D5). The handle
+persists in IndexedDB so the link survives a reload; a revoked permission
+shows as a "Reconnect" prompt in Settings' Data section, never a failed
+save, since `requestPermission()` needs a live click to re-grant. TypeScript
+has no bundled types for this API yet, so `src/file-system-access.d.ts`
+declares exactly the surface used rather than pulling in a devDependency.
+
+Separately, a `storage` event naming this app's key from another tab now
+stops `saveNow()` from writing this tab's stale in-memory copy over the
+newer one, with a banner explaining why and a Reload button — the
+last-writer-wins loss the finding named, addressed as a courtesy warning
+rather than real-time sync, which would reopen SPEC §1 (D5).
+
+**One real bug, caught by testing rather than review.** `linkFile()` set
+its module state before persisting to IndexedDB, so a persistence failure
+left the module believing it was linked while reporting failure to the
+caller and never telling the UI — found via a genuine `DataCloneError`
+while browser-testing with a mocked handle (a real handle is natively
+structured-cloneable; a plain mock object with methods is not). Fixed by
+only committing the linked state once both the persist and the first
+write succeed.
+
+Verified in a real browser: the unsupported case hides the whole block;
+cancelling the native picker changes nothing; two real tabs sharing an
+origin produce one banner, a genuinely blocked save, and a working
+Reload, in both themes and at 420px. The deeper link/unlink/reconnect/
+restore flow — including the rollback fix — is covered by new
+`test/store.test.mjs` tests against a fake IndexedDB, since a real
+handle's cloneability is a browser guarantee no test suite can fabricate
+and wasn't what needed proving.
+
+**§4.7 is complete — every workstream in this plan has now landed.**
 
 ### 4.8 Brand pack (D8)
 
