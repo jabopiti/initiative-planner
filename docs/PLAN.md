@@ -72,7 +72,8 @@ Update the row below in the commit that finishes a bundle.
 | 0 | **Done** |
 | 1 | **Done** |
 | 2 | **Done** |
-| 3–12 | Not started |
+| 3 | **Done** |
+| 4–12 | Not started |
 
 ---
 
