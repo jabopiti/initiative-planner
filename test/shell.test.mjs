@@ -66,10 +66,14 @@ test('every action rendered has something that handles it, and vice versa', asyn
     ...[...source.matchAll(/'data-act': '([a-z-]+)'/g)].map((m) => m[1]),
   ]);
 
-  // And they are consumed three ways: a switch case, a comparison (either
-  // direction), or a lookup by selector for a control read rather than
-  // dispatched on.
+  // And they are consumed four ways: a registry-map entry (every page module
+  // registers its own `{act: handler}` map into app.js's shared dispatch —
+  // AGENTS.md's registry pattern), a switch case (the style the registry
+  // replaced, kept here in case a stray one ever comes back), a comparison
+  // (either direction), or a lookup by selector for a control read rather
+  // than dispatched on.
   const consumed = new Set([
+    ...[...source.matchAll(/'([a-z-]+)':\s*\(/g)].map((m) => m[1]),
     ...[...source.matchAll(/case '([a-z-]+)':/g)].map((m) => m[1]),
     ...[...source.matchAll(/act [=!]==? '([a-z-]+)'/g)].map((m) => m[1]),
     ...[...source.matchAll(/querySelector\(`?\[data-act="([a-z-]+)"/g)].map((m) => m[1]),

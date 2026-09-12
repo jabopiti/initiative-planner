@@ -3,7 +3,7 @@ import * as F from '../format.js';
  * People: the sortable, filterable roster across every team.
  */
 import * as E from '../engine.js';
-import { app, view, currentMonth } from '../app.js';
+import { app, view, currentMonth, navigate } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, badge, sortHeader, sortRows } from '../render/components.js';
@@ -165,3 +165,10 @@ export function renderPeople() {
           : empty('Nobody matches those filters.', { icon: 'filter' }))}`,
   );
 }
+
+export const peopleClickActions = {
+  // Nothing is created yet — Cancel on the draft below leaves no record
+  // behind (D1, and the review's "a person is just created with no
+  // chance to cancel").
+  'person-add': () => navigate('person', { id: 'new' }),
+};

@@ -5,7 +5,7 @@ import * as F from '../format.js';
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
-import { app, view, STATUS_LABELS, currentMonth } from '../app.js';
+import { app, view, STATUS_LABELS, currentMonth, navigate } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, sortHeader, sortRows } from '../render/components.js';
@@ -168,3 +168,12 @@ export function renderPortfolio() {
       </div>`,
   );
 }
+
+export const portfolioClickActions = {
+  // Clicking the selected tile again clears the filter.
+  'portfolio-tile': ({ trigger }) => {
+    const band = trigger.dataset.band;
+    const next = view.params.bandId === band ? null : band;
+    return navigate('portfolio', { ...view.params, bandId: next });
+  },
+};

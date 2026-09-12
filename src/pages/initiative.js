@@ -12,7 +12,11 @@ import * as F from '../format.js';
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
-import { app, view, navigate, STATUS_LABELS, today } from '../app.js';
+import * as store from '../store.js';
+import {
+  app, view, navigate, STATUS_LABELS, today, commit, commitQuietly, findInitiative,
+  openPopover, closePopover, openDialog, closeDialog, withUndo,
+} from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, badge, panel } from '../render/components.js';
@@ -862,3 +866,118 @@ function gateComparisonMarkup(initiative) {
     ${raw(tableActions('gates', 'comparison'))}`,
   });
 }
+
+export const initiativeClickActions = {
+  'pass-gate': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const date = document.querySelector('[data-field="gate-date"]');
+    L.passGate(app, PROCESS, initiative, trigger.dataset.gate,
+      date instanceof HTMLInputElement && date.value ? date.value : today());
+    return commit();
+  },
+  'gate-menu': ({ trigger, id }) => openPopover(trigger, gateMenuMarkup(id)),
+  'jump-menu': ({ trigger, id }) => openPopover(trigger, jumpMenuMarkup(id)),
+  // Out of the menu and into the dialog: closing first is what puts the
+  // focus the native dialog restores on the button that opened the menu.
+  'skip-gate-open': ({ trigger, id }) => {
+    closePopover();
+    return openDialog(skipDialogMarkup(id, trigger.dataset.gate));
+  },
+  'dialog-cancel': () => closeDialog(),
+  'skip-gate': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const field = document.querySelector('[data-field="skip-reason"]');
+    const reason = field instanceof HTMLInputElement ? field.value.trim() : '';
+    if (!reason) {
+      // Refusing silently would look broken; say what is missing, as a
+      // message under the field rather than by overwriting its placeholder
+      // with an error — a placeholder is an example, not a state (§4.6).
+      const message = document.querySelector('[data-note="skip-error"]');
+      if (message instanceof HTMLElement) message.hidden = false;
+      if (field instanceof HTMLInputElement) {
+        field.classList.add('field--warn');
+        field.focus();
+      }
+      return undefined;
+    }
+    const date = document.querySelector('[data-field="skip-date"]');
+    L.skipGate(app, PROCESS, initiative, trigger.dataset.gate, reason,
+      date instanceof HTMLInputElement && date.value ? date.value : today());
+    closeDialog();
+    commit();
+    // The dialog hands focus back to the button that opened it, which the
+    // re-render has just removed — so put it on the page rather than
+    // letting it fall to <body>, where the next Tab starts from the top of
+    // the browser chrome.
+    document.getElementById('root')?.focus();
+    return undefined;
+  },
+  'reopen': ({ id }) => {
+    // Reachable from inside the gate menu, which a click on its own items
+    // does not dismiss.
+    closePopover();
+    L.reopen(PROCESS, findInitiative(id));
+    return commit();
+  },
+  'open-initiative': ({ id }) => navigate('initiative', { id }),
+  'duplicate-initiative': ({ id }) => {
+    const copy = L.duplicate(app, PROCESS, findInitiative(id));
+    store.save(app);
+    return navigate('initiative', { id: copy.id });
+  },
+  'initiative-delete-arm': () => navigate('initiative', { ...view.params, confirmDelete: true }),
+  'initiative-delete-cancel': () => navigate('initiative', { ...view.params, confirmDelete: false }),
+  'initiative-delete-confirm': ({ id }) => {
+    L.deleteInitiative(app, id);
+    store.save(app);
+    return navigate('initiatives', {});
+  },
+};
+
+export const initiativeChangeActions = {
+  'checklist-status': ({ target, id }) => {
+    // Resolving an item changes what the requirement says about itself, so
+    // the row is rebuilt — and the control that did it goes with it. Put
+    // focus back on its replacement, or working down a checklist by
+    // keyboard drops you at the top of the page after every item.
+    withUndo('Updated checklist item', () => {
+      L.setChecklistStatus(findInitiative(id), target.dataset.gate, target.dataset.item, target.value);
+    });
+    commit();
+    const restored = document.querySelector(
+      `[data-act="checklist-status"][data-item="${target.dataset.item}"]`,
+    );
+    if (restored instanceof HTMLSelectElement) restored.focus();
+  },
+  'phase-start': ({ target, id }) => {
+    const initiative = findInitiative(id);
+    const phase = initiative.phases[target.dataset.phase];
+    withUndo(`Changed ${E.phaseLabel(PROCESS, target.dataset.phase)}'s start date`, () => {
+      L.setPhasePeriod(initiative, target.dataset.phase, target.value || null, phase.estEndDate);
+    });
+    return commit();
+  },
+  'phase-end': ({ target, id }) => {
+    const initiative = findInitiative(id);
+    const phase = initiative.phases[target.dataset.phase];
+    withUndo(`Changed ${E.phaseLabel(PROCESS, target.dataset.phase)}'s end date`, () => {
+      L.setPhasePeriod(initiative, target.dataset.phase, phase.estStartDate, target.value || null);
+    });
+    return commit();
+  },
+};
+
+export const initiativeInputActions = {
+  'checklist-note': ({ target, id }) => {
+    L.setChecklistNote(findInitiative(id), target.dataset.gate, target.dataset.item, target.value);
+    commitQuietly();
+  },
+  'initiative-description': ({ target, id }) => {
+    L.setDescription(findInitiative(id), target.value);
+    commitQuietly();
+  },
+  'initiative-notes': ({ target, id }) => {
+    L.setNotes(findInitiative(id), target.value);
+    commitQuietly();
+  },
+};

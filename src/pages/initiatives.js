@@ -5,7 +5,10 @@ import * as F from '../format.js';
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
-import { app, view, STATUS_LABELS, STATUS_BADGE_KIND } from '../app.js';
+import {
+  app, view, STATUS_LABELS, STATUS_BADGE_KIND, commit, closePopover, openPopover,
+  currentPopoverTrigger, findInitiative, withUndo,
+} from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, sortHeader, sortRows, badge, badgeClass } from '../render/components.js';
@@ -188,3 +191,25 @@ export function statusCancelConfirmMarkup(initiativeId) {
       <button type="button" class="btn" data-act="status-cancel-abort">Never mind</button>
     </div>`;
 }
+
+export const initiativesClickActions = {
+  'status-menu': ({ trigger, id }) => openPopover(trigger, statusMenuMarkup(id)),
+  'status-set': ({ trigger, id }) => {
+    closePopover();
+    const initiative = findInitiative(id);
+    withUndo(`Set status to ${STATUS_LABELS[trigger.dataset.status]}`, () => {
+      L.setStatus(initiative, trigger.dataset.status);
+    });
+    return commit();
+  },
+  // Same anchor as the menu it replaces: the row's badge, not this button,
+  // which is about to be replaced along with the rest of the popover's
+  // content.
+  'status-cancel-arm': ({ id }) => openPopover(currentPopoverTrigger(), statusCancelConfirmMarkup(id)),
+  'status-cancel-confirm': ({ id }) => {
+    closePopover();
+    L.setStatus(findInitiative(id), 'cancelled');
+    return commit();
+  },
+  'status-cancel-abort': () => closePopover(),
+};

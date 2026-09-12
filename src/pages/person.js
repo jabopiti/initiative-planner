@@ -6,7 +6,8 @@ import * as F from '../format.js';
 import * as E from '../engine.js';
 import * as P from '../people.js';
 import { PROCESS } from '../process.js';
-import { app, view, navigate } from '../app.js';
+import * as store from '../store.js';
+import { app, view, navigate, commit, commitQuietly, withUndo } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, badge } from '../render/components.js';
@@ -289,3 +290,96 @@ function personCapacity(person, months) {
     </table>`, 'scroller--tall'))}
     ${raw(tableActions('personCapacity', 'capacity'))}`;
 }
+
+export const personClickActions = {
+  'person-draft-discard': () => navigate('people', {}),
+  'person-draft-create': () => {
+    const draft = view.params.draft ?? {};
+    const name = (draft.name ?? '').trim();
+    if (!name) return undefined;
+    const person = P.createPerson(app, {
+      name,
+      countryId: draft.countryId,
+      roleId: draft.roleId,
+    });
+    store.save(app);
+    return navigate('person', { id: person.id });
+  },
+  'person-active': ({ id }) => {
+    const person = app.PEOPLE[id];
+    withUndo(`${person.active ? 'Deactivated' : 'Reactivated'} ${person.name}`, () => {
+      P.setPersonActive(person, !person.active);
+    });
+    return commit();
+  },
+  'join-team': ({ id }) => {
+    const select = document.querySelector(`[data-act="join-team-pick"][data-id="${id}"]`);
+    if (!(select instanceof HTMLSelectElement)) return commit();
+    const person = app.PEOPLE[id];
+    withUndo(`Added ${person.name} to the team`, () => {
+      P.addMembership(person, select.value, 0);
+    });
+    return commit();
+  },
+};
+
+export const personChangeActions = {
+  'person-draft-select': ({ target }) => {
+    const draft = { ...view.params.draft, [target.dataset.field]: target.value };
+    return navigate('person', { ...view.params, draft });
+  },
+  'person-country': ({ target, id }) => {
+    const person = app.PEOPLE[id];
+    withUndo(`Changed ${person.name}'s country`, () => {
+      person.countryId = target.value;
+    });
+    return commit();
+  },
+  'person-role': ({ target, id }) => {
+    const person = app.PEOPLE[id];
+    withUndo(`Changed ${person.name}'s role`, () => {
+      P.useStandardRole(person, target.value);
+    });
+    return commit();
+  },
+  'rate-kind': ({ target, id }) => {
+    const person = app.PEOPLE[id];
+    withUndo(`Switched ${person.name} to a ${target.dataset.kind === 'custom' ? 'custom' : 'standard'} rate`, () => {
+      if (target.dataset.kind === 'custom') P.useCustomRole(app, person);
+      else P.useStandardRole(person);
+    });
+    return commit();
+  },
+};
+
+export const personInputActions = {
+  'person-field': ({ target, id, field }) => {
+    const person = app.PEOPLE[id];
+    person[field] = field === 'capacityPct' ? F.readNumber(target.value, person.capacityPct) : target.value;
+    commitQuietly();
+  },
+  'person-custom-label': ({ target, id }) => {
+    app.PEOPLE[id].customRole.label = target.value;
+    commitQuietly();
+  },
+  'person-rate': ({ target, id }) => {
+    P.setCustomRate(app.PEOPLE[id], target.dataset.year, F.readNumber(target.value, 0));
+    commitQuietly();
+  },
+  'membership-share': ({ target, id }) => {
+    const person = app.PEOPLE[id];
+    const team = target.dataset.team;
+    const current = person.memberships.find((m) => m.teamId === team);
+    P.setMembershipShare(person, team, F.readNumber(target.value, current.sharePct));
+    commitQuietly();
+  },
+  // Neither team nor person exists yet, so — unlike every other draft — an
+  // in-memory params object is enough; there is nothing worth surviving a
+  // reload before a name has even been typed (D1).
+  'person-draft-field': ({ target, field }) => {
+    const draft = { ...view.params.draft, [field]: target.value };
+    view.params = { ...view.params, draft };
+    const create = document.querySelector('[data-act="person-draft-create"]');
+    if (create instanceof HTMLButtonElement) create.disabled = !(draft.name ?? '').trim();
+  },
+};

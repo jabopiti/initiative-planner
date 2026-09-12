@@ -5,7 +5,7 @@ import * as F from '../format.js';
 import * as E from '../engine.js';
 import * as P from '../people.js';
 import { PROCESS } from '../process.js';
-import { app, view, navigate } from '../app.js';
+import { app, view, navigate, commit, commitQuietly, openPopover, withUndo } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, badge } from '../render/components.js';
@@ -281,3 +281,36 @@ function runRateMarkup(team) {
       : stackedBarsMarkup(data, 'teamRunRate', 'Run rate'))}
   </div>`;
 }
+
+export const teamClickActions = {
+  'capacity-cell': ({ trigger }) => openPopover(
+    trigger,
+    capacityCellMarkup(trigger.dataset.person, trigger.dataset.team, trigger.dataset.month),
+  ),
+  'membership-active': ({ trigger, id }) => {
+    const person = app.PEOPLE[id];
+    const team = trigger.dataset.team;
+    const current = person.memberships.find((m) => m.teamId === team);
+    withUndo(`${current.active ? 'Deactivated' : 'Reactivated'} ${person.name}'s membership`, () => {
+      P.setMembershipActive(app, person, team, !current.active);
+    });
+    return commit();
+  },
+};
+
+export const teamChangeActions = {
+  'add-member': ({ target, id }) => {
+    const person = app.PEOPLE[target.value];
+    withUndo(`Added ${person.name} to the team`, () => {
+      P.addMembership(person, id, 0);
+    });
+    return commit();
+  },
+};
+
+export const teamInputActions = {
+  'team-name': ({ target, id }) => {
+    P.renameTeam(app.TEAMS[id], target.value);
+    commitQuietly();
+  },
+};

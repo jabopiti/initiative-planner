@@ -5,7 +5,7 @@ import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import * as store from '../store.js';
 import { PROCESS } from '../process.js';
-import { app, view } from '../app.js';
+import { app, view, navigate } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, empty, panel } from '../render/components.js';
@@ -161,3 +161,60 @@ function renderWizardEstimates(initiative) {
         registry, marked as still needing an estimate.</p>`,
   );
 }
+
+export const wizardClickActions = {
+  'wizard-start': () => navigate('wizard', {}),
+  'draft-discard': () => {
+    store.clearDraft();
+    return navigate('initiatives', {});
+  },
+  'draft-create': () => {
+    const draft = view.params.draft ?? store.loadDraft();
+    if (!(draft.name ?? '').trim()) return undefined;
+    const initiative = L.createInitiative(app, PROCESS, {
+      name: draft.name.trim(),
+      description: draft.description ?? '',
+      teamId: draft.teamId ?? Object.keys(app.TEAMS)[0],
+      startPhaseId: draft.startPhaseId,
+      skipReason: draft.skipReason,
+    });
+    store.clearDraft();
+    store.save(app);
+    return navigate('wizard', { id: initiative.id });
+  },
+  'wizard-discard-arm': () => navigate('wizard', { ...view.params, confirmDiscard: true }),
+  'wizard-discard-cancel': () => navigate('wizard', { ...view.params, confirmDiscard: false }),
+  'wizard-discard-confirm': ({ id }) => {
+    // The initiative is real from step 1, so abandoning the flow has to be
+    // able to remove it — otherwise walking away leaves a half-formed
+    // record in the registry, which is the finding this answers (§2.6).
+    L.deleteInitiative(app, id);
+    store.save(app);
+    return navigate('initiatives', {});
+  },
+};
+
+export const wizardChangeActions = {
+  'draft-select': ({ target }) => {
+    const draft = {
+      ...(view.params.draft ?? store.loadDraft()),
+      [target.dataset.field]: target.value,
+    };
+    store.saveDraft(draft);
+    return navigate('wizard', { ...view.params, draft });
+  },
+};
+
+export const wizardInputActions = {
+  'draft-field': ({ target, field }) => {
+    // The draft lives in view params until step 1 is saved, so it survives
+    // re-renders without an initiative existing yet.
+    const draft = { ...(view.params.draft ?? store.loadDraft()), [field]: target.value };
+    view.params = { ...view.params, draft };
+    store.saveDraft(draft);
+    // Only the create button's enabled state depends on this, so refresh
+    // nothing else and leave the caret alone.
+    const create = document.querySelector('[data-act="draft-create"]');
+    if (create instanceof HTMLButtonElement) create.disabled = !(draft.name ?? '').trim();
+  },
+};

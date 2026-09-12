@@ -5,8 +5,13 @@
  * between them, not to swap content in and out.
  */
 import * as T from '../transfer.js';
+import * as E from '../engine.js';
+import * as F from '../format.js';
+import * as L from '../lifecycle.js';
 import * as store from '../store.js';
-import { app, view, pendingImport } from '../app.js';
+import {
+  app, view, pendingImport, navigate, commit, commitQuietly, restoreCaretAfter, withUndo,
+} from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller } from '../render/components.js';
@@ -401,3 +406,134 @@ function renderDanger() {
       : html`<button type="button" class="btn btn--danger" data-act="reset-arm">
           Reset to a fresh installation</button>`)}`;
 }
+
+/* ---- actions ---- */
+
+export const settingsClickActions = {
+  'role-active': ({ id }) => {
+    const role = app.ROLES[id];
+    withUndo(`${role.active ? 'Deactivated' : 'Reactivated'} ${role.name}`, () => {
+      role.active = !role.active;
+    });
+    return commit();
+  },
+  'role-deactivate-arm': ({ id }) => navigate('settings', { ...view.params, confirmDeactivate: id }),
+  'country-active': ({ id }) => {
+    const country = app.COUNTRIES[id];
+    withUndo(`${country.active ? 'Deactivated' : 'Reactivated'} ${country.name}`, () => {
+      country.active = !country.active;
+    });
+    return commit();
+  },
+  'country-deactivate-arm': ({ id }) =>
+    navigate('settings', { ...view.params, confirmDeactivate: id }),
+  'deactivate-cancel': () => navigate('settings', { ...view.params, confirmDeactivate: null }),
+  'country-expand': ({ id }) => navigate('settings', {
+    section: view.params.section ?? 'roles',
+    expanded: view.params.expanded === id ? null : id,
+  }),
+  'country-apply-all': ({ trigger, id }) => {
+    // 48 cells per country typed one at a time is the real pain (§4.3) —
+    // this is a scratch value, not itself a data field, so it carries no
+    // data-act of its own and is read here rather than committed on input.
+    const year = trigger.dataset.year;
+    const input = document.querySelector(
+      `[data-field="bulk-workdays"][data-id="${id}"][data-year="${year}"]`,
+    );
+    if (!(input instanceof HTMLInputElement)) return undefined;
+    const value = Math.max(0, F.readNumber(input.value, 0));
+    withUndo(`Set every ${year} month to ${value} working days`, () => {
+      app.COUNTRIES[id].byYear[year].workingDays = Array(12).fill(value);
+    });
+    return commit();
+  },
+  'country-copy-year': ({ trigger, id }) => {
+    const year = trigger.dataset.year;
+    const country = app.COUNTRIES[id];
+    withUndo(`Copied ${year}'s working days to every other year`, () => {
+      const source = country.byYear[year];
+      for (const otherYear of Object.keys(country.byYear)) {
+        if (otherYear === year) continue;
+        // Working days only — each year keeps its own rate (a rate rise next
+        // year must never move this year's months, and vice versa).
+        country.byYear[otherYear].workingDays = [...source.workingDays];
+      }
+    });
+    return commit();
+  },
+  // link-file, unlink-file and reconnect-file all report through
+  // watchFileBinding (wired at boot to refreshFileStatus) on every actual
+  // state change — a cancelled file picker changes nothing, so nothing
+  // needs to redraw for it.
+  'link-file': () => { store.linkFile(app); },
+  'unlink-file': () => { store.unlinkFile(); },
+  // Must run from this click's own gesture — that's the whole reason it's a
+  // button rather than something retried automatically.
+  'reconnect-file': () => { store.reconnectFile(); },
+  'import-mode': ({ trigger }) => {
+    pendingImport.mode = trigger.dataset.mode;
+    return fill('import-preview', importPreviewMarkup());
+  },
+  'reset-arm': () => navigate('settings', { section: view.params.section ?? 'roles', armed: true }),
+  'reset-cancel': () =>
+    navigate('settings', { section: view.params.section ?? 'roles', armed: false }),
+};
+
+export const settingsInputActions = {
+  'role-field': ({ target, id, field }) => {
+    if (id === 'new') {
+      const newId = L.newId('role');
+      app.ROLES[newId] = { id: newId, name: '', abbr: '', factor: 1, active: true };
+      app.ROLES[newId][field] = field === 'factor' ? F.readNumber(target.value, 1) : target.value;
+      return restoreCaretAfter(
+        target, `[data-act="role-field"][data-field="${field}"][data-id="${newId}"]`, commit,
+      );
+    }
+    const role = app.ROLES[id];
+    role[field] = field === 'factor' ? F.readNumber(target.value, role.factor) : target.value;
+    commitQuietly();
+  },
+  'country-field': ({ target, id, field }) => {
+    if (id === 'new') {
+      const newId = L.newId('country');
+      const years = Object.keys(Object.values(app.COUNTRIES)[0]?.byYear ?? {});
+      app.COUNTRIES[newId] = {
+        id: newId,
+        name: target.value,
+        active: true,
+        // Prefilled with the calendar's own weekday count for that year, so
+        // the field shows what a holiday-free month looks like rather than
+        // an unexplained zero (§4.3).
+        byYear: Object.fromEntries(
+          years.map((year) => [year, {
+            rate: 0,
+            workingDays: Array.from({ length: 12 }, (_, month) => E.weekdaysInMonth(Number(year), month)),
+          }]),
+        ),
+      };
+      return restoreCaretAfter(
+        target, `[data-act="country-field"][data-field="${field}"][data-id="${newId}"]`, commit,
+      );
+    }
+    app.COUNTRIES[id][field] = target.value;
+    commitQuietly();
+  },
+  'country-rate': ({ target, id }) => {
+    const record = app.COUNTRIES[id].byYear[target.dataset.year];
+    record.rate = F.readNumber(target.value, record.rate);
+    commitQuietly();
+  },
+  'country-workday': ({ target, id }) => {
+    const record = app.COUNTRIES[id].byYear[target.dataset.year];
+    const month = Number(target.dataset.month);
+    record.workingDays[month] = Math.max(0, F.readNumber(target.value, record.workingDays[month]));
+    commitQuietly();
+  },
+  'general-field': ({ target, field }) => {
+    // 0 is a real, meaningful value here — it turns the reminder off — so
+    // the bound is only against nonsense, not against the low end.
+    const read = F.readNumber(target.value, app.GENERAL.exportReminderDays);
+    app.GENERAL[field] = Math.min(365, Math.max(0, read));
+    commitQuietly();
+  },
+};

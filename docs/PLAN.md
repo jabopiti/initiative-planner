@@ -70,7 +70,8 @@ Update the row below in the commit that finishes a bundle.
 | Bundle | Status |
 |---|---|
 | 0 | **Done** |
-| 1–12 | Not started |
+| 1 | **Done** |
+| 2–12 | Not started |
 
 ---
 

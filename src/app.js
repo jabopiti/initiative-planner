@@ -16,32 +16,33 @@ import * as F from './format.js';
  */
 
 import * as E from './engine.js';
-import * as L from './lifecycle.js';
 import * as T from './transfer.js';
-import * as P from './people.js';
 import * as store from './store.js';
 import { PROCESS } from './process.js';
 
 import { html, raw, fill } from './render/dom.js';
 import { SPRITE, icon } from './render/icons.js';
 import { TABLES } from './render/tables.js';
-import { chartYear } from './render/charts.js';
-import { phaseTotalsMarkup, grandMarkup, allocationDetailMarkup } from './render/phase-panel.js';
+import { phaseTotalsMarkup, grandMarkup, phasePanelClickActions, phasePanelInputActions } from './render/phase-panel.js';
+import { chartsClickActions } from './render/charts.js';
 
-import { renderPortfolio } from './pages/portfolio.js';
-import { renderInitiatives, statusMenuMarkup, statusCancelConfirmMarkup } from './pages/initiatives.js';
+import { renderPortfolio, portfolioClickActions } from './pages/portfolio.js';
+import { renderInitiatives, initiativesClickActions } from './pages/initiatives.js';
 import {
-  renderInitiative, bandPanelMarkup, gateMenuMarkup, jumpMenuMarkup, monthTotalsRowMarkup,
-  skipDialogMarkup, summaryBarMarkup,
+  renderInitiative, bandPanelMarkup, monthTotalsRowMarkup, summaryBarMarkup,
+  initiativeClickActions, initiativeChangeActions, initiativeInputActions,
 } from './pages/initiative.js';
-import { renderWizard } from './pages/wizard.js';
-import { renderTeams } from './pages/teams.js';
-import { renderTeam, capacityCellMarkup } from './pages/team.js';
-import { renderPeople } from './pages/people.js';
-import { renderPerson } from './pages/person.js';
+import { renderWizard, wizardClickActions, wizardChangeActions, wizardInputActions } from './pages/wizard.js';
+import { renderTeams, teamsClickActions, teamsInputActions } from './pages/teams.js';
+import { renderTeam, teamClickActions, teamChangeActions, teamInputActions } from './pages/team.js';
+import { renderPeople, peopleClickActions } from './pages/people.js';
+import {
+  renderPerson, personClickActions, personChangeActions, personInputActions,
+} from './pages/person.js';
 import { renderCapacity } from './pages/capacity.js';
 import {
   renderSettings, importPreviewMarkup, scrollToSettingsSection, fileStatusMarkup,
+  settingsClickActions, settingsInputActions,
 } from './pages/settings.js';
 
 /* ------------------------------------------------------------------ *
@@ -134,15 +135,45 @@ function searchResults(query) {
   ];
 }
 
+/**
+ * The last few initiatives, people and teams actually opened, most recent
+ * first — so the empty state is a shortcut back to what you were just
+ * looking at, not just an instruction to type (§4.5).
+ */
+const RECENTLY_VIEWED_LIMIT = 5;
+let recentlyViewed = [];
+
+function recordRecentlyViewed(page, params) {
+  const id = params?.id;
+  if (!id) return;
+  let subject;
+  if (page === 'initiative') subject = app.INITIATIVES.find((i) => i.id === id);
+  else if (page === 'person') subject = app.PEOPLE[id];
+  else if (page === 'team') subject = app.TEAMS[id];
+  if (!subject) return;
+  const kind = page === 'initiative' ? 'Initiative' : page === 'person' ? 'Person' : 'Team';
+  const entry = { kind, name: subject.name, href: `#/${page}/${id}` };
+  recentlyViewed = [
+    entry,
+    ...recentlyViewed.filter((r) => r.href !== entry.href),
+  ].slice(0, RECENTLY_VIEWED_LIMIT);
+}
+
+function resultRowMarkup(r) {
+  return html`<a class="btn" href="${r.href}" data-act="search-select">
+      <span class="micro muted">${r.kind}</span> ${r.name}
+      ${raw(r.note ? html`<span class="micro muted">· ${r.note}</span>` : '')}</a>`;
+}
+
 function searchResultsMarkup(query) {
-  if (!query.trim()) return html`<p class="muted micro">Type a name to jump to it.</p>`;
+  if (!query.trim()) {
+    if (recentlyViewed.length === 0) return html`<p class="muted micro">Type a name to jump to it.</p>`;
+    return html`<p class="muted micro">Recently viewed</p>
+      <div class="popover__actions">${raw(recentlyViewed.map(resultRowMarkup).join(''))}</div>`;
+  }
   const results = searchResults(query);
   if (results.length === 0) return html`<p class="muted micro">No match.</p>`;
-  return html`<div class="popover__actions">${raw(results
-    .map((r) => html`<a class="btn" href="${r.href}" data-act="search-select">
-        <span class="micro muted">${r.kind}</span> ${r.name}
-        ${raw(r.note ? html`<span class="micro muted">· ${r.note}</span>` : '')}</a>`)
-    .join(''))}</div>`;
+  return html`<div class="popover__actions">${raw(results.map(resultRowMarkup).join(''))}</div>`;
 }
 
 function searchMarkup() {
@@ -160,7 +191,7 @@ function searchMarkup() {
 let toastTimer = null;
 let pendingUndo = null;
 
-function showToast(text, kind = '', undoCb = null) {
+export function showToast(text, kind = '', undoCb = null) {
   const node = document.getElementById('toast');
   if (!node) return;
   pendingUndo = undoCb;
@@ -175,7 +206,7 @@ function showToast(text, kind = '', undoCb = null) {
   }, 4000);
 }
 
-function withUndo(text, action) {
+export function withUndo(text, action) {
   const snapshot = JSON.stringify(app);
   action();
   showToast(text, '', () => {
@@ -332,6 +363,13 @@ function setNavOpen(open) {
 /** The element a popover was opened from, so it can be repositioned. */
 let popoverTrigger = null;
 
+/** The trigger of whichever popover is currently open, or null — for a
+ * handler that replaces one popover's content with another anchored the
+ * same place (e.g. a status menu's own confirm step). */
+export function currentPopoverTrigger() {
+  return popoverTrigger;
+}
+
 /**
  * Position from the trigger's bounding rectangle rather than relying on CSS
  * anchoring (AGENTS.md), clamped so it cannot open off-screen. Recomputed on
@@ -365,7 +403,7 @@ function positionPopover() {
 
 const FOCUSABLE = 'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
-function openPopover(trigger, markup) {
+export function openPopover(trigger, markup) {
   const node = document.getElementById('popover');
   if (!node) return;
   popoverTrigger = trigger;
@@ -380,7 +418,7 @@ function openPopover(trigger, markup) {
   else node.focus();
 }
 
-function closePopover() {
+export function closePopover() {
   const node = document.getElementById('popover');
   if (!node || node.hidden) return;
   node.hidden = true;
@@ -425,7 +463,7 @@ function trapPopoverTab(event) {
  * dismisses a popover, which is right for something you are reading and wrong
  * for something you are half-way through typing.
  */
-function openDialog(markup) {
+export function openDialog(markup) {
   const node = document.getElementById('dialog');
   if (!(node instanceof HTMLDialogElement)) return;
   fill(node, markup);
@@ -439,7 +477,7 @@ function openDialog(markup) {
  * a native dialog without passing through this function, so the keyboard path
  * calls it too and one place does the clearing either way.
  */
-function closeDialog() {
+export function closeDialog() {
   const node = document.getElementById('dialog');
   if (!(node instanceof HTMLDialogElement)) return;
   if (node.open) node.close();
@@ -548,6 +586,7 @@ function announceNavigation() {
   // place" means for it — only on a real navigation, never on a quiet
   // re-render from editing whatever section is already in view.
   if (view.page === 'settings') scrollToSettingsSection();
+  recordRecentlyViewed(view.page, view.params);
 }
 
 export function navigate(page, params = {}) {
@@ -567,14 +606,62 @@ export function navigate(page, params = {}) {
 }
 
 /** Persist (debounced) and re-render. */
-function commit() {
+export function commit() {
   store.save(app);
   render();
 }
 
 /** Persist without re-rendering — for edits made under the caret. */
-function commitQuietly() {
+export function commitQuietly() {
   store.save(app);
+}
+
+/* ------------------------------------------------------------------ *
+ * Action registry
+ * ------------------------------------------------------------------ *
+ *
+ * One global `click`/`change` listener each (AGENTS.md's "installed once"
+ * invariant), but the *handlers* they dispatch to are not all written here.
+ * Each page module — and each shared render component with its own
+ * behaviour, like a sortable table or a year-nav chart — registers its own
+ * `{act: handler}` map into these tables at import time (harmless: every
+ * module is already imported for `render()` to call, well before `boot()`
+ * ever wires up the listeners that would read from these maps). This is
+ * what lets a new action's logic live beside the markup that triggers it,
+ * instead of every feature editing the same central switch.
+ *
+ * A handler receives one context object rather than the raw event, so it
+ * never has to re-derive `trigger`/`id` the way the old inline cases did.
+ */
+
+/** @typedef {{ trigger: HTMLElement, id: string|undefined, event: Event }} ClickContext */
+/** @typedef {{ target: HTMLSelectElement|HTMLInputElement, id: string|undefined, event: Event }} ChangeContext */
+/** @typedef {{ target: HTMLInputElement, id: string|undefined, field: string|undefined, event: Event }} InputContext */
+
+/** @type {Map<string, (ctx: ClickContext) => unknown>} */
+const clickActions = new Map();
+/** @type {Map<string, (ctx: ChangeContext) => unknown>} */
+const changeActions = new Map();
+/** @type {Map<string, (ctx: InputContext) => unknown>} */
+const inputActions = new Map();
+
+/** Register one module's click actions. Later registrations win on a collision. */
+export function registerClickActions(map) {
+  for (const [act, handler] of Object.entries(map)) clickActions.set(act, handler);
+}
+/** Register one module's change actions (selects, radios, checkboxes). */
+export function registerChangeActions(map) {
+  for (const [act, handler] of Object.entries(map)) changeActions.set(act, handler);
+}
+/**
+ * Register one module's input actions (typed edits, autosaved under the
+ * caret). Unlike click/change handlers, an input handler owns its own
+ * commit: call `commitQuietly()` (nothing moved but this field) or
+ * `commit()`/`refreshCalcRegions()` (something else on screen depends on
+ * the new value) itself, explicitly — there is no implicit fallthrough.
+ */
+export function registerInputActions(map) {
+  for (const [act, handler] of Object.entries(map)) inputActions.set(act, handler);
 }
 
 /* ------------------------------------------------------------------ *
@@ -626,7 +713,7 @@ export function render() {
  *
  * Structure is never rebuilt, so the caret stays where the user left it.
  */
-function refreshCalcRegions(initiative) {
+export function refreshCalcRegions(initiative) {
   for (const [phaseId, phase] of Object.entries(initiative.phases)) {
     const at = E.ratesFor(app, phase);
     // Driven by the rows on screen rather than the allocations in the model:
@@ -683,7 +770,7 @@ function refreshCalcRegions(initiative) {
 /** A validated import awaiting a Replace/Merge choice. Never auto-applied. */
 export let pendingImport = null;
 
-function findInitiative(id) {
+export function findInitiative(id) {
   const initiative = app.INITIATIVES.find((i) => i.id === id);
   if (!initiative) throw new Error(`unknown initiative: ${id}`);
   return initiative;
@@ -697,7 +784,7 @@ function findInitiative(id) {
  * that typing never *loses* the caret still applies to the field the user
  * was in the middle of typing into.
  */
-function restoreCaretAfter(target, selector, action) {
+export function restoreCaretAfter(target, selector, action) {
   // `selectionStart` reads as null on an input type that doesn't support
   // selection (e.g. the cost row's `type="month"` field) — a signal to skip
   // `setSelectionRange` below, which throws outright on those same types.
@@ -710,67 +797,8 @@ function restoreCaretAfter(target, selector, action) {
   }
 }
 
-function onInput(event) {
-  const target = event.target;
-  if (!(target instanceof HTMLInputElement)) return;
-  const act = target.dataset.act;
-  if (!act) return;
-
-  const id = target.dataset.id;
-  const field = target.dataset.field;
-
-  if (act === 'role-field') {
-    if (id === 'new') {
-      const newId = L.newId('role');
-      app.ROLES[newId] = { id: newId, name: '', abbr: '', factor: 1, active: true };
-      app.ROLES[newId][field] = field === 'factor' ? F.readNumber(target.value, 1) : target.value;
-      restoreCaretAfter(target, `[data-act="role-field"][data-field="${field}"][data-id="${newId}"]`, commit);
-      return;
-    }
-    const role = app.ROLES[id];
-    role[field] = field === 'factor' ? F.readNumber(target.value, role.factor) : target.value;
-  } else if (act === 'country-field') {
-    if (id === 'new') {
-      const newId = L.newId('country');
-      const years = Object.keys(Object.values(app.COUNTRIES)[0]?.byYear ?? {});
-      app.COUNTRIES[newId] = {
-        id: newId,
-        name: target.value,
-        active: true,
-        // Prefilled with the calendar's own weekday count for that year, so
-        // the field shows what a holiday-free month looks like rather than
-        // an unexplained zero (§4.3).
-        byYear: Object.fromEntries(
-          years.map((year) => [year, {
-            rate: 0,
-            workingDays: Array.from({ length: 12 }, (_, month) => E.weekdaysInMonth(Number(year), month)),
-          }]),
-        ),
-      };
-      restoreCaretAfter(target, `[data-act="country-field"][data-field="${field}"][data-id="${newId}"]`, commit);
-      return;
-    }
-    app.COUNTRIES[id][field] = target.value;
-  } else if (act === 'country-rate') {
-    const record = app.COUNTRIES[id].byYear[target.dataset.year];
-    record.rate = F.readNumber(target.value, record.rate);
-  } else if (act === 'country-workday') {
-    const record = app.COUNTRIES[id].byYear[target.dataset.year];
-    const month = Number(target.dataset.month);
-    record.workingDays[month] = Math.max(0, F.readNumber(target.value, record.workingDays[month]));
-  } else if (act === 'person-field') {
-    const person = app.PEOPLE[id];
-    person[field] = field === 'capacityPct' ? F.readNumber(target.value, person.capacityPct) : target.value;
-  } else if (act === 'person-custom-label') {
-    app.PEOPLE[id].customRole.label = target.value;
-  } else if (act === 'person-rate') {
-    P.setCustomRate(app.PEOPLE[id], target.dataset.year, F.readNumber(target.value, 0));
-  } else if (act === 'membership-share') {
-    const person = app.PEOPLE[id];
-    const team = target.dataset.team;
-    const current = person.memberships.find((m) => m.teamId === team);
-    P.setMembershipShare(person, team, F.readNumber(target.value, current.sharePct));
-  } else if (act === 'filter') {
+registerInputActions({
+  'filter': ({ target }) => {
     // Search is the one filter that must react per keystroke, and filtering
     // rebuilds the table the box sits above. restoreCaretAfter re-renders,
     // then puts the caret back exactly where it was — the invariant is that
@@ -786,104 +814,96 @@ function onInput(event) {
       `[data-act="filter"][data-filter="${target.dataset.filter}"]`,
       () => navigate(view.page, { ...view.params, filters }),
     );
-    return;
-  } else if (act === 'search-query') {
+  },
+  'search-query': ({ target }) => {
     // Only the results list rebuilds — the input itself is never touched, so
     // there is no caret to lose in the first place.
     fill(document.querySelector('[data-search-results]'), searchResultsMarkup(target.value));
-    return;
-  } else if (act === 'draft-field') {
-    // The draft lives in view params until step 1 is saved, so it survives
-    // re-renders without an initiative existing yet.
-    const draft = { ...(view.params.draft ?? store.loadDraft()), [field]: target.value };
-    view.params = { ...view.params, draft };
-    store.saveDraft(draft);
-    // Only the create button's enabled state depends on this, so refresh
-    // nothing else and leave the caret alone.
-    const create = document.querySelector('[data-act="draft-create"]');
-    if (create instanceof HTMLButtonElement) create.disabled = !(draft.name ?? '').trim();
-    return;
-  } else if (act === 'team-draft-field' || act === 'person-draft-field') {
-    // Neither team nor person exists yet, so — unlike every other draft — an
-    // in-memory params object is enough; there is nothing worth surviving a
-    // reload before a name has even been typed (D1).
-    const createAct = act === 'team-draft-field' ? 'team-draft-create' : 'person-draft-create';
-    const draft = { ...view.params.draft, [field]: target.value };
-    view.params = { ...view.params, draft };
-    const create = document.querySelector(`[data-act="${createAct}"]`);
-    if (create instanceof HTMLButtonElement) create.disabled = !(draft.name ?? '').trim();
-    return;
-  } else if (act === 'allocation-pct') {
-    const initiative = findInitiative(target.dataset.id);
-    const phaseId = target.dataset.phase;
-    // Every roster row carries this field, allocated or not (D2), so there
-    // may be no record yet — in which case unreadable input falls back to 0
-    // rather than to a percentage that does not exist.
-    const current = initiative.phases[phaseId].allocations
-      .find((a) => a.personId === target.dataset.person);
-    L.setAllocation(app, initiative, phaseId, target.dataset.person,
-      F.readNumber(target.value, current?.allocationPct ?? 0));
-    commitQuietly();
-    return refreshCalcRegions(initiative);
-  } else if (act === 'actual-month') {
-    const initiative = findInitiative(target.dataset.id);
-    const phaseId = target.dataset.phase;
-    const raw = target.value.trim();
-    L.recordActual(initiative, phaseId, target.dataset.month,
-      raw === '' ? null : F.readNumber(raw, 0));
-    commitQuietly();
-    // Recording an actual moves the blended figures, not the structure.
-    return refreshCalcRegions(initiative);
-  } else if (act === 'checklist-note') {
-    L.setChecklistNote(findInitiative(target.dataset.id), target.dataset.gate,
-      target.dataset.item, target.value);
-  } else if (act === 'cost-field') {
-    const initiative = findInitiative(target.dataset.id);
-    const phaseId = target.dataset.phase;
-    const costId = target.dataset.cost;
-    const field = target.dataset.field;
+  },
+});
 
-    if (costId === 'new') {
-      const newCost = {
-        id: L.newId('cost'),
-        name: field === 'name' ? target.value : 'New cost',
-        month: field === 'month' ? target.value : '',
-        amount: field === 'amount' ? F.readNumber(target.value, 0) : 0,
-      };
-      initiative.phases[phaseId].otherCosts.push(newCost);
-      restoreCaretAfter(
-        target,
-        `[data-act="cost-field"][data-field="${field}"][data-phase="${phaseId}"][data-cost="${newCost.id}"]`,
-        commit,
-      );
-      return;
-    }
-
-    const item = initiative.phases[phaseId].otherCosts.find((c) => c.id === costId);
-    if (field === 'amount') item.amount = F.readNumber(target.value, item.amount);
-    else item[field] = target.value;
-    // Changing an amount moves phase totals. Re-render the affected totals.
-    if (field === 'amount') {
-      commitQuietly();
-      return refreshCalcRegions(initiative);
-    }
-  } else if (act === 'team-name') {
-    P.renameTeam(app.TEAMS[id], target.value);
-  } else if (act === 'initiative-description') {
-    L.setDescription(findInitiative(id), target.value);
-  } else if (act === 'initiative-notes') {
-    L.setNotes(findInitiative(id), target.value);
-  } else if (act === 'general-field') {
-    // 0 is a real, meaningful value here — it turns the reminder off — so
-    // the bound is only against nonsense, not against the low end.
-    const read = F.readNumber(target.value, app.GENERAL.exportReminderDays);
-    app.GENERAL[field] = Math.min(365, Math.max(0, read));
-  } else {
-    return;
-  }
-
-  commitQuietly();
+function onInput(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement)) return;
+  const act = target.dataset.act;
+  if (!act) return;
+  const handler = inputActions.get(act);
+  if (!handler) return;
+  handler({ target, id: target.dataset.id, field: target.dataset.field, event });
 }
+
+registerClickActions({
+  'page': ({ trigger }) => navigate(trigger.dataset.page),
+  'section': ({ trigger }) => navigate('settings', { section: trigger.dataset.section }),
+  // Jumping to a panel on the page you are already on is a scroll, not a
+  // navigation: nothing about the view changed, so nothing re-renders and
+  // nothing touches the address bar or the caret.
+  'panel': ({ trigger }) => {
+    // Reachable from inside the jump menu, which a click on its own items
+    // does not dismiss.
+    closePopover();
+    document.getElementById(trigger.dataset.panel)?.scrollIntoView({ block: 'start' });
+  },
+  'undo': () => {
+    if (pendingUndo) {
+      pendingUndo();
+      pendingUndo = null;
+      fill('toast', '');
+    }
+  },
+  'nav-toggle': () => setNavOpen(!navOpen),
+  'search-open': ({ trigger }) => openPopover(trigger, searchMarkup()),
+  // A real `href` does the navigating; this only has to dismiss a popover a
+  // click on its own contents does not (§4.5).
+  'search-select': () => closePopover(),
+  'theme': () => cycleTheme(),
+  'export': () => {
+    if (!store.downloadExport(app)) return;
+    app.GENERAL.lastExportAt = new Date().toISOString();
+    commit();
+  },
+  'dismiss-load-warning': () => {
+    loadWarningDismissed = true;
+    renderBanner();
+  },
+  'reload-tab': () => location.reload(),
+  'import-cancel': () => {
+    pendingImport = null;
+    fill('import-preview', importPreviewMarkup());
+  },
+  'import-apply': () => {
+    app = T.applyImport(app, pendingImport.data, pendingImport.mode);
+    pendingImport = null;
+    store.saveNow(app);
+    navigate('settings', { section: 'data' });
+  },
+  'month-today': () => navigate(view.page, { ...view.params, month: currentMonth() }),
+  'copy-table': ({ trigger }) => {
+    const table = TABLES[trigger.dataset.table];
+    // The confirmation moved from a note beside the button to a toast: the
+    // button sits under tables that scroll inside their own box, so the
+    // note could land off-screen from the thing that produced it.
+    store.copyTable(table.headers, table.rows).then((result) => {
+      if (result === 'failed') showToast('Copy failed', 'toast--warn');
+      else showToast('Copied');
+    });
+  },
+  // One case for every sortable table, keyed off the page it's on — rather
+  // than a separate case per page repeating the same toggle logic.
+  'sort': ({ trigger }) => {
+    const fallback = SORT_DEFAULTS[view.page];
+    const current = view.params.sort ?? fallback;
+    const key = trigger.dataset.key;
+    const dir = current.key === key ? (current.dir === 'asc' ? 'desc' : 'asc') : fallback.dir;
+    return navigate(view.page, { ...view.params, sort: { key, dir } });
+  },
+  'reset-confirm': () => {
+    store.reset();
+    const fresh = store.load();
+    app = fresh.app;
+    navigate('settings', { section: 'roles' });
+  },
+});
 
 /** Clicks: structural changes, which do re-render. */
 function onClick(event) {
@@ -898,487 +918,28 @@ function onClick(event) {
 
   if (!(trigger instanceof HTMLElement)) return;
 
-  const { act, id } = trigger.dataset;
-  const section = view.params.section ?? 'roles';
-
-  switch (act) {
-    case 'page':
-      return navigate(trigger.dataset.page);
-    case 'section':
-      return navigate('settings', { section: trigger.dataset.section });
-    // Jumping to a panel on the page you are already on is a scroll, not a
-    // navigation: nothing about the view changed, so nothing re-renders and
-    // nothing touches the address bar or the caret.
-    case 'panel':
-      // Reachable from inside the jump menu, which a click on its own items
-      // does not dismiss.
-      closePopover();
-      document.getElementById(trigger.dataset.panel)?.scrollIntoView({ block: 'start' });
-      return undefined;
-    case 'undo':
-      if (pendingUndo) {
-        pendingUndo();
-        pendingUndo = null;
-        fill('toast', '');
-      }
-      return undefined;
-
-    case 'nav-toggle':
-      return setNavOpen(!navOpen);
-    case 'search-open':
-      return openPopover(trigger, searchMarkup());
-    case 'search-select':
-      // A real `href` does the navigating; this only has to dismiss a
-      // popover a click on its own contents does not (§4.5).
-      closePopover();
-      return undefined;
-
-
-    case 'role-active':
-      app.ROLES[id].active = !app.ROLES[id].active;
-      return commit();
-    case 'role-deactivate-arm':
-      return navigate('settings', { ...view.params, confirmDeactivate: id });
-
-    case 'country-active':
-      app.COUNTRIES[id].active = !app.COUNTRIES[id].active;
-      return commit();
-    case 'country-deactivate-arm':
-      return navigate('settings', { ...view.params, confirmDeactivate: id });
-    case 'deactivate-cancel':
-      return navigate('settings', { ...view.params, confirmDeactivate: null });
-    case 'country-expand':
-      return navigate('settings', {
-        section,
-        expanded: view.params.expanded === id ? null : id,
-      });
-    case 'country-apply-all': {
-      // 48 cells per country typed one at a time is the real pain (§4.3) —
-      // this is a scratch value, not itself a data field, so it carries no
-      // data-act of its own and is read here rather than committed on input.
-      const year = trigger.dataset.year;
-      const input = document.querySelector(
-        `[data-field="bulk-workdays"][data-id="${id}"][data-year="${year}"]`,
-      );
-      if (!(input instanceof HTMLInputElement)) return undefined;
-      const value = Math.max(0, F.readNumber(input.value, 0));
-      app.COUNTRIES[id].byYear[year].workingDays = Array(12).fill(value);
-      return commit();
-    }
-    case 'country-copy-year': {
-      const year = trigger.dataset.year;
-      const country = app.COUNTRIES[id];
-      const source = country.byYear[year];
-      for (const otherYear of Object.keys(country.byYear)) {
-        if (otherYear === year) continue;
-        // Working days only — each year keeps its own rate (a rate rise next
-        // year must never move this year's months, and vice versa).
-        country.byYear[otherYear].workingDays = [...source.workingDays];
-      }
-      return commit();
-    }
-
-    case 'theme':
-      return cycleTheme();
-    case 'export':
-      if (!store.downloadExport(app)) return undefined;
-      app.GENERAL.lastExportAt = new Date().toISOString();
-      return commit();
-    case 'dismiss-load-warning':
-      loadWarningDismissed = true;
-      renderBanner();
-      return undefined;
-    case 'reload-tab':
-      location.reload();
-      return undefined;
-    // link-file, unlink-file and reconnect-file all report through
-    // watchFileBinding (wired at boot to refreshFileStatus) on every actual
-    // state change — a cancelled file picker changes nothing, so nothing
-    // needs to redraw for it.
-    case 'link-file':
-      store.linkFile(app);
-      return undefined;
-    case 'unlink-file':
-      store.unlinkFile();
-      return undefined;
-    case 'reconnect-file':
-      // Must run from this click's own gesture — that's the whole reason
-      // it's a button rather than something retried automatically.
-      store.reconnectFile();
-      return undefined;
-    case 'import-mode':
-      pendingImport.mode = trigger.dataset.mode;
-      return fill('import-preview', importPreviewMarkup());
-    case 'import-cancel':
-      pendingImport = null;
-      return fill('import-preview', importPreviewMarkup());
-    case 'import-apply': {
-      app = T.applyImport(app, pendingImport.data, pendingImport.mode);
-      pendingImport = null;
-      store.saveNow(app);
-      return navigate('settings', { section: 'data' });
-    }
-
-
-    case 'capacity-cell':
-      return openPopover(
-        trigger,
-        capacityCellMarkup(trigger.dataset.person, trigger.dataset.team, trigger.dataset.month),
-      );
-    case 'year-step':
-      return navigate(view.page, {
-        ...view.params,
-        year: chartYear() + Number(trigger.dataset.step),
-      });
-    case 'year-today':
-      return navigate(view.page, { ...view.params, year: new Date().getFullYear() });
-    case 'chart-table-toggle': {
-      // A pure DOM swap, not a re-render: which of a chart's two equivalent
-      // views is showing is not state worth tracking in `view.params`, and a
-      // full re-render would undo whatever else the page happens to be
-      // showing (a filter, a scroll position) for no reason.
-      // `.chart-block`, not `[data-chart]` — the toggle button itself also
-      // carries `data-chart`, so an attribute-value selector would match the
-      // button before it ever reaches the wrapper that holds the two views.
-      const block = trigger.closest('.chart-block');
-      const visual = block?.querySelector('.chart-block__visual');
-      const tableView = block?.querySelector('.chart-block__table');
-      if (!(visual instanceof HTMLElement) || !(tableView instanceof HTMLElement)) return undefined;
-      const showingTable = !tableView.hidden;
-      tableView.hidden = showingTable;
-      visual.hidden = !showingTable;
-      trigger.textContent = showingTable ? 'View as table' : 'View as chart';
-      return undefined;
-    }
-
-    case 'wizard-start':
-      return navigate('wizard', {});
-    case 'draft-discard':
-      store.clearDraft();
-      return navigate('initiatives', {});
-    case 'draft-create': {
-      const draft = view.params.draft ?? store.loadDraft();
-      if (!(draft.name ?? '').trim()) return undefined;
-      const initiative = L.createInitiative(app, PROCESS, {
-        name: draft.name.trim(),
-        description: draft.description ?? '',
-        teamId: draft.teamId ?? Object.keys(app.TEAMS)[0],
-        startPhaseId: draft.startPhaseId,
-        skipReason: draft.skipReason,
-      });
-      store.clearDraft();
-      store.save(app);
-      return navigate('wizard', { id: initiative.id });
-    }
-    case 'wizard-discard-arm':
-      return navigate('wizard', { ...view.params, confirmDiscard: true });
-    case 'wizard-discard-cancel':
-      return navigate('wizard', { ...view.params, confirmDiscard: false });
-    case 'wizard-discard-confirm':
-      // The initiative is real from step 1, so abandoning the flow has to be
-      // able to remove it — otherwise walking away leaves a half-formed
-      // record in the registry, which is the finding this answers (§2.6).
-      L.deleteInitiative(app, id);
-      store.save(app);
-      return navigate('initiatives', {});
-    case 'pass-gate': {
-      const initiative = findInitiative(id);
-      const date = document.querySelector('[data-field="gate-date"]');
-      L.passGate(app, PROCESS, initiative, trigger.dataset.gate,
-        date instanceof HTMLInputElement && date.value ? date.value : today());
-      return commit();
-    }
-    case 'gate-menu':
-      return openPopover(trigger, gateMenuMarkup(id));
-    case 'jump-menu':
-      return openPopover(trigger, jumpMenuMarkup(id));
-    case 'skip-gate-open':
-      // Out of the menu and into the dialog: closing first is what puts the
-      // focus the native dialog restores on the button that opened the menu.
-      closePopover();
-      return openDialog(skipDialogMarkup(id, trigger.dataset.gate));
-    case 'dialog-cancel':
-      return closeDialog();
-    case 'skip-gate': {
-      const initiative = findInitiative(id);
-      const field = document.querySelector('[data-field="skip-reason"]');
-      const reason = field instanceof HTMLInputElement ? field.value.trim() : '';
-      if (!reason) {
-        // Refusing silently would look broken; say what is missing, as a
-        // message under the field rather than by overwriting its placeholder
-        // with an error — a placeholder is an example, not a state (§4.6).
-        const message = document.querySelector('[data-note="skip-error"]');
-        if (message instanceof HTMLElement) message.hidden = false;
-        if (field instanceof HTMLInputElement) {
-          field.classList.add('field--warn');
-          field.focus();
-        }
-        return undefined;
-      }
-      const date = document.querySelector('[data-field="skip-date"]');
-      L.skipGate(app, PROCESS, initiative, trigger.dataset.gate, reason,
-        date instanceof HTMLInputElement && date.value ? date.value : today());
-      closeDialog();
-      commit();
-      // The dialog hands focus back to the button that opened it, which the
-      // re-render has just removed — so put it on the page rather than
-      // letting it fall to <body>, where the next Tab starts from the top of
-      // the browser chrome.
-      document.getElementById('root')?.focus();
-      return undefined;
-    }
-    case 'reopen':
-      // Reachable from inside the gate menu, which a click on its own items
-      // does not dismiss.
-      closePopover();
-      L.reopen(PROCESS, findInitiative(id));
-      return commit();
-
-    case 'open-initiative':
-      return navigate('initiative', { id });
-    case 'duplicate-initiative': {
-      const copy = L.duplicate(app, PROCESS, findInitiative(id));
-      store.save(app);
-      return navigate('initiative', { id: copy.id });
-    }
-    case 'status-menu':
-      return openPopover(trigger, statusMenuMarkup(id));
-    case 'status-set':
-      closePopover();
-      L.setStatus(findInitiative(id), trigger.dataset.status);
-      return commit();
-    case 'status-cancel-arm':
-      // Same anchor as the menu it replaces: the row's badge, not this
-      // button, which is about to be replaced along with the rest of the
-      // popover's content.
-      return openPopover(popoverTrigger, statusCancelConfirmMarkup(id));
-    case 'status-cancel-confirm':
-      closePopover();
-      L.setStatus(findInitiative(id), 'cancelled');
-      return commit();
-    case 'status-cancel-abort':
-      return closePopover();
-    case 'initiative-delete-arm':
-      return navigate('initiative', { ...view.params, confirmDelete: true });
-    case 'initiative-delete-cancel':
-      return navigate('initiative', { ...view.params, confirmDelete: false });
-    case 'initiative-delete-confirm':
-      L.deleteInitiative(app, id);
-      store.save(app);
-      return navigate('initiatives', {});
-    case 'portfolio-tile': {
-      // Clicking the selected tile again clears the filter.
-      const band = trigger.dataset.band;
-      const next = view.params.bandId === band ? null : band;
-      return navigate('portfolio', { ...view.params, bandId: next });
-    }
-    case 'sort': {
-      // One case for every sortable table, keyed off the page it's on —
-      // same as month-picker/month-today already are — rather than a
-      // separate case per page repeating the same toggle logic.
-      const fallback = SORT_DEFAULTS[view.page];
-      const current = view.params.sort ?? fallback;
-      const key = trigger.dataset.key;
-      const dir = current.key === key ? (current.dir === 'asc' ? 'desc' : 'asc') : fallback.dir;
-      return navigate(view.page, { ...view.params, sort: { key, dir } });
-    }
-
-
-    case 'allocation-detail':
-      return openPopover(trigger, allocationDetailMarkup(id, trigger.dataset.phase,
-        trigger.dataset.person));
-    case 'allocation-seed': {
-      // D2's first half: seeded on a click, never on a render — a panel that
-      // writes allocations merely by being looked at would be worse than the
-      // 50% magic number this replaces.
-      const initiative = findInitiative(id);
-      const from = trigger.dataset.from;
-      const phaseId = trigger.dataset.phase;
-      withUndo(`Copied ${E.phaseLabel(PROCESS, from)}'s allocations`, () => {
-        for (const allocation of initiative.phases[from].allocations) {
-          const person = app.PEOPLE[allocation.personId];
-          // Someone who has since left the team cannot be allocated afresh
-          // (SPEC §5.2); they are skipped rather than throwing the copy away.
-          if (!person?.active || !E.membership(person, initiative.teamId)) continue;
-          L.setAllocation(app, initiative, phaseId, allocation.personId, allocation.allocationPct);
-        }
-      });
-      return commit();
-    }
-    case 'allocation-remove': {
-      const initiative = findInitiative(id);
-      withUndo('Removed allocation', () => {
-        L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, 0);
-      });
-      return commit();
-    }
-    case 'cost-remove': {
-      const initiative = findInitiative(id);
-      const phase = initiative.phases[trigger.dataset.phase];
-      const cost = phase.otherCosts.find((c) => c.id === trigger.dataset.cost);
-      withUndo(`Removed ${cost.name}`, () => {
-        phase.otherCosts = phase.otherCosts.filter((c) => c.id !== trigger.dataset.cost);
-      });
-      return commit();
-    }
-    case 'team-add':
-      // Nothing is created yet — Cancel on the draft below leaves no record
-      // behind (D1, and the review's "a team is just created with no chance
-      // to cancel").
-      return navigate('team', { id: 'new' });
-    case 'team-draft-discard':
-      return navigate('teams', {});
-    case 'team-draft-create': {
-      const name = (view.params.draft?.name ?? '').trim();
-      if (!name) return undefined;
-      const team = P.createTeam(app, name);
-      store.save(app);
-      return navigate('team', { id: team.id });
-    }
-    case 'team-active':
-      P.setTeamActive(app.TEAMS[id], !app.TEAMS[id].active);
-      return commit();
-    case 'team-delete': {
-      // Guarded in the UI too, but never trust the disabled attribute alone.
-      if (!P.canDeleteTeam(app, id).ok) return undefined;
-      withUndo(`Deleted team ${app.TEAMS[id].name}`, () => {
-        P.deleteTeam(app, id);
-      });
-      return commit();
-    }
-
-
-    case 'person-add':
-      // Nothing is created yet — Cancel on the draft below leaves no record
-      // behind (D1, and the review's "a person is just created with no
-      // chance to cancel").
-      return navigate('person', { id: 'new' });
-    case 'person-draft-discard':
-      return navigate('people', {});
-    case 'person-draft-create': {
-      const draft = view.params.draft ?? {};
-      const name = (draft.name ?? '').trim();
-      if (!name) return undefined;
-      const person = P.createPerson(app, {
-        name,
-        countryId: draft.countryId,
-        roleId: draft.roleId,
-      });
-      store.save(app);
-      return navigate('person', { id: person.id });
-    }
-    case 'person-active':
-      P.setPersonActive(app.PEOPLE[id], !app.PEOPLE[id].active);
-      return commit();
-    case 'join-team': {
-      const select = document.querySelector(`[data-act="join-team-pick"][data-id="${id}"]`);
-      if (select instanceof HTMLSelectElement) P.addMembership(app.PEOPLE[id], select.value, 0);
-      return commit();
-    }
-    case 'membership-active': {
-      const person = app.PEOPLE[id];
-      const team = trigger.dataset.team;
-      const current = person.memberships.find((m) => m.teamId === team);
-      P.setMembershipActive(app, person, team, !current.active);
-      return commit();
-    }
-    case 'month-today':
-      return navigate(view.page, { ...view.params, month: currentMonth() });
-
-    case 'copy-table': {
-      const table = TABLES[trigger.dataset.table];
-      // The confirmation moved from a note beside the button to a toast: the
-      // button sits under tables that scroll inside their own box, so the
-      // note could land off-screen from the thing that produced it.
-      store.copyTable(table.headers, table.rows).then((result) => {
-        if (result === 'failed') showToast('Copy failed', 'toast--warn');
-        else showToast('Copied');
-      });
-      return undefined;
-    }
-    case 'reset-arm':
-      return navigate('settings', { section, armed: true });
-    case 'reset-cancel':
-      return navigate('settings', { section, armed: false });
-    case 'reset-confirm': {
-      store.reset();
-      const fresh = store.load();
-      app = fresh.app;
-      return navigate('settings', { section: 'roles' });
-    }
-    default:
-      return undefined;
-  }
+  const handler = clickActions.get(trigger.dataset.act);
+  if (!handler) return;
+  return handler({ trigger, id: trigger.dataset.id, event });
 }
+
+registerChangeActions({
+  'month-picker': ({ target }) => navigate(view.page, { ...view.params, month: target.value }),
+  'filter': ({ target }) => {
+    const filters = { ...(view.params.filters ?? {}) };
+    const key = target.dataset.filter;
+    filters[key] = target.type === 'checkbox' ? target.checked : target.value;
+    return navigate(view.page, { ...view.params, filters });
+  },
+});
 
 /** Selects, radios and checkboxes — structural, so these do re-render. */
 function onChange(event) {
   const target = event.target;
   if (!(target instanceof HTMLSelectElement) && !(target instanceof HTMLInputElement)) return;
-  const { act, id } = target.dataset;
-
-  switch (act) {
-    case 'month-picker':
-      return navigate(view.page, { ...view.params, month: target.value });
-    case 'filter': {
-      const filters = { ...(view.params.filters ?? {}) };
-      const key = target.dataset.filter;
-      filters[key] = target.type === 'checkbox' ? target.checked : target.value;
-      return navigate(view.page, { ...view.params, filters });
-    }
-    case 'draft-select': {
-      const draft = {
-        ...(view.params.draft ?? store.loadDraft()),
-        [target.dataset.field]: target.value,
-      };
-      store.saveDraft(draft);
-      return navigate('wizard', { ...view.params, draft });
-    }
-    case 'person-draft-select': {
-      const draft = { ...view.params.draft, [target.dataset.field]: target.value };
-      return navigate('person', { ...view.params, draft });
-    }
-    case 'phase-start':
-    case 'phase-end': {
-      const initiative = findInitiative(id);
-      const phase = initiative.phases[target.dataset.phase];
-      const start = act === 'phase-start' ? target.value : phase.estStartDate;
-      const end = act === 'phase-end' ? target.value : phase.estEndDate;
-      L.setPhasePeriod(initiative, target.dataset.phase, start || null, end || null);
-      return commit();
-    }
-    case 'checklist-status': {
-      // Resolving an item changes what the requirement says about itself, so
-      // the row is rebuilt — and the control that did it goes with it. Put
-      // focus back on its replacement, or working down a checklist by
-      // keyboard drops you at the top of the page after every item.
-      L.setChecklistStatus(findInitiative(id), target.dataset.gate, target.dataset.item,
-        target.value);
-      commit();
-      const restored = document.querySelector(
-        `[data-act="checklist-status"][data-item="${target.dataset.item}"]`,
-      );
-      if (restored instanceof HTMLSelectElement) restored.focus();
-      return undefined;
-    }
-    case 'person-country':
-      app.PEOPLE[id].countryId = target.value;
-      return commit();
-    case 'person-role':
-      P.useStandardRole(app.PEOPLE[id], target.value);
-      return commit();
-    case 'rate-kind': {
-      const person = app.PEOPLE[id];
-      if (target.dataset.kind === 'custom') P.useCustomRole(app, person);
-      else P.useStandardRole(person);
-      return commit();
-    }
-    case 'add-member':
-      P.addMembership(app.PEOPLE[target.value], id, 0);
-      return commit();
-    default:
-      return undefined;
-  }
+  const handler = changeActions.get(target.dataset.act);
+  if (!handler) return;
+  return handler({ target, id: target.dataset.id, event });
 }
 
 const ARROWS = {
@@ -1461,6 +1022,39 @@ async function onFileChange(event) {
  * target at event time, so a replaced region never needs re-binding.
  */
 export function boot() {
+  // Every page module (and shared render component) exports its own action
+  // map rather than calling registerClickActions/etc. at its own top level.
+  // Registering them has to happen here, inside boot() — never at any
+  // module's own top level — because a page module can itself become the
+  // *entry point* of the module graph (a test importing render/charts.js
+  // directly, say), in which case app.js would be the one evaluating mid-
+  // cycle, with the calling module's own exports not yet initialized. boot()
+  // only ever runs once, explicitly, long after the whole graph has settled,
+  // so every one of these bindings is guaranteed to be real by the time it
+  // runs — regardless of which module happened to import which module first.
+  registerClickActions(portfolioClickActions);
+  registerClickActions(initiativesClickActions);
+  registerClickActions(initiativeClickActions);
+  registerChangeActions(initiativeChangeActions);
+  registerInputActions(initiativeInputActions);
+  registerClickActions(wizardClickActions);
+  registerChangeActions(wizardChangeActions);
+  registerInputActions(wizardInputActions);
+  registerClickActions(teamsClickActions);
+  registerInputActions(teamsInputActions);
+  registerClickActions(teamClickActions);
+  registerChangeActions(teamChangeActions);
+  registerInputActions(teamInputActions);
+  registerClickActions(peopleClickActions);
+  registerClickActions(personClickActions);
+  registerChangeActions(personChangeActions);
+  registerInputActions(personInputActions);
+  registerClickActions(settingsClickActions);
+  registerInputActions(settingsInputActions);
+  registerClickActions(phasePanelClickActions);
+  registerInputActions(phasePanelInputActions);
+  registerClickActions(chartsClickActions);
+
   const loaded = store.load();
   app = loaded.app;
   loadReason = loaded.reason;
@@ -1535,5 +1129,6 @@ export function boot() {
   // has to land there on the very first paint too, not only after a
   // subsequent navigate() — boot() never goes through announceNavigation().
   if (view.page === 'settings') scrollToSettingsSection();
+  recordRecentlyViewed(view.page, view.params);
   return loadReason;
 }

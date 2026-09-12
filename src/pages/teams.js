@@ -3,7 +3,8 @@
  */
 import * as F from '../format.js';
 import * as P from '../people.js';
-import { app, currentMonth } from '../app.js';
+import * as store from '../store.js';
+import { app, view, currentMonth, navigate, commit, withUndo } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, empty, badge } from '../render/components.js';
@@ -66,3 +67,45 @@ export function renderTeams() {
           }))}`,
   );
 }
+
+export const teamsClickActions = {
+  // Nothing is created yet — Cancel on the draft below leaves no record
+  // behind (D1, and the review's "a team is just created with no chance
+  // to cancel").
+  'team-add': () => navigate('team', { id: 'new' }),
+  'team-draft-discard': () => navigate('teams', {}),
+  'team-draft-create': () => {
+    const name = (view.params.draft?.name ?? '').trim();
+    if (!name) return undefined;
+    const team = P.createTeam(app, name);
+    store.save(app);
+    return navigate('team', { id: team.id });
+  },
+  'team-active': ({ id }) => {
+    const team = app.TEAMS[id];
+    withUndo(`${team.active ? 'Deactivated' : 'Reactivated'} ${team.name}`, () => {
+      P.setTeamActive(team, !team.active);
+    });
+    return commit();
+  },
+  'team-delete': ({ id }) => {
+    // Guarded in the UI too, but never trust the disabled attribute alone.
+    if (!P.canDeleteTeam(app, id).ok) return undefined;
+    withUndo(`Deleted team ${app.TEAMS[id].name}`, () => {
+      P.deleteTeam(app, id);
+    });
+    return commit();
+  },
+};
+
+export const teamsInputActions = {
+  // Neither team nor person exists yet, so — unlike every other draft — an
+  // in-memory params object is enough; there is nothing worth surviving a
+  // reload before a name has even been typed (D1).
+  'team-draft-field': ({ target, field }) => {
+    const draft = { ...view.params.draft, [field]: target.value };
+    view.params = { ...view.params, draft };
+    const create = document.querySelector('[data-act="team-draft-create"]');
+    if (create instanceof HTMLButtonElement) create.disabled = !(draft.name ?? '').trim();
+  },
+};

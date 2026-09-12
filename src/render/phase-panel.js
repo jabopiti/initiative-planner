@@ -6,7 +6,10 @@ import * as F from '../format.js';
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
-import { app } from '../app.js';
+import {
+  app, withUndo, commit, commitQuietly, findInitiative, refreshCalcRegions, openPopover,
+  restoreCaretAfter,
+} from '../app.js';
 import { html, raw, numberField } from './dom.js';
 import { icon } from './icons.js';
 import { scroller, empty, badge, panel } from './components.js';
@@ -379,3 +382,97 @@ export function grandMarkup(initiative) {
       ? html`<span class="micro">${band.req}</span>`
       : html`<span class="micro">No approval track covers this total.</span>`)}`;
 }
+
+export const phasePanelClickActions = {
+  'allocation-detail': ({ trigger, id }) => openPopover(
+    trigger, allocationDetailMarkup(id, trigger.dataset.phase, trigger.dataset.person),
+  ),
+  'allocation-seed': ({ trigger, id }) => {
+    // D2's first half: seeded on a click, never on a render — a panel that
+    // writes allocations merely by being looked at would be worse than the
+    // 50% magic number this replaces.
+    const initiative = findInitiative(id);
+    const from = trigger.dataset.from;
+    const phaseId = trigger.dataset.phase;
+    withUndo(`Copied ${E.phaseLabel(PROCESS, from)}'s allocations`, () => {
+      for (const allocation of initiative.phases[from].allocations) {
+        const person = app.PEOPLE[allocation.personId];
+        // Someone who has since left the team cannot be allocated afresh
+        // (SPEC §5.2); they are skipped rather than throwing the copy away.
+        if (!person?.active || !E.membership(person, initiative.teamId)) continue;
+        L.setAllocation(app, initiative, phaseId, allocation.personId, allocation.allocationPct);
+      }
+    });
+    return commit();
+  },
+  'allocation-remove': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    withUndo('Removed allocation', () => {
+      L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, 0);
+    });
+    return commit();
+  },
+  'cost-remove': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const phase = initiative.phases[trigger.dataset.phase];
+    const cost = phase.otherCosts.find((c) => c.id === trigger.dataset.cost);
+    withUndo(`Removed ${cost.name}`, () => {
+      phase.otherCosts = phase.otherCosts.filter((c) => c.id !== trigger.dataset.cost);
+    });
+    return commit();
+  },
+};
+
+export const phasePanelInputActions = {
+  'allocation-pct': ({ target }) => {
+    const initiative = findInitiative(target.dataset.id);
+    const phaseId = target.dataset.phase;
+    // Every roster row carries this field, allocated or not (D2), so there
+    // may be no record yet — in which case unreadable input falls back to 0
+    // rather than to a percentage that does not exist.
+    const current = initiative.phases[phaseId].allocations
+      .find((a) => a.personId === target.dataset.person);
+    L.setAllocation(app, initiative, phaseId, target.dataset.person,
+      F.readNumber(target.value, current?.allocationPct ?? 0));
+    commitQuietly();
+    refreshCalcRegions(initiative);
+  },
+  'actual-month': ({ target }) => {
+    const initiative = findInitiative(target.dataset.id);
+    const phaseId = target.dataset.phase;
+    const rawValue = target.value.trim();
+    L.recordActual(initiative, phaseId, target.dataset.month,
+      rawValue === '' ? null : F.readNumber(rawValue, 0));
+    commitQuietly();
+    // Recording an actual moves the blended figures, not the structure.
+    refreshCalcRegions(initiative);
+  },
+  'cost-field': ({ target, field }) => {
+    const initiative = findInitiative(target.dataset.id);
+    const phaseId = target.dataset.phase;
+    const costId = target.dataset.cost;
+
+    if (costId === 'new') {
+      const newCost = {
+        id: L.newId('cost'),
+        name: field === 'name' ? target.value : 'New cost',
+        month: field === 'month' ? target.value : '',
+        amount: field === 'amount' ? F.readNumber(target.value, 0) : 0,
+      };
+      initiative.phases[phaseId].otherCosts.push(newCost);
+      restoreCaretAfter(
+        target,
+        `[data-act="cost-field"][data-field="${field}"][data-phase="${phaseId}"][data-cost="${newCost.id}"]`,
+        commit,
+      );
+      return;
+    }
+
+    const item = initiative.phases[phaseId].otherCosts.find((c) => c.id === costId);
+    if (field === 'amount') item.amount = F.readNumber(target.value, item.amount);
+    else item[field] = target.value;
+    // Changing an amount moves phase totals. Re-render the affected totals.
+    commitQuietly();
+    if (field === 'amount') refreshCalcRegions(initiative);
+  },
+};
