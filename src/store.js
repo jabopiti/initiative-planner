@@ -86,6 +86,13 @@ export function watchPersistence(handler) {
 
 /** Write immediately. Prefer `save` — this is for leaving the page. */
 export function saveNow(app) {
+  // A tab that has seen another tab save more recently must not write its
+  // own, now-stale, in-memory state over that — the whole point of the
+  // multi-tab warning above. This is a distinct condition from a full or
+  // blocked store, so it skips the writeFailed signal entirely rather than
+  // reporting itself as one.
+  if (externalChangeDetected) return false;
+
   let ok = true;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(app));
@@ -98,6 +105,10 @@ export function saveNow(app) {
   const wasFailing = writeFailed;
   writeFailed = !ok;
   if (writeFailed !== wasFailing) onPersistenceChange?.(ok);
+
+  // Fire-and-forget: the linked file is a mirror, not a dependency of the
+  // save this function promises (D4), so nothing here awaits it.
+  if (ok && linkedHandle) writeToLinkedFile(app);
 
   return ok;
 }
@@ -202,6 +213,225 @@ function downloadBlob(blob, filename) {
 /** Read a file the user picked and validate it before anything else happens. */
 export async function readImportFile(file) {
   return parseImport(await file.text());
+}
+
+/* ------------------------------------------------------------------ *
+ * File System Access binding (D4) — an optional mirror, never a
+ * replacement for localStorage, which stays the one thing `load()` reads.
+ *
+ * Linking a file does not change where data is *read* from: reconciling a
+ * file edited elsewhere is still Import's job (D5), exactly as it already
+ * is for a manually-taken export. All this adds is writing the same bytes
+ * to a chosen file automatically, on top of every localStorage write,
+ * so a background sync folder (Dropbox, iCloud Drive) can carry them
+ * without a manual export first. Chromium-only, so every entry point
+ * feature-detects and the rest of the app never assumes it exists.
+ * ------------------------------------------------------------------ */
+
+/** Whether this browser can bind persistence to a real file. */
+export function fileSystemAccessSupported() {
+  return typeof window !== 'undefined' && 'showSaveFilePicker' in window;
+}
+
+const HANDLE_DB = 'initiative-planner';
+const HANDLE_STORE = 'file-handles';
+const HANDLE_KEY = 'linked';
+
+/** One object store, one record — this is not a general-purpose database. */
+function openHandleDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(HANDLE_DB, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(HANDLE_STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function idbGet(key) {
+  const db = await openHandleDb();
+  return new Promise((resolve, reject) => {
+    const request = db.transaction(HANDLE_STORE, 'readonly').objectStore(HANDLE_STORE).get(key);
+    request.onsuccess = () => resolve(request.result ?? null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function idbSet(key, value) {
+  const db = await openHandleDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HANDLE_STORE, 'readwrite');
+    tx.objectStore(HANDLE_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function idbDelete(key) {
+  const db = await openHandleDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(HANDLE_STORE, 'readwrite');
+    tx.objectStore(HANDLE_STORE).delete(key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/** @type {FileSystemFileHandle | null} */
+let linkedHandle = null;
+/** @type {'granted'|'prompt'|'denied'|'none'} */
+let linkedPermission = 'none';
+let fileWriteFailed = false;
+/** @type {((status: { name: string|null, permission: string, failed: boolean }) => void) | null} */
+let onFileBindingChange = null;
+
+/** The linked file's name and permission, for rendering — never prompts. */
+export function linkedFileStatus() {
+  return { name: linkedHandle?.name ?? null, permission: linkedPermission, failed: fileWriteFailed };
+}
+
+function notifyFileBinding() {
+  onFileBindingChange?.(linkedFileStatus());
+}
+
+/** Told whenever the linked file's status changes — name, permission, or a write failing. */
+export function watchFileBinding(handler) {
+  onFileBindingChange = handler;
+  return linkedFileStatus();
+}
+
+/**
+ * Restore a previously linked handle at boot, if this browser still has one
+ * and still trusts it enough to say so without prompting. Call once; the
+ * result reaches the UI through `watchFileBinding`, since this resolves
+ * after the first render.
+ */
+export async function restoreFileHandle() {
+  if (!fileSystemAccessSupported()) return;
+  try {
+    const handle = await idbGet(HANDLE_KEY);
+    if (!handle) return;
+    linkedHandle = handle;
+    linkedPermission = await handle.queryPermission({ mode: 'readwrite' });
+  } catch {
+    // A handle that no longer resolves (the browser forgot it) is the same
+    // as never having linked one.
+    linkedHandle = null;
+    linkedPermission = 'none';
+  }
+  notifyFileBinding();
+}
+
+/**
+ * Let the user pick or create the file every save mirrors to from now on.
+ * The picker itself is the permission grant, so this starts at 'granted'.
+ */
+export async function linkFile(app) {
+  if (!fileSystemAccessSupported()) return false;
+
+  let handle;
+  try {
+    handle = await window.showSaveFilePicker({
+      suggestedName: exportFilename(new Date()),
+      types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+    });
+  } catch {
+    // The user cancelled the picker, or the browser refused it outright —
+    // nothing was touched, so there is nothing to roll back.
+    return false;
+  }
+
+  linkedHandle = handle;
+  linkedPermission = 'granted';
+  try {
+    await idbSet(HANDLE_KEY, handle);
+    await writeToLinkedFile(app);
+  } catch {
+    // A file was picked but never actually became the link — IndexedDB
+    // refused it, most likely. Roll the in-memory state back to unlinked
+    // rather than leaving it saying "linked" while nothing was persisted
+    // and no caller was told either happened.
+    linkedHandle = null;
+    linkedPermission = 'none';
+    return false;
+  }
+
+  notifyFileBinding();
+  return true;
+}
+
+/** Forget the link. Never deletes the file itself — only the association. */
+export async function unlinkFile() {
+  linkedHandle = null;
+  linkedPermission = 'none';
+  fileWriteFailed = false;
+  try {
+    await idbDelete(HANDLE_KEY);
+  } catch {
+    // Nothing useful to do.
+  }
+  notifyFileBinding();
+}
+
+/**
+ * Re-request permission on the already-linked file. Must run from a user
+ * gesture (a click), which is exactly what the "Reconnect" button is.
+ */
+export async function reconnectFile() {
+  if (!linkedHandle) return false;
+  try {
+    linkedPermission = await linkedHandle.requestPermission({ mode: 'readwrite' });
+  } catch {
+    linkedPermission = 'denied';
+  }
+  notifyFileBinding();
+  return linkedPermission === 'granted';
+}
+
+/**
+ * Mirror the dataset to the linked file. Fire-and-forget from `saveNow` —
+ * never blocks a caller, never throws outward, and never touches the
+ * localStorage failure signal, which is a different concern reported a
+ * different way.
+ */
+async function writeToLinkedFile(app) {
+  if (!linkedHandle) return;
+  let ok = true;
+  try {
+    if (linkedPermission !== 'granted') throw new Error('permission not granted');
+    const writable = await linkedHandle.createWritable();
+    await writable.write(serialize(app));
+    await writable.close();
+  } catch {
+    ok = false;
+  }
+  const wasFailing = fileWriteFailed;
+  fileWriteFailed = !ok;
+  if (fileWriteFailed !== wasFailing) notifyFileBinding();
+}
+
+/* ------------------------------------------------------------------ *
+ * Multi-tab awareness (§4.7) — a courtesy warning, not a lock. Real-time
+ * sync between tabs would reopen SPEC §1 (D5); this only stops the tab that
+ * is now behind from silently clobbering the one that saved more recently.
+ * ------------------------------------------------------------------ */
+
+let externalChangeDetected = false;
+
+/** Whether this tab has seen the dataset change in another tab since load. */
+export function externalChangePending() {
+  return externalChangeDetected;
+}
+
+/** Told once, the first time another tab saves over this tab's dataset. */
+export function watchExternalChange(handler) {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('storage', (event) => {
+    if (externalChangeDetected || event.key !== STORAGE_KEY || event.newValue === event.oldValue) {
+      return;
+    }
+    externalChangeDetected = true;
+    handler();
+  });
 }
 
 /**

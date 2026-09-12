@@ -220,3 +220,242 @@ test('a refused download is reported, so the export reminder is not cleared', ()
     globalThis.URL.createObjectURL = realCreate;
   }
 });
+
+/* -------------------------------------------------- File System Access (D4) */
+
+test('the File System Access API does not exist here, and every entry point says so safely', async () => {
+  assert.equal(store.fileSystemAccessSupported(), false);
+  assert.equal(await store.linkFile({}), false);
+  assert.deepEqual(store.linkedFileStatus(), { name: null, permission: 'none', failed: false });
+
+  // A no-op, not a throw: a browser that once supported this and no longer
+  // does must still boot cleanly.
+  await store.restoreFileHandle();
+  assert.equal(store.linkedFileStatus().name, null);
+});
+
+/**
+ * A fake IndexedDB backed by a plain Map, so a mock FileSystemFileHandle
+ * (a plain object with methods) can round-trip through it — a real
+ * browser's IndexedDB enforces the structured-clone algorithm and would
+ * refuse exactly that, since only a native handle can survive it. What
+ * matters here is store.js's own logic around the handle, not the browser's
+ * guarantee that a real handle clones — that half is Chromium's contract,
+ * not this codebase's.
+ */
+function stubIndexedDb() {
+  const data = new Map();
+  const objectStore = {
+    get: (key) => {
+      const request = { onsuccess: null, onerror: null, result: data.get(key) };
+      queueMicrotask(() => request.onsuccess?.());
+      return request;
+    },
+    put: (value, key) => data.set(key, value),
+    delete: (key) => data.delete(key),
+  };
+  const db = {
+    createObjectStore: () => {},
+    transaction: () => {
+      const tx = { onerror: null, oncomplete: null, objectStore: () => objectStore };
+      queueMicrotask(() => tx.oncomplete?.());
+      return tx;
+    },
+  };
+  globalThis.indexedDB = /** @type {any} */ ({
+    open: () => {
+      const request = { onupgradeneeded: null, onsuccess: null, onerror: null, result: db };
+      queueMicrotask(() => {
+        request.onupgradeneeded?.();
+        request.onsuccess?.();
+      });
+      return request;
+    },
+  });
+  return data;
+}
+
+/** A mock FileSystemFileHandle, recording what's written to it. */
+function mockFileHandle(name = 'my-plan.json') {
+  const writes = [];
+  return {
+    name,
+    permission: 'granted',
+    writes,
+    async queryPermission() {
+      return this.permission;
+    },
+    async requestPermission() {
+      this.permission = 'granted';
+      return this.permission;
+    },
+    async createWritable() {
+      const handle = this;
+      let pending = '';
+      return {
+        write: async (data) => {
+          pending = data;
+        },
+        close: async () => {
+          handle.writes.push(pending);
+        },
+      };
+    },
+  };
+}
+
+test('linking a file persists the handle, writes the current dataset, and reports it', async () => {
+  stubIndexedDb();
+  const handle = mockFileHandle();
+  globalThis.window = /** @type {any} */ ({
+    addEventListener: () => {},
+    showSaveFilePicker: async () => handle,
+  });
+
+  const seen = [];
+  store.watchFileBinding((status) => seen.push(status));
+
+  const { app } = store.load();
+  assert.equal(await store.linkFile(app), true);
+  assert.deepEqual(store.linkedFileStatus(), { name: 'my-plan.json', permission: 'granted', failed: false });
+  assert.equal(handle.writes.length, 1, 'linking writes the current dataset immediately');
+  assert.deepEqual(seen.at(-1), { name: 'my-plan.json', permission: 'granted', failed: false });
+
+  // Every subsequent save mirrors to it too — never blocking, never
+  // changing saveNow's own return value. The mirror is fire-and-forget, so
+  // saveNow returning does not mean the file write has landed yet.
+  assert.equal(store.saveNow(app), true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(handle.writes.length, 2);
+
+  await store.unlinkFile();
+  assert.deepEqual(store.linkedFileStatus(), { name: null, permission: 'none', failed: false });
+  assert.equal(store.saveNow(app), true, 'unlinking does not touch localStorage saving at all');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(handle.writes.length, 2, 'nothing mirrors anywhere once unlinked');
+});
+
+test('cancelling the file picker links nothing and reports nothing', async () => {
+  stubIndexedDb();
+  globalThis.window = /** @type {any} */ ({
+    addEventListener: () => {},
+    showSaveFilePicker: async () => {
+      throw new DOMException('The user aborted a request.', 'AbortError');
+    },
+  });
+
+  let notified = false;
+  store.watchFileBinding(() => {
+    notified = true;
+  });
+
+  assert.equal(await store.linkFile({}), false);
+  assert.deepEqual(store.linkedFileStatus(), { name: null, permission: 'none', failed: false });
+  assert.equal(notified, false, 'nothing changed, so nothing should announce a change');
+});
+
+test('a file picked but never actually linked (IndexedDB refuses it) rolls back rather than lying', async () => {
+  globalThis.window = /** @type {any} */ ({
+    addEventListener: () => {},
+    showSaveFilePicker: async () => mockFileHandle(),
+  });
+  // A "supported" IndexedDB that fails every open — standing in for a
+  // browser that blocks or has corrupted its own storage for this origin.
+  globalThis.indexedDB = /** @type {any} */ ({
+    open: () => {
+      const request = { onupgradeneeded: null, onsuccess: null, onerror: null };
+      queueMicrotask(() => request.onerror?.());
+      return request;
+    },
+  });
+
+  assert.equal(await store.linkFile({}), false);
+  assert.deepEqual(
+    store.linkedFileStatus(),
+    { name: null, permission: 'none', failed: false },
+    'a handle picked but never persisted must not be reported as linked',
+  );
+});
+
+test('restoring at boot re-reads a previously linked handle and its permission', async () => {
+  const data = stubIndexedDb();
+  const handle = mockFileHandle();
+  handle.permission = 'prompt'; // the common case: granted last session, not yet re-asked
+  data.set('linked', handle);
+  // showSaveFilePicker is never called in this test, but its mere presence
+  // is what fileSystemAccessSupported() feature-detects — restoreFileHandle()
+  // no-ops without it, same as it should in a browser without the API.
+  globalThis.window = /** @type {any} */ ({ addEventListener: () => {}, showSaveFilePicker: () => {} });
+
+  await store.restoreFileHandle();
+  assert.deepEqual(store.linkedFileStatus(), { name: 'my-plan.json', permission: 'prompt', failed: false });
+
+  await store.unlinkFile();
+});
+
+test('reconnecting re-asks permission from this click\'s own gesture', async () => {
+  const data = stubIndexedDb();
+  const handle = mockFileHandle();
+  handle.permission = 'prompt'; // restored from a session where it was never re-confirmed
+  data.set('linked', handle);
+  // showSaveFilePicker is never called in this test, but its mere presence
+  // is what fileSystemAccessSupported() feature-detects — restoreFileHandle()
+  // no-ops without it, same as it should in a browser without the API.
+  globalThis.window = /** @type {any} */ ({ addEventListener: () => {}, showSaveFilePicker: () => {} });
+
+  await store.restoreFileHandle();
+  assert.equal(store.linkedFileStatus().permission, 'prompt');
+
+  handle.permission = 'granted'; // what the browser's own prompt will now report
+  assert.equal(await store.reconnectFile(), true);
+  assert.equal(store.linkedFileStatus().permission, 'granted');
+
+  await store.unlinkFile();
+});
+
+/* -------------------------------------------------- multi-tab awareness (§4.7)
+ *
+ * externalChangeDetected has no reset once tripped (there is nothing to
+ * reset it to — the whole point is that this tab stays stopped until a
+ * reload gives it a fresh module), so this must be the last test in the
+ * file: every test after it would otherwise find saveNow refusing to write.
+ */
+
+/** A minimal `window`, just enough to capture the one listener store.js adds. */
+function stubWindow() {
+  const listeners = {};
+  globalThis.window = /** @type {any} */ ({
+    addEventListener: (type, handler) => {
+      listeners[type] = handler;
+    },
+  });
+  return listeners;
+}
+
+test('another tab saving over this dataset stops this tab writing over it back', () => {
+  const listeners = stubWindow();
+  const { app } = store.load();
+  store.saveNow(app);
+
+  const seen = [];
+  store.watchExternalChange(() => seen.push('changed'));
+  assert.equal(store.externalChangePending(), false);
+
+  // A change to some other key, or no real change, is not what this warns
+  // about.
+  listeners.storage({ key: 'unrelated-key', oldValue: 'a', newValue: 'b' });
+  listeners.storage({ key: store.STORAGE_KEY, oldValue: 'same', newValue: 'same' });
+  assert.equal(store.externalChangePending(), false);
+  assert.deepEqual(seen, []);
+
+  listeners.storage({ key: store.STORAGE_KEY, oldValue: 'a', newValue: 'b' });
+  assert.equal(store.externalChangePending(), true);
+  assert.deepEqual(seen, ['changed'], 'told once, not once per subsequent event');
+
+  // The critical behaviour: this tab must not clobber the newer version
+  // sitting in storage with its own, now-stale, in-memory state.
+  assert.equal(store.saveNow(app), false, 'must refuse to write once behind');
+
+  listeners.storage({ key: store.STORAGE_KEY, oldValue: 'b', newValue: 'c' });
+  assert.deepEqual(seen, ['changed'], 'a second external change is not reported again');
+});

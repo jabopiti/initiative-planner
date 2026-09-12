@@ -79,6 +79,24 @@ Renaming a label is free.
 - The entire `APP` object is the unit of persistence: serialized to
   `localStorage` under one versioned key, debounced (e.g. ~200ms after the
   last change) rather than saved synchronously on every keystroke.
+  `localStorage` is what `load()` ever reads from — nothing below changes
+  that.
+- **A linked file (D4, §4.7)** is an optional mirror on top, Chromium only
+  (the File System Access API), feature-detected so every entry point is a
+  no-op elsewhere. Linking hands the browser a `FileSystemFileHandle`,
+  persisted in IndexedDB so it survives a reload; every successful
+  `localStorage` write then also mirrors the same JSON to that file,
+  fire-and-forget, never blocking or failing the save it rides on. A file
+  edited elsewhere (a sync folder, another device) is reconciled through
+  Import exactly like a manually-taken export always was (D5) — linking a
+  file changes nothing about how data is *read*, only how often a written
+  copy exists on disk. A revoked permission surfaces as a reconnect prompt
+  in Settings, never a failed save.
+- **Another tab is a courtesy warning, not a lock (§4.7).** A `storage`
+  event naming this app's key stops the tab that is now behind from
+  writing its stale in-memory copy over the newer one — `saveNow()` refuses
+  once this fires — and a banner says to reload. No real-time sync between
+  tabs is attempted; that would reopen SPEC §1 (D5).
 - On load: missing or unparsable storage falls back to seed data. So does
   a stored `schemaVersion` that doesn't match this build's, and so does a
   stored `processId` that doesn't match — a dataset written against a

@@ -40,7 +40,9 @@ import { renderTeam, capacityCellMarkup } from './pages/team.js';
 import { renderPeople } from './pages/people.js';
 import { renderPerson } from './pages/person.js';
 import { renderCapacity } from './pages/capacity.js';
-import { renderSettings, importPreviewMarkup, scrollToSettingsSection } from './pages/settings.js';
+import {
+  renderSettings, importPreviewMarkup, scrollToSettingsSection, fileStatusMarkup,
+} from './pages/settings.js';
 
 /* ------------------------------------------------------------------ *
  * Theme
@@ -206,6 +208,22 @@ function renderBanner() {
     return;
   }
 
+  // Another tab saved a newer version of this dataset. Saving this tab's
+  // now-stale copy over it would be exactly the silent last-writer-wins loss
+  // this warns about — store.saveNow() already refuses to write once this is
+  // true, so a reload (a fresh module, a fresh read) is the only way out
+  // (§4.7, D5: no real-time sync between tabs, only a courtesy warning).
+  if (store.externalChangePending()) {
+    node.hidden = false;
+    node.innerHTML = html`<div class="banner-bar banner-bar--severe" role="alert">
+      <span>${raw(icon('warning', 'icon--lead'))}<strong>This dataset changed in another
+          tab.</strong> Further edits here won't be saved — reload to pick up the newer
+        version. Anything typed here since the other tab saved will be lost.</span>
+      <button type="button" class="btn btn--small" data-act="reload-tab">Reload</button>
+    </div>`;
+    return;
+  }
+
   // A dataset dropped for a schema or process mismatch, or one that could not
   // even be read, is worse than an empty store: the bytes are still sitting
   // in this browser, unreadable to this build, and the first save from here
@@ -259,6 +277,16 @@ function renderBanner() {
     <button type="button" class="btn btn--small" data-act="export">
       ${raw(icon('export'))}Export now</button>
   </div>`;
+}
+
+/**
+ * The linked-file status only ever exists inside Settings' Data section
+ * (D4) — `fill()` is already a safe no-op when the element isn't on the
+ * page, which is every page but that one. Called after link/unlink/
+ * reconnect, and once the async handle restore at boot settles.
+ */
+function refreshFileStatus() {
+  fill('file-status', fileStatusMarkup());
 }
 
 /* ------------------------------------------------------------------ *
@@ -945,6 +973,24 @@ function onClick(event) {
       loadWarningDismissed = true;
       renderBanner();
       return undefined;
+    case 'reload-tab':
+      location.reload();
+      return undefined;
+    // link-file, unlink-file and reconnect-file all report through
+    // watchFileBinding (wired at boot to refreshFileStatus) on every actual
+    // state change — a cancelled file picker changes nothing, so nothing
+    // needs to redraw for it.
+    case 'link-file':
+      store.linkFile(app);
+      return undefined;
+    case 'unlink-file':
+      store.unlinkFile();
+      return undefined;
+    case 'reconnect-file':
+      // Must run from this click's own gesture — that's the whole reason
+      // it's a button rather than something retried automatically.
+      store.reconnectFile();
+      return undefined;
     case 'import-mode':
       pendingImport.mode = trigger.dataset.mode;
       return fill('import-preview', importPreviewMarkup());
@@ -1441,6 +1487,17 @@ export function boot() {
   // Writes are debounced, so a failure surfaces long after the edit that
   // caused it. The banner is the only always-visible channel there is.
   store.watchPersistence(() => renderBanner());
+  // A courtesy warning, not a lock (D5) — another tab having saved more
+  // recently than this one's in-memory copy is the one thing worth
+  // interrupting whatever page is open for.
+  store.watchExternalChange(() => renderBanner());
+  // The linked-file status only has anywhere to render once Settings' Data
+  // section exists, so this is a safe no-op everywhere else — refreshFileStatus
+  // fills an element by id and does nothing when it isn't on the page.
+  store.watchFileBinding(() => refreshFileStatus());
+  // Resolves after the first render, since IndexedDB is async — the file
+  // status starts as "not linked" and updates itself once this settles.
+  store.restoreFileHandle();
   document.addEventListener('click', onClick);
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {

@@ -6,6 +6,7 @@
  */
 import * as E from '../engine.js';
 import * as T from '../transfer.js';
+import * as store from '../store.js';
 import { app, view, pendingImport } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
@@ -270,7 +271,48 @@ function renderData() {
         <input type="file" accept="application/json,.json" data-act="import-file" hidden />
       </label>
     </div>
-    <div id="import-preview">${raw(importPreviewMarkup())}</div>`;
+    <div id="import-preview">${raw(importPreviewMarkup())}</div>
+    <div id="file-status">${raw(fileStatusMarkup())}</div>`;
+}
+
+/**
+ * A linked file (D4) mirrors every save to a real file on disk, so a
+ * background sync folder can carry it without a manual export first —
+ * reconciling a copy edited elsewhere is still Import's job (D5). Chromium
+ * only, so this renders nothing at all where the API doesn't exist rather
+ * than a permanently-disabled control nobody outside Chromium could ever use.
+ */
+export function fileStatusMarkup() {
+  if (!store.fileSystemAccessSupported()) return '';
+
+  const { name, permission, failed } = store.linkedFileStatus();
+  if (!name) {
+    return html`<p class="muted">Every save can also be written to a file you choose — useful
+        for a folder a sync tool already watches. Reconciling a copy edited elsewhere still
+        goes through Import above.</p>
+      <div class="actions">
+        <button type="button" class="btn btn--small" data-act="link-file">
+          ${raw(icon('export'))}Link a file…</button>
+      </div>`;
+  }
+
+  const needsReconnect = permission !== 'granted';
+  return html`<p class="${needsReconnect || failed ? 'warn' : 'muted'}">
+      ${raw(needsReconnect || failed ? icon('warning', 'icon--lead') : '')}
+      ${needsReconnect
+        ? html`Was linked to “${name}”, but this browser needs to be asked again before
+            writing to it.`
+        : failed
+          ? html`Linked to “${name}”, but the last write to it failed.`
+          : html`Linked to “${name}”. Every save is mirrored there too.`}
+    </p>
+    <div class="actions">
+      ${raw(needsReconnect
+        ? html`<button type="button" class="btn btn--small" data-act="reconnect-file">
+            Reconnect</button>`
+        : '')}
+      <button type="button" class="btn btn--small" data-act="unlink-file">Unlink</button>
+    </div>`;
 }
 
 export function importPreviewMarkup() {

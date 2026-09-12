@@ -21,8 +21,11 @@ exists to protect.
   dependencies, no network calls, and no server.
 - **Vanilla JavaScript only** — no UI framework, no state-management
   library, no CSS framework.
-- Data lives in the browser's `localStorage`. JSON export/import is the
-  only sharing and backup mechanism.
+- Data lives in the browser's `localStorage` — the only thing a load ever
+  reads from. It may optionally also mirror to a file on disk (the File
+  System Access API, Chromium only, §4.7) purely as a write-through
+  convenience; a file edited elsewhere is never read back automatically.
+  JSON export/import remains the only sharing and reconciliation mechanism.
 - Single-user. No authentication, multi-user editing, FX conversion, time
   tracking, or vacation modelling.
 - The process — which phases exist, which carry cost, what each gate
