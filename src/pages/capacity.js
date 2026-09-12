@@ -73,13 +73,13 @@ function overShareMarkup(rows) {
 
   return panel({
     id: 'panel-over-share',
-    title: "Over their team's share",
-    body: html`<p class="muted">Allocated more within one team than the share that team holds
+    title: 'Over their Team FTE',
+    body: html`<p class="muted">Allocated more within one team than the Team FTE that team holds
         of them.</p>
       ${raw(rows.length === 0
-        ? empty('No membership is over its share this month.')
-        : scroller("Memberships over their team's share", html`<table class="grid">
-            <thead><tr><th>Person</th><th>Team</th><th>Share %</th><th>Allocated %</th>
+        ? empty('No membership is over its Team FTE this month.')
+        : scroller('Memberships over their Team FTE', html`<table class="grid">
+            <thead><tr><th>Person</th><th>Team</th><th>Team FTE %</th><th>Allocated %</th>
               <th>Over by</th></tr></thead>
             <tbody>${raw(body)}</tbody></table>`))}`,
   });

@@ -42,7 +42,7 @@ export function renderTeam() {
           'data-act': 'membership-share',
           'data-id': row.person.id,
           'data-team': team.id,
-          'aria-label': `${row.person.name} share`,
+          'aria-label': `${row.person.name} Team FTE %`,
           extraClass: `field--pct ${warning.overCommitted ? 'field--warn' : ''}`,
         }))}</td>
         <td class="num">${row.person.capacityPct}%</td>
@@ -100,17 +100,17 @@ export function renderTeam() {
           ${raw(panel({
             id: 'panel-roster',
             title: 'Roster',
-            body: html`<p class="muted">A share is how much of a person this team holds. Editing
-                it here is the same edit as editing it on the person — there is one record, seen
-                from two sides. People are added by assigning someone who already exists, and
-                removed by leaving the team, never by deletion.</p>
+            body: html`<p class="muted">A Team FTE is how much of a person this team holds.
+                Editing it here is the same edit as editing it on the person — there is one
+                record, seen from two sides. People are added by assigning someone who already
+                exists, and removed by leaving the team, never by deletion.</p>
               ${raw(roster.length || joinable.length
                 // The inline add-row lives inside this table, so a team with an
                 // empty roster still needs the table rendered whenever there is
                 // anyone left to add — hiding it behind the empty state would hide
                 // the only control that fixes it (§4.6).
                 ? scroller('Team roster', html`<table class="grid">
-                    <thead><tr><th>Person</th><th>Role</th><th>Share %</th><th>Capacity %</th>
+                    <thead><tr><th>Person</th><th>Role</th><th>Team FTE %</th><th>Capacity %</th>
                       <th></th><th></th></tr></thead>
                     <tbody>
                       ${raw(rosterRows)}
@@ -176,8 +176,8 @@ function renderTeamDraft() {
 
 /**
  * One row per active member, one column per month. Rows are bounded by the
- * member's share in *this* team, not their whole capacity — a person split
- * 60/40 shows against 60 here.
+ * member's Team FTE in *this* team, not their whole capacity — a person
+ * split 60/40 shows against 60 here.
  */
 function capacityGridMarkup(team) {
   const months = monthsOfYear(chartYear());
@@ -212,7 +212,7 @@ function capacityGridMarkup(team) {
         .join('');
       return html`<tr>
         <th scope="row">${row.person.name}
-          <span class="micro">share ${row.membership.sharePct}%</span></th>
+          <span class="micro">Team FTE ${row.membership.sharePct}%</span></th>
         ${raw(cells)}
       </tr>`;
     })
@@ -234,8 +234,8 @@ function capacityGridMarkup(team) {
 
   return html`<div class="panel" id="panel-capacity">
     <h2>Capacity</h2>
-    ${raw(yearNav('Allocation against each member’s share of this team.'))}
-    <p class="muted">Over-allocation past a member’s share is flagged, never blocked. Click a
+    ${raw(yearNav("Allocation against each member's Team FTE."))}
+    <p class="muted">Over-allocation past a member's Team FTE is flagged, never blocked. Click a
       figure to see which initiatives make it up.</p>
     ${raw(scroller('Allocation per member per month', html`<table class="grid grid--cap">
       <thead><tr><th>Member</th>${raw(months
@@ -243,7 +243,7 @@ function capacityGridMarkup(team) {
       <tbody>
         ${raw(rows)}
         <tr class="row--spare"><th scope="row">Non-initiative work
-          <span class="micro">share not committed</span></th>${raw(spareCells)}</tr>
+          <span class="micro">Team FTE not committed</span></th>${raw(spareCells)}</tr>
       </tbody>
     </table>`))}
   </div>`;
@@ -274,15 +274,15 @@ export function capacityCellMarkup(personId, teamId, month) {
     return html`<h3>${person.name} — ${F.month(month)}</h3>
       <ul class="popover__list">${raw(items)}</ul>
       <p class="warn">${raw(icon('warning', 'icon--lead'))}${total}% allocated, but this person
-        no longer holds an active membership in this team. The work still costs; the share does
-        not exist.</p>`;
+        no longer holds an active membership in this team. The work still costs; the Team FTE
+        does not exist.</p>`;
   }
 
   return html`<h3>${person.name} — ${F.month(month)}</h3>
     <ul class="popover__list">${raw(items)}</ul>
     <p class="${total > membership.sharePct ? 'warn' : 'muted'}">
       ${total}% of the ${membership.sharePct}% this team holds${raw(total > membership.sharePct
-        ? html` — more than its share.`
+        ? html` — more than its Team FTE.`
         : html`, ${spare}% not committed.`)}</p>`;
 }
 

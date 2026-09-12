@@ -825,8 +825,8 @@ export function capacityWarnings(app, personId, teamId, monthKeyStr) {
  * their own, but that neither answers for "anyone, anywhere."
  *
  * The two ceilings stay separate rather than merged into one list: capacity
- * % and share % are never interchangeable (§5.2), and a person can be over
- * one without being over the other.
+ * % and Team FTE % are never interchangeable (§5.2), and a person can be
+ * over one without being over the other.
  *
  * @returns {{
  *   overCapacity: Array<{ personId: string, capacityPct: number, allocatedPct: number }>,

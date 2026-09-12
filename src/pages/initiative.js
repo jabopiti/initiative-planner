@@ -653,7 +653,7 @@ function monthTableMarkup(initiative) {
   const headers = ['Month', ...costed.flatMap((id) => {
     const label = E.phaseLabel(PROCESS, id);
     return [`${label} estimate`, `${label} actual`];
-  }), 'Blended'];
+  }), 'Forecast'];
 
   const data = months.map((month) => {
     /** @type {Array<string|number>} */

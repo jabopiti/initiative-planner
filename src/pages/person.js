@@ -153,12 +153,12 @@ function personIdentity(person) {
     </div>
     ${raw(custom
       ? html`<p class="muted">A negotiated rate is absolute: it replaces the country rate and
-          the role factor does not apply. Working days still come from the person’s country.</p>
+          the role factor does not apply. Working days still come from the person's country.</p>
         ${raw(scroller('Day rate per year', html`<table class="grid grid--narrow">
           <thead><tr><th>Year</th><th>Day rate</th></tr></thead>
           <tbody>${raw(rateRows)}</tbody></table>`))}`
-      : html`<p class="muted">The rate comes from this person’s country for the year being
-          costed, multiplied by the role’s factor.</p>`)}`;
+      : html`<p class="muted">The rate comes from this person's country for the year being
+          costed, multiplied by the role's factor.</p>`)}`;
 }
 
 function personTeams(person, warning, stranded) {
@@ -173,7 +173,7 @@ function personTeams(person, warning, stranded) {
           'data-act': 'membership-share',
           'data-id': person.id,
           'data-team': membership.teamId,
-          'aria-label': 'Share of capacity',
+          'aria-label': 'Team FTE %',
           extraClass: `field--pct ${warning.overCommitted ? 'field--warn' : ''}`,
         }))}</td>
         <td class="cell--wrap">${raw(strandedHere.length
@@ -194,11 +194,12 @@ function personTeams(person, warning, stranded) {
   );
 
   return html`<h2>Teams</h2>
-    <p class="muted">A share is how much of this person one team holds. Each team draws only on
-      its own share, which is what keeps someone split across teams from being counted twice.</p>
+    <p class="muted">A Team FTE is how much of this person one team holds. Each team draws only
+      on its own Team FTE, which is what keeps someone split across teams from being counted
+      twice.</p>
     ${raw(rows
       ? scroller('Team memberships', html`<table class="grid">
-          <thead><tr><th>Team</th><th>Share %</th><th></th><th></th></tr></thead>
+          <thead><tr><th>Team</th><th>Team FTE %</th><th></th><th></th></tr></thead>
           <tbody>${raw(rows)}</tbody></table>`)
       : empty('No team yet — valid, and costs nothing. This person is on the bench.'))}
     <p class="${warning.overCommitted ? 'warn' : 'muted'}">
@@ -260,7 +261,7 @@ function personInitiativesPanel(person, rows, stranded) {
 function personCapacity(person, months) {
   const rows = P.capacityOverTime(app, person.id, months);
   const teams = rows[0]?.nonInitiative ?? [];
-  const headers = ['Month', 'Allocated %', 'Capacity %', ...teams.map((t) => `${t.name} spare %`)];
+  const headers = ['Month', 'Allocated %', 'Capacity %', ...teams.map((t) => `${t.name} non-initiative work %`)];
   const data = rows.map((row) => [
     row.month,
     row.allocatedPct,
@@ -282,8 +283,8 @@ function personCapacity(person, months) {
     .join('');
 
   return html`<h2>Capacity over time</h2>
-    <p class="muted">Every month in the rolling window. “Spare” is the share a team holds but
-      has not allocated — ongoing work, not idle time.</p>
+    <p class="muted">Every month in the rolling window. “Non-initiative work” is the Team FTE a
+      team holds but has not committed to any initiative — ongoing work, not idle time.</p>
     ${raw(scroller('Capacity month by month', html`<table class="grid">
       <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
       <tbody>${raw(body)}</tbody>

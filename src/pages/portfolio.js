@@ -22,7 +22,7 @@ const PORTFOLIO_COLUMNS = [
   { key: 'period', label: 'Period', value: (r) => r.period.start ?? '' },
   { key: 'track', label: 'Approval track', value: (r) => r.band?.severity ?? -1 },
   { key: 'approved', label: 'Approved', value: (r) => r.approved ?? -1 },
-  { key: 'effective', label: 'Effective', value: (r) => r.effective },
+  { key: 'effective', label: 'Forecast', value: (r) => r.effective },
   { key: 'variance', label: 'Variance', value: (r) => r.variance ?? 0 },
 ];
 
@@ -151,7 +151,7 @@ export function renderPortfolio() {
           </div>
           <div class="tile ${overShare.length ? 'tile--warn' : ''}">
             <span class="tile__value">${overShare.length}</span>
-            <span class="tile__label">over their team's share</span>
+            <span class="tile__label">over their Team FTE</span>
           </div>
         </div>
       </div>

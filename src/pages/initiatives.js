@@ -123,7 +123,7 @@ export function renderInitiatives() {
         <label class="field-inline"><span>Status</span>${raw(options('status',
           Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label })),
           filters.status))}</label>
-        <label class="field-inline"><span>Track</span>${raw(options('bandId',
+        <label class="field-inline"><span>Approval track</span>${raw(options('bandId',
           [...PROCESS.bands.map((b) => ({ value: b.id, label: b.name })),
            { value: 'none', label: 'Not yet known' }],
           filters.bandId))}</label>

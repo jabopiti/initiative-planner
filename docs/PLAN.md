@@ -50,7 +50,7 @@ on them.
 | 0 | Docs: README, SPEC §1/§2/§3/§5/§6/§7/§9, DESIGN §2/§4 (§14) — numbering-fix sub-items reversed, see §14 | Spec-first discipline — the new vocabulary and rules land before any code that implements them. |
 | 1 | A1, U1, U3 | All shell-level `app.js` work (the dispatcher, undo wrapping, search) — one pass over the same file/area. |
 | 2 | A2 | Long-page nav structure, before other bundles add content to Initiative/Team detail that would need to be re-slotted into it. |
-| 3 | T1, T2, T3b, T4, T5, X1 | Mechanical renames/fixes, no interdependencies, no behavior change — safe to batch, and terminology should be settled before later bundles (esp. 12) build on the new names. |
+| 3 | T1, T2, T3b, T4, T5 | Mechanical renames/fixes, no interdependencies, no behavior change — safe to batch, and terminology should be settled before later bundles (esp. 12) build on the new names. (X1 dropped — see §8, no such typo exists in any seed/demo file.) |
 | 4 | C2, C3, C6, C1 | The automation core: Provisional/Confirmed must exist before the gate-requirement easing (C3) or the hard/provisional split in the suggestion chip (C6) can be built against it; C1 (actuals-default) resolves its own flagged open data-model question as part of this bundle. |
 | 5 | C4, C5, C7, C8, C9 | Estimation-input UX built on top of Bundle 4's data; independent of each other, same phase-panel area. |
 | 6 | G3, G2, G4, G5, G6 | Gate-checklist rework, one pass over the same panel — rename before/with the carry-forward mechanism that references the renamed states. |
@@ -147,7 +147,7 @@ Update the row below in the commit that finishes a bundle.
 
 | # | Item | Detail |
 |---|---|---|
-| X1 | "AnXalyst" role typo | Seed/demo data: fix to "Analyst," add its abbreviation (the only role currently missing one). |
+| ~~X1~~ | ~~"AnXalyst" role typo~~ | Checked while executing Bundle 3: no file in the repo, at any commit, ever contains "AnXalyst" — not `masterData.js`, not `examples/exports/demo.json`. It only ever existed as a stray role typed into a live browser's `localStorage` during this session's own fresh-eyes review, mistaken there for seed data. Removed from that test browser directly; nothing to fix in source. |
 
 ## 9. Standing policies (not tasks — decisions to hold future work against)
 
