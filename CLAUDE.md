@@ -9,11 +9,11 @@ and this file is the one to correct.
 
 ## Working here
 
-The first version is built and reviewed, and a revamp of it is underway.
-[docs/REVAMP.md](docs/REVAMP.md) is the plan and the only tracker: read its
-"Where this stands" first, take the next unstarted workstream, and record
-what landed there when you finish. `main` is the only branch — branch off it
-for anything non-trivial and merge back.
+The revamp planned in `docs/REVAMP.md` is complete — every workstream in it
+landed, and that file (along with `docs/REVAMP-decisions-log.md`) has been
+deleted per its own stated lifecycle. [SPEC.md](docs/SPEC.md) and
+[DESIGN.md](docs/DESIGN.md) are the sole authorities again. `main` is the
+only branch — branch off it for anything non-trivial and merge back.
 
 Before committing, all four must pass clean:
 
@@ -24,9 +24,11 @@ npm run lint && npm run typecheck && npm test && npm run build
 Don't call something done until it is. Not "mostly", not "true once I
 circle back".
 
-This repo doesn't use an issue tracker. Deferred work, discovered bugs and
-gaps worth recording go in `docs/REVAMP.md` while that plan is live — as a
-finding, not a ticket. Don't create GitHub issues here, and don't set up a
+This repo doesn't use an issue tracker. A future body of work large enough
+to need sequencing gets the same treatment REVAMP.md got: a temporary plan
+document scoping the work and the decisions it waits on, deleted once it
+lands. Deferred work and discovered gaps in the meantime are a conversation
+with Bo, not a ticket. Don't create GitHub issues here, and don't set up a
 board.
 
 ## Verifying UI yourself

@@ -497,7 +497,7 @@ export const today = () => new Date().toISOString().slice(0, 10);
  *
  * Hash-based, not `pushState` — `pushState` does not work when the single
  * file is opened from `file://`, and being openable from disk is the whole
- * point of the artifact (REVAMP.md §2.1).
+ * point of the artifact.
  *
  * The hash encodes *identity* only — which page, and which record on it —
  * never the transient view state layered on top (a sort order, an open
