@@ -62,6 +62,23 @@ year, and the next two — recomputed on load. Last year is included because
 entering work retrospectively is a first-class flow, and clamping those
 months to another year's rate would misstate money already spent.
 
+**Phase confidence (Provisional/Confirmed) is derived, never stored.**
+Whether a costed phase is Provisional or Confirmed (SPEC §3) is computed at
+read time from today's date against the phase's own `estStartDate` — there
+is no field on the phase record for it, and nothing ever toggles it. This
+follows the same pattern every other derived-not-stored value in this
+section already does (coverage, capacity warnings): storing a value that a
+date comparison can produce for free is a second source of truth waiting
+to disagree with the first.
+
+**Checklist carry-forward needs no new stored field.** A checklist item's
+status and note are already stored per gate
+(`initiative.checklist[gateId]`), and that doesn't change. Carrying a still-
+Tentative item forward onto a later gate's own panel is a *query* — look
+across every gate already passed for items still Tentative — resolved at
+render time, the same way the gate-comparison table already reads across
+every passed gate rather than storing a second copy of anything.
+
 ### Process identifiers vs. display names
 
 Every phase, gate and checklist item has a **fixed internal id** and a
@@ -121,11 +138,15 @@ Renaming a label is free.
 on their concrete values, only on their shape:
 
 1. **`src/process.js`** — the compiled-in process and approval tracks, the
-   governance the build fixes (SPEC §2), plus two build-fixed identity
+   governance the build fixes (SPEC §2), plus three build-fixed identity
    fields that aren't process structure but have nowhere more agnostic to
    live: `currency` and `wordmark` (§4.8 — the app's own name, read once at
-   boot into the shell and the document title). That file is the shape;
-   read it rather than a copy of it here.
+   boot into the shell and the document title), and the **admin password**
+   (SPEC §2) — a hardcoded constant, not read from anywhere a user could
+   change it, and documented at its point of use as a soft deterrent only:
+   a client-side password in an offline, single-file app cannot be real
+   access control, and this file must never imply otherwise. That file is
+   the shape; read it rather than a copy of it here.
 
    Every phase has a gate, including the last, whose gate closes the
    initiative (SPEC §6). Ids in it are permanent — they end up in stored

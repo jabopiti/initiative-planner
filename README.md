@@ -1,10 +1,17 @@
 # Initiative Planner (white-label core)
 
-A single-user, offline planner for the **cost** and **people capacity** of
-initiatives: local-first, no server, no accounts. Builds to one
-self-contained HTML file with no runtime dependencies or network calls.
-Data lives in the browser's `localStorage`; JSON export/import is the
-sharing and backup mechanism.
+A single-user, offline **companion** for planning the **cost** and
+**people capacity** of initiatives — not a management tool that adds
+oversight, but one that takes the manual work out of estimating, tracking
+and governing them. The goal is minutes spent in the tool, not hours, and
+passing through the process's gates should feel like a side detail of the
+work, never an event of its own. See
+[SPEC.md §1](docs/SPEC.md#1-purpose--scope) for the full case.
+
+Local-first, no server, no accounts. Builds to one self-contained HTML
+file with no runtime dependencies or network calls. Data lives in the
+browser's `localStorage`; JSON export/import is the sharing and backup
+mechanism.
 
 Initiatives run through a stage-gate process that is **fixed when the
 tool is built**, not configured by the person using it: which phases

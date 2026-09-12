@@ -82,8 +82,8 @@ Pages are **overviews**, **details**, a **dashboard** (Portfolio),
 **panels** and **regions**. DESIGN §5 has the table. Don't write
 "screen", "view" or "tab".
 
-Don't conflate **capacity %** (a person's ceiling), **share %** (what one
-team holds of them) and **allocation %** (what one phase commits) — SPEC
-§4 says why. And don't conflate **phase** (where an initiative is in the
+Don't conflate **capacity %** (a person's ceiling), **Team FTE %** (what
+one team holds of them) and **allocation %** (what one phase commits) —
+SPEC §5.2 says why. And don't conflate **phase** (where an initiative is in the
 process) with **status** (Active / On Hold / Cancelled / Closed). Those
 were once "stage" and "state"; the rename exists to stop that.

@@ -47,7 +47,7 @@ on them.
 
 | Bundle | Items | Why grouped / sequenced here |
 |---|---|---|
-| 0 | Docs: README, SPEC §1/§2/§3/§5/§6/§7/§9 + numbering fix, DESIGN §2/§4/§6 + numbering fix (§14) | Spec-first discipline — the new vocabulary and rules land before any code that implements them. |
+| 0 | Docs: README, SPEC §1/§2/§3/§5/§6/§7/§9, DESIGN §2/§4 (§14) — numbering-fix sub-items reversed, see §14 | Spec-first discipline — the new vocabulary and rules land before any code that implements them. |
 | 1 | A1, U1, U3 | All shell-level `app.js` work (the dispatcher, undo wrapping, search) — one pass over the same file/area. |
 | 2 | A2 | Long-page nav structure, before other bundles add content to Initiative/Team detail that would need to be re-slotted into it. |
 | 3 | T1, T2, T3b, T4, T5, X1 | Mechanical renames/fixes, no interdependencies, no behavior change — safe to batch, and terminology should be settled before later bundles (esp. 12) build on the new names. |
@@ -69,7 +69,8 @@ Update the row below in the commit that finishes a bundle.
 
 | Bundle | Status |
 |---|---|
-| 0–12 | **Not started** |
+| 0 | **Done** |
+| 1–12 | Not started |
 
 ---
 
@@ -291,7 +292,13 @@ keep that discipline intact.
 - **Glossary (§9):** add Provisional/Confirmed; update the checklist-item
   row to the renamed states; rename Share % → Team FTE %; retire "Spare"
   in favor of "Non-initiative work" as the sole term (§12's T2).
-- Fix the missing §4 in the section numbering.
+- ~~Fix the missing §4 in the section numbering.~~ **Reversed:** the gap
+  is deliberate, not an oversight — the commit that trimmed this document
+  (`787693c`) states surviving sections keep their numbers because ~90
+  source comments cite them (79 confirmed live today via
+  `grep -roE "SPEC §[0-9.]+|DESIGN §[0-9.]+" src/`). Renumbering would mean
+  hunting down and correcting every one of those for a purely cosmetic
+  fix. Leave the numbering exactly as it is.
 - **Explicitly untouched:** rate resolution, freeze semantics, import/
   export contract, and anything reserved for DESIGN.md — none of this
   session's findings touch them.
@@ -303,7 +310,8 @@ persistence/versioning rules, and the testing-strategy rationale are
 genuinely non-obvious "how" content that would blur SPEC's own what/why
 job if folded in. Changes:
 
-- Fix the missing §6 in the section numbering.
+- ~~Fix the missing §6 in the section numbering.~~ **Reversed** — same
+  reason as SPEC's §4 above: deliberate, not a gap, per the same commit.
 - **§2 (data model rules):** add that phase confidence (Provisional/
   Confirmed) is derived at compute time from today's date vs. the phase's
   own start — never a stored field, never a toggle, matching the pattern

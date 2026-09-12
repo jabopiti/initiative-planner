@@ -67,9 +67,9 @@ changes are reviewed manually.
 
 Use these terms consistently in user-facing text: **phase**, **gate**,
 **status**, **checklist item**, **approval track**, **person**,
-**membership**, **capacity %**, **share %**, **allocation %**,
+**membership**, **capacity %**, **Team FTE %**, **allocation %**,
 **non-initiative work**, and **Estimate / Forecast / Actual**. See
-[SPEC.md](docs/SPEC.md) for their definitions — §4 in particular, for why
+[SPEC.md](docs/SPEC.md) for their definitions — §5.2 in particular, for why
 the three percentages are never interchangeable.
 
 **Phase is not status.** A phase is where an initiative is in the
@@ -153,8 +153,8 @@ order it's built in:
   schema version are rejected outright; no migration path is maintained
   for legacy exports.
 - People are top-level and teams own none of them; a person may hold
-  several memberships, and membership carries the share of that person's
-  capacity the team holds. Ceilings warn; they never block.
+  several memberships, and membership carries the Team FTE % of that
+  person's capacity the team holds. Ceilings warn; they never block.
 - A dataset records the `processId` and `processVersion` it was written
   against. An import disagreeing with this build is refused — data whose
   phases mean something else is worse than no data.
