@@ -8,7 +8,7 @@ import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
 import {
   app, withUndo, commit, commitQuietly, findInitiative, refreshCalcRegions, openPopover,
-  restoreCaretAfter,
+  restoreCaretAfter, today,
 } from '../app.js';
 import { html, raw, numberField } from './dom.js';
 import { icon } from './icons.js';
@@ -90,6 +90,13 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
       const allocationPct = allocationByPerson.get(person.id) ?? 0;
       const figures = E.allocationFigures(phase, person.id, allocationPct, at);
       const stranded = !E.membership(person, initiative.teamId);
+      // Safe headroom before over-allocating: this phase's own current
+      // contribution is excluded, since the chip replaces it rather than
+      // stacking on top (§2, C6) — null with nothing to measure against
+      // (no membership, or no period yet), in which case there's no chip.
+      const maxAvail = editable
+        ? E.maxAvailablePct(app, person.id, initiative.teamId, initiative.id, phaseId, phase, today())
+        : null;
 
       return html`<tr class="${stranded ? 'row--warn' : ''}"
         data-alloc-phase="${phaseId}" data-alloc-person="${person.id}">
@@ -99,7 +106,7 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
         <td>${E.roleLabel(person, at.ROLES)}</td>
         <td>${app.COUNTRIES[person.countryId]?.name ?? ''}</td>
         <td>${raw(editable
-          ? numberField({
+          ? html`${raw(numberField({
               value: allocationPct,
               'data-act': 'allocation-pct',
               'data-id': initiative.id,
@@ -107,7 +114,15 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
               'data-person': person.id,
               'aria-label': `${person.name} allocation`,
               extraClass: 'field--pct',
-            })
+            }))}${raw(maxAvail
+              ? html`<button type="button" class="btn--small" data-act="allocation-max"
+                  data-id="${initiative.id}" data-phase="${phaseId}" data-person="${person.id}"
+                  data-amount="${maxAvail.pct}"
+                  >Max available ${maxAvail.pct}%</button>${raw(maxAvail.provisionalPct
+                    ? html`<span class="micro muted">+${maxAvail.provisionalPct}% provisional
+                        elsewhere</span>`
+                    : '')}`
+              : '')}`
           : html`<span class="num">${allocationPct}%</span>`)}</td>
         <td class="num"><span data-calc="days-${phaseId}-${person.id}"
           >${figures.personDays.toFixed(1)}</span></td>
@@ -191,6 +206,11 @@ export function phasePanel(initiative, phaseId, editable) {
   const phase = initiative.phases[phaseId];
   const label = E.phaseLabel(PROCESS, phaseId);
   const frozen = E.isFrozen(phase);
+  // A phase already gated through is a settled figure, not a plan any more —
+  // Provisional/Confirmed answers "how solid is this plan?", which no longer
+  // applies once there is no longer a plan, only a record (SPEC §3).
+  const provisional = !frozen && phase.estStartDate
+    && !E.isPhaseConfirmed(initiative, phaseId, today());
   // A frozen phase reads its own snapshot — including the people, since a
   // custom rate lives on the person record — so an approved figure on screen
   // never moves when master data changes underneath it.
@@ -234,11 +254,13 @@ export function phasePanel(initiative, phaseId, editable) {
     .join('');
 
   // A frozen phase is settled by the process, so its mark is the `ok` kind,
-  // not a warning: nothing here needs looking at.
+  // not a warning: nothing here needs looking at. Provisional shares the same
+  // slot — a plan can be exactly one of "already approved" or "not solid
+  // yet", never both, and a Confirmed plan needs no badge at all.
   return panel({
     id: `panel-phase-${phaseId}`,
     title: label,
-    mark: frozen ? badge('approved and frozen', 'ok', 'check') : '',
+    mark: frozen ? badge('approved and frozen', 'ok', 'check') : provisional ? badge('provisional', 'quiet') : '',
     extraClass: frozen ? 'banner banner--done' : '',
     body: html`<div class="fields">
       <label class="field-row"><span>From</span>
@@ -402,6 +424,15 @@ export const phasePanelClickActions = {
         if (!person?.active || !E.membership(person, initiative.teamId)) continue;
         L.setAllocation(app, initiative, phaseId, allocation.personId, allocation.allocationPct);
       }
+    });
+    return commit();
+  },
+  'allocation-max': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const person = app.PEOPLE[trigger.dataset.person];
+    const pct = Number(trigger.dataset.amount);
+    withUndo(`Set ${person.name} to ${pct}%`, () => {
+      L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, pct);
     });
     return commit();
   },

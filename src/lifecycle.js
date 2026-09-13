@@ -271,14 +271,19 @@ export function setChecklistNote(initiative, gateId, itemId, note) {
  * Gates
  * ------------------------------------------------------------------ */
 
-/** A costed phase is estimated when it has both dates and someone allocated. */
-function phaseIsEstimated(phase) {
-  return Boolean(
-    phase &&
-      phase.estStartDate &&
-      phase.estEndDate &&
-      (phase.allocations ?? []).some((a) => a.allocationPct > 0),
-  );
+/**
+ * A costed phase is estimated when it has a period and someone allocated —
+ * except a Provisional phase (SPEC §3), which is held to less precision: a
+ * start date and a rough allocation are enough, without yet nailing down
+ * when it ends, since a plan that far out is not a commitment (SPEC §6.1).
+ */
+function phaseIsEstimated(initiative, phaseId, nowIso) {
+  const phase = initiative.phases[phaseId];
+  if (!phase?.estStartDate || !(phase.allocations ?? []).some((a) => a.allocationPct > 0)) {
+    return false;
+  }
+  if (!E.isPhaseConfirmed(initiative, phaseId, nowIso)) return true;
+  return Boolean(phase.estEndDate);
 }
 
 /**
@@ -291,9 +296,9 @@ function phaseIsEstimated(phase) {
  *
  * @returns {string[]} phase ids, in process order
  */
-export function unestimatedPhases(process, initiative) {
+export function unestimatedPhases(process, initiative, nowIso) {
   return E.costedPhaseIds(process)
-    .filter((phaseId) => !phaseIsEstimated(initiative.phases[phaseId]));
+    .filter((phaseId) => !phaseIsEstimated(initiative, phaseId, nowIso));
 }
 
 /**
@@ -315,7 +320,7 @@ export function unestimatedPhases(process, initiative) {
  *   state: 'blocker'|'warning'|'met', text: string, itemId?: string,
  *   phaseIds?: string[] }>}
  */
-export function gateRequirements(app, process, initiative, gateId) {
+export function gateRequirements(app, process, initiative, gateId, nowIso) {
   const phase = E.phaseForGate(process, gateId);
   const gate = phase.gate;
   /** @type {Array<any>} */
@@ -335,7 +340,7 @@ export function gateRequirements(app, process, initiative, gateId) {
   }
 
   if (gate.requiresEstimates) {
-    const missing = unestimatedPhases(process, initiative);
+    const missing = unestimatedPhases(process, initiative, nowIso);
     const names = missing.map((id) => E.phaseLabel(process, id)).join(' and ');
     out.push({
       id: 'estimates',
@@ -389,8 +394,8 @@ export function gateRequirements(app, process, initiative, gateId) {
  *
  * @returns {{ ok: boolean, blockers: string[], warnings: string[] }}
  */
-export function gatePrecondition(app, process, initiative, gateId) {
-  const requirements = gateRequirements(app, process, initiative, gateId);
+export function gatePrecondition(app, process, initiative, gateId, nowIso) {
+  const requirements = gateRequirements(app, process, initiative, gateId, nowIso);
   const of = (state) => requirements.filter((r) => r.state === state).map((r) => r.text);
   const blockers = of('blocker');
   return { ok: blockers.length === 0, blockers, warnings: of('warning') };
@@ -444,8 +449,8 @@ function buildGateRecord(app, process, initiative, outcome, reason, takenAt) {
  * move on. The final gate is what closes the initiative — finishing is a
  * governed act, never a bare status change (SPEC §6.4).
  */
-export function passGate(app, process, initiative, gateId, takenAt) {
-  const check = gatePrecondition(app, process, initiative, gateId);
+export function passGate(app, process, initiative, gateId, takenAt, nowIso = takenAt) {
+  const check = gatePrecondition(app, process, initiative, gateId, nowIso);
   if (!check.ok) throw new Error(check.blockers.join('; '));
 
   const phase = E.phaseForGate(process, gateId);

@@ -6,7 +6,7 @@ import * as F from '../format.js';
  * anywhere."
  */
 import * as E from '../engine.js';
-import { app, view, currentMonth } from '../app.js';
+import { app, view, currentMonth, today } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { pageHead, scroller, empty, panel } from '../render/components.js';
 
@@ -87,7 +87,7 @@ function overShareMarkup(rows) {
 
 export function renderCapacity() {
   const month = selectedMonth();
-  const { overCapacity, overShare } = E.overAllocations(app, month);
+  const { overCapacity, overShare } = E.overAllocations(app, month, today());
 
   fill(
     'root',

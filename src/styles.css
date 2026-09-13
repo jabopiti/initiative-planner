@@ -1140,8 +1140,15 @@ h3,
   --cell-bg: var(--color-now-tint);
 }
 
-.cell--gap {
-  --cell-bg: var(--color-amber-tint);
+.cell--using-estimate {
+  --cell-bg: var(--color-spare-tint);
+}
+
+.actual-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
 }
 
 
@@ -2320,9 +2327,8 @@ body:has(.summary) #toast {
   background: var(--color-surface);
 }
 
-.swatch--gap {
-  background: var(--color-amber-tint);
-  border-color: var(--color-amber);
+.swatch--using-estimate {
+  background: var(--color-spare-tint);
 }
 
 .swatch--now {
@@ -2380,6 +2386,12 @@ body:has(.summary) #toast {
 
 .cap__empty {
   color: var(--color-faint);
+}
+
+.cap__provisional {
+  display: block;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
 }
 
 .row--spare th {

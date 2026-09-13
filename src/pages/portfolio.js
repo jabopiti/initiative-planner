@@ -5,7 +5,7 @@ import * as F from '../format.js';
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
-import { app, view, STATUS_LABELS, currentMonth, navigate } from '../app.js';
+import { app, view, STATUS_LABELS, currentMonth, navigate, today } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, sortHeader, sortRows } from '../render/components.js';
@@ -87,7 +87,7 @@ export function renderPortfolio() {
   // it is a "right now" question, independent of which year the cost chart
   // happens to be showing (SPEC §7).
   const capacityMonth = currentMonth();
-  const { overCapacity, overShare } = E.overAllocations(app, capacityMonth);
+  const { overCapacity, overShare } = E.overAllocations(app, capacityMonth, today());
 
   const sort = view.params.sort ?? { key: 'effective', dir: 'desc' };
   const sorted = sortRows(rows, PORTFOLIO_COLUMNS, sort);

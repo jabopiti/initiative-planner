@@ -7,7 +7,7 @@ import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
 import {
   app, view, STATUS_LABELS, STATUS_BADGE_KIND, commit, closePopover, openPopover,
-  currentPopoverTrigger, findInitiative, withUndo,
+  currentPopoverTrigger, findInitiative, withUndo, today,
 } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
@@ -46,7 +46,7 @@ export function renderInitiatives() {
       // a gate that requires them. Most often that is one the creation
       // wizard was walked away from, which used to leave nothing behind to
       // say so (§2.6).
-      unestimated: L.unestimatedPhases(PROCESS, initiative).length,
+      unestimated: L.unestimatedPhases(PROCESS, initiative, today()).length,
     };
   }).filter((row) => {
     if (filters.teamId && row.initiative.teamId !== filters.teamId) return false;

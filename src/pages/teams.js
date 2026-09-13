@@ -4,7 +4,7 @@
 import * as F from '../format.js';
 import * as P from '../people.js';
 import * as store from '../store.js';
-import { app, view, currentMonth, navigate, commit, withUndo } from '../app.js';
+import { app, view, currentMonth, navigate, commit, withUndo, today } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, empty, badge } from '../render/components.js';
@@ -14,7 +14,7 @@ export function renderTeams() {
   const teams = Object.values(app.TEAMS);
   const cards = teams
     .map((team) => {
-      const summary = P.teamSummary(app, team.id, month);
+      const summary = P.teamSummary(app, team.id, month, today());
       const deletable = P.canDeleteTeam(app, team.id);
       // "Capacity" here is how much of the Team FTE the team holds is
       // actually committed right now — a team can hold 100% of someone and

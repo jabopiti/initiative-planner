@@ -5,7 +5,7 @@ import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import * as store from '../store.js';
 import { PROCESS } from '../process.js';
-import { app, view, navigate } from '../app.js';
+import { app, view, navigate, today } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, empty, panel } from '../render/components.js';
@@ -106,7 +106,7 @@ function renderWizardGeneral() {
  */
 function renderWizardEstimates(initiative) {
   const panels = costedPhasePanels(initiative);
-  const missing = L.unestimatedPhases(PROCESS, initiative);
+  const missing = L.unestimatedPhases(PROCESS, initiative, today());
   const discarding = view.params.confirmDiscard === true;
 
   fill(

@@ -256,7 +256,7 @@ function stepperMarkup(initiative) {
       // before the colour does, and survives being printed in grey.
       const mark = state === 'passed' ? 'check' : state === 'skipped' ? 'skip' : '';
       const blockers = state === 'current'
-        ? L.gatePrecondition(app, PROCESS, initiative, phase.gate.id).blockers.length
+        ? L.gatePrecondition(app, PROCESS, initiative, phase.gate.id, today()).blockers.length
         : 0;
 
       // The figure last and pushed to the foot, so figures line up across the
@@ -315,7 +315,7 @@ export function summaryBarMarkup(initiative) {
 
   const blockers = finished
     ? 0
-    : L.gateRequirements(app, PROCESS, initiative, E.gateForPhase(PROCESS, initiative.phaseId).id)
+    : L.gateRequirements(app, PROCESS, initiative, E.gateForPhase(PROCESS, initiative.phaseId).id, today())
       .filter((requirement) => requirement.state === 'blocker').length;
 
   const figure = (label, value, on, note = '') => html`<div
@@ -403,7 +403,7 @@ function gateBannerMarkup(initiative) {
 
   const phase = E.phaseById(PROCESS, initiative.phaseId);
   const gate = phase.gate;
-  const requirements = L.gateRequirements(app, PROCESS, initiative, gate.id);
+  const requirements = L.gateRequirements(app, PROCESS, initiative, gate.id, today());
   const blockers = requirements.filter((r) => r.state === 'blocker').length;
   const closes = E.isFinalPhase(PROCESS, initiative.phaseId);
 
@@ -673,7 +673,7 @@ function monthTableMarkup(initiative) {
   // The foot is part of the table, so it travels with a copy of it: a
   // month-by-month table pasted into a spreadsheet without its totals is a
   // table someone then has to total by hand.
-  const totals = monthTotals(initiative, costed);
+  const totals = monthTotals(initiative, costed, now);
   TABLES.months = {
     headers,
     rows: [
@@ -695,20 +695,28 @@ function monthTableMarkup(initiative) {
           const actual = phase.actualMonths[month];
           blended += E.phaseBlendedByMonth(phase, app)[month] ?? 0;
           const inPeriod = E.phaseMonths(phase).includes(month);
-          const gap = inPeriod && actual === undefined && estimate > 0;
+          const defaulted = E.actualOrEstimate(phase, app, month, now);
+          const usingEstimate = actual === undefined && defaulted !== undefined;
 
           return html`<td class="num">${estimate ? F.money(estimate) : '—'}</td>
-            <td class="num ${gap ? 'cell--gap' : ''}">${raw(locked || !inPeriod
-              ? actual === undefined ? '—' : F.money(actual)
-              : numberField({
-                  value: actual ?? '',
+            <td class="num ${usingEstimate ? 'cell--using-estimate' : ''}">${raw(locked || !inPeriod
+              ? actual === undefined
+                ? usingEstimate ? `${F.money(defaulted)} (using estimate)` : '—'
+                : F.money(actual)
+              : html`<span class="actual-cell">${raw(numberField({
+                  value: actual ?? (usingEstimate ? Math.round(defaulted) : ''),
                   'data-act': 'actual-month',
                   'data-id': initiative.id,
                   'data-phase': phaseId,
                   'data-month': month,
                   'aria-label': `${E.phaseLabel(PROCESS, phaseId)} actual for ${F.month(month)}`,
                   extraClass: 'field--money',
-                }))}</td>`;
+                }))}${raw(usingEstimate
+                  ? html`<button type="button" class="btn--icon btn--small" data-act="confirm-actual"
+                      data-id="${initiative.id}" data-phase="${phaseId}" data-month="${month}"
+                      data-amount="${Math.round(defaulted)}"
+                      title="Confirm ${F.money(defaulted)} as the actual">${raw(icon('check'))}</button>`
+                  : '')}</span>`)}</td>`;
         })
         .join('');
 
@@ -725,7 +733,7 @@ function monthTableMarkup(initiative) {
     title: 'Month by month',
     body: html`<p class="legend">
       <span class="legend__item"><span class="swatch swatch--edit"></span> record an actual here</span>
-      <span class="legend__item"><span class="swatch swatch--gap"></span> expected but not recorded</span>
+      <span class="legend__item"><span class="swatch swatch--using-estimate"></span> using the estimate — confirm or override</span>
       <span class="legend__item"><span class="swatch swatch--now"></span> current month</span>
     </p>
     ${raw(scroller('Cost month by month', html`<table class="grid">
@@ -744,8 +752,10 @@ function monthTableMarkup(initiative) {
  * The estimate columns sum only the months the table shows, which is every
  * month any costed phase touches (`initiativeMonths`), so the foot reconciles
  * with the column above it rather than with a separately-derived phase total.
+ * The actual column sums the same defaulted-to-estimate figure the cells
+ * above it show (SPEC §5.4), for the same reason.
  */
-function monthTotals(initiative, costed) {
+function monthTotals(initiative, costed, now) {
   const months = E.initiativeMonths(initiative);
   /** @type {Record<string, number>} */
   const estimate = {};
@@ -761,7 +771,7 @@ function monthTotals(initiative, costed) {
     actual[phaseId] = 0;
     for (const month of months) {
       estimate[phaseId] += byMonth[month] ?? 0;
-      actual[phaseId] += phase.actualMonths[month] ?? 0;
+      actual[phaseId] += E.actualOrEstimate(phase, app, month, now) ?? 0;
       blended += blendedByMonth[month] ?? 0;
     }
   }
@@ -794,7 +804,7 @@ function monthTotalsRow(costed, totals) {
  */
 export function monthTotalsRowMarkup(initiative) {
   const costed = E.costedPhaseIds(PROCESS).filter((id) => initiative.phases[id]);
-  return monthTotalsRow(costed, monthTotals(initiative, costed));
+  return monthTotalsRow(costed, monthTotals(initiative, costed, E.monthKey(new Date())));
 }
 
 /** Every gate left so far, beside the live figures. */
@@ -863,7 +873,7 @@ export const initiativeClickActions = {
     const initiative = findInitiative(id);
     const date = document.querySelector('[data-field="gate-date"]');
     L.passGate(app, PROCESS, initiative, trigger.dataset.gate,
-      date instanceof HTMLInputElement && date.value ? date.value : today());
+      date instanceof HTMLInputElement && date.value ? date.value : today(), today());
     return commit();
   },
   'gate-menu': ({ trigger, id }) => openPopover(trigger, gateMenuMarkup(id)),
@@ -921,6 +931,14 @@ export const initiativeClickActions = {
     L.deleteInitiative(app, id);
     store.save(app);
     return navigate('initiatives', {});
+  },
+  'confirm-actual': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const amount = Number(trigger.dataset.amount);
+    withUndo(`Confirmed ${F.money(amount)} as the actual`, () => {
+      L.recordActual(initiative, trigger.dataset.phase, trigger.dataset.month, amount);
+    });
+    return commit();
   },
 };
 

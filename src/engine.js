@@ -451,6 +451,20 @@ export function phaseBlendedTotal(phase, app) {
 }
 
 /**
+ * A month's actual once someone has recorded one — or, once that month has
+ * closed, the estimate it defaults to until they do (SPEC §5.4). `undefined`
+ * for a month still open (not yet due) or costing nothing, so a caller can
+ * tell "not due yet" apart from "using the estimate".
+ */
+export function actualOrEstimate(phase, app, monthKeyStr, nowKeyStr) {
+  const recorded = phase.actualMonths?.[monthKeyStr];
+  if (recorded !== undefined) return recorded;
+  if (monthKeyStr >= nowKeyStr) return undefined;
+  const estimate = phaseEstimateByMonth(phase, app)[monthKeyStr] ?? 0;
+  return estimate > 0 ? estimate : undefined;
+}
+
+/**
  * Estimate / Forecast / Actual, by how far actuals cover the costed months.
  * @returns {'estimate'|'forecast'|'actual'}
  */
@@ -460,6 +474,23 @@ export function phaseCoverage(phase) {
   const recorded = months.filter((key) => actuals[key] !== undefined).length;
   if (recorded === 0) return 'estimate';
   return recorded === months.length ? 'actual' : 'forecast';
+}
+
+/**
+ * A costed phase's *confidence*, not its progress: Confirmed once it is the
+ * initiative's current phase or starts within a month, Provisional
+ * otherwise — derived purely from today's date against the phase's own
+ * start date, never stored, never a toggle (SPEC §3). A phase with no start
+ * date yet has nothing to be confident about either way, so it reads as
+ * Provisional (the safer default) rather than throwing.
+ */
+export function isPhaseConfirmed(initiative, phaseId, nowIso) {
+  if (phaseId === initiative.phaseId) return true;
+  const phase = initiative.phases[phaseId];
+  if (!phase?.estStartDate) return false;
+  const threshold = parseDate(nowIso);
+  threshold.setUTCMonth(threshold.getUTCMonth() + 1);
+  return parseDate(phase.estStartDate) <= threshold;
 }
 
 /**
@@ -659,15 +690,23 @@ function capacityInitiatives(app, teamId) {
 
 /**
  * What a person is allocated in one month, broken down by initiative.
+ *
+ * Every row carries whether its phase is Confirmed or still Provisional as
+ * of `nowIso` (SPEC §3) — `allocatedPct` sums only the Confirmed ones, since
+ * a Provisional phase's rough plan is not a real commitment against either
+ * capacity ceiling yet; a caller after the full picture (a breakdown popover,
+ * say) reads `confirmed` off each row instead of filtering it away.
  * @param {object} app @param {string} personId @param {string} monthKeyStr
  * @param {string} [teamId] restrict to one team's initiatives
- * @returns {Array<{ initiativeId: string, teamId: string, phaseId: string, allocationPct: number }>}
+ * @param {string} [nowIso] today, for Provisional/Confirmed (SPEC §3)
+ * @returns {Array<{ initiativeId: string, teamId: string, phaseId: string, allocationPct: number, confirmed: boolean }>}
  */
-export function allocationBreakdown(app, personId, monthKeyStr, teamId) {
+export function allocationBreakdown(app, personId, monthKeyStr, teamId, nowIso) {
   const rows = [];
   for (const initiative of capacityInitiatives(app, teamId)) {
     for (const [phaseId, phase] of Object.entries(initiative.phases ?? {})) {
       if (!phaseMonths(phase).includes(monthKeyStr)) continue;
+      const confirmed = isPhaseConfirmed(initiative, phaseId, nowIso);
       for (const allocation of phase.allocations ?? []) {
         if (allocation.personId !== personId || allocation.allocationPct <= 0) continue;
         rows.push({
@@ -675,6 +714,7 @@ export function allocationBreakdown(app, personId, monthKeyStr, teamId) {
           teamId: initiative.teamId,
           phaseId,
           allocationPct: allocation.allocationPct,
+          confirmed,
         });
       }
     }
@@ -682,12 +722,64 @@ export function allocationBreakdown(app, personId, monthKeyStr, teamId) {
   return rows;
 }
 
-/** Total allocation percentage for a person in a month, optionally per team. */
-export function allocatedPct(app, personId, monthKeyStr, teamId) {
-  return allocationBreakdown(app, personId, monthKeyStr, teamId).reduce(
-    (total, row) => total + row.allocationPct,
-    0,
-  );
+/**
+ * Total Confirmed allocation percentage for a person in a month, optionally
+ * per team — a Provisional phase's allocation never counts here (SPEC §3);
+ * see `provisionalPct` for that figure on its own.
+ */
+export function allocatedPct(app, personId, monthKeyStr, teamId, nowIso) {
+  return allocationBreakdown(app, personId, monthKeyStr, teamId, nowIso)
+    .filter((row) => row.confirmed)
+    .reduce((total, row) => total + row.allocationPct, 0);
+}
+
+/**
+ * Total Provisional allocation percentage for a person in a month, optionally
+ * per team — shown alongside `allocatedPct` as a separate, non-blocking
+ * figure rather than folded into it (SPEC §3).
+ */
+export function provisionalPct(app, personId, monthKeyStr, teamId, nowIso) {
+  return allocationBreakdown(app, personId, monthKeyStr, teamId, nowIso)
+    .filter((row) => !row.confirmed)
+    .reduce((total, row) => total + row.allocationPct, 0);
+}
+
+/**
+ * The most a person could take on one phase without exceeding their Team FTE
+ * in any month it spans — the minimum headroom across those months, since a
+ * single flat percentage has to hold in the tightest one, computed against
+ * Confirmed allocations elsewhere only (SPEC §3; this phase's own current
+ * contribution is excluded, since the suggestion replaces it rather than
+ * stacking on top of it). The Provisional load elsewhere in that same
+ * worst month rides along, for a caller to show without folding it in.
+ *
+ * `null` when there is no team membership to measure against, or the phase
+ * has no period yet to compute months from.
+ * @returns {{ pct: number, provisionalPct: number } | null}
+ */
+export function maxAvailablePct(app, personId, teamId, initiativeId, phaseId, phase, nowIso) {
+  const member = membership(app.PEOPLE[personId], teamId);
+  if (!member) return null;
+  const months = phaseMonths(phase);
+  if (months.length === 0) return null;
+
+  let pct = Infinity;
+  let provisionalPct = 0;
+  for (const month of months) {
+    const elsewhere = allocationBreakdown(app, personId, month, teamId, nowIso)
+      .filter((row) => !(row.initiativeId === initiativeId && row.phaseId === phaseId));
+    const confirmedElsewhere = elsewhere
+      .filter((row) => row.confirmed)
+      .reduce((total, row) => total + row.allocationPct, 0);
+    const headroom = Math.max(0, member.sharePct - confirmedElsewhere);
+    if (headroom < pct) {
+      pct = headroom;
+      provisionalPct = elsewhere
+        .filter((row) => !row.confirmed)
+        .reduce((total, row) => total + row.allocationPct, 0);
+    }
+  }
+  return { pct, provisionalPct };
 }
 
 /**
@@ -695,13 +787,15 @@ export function allocatedPct(app, personId, monthKeyStr, teamId) {
  * rate and shown as ongoing work, not idle time (SPEC §5.2).
  *
  * Each team draws only on its own share, which is exactly what stops a person
- * split across teams being counted twice.
+ * split across teams being counted twice. A Provisional allocation is not
+ * yet a commitment (SPEC §3), so — like `allocatedPct` — it does not shrink
+ * this figure either.
  */
-export function nonInitiativeWorkPct(app, personId, teamId, monthKeyStr) {
+export function nonInitiativeWorkPct(app, personId, teamId, monthKeyStr, nowIso) {
   const person = app.PEOPLE[personId];
   const member = membership(person, teamId);
   if (!member) return 0;
-  return Math.max(0, member.sharePct - allocatedPct(app, personId, monthKeyStr, teamId));
+  return Math.max(0, member.sharePct - allocatedPct(app, personId, monthKeyStr, teamId, nowIso));
 }
 
 /**
@@ -710,8 +804,8 @@ export function nonInitiativeWorkPct(app, personId, teamId, monthKeyStr) {
  * so it is costed exactly as initiative work is — same rate, same factor,
  * same working days.
  */
-export function nonInitiativeWorkCost(app, personId, teamId, monthKeyStr) {
-  const pct = nonInitiativeWorkPct(app, personId, teamId, monthKeyStr);
+export function nonInitiativeWorkCost(app, personId, teamId, monthKeyStr, nowIso) {
+  const pct = nonInitiativeWorkPct(app, personId, teamId, monthKeyStr, nowIso);
   if (pct <= 0) return 0;
 
   const person = app.PEOPLE[personId];
@@ -769,13 +863,13 @@ export function runRate(app, initiatives, months) {
 }
 
 /** One team's run rate, with the share it holds but has not allocated. */
-export function teamRunRate(app, teamId, months) {
+export function teamRunRate(app, teamId, months, nowIso) {
   const initiatives = app.INITIATIVES.filter((i) => i.teamId === teamId);
   const members = Object.values(app.PEOPLE).filter((person) => membership(person, teamId));
 
   return runRate(app, initiatives, months).map((row) => {
     const spare = members.reduce(
-      (total, person) => total + nonInitiativeWorkCost(app, person.id, teamId, row.month),
+      (total, person) => total + nonInitiativeWorkCost(app, person.id, teamId, row.month, nowIso),
       0,
     );
     const segments = spare > 0
@@ -806,11 +900,11 @@ export function initiativePeriod(initiative) {
  * Both ceilings, neither of which ever blocks (SPEC §5.2).
  * @returns {{ overTeamShare: boolean, overCapacity: boolean, allocatedPct: number, sharePct: number }}
  */
-export function capacityWarnings(app, personId, teamId, monthKeyStr) {
+export function capacityWarnings(app, personId, teamId, monthKeyStr, nowIso) {
   const person = app.PEOPLE[personId];
   const member = membership(person, teamId);
-  const inTeam = allocatedPct(app, personId, monthKeyStr, teamId);
-  const overall = allocatedPct(app, personId, monthKeyStr);
+  const inTeam = allocatedPct(app, personId, monthKeyStr, teamId, nowIso);
+  const overall = allocatedPct(app, personId, monthKeyStr, undefined, nowIso);
   return {
     allocatedPct: inTeam,
     sharePct: member ? member.sharePct : 0,
@@ -833,7 +927,7 @@ export function capacityWarnings(app, personId, teamId, monthKeyStr) {
  *   overShare: Array<{ personId: string, teamId: string, sharePct: number, allocatedPct: number }>,
  * }}
  */
-export function overAllocations(app, monthKeyStr) {
+export function overAllocations(app, monthKeyStr, nowIso) {
   // One pass over every active initiative's allocations for this month,
   // rather than re-walking them once per person and again per membership —
   // allocatedPct() does exactly that walk on every call, which is fine for a
@@ -845,8 +939,11 @@ export function overAllocations(app, monthKeyStr) {
 
   for (const initiative of app.INITIATIVES) {
     if (initiative.status !== 'active') continue;
-    for (const phase of Object.values(initiative.phases ?? {})) {
+    for (const [phaseId, phase] of Object.entries(initiative.phases ?? {})) {
       if (!phaseMonths(phase).includes(monthKeyStr)) continue;
+      // A Provisional phase's allocation is a rough plan, not a commitment
+      // yet, so it never counts toward either ceiling (SPEC §3).
+      if (!isPhaseConfirmed(initiative, phaseId, nowIso)) continue;
       for (const allocation of phase.allocations ?? []) {
         if (allocation.allocationPct <= 0) continue;
         add(overallByPerson, allocation.personId, allocation.allocationPct);
@@ -934,10 +1031,10 @@ export function windowMonths(app) {
 }
 
 /** Utilisation for the People overview: allocated against capacity, one month. */
-export function utilisationPct(app, personId, monthKeyStr) {
+export function utilisationPct(app, personId, monthKeyStr, nowIso) {
   const person = app.PEOPLE[personId];
   if (!person.capacityPct) return 0;
-  return (allocatedPct(app, personId, monthKeyStr) / person.capacityPct) * 100;
+  return (allocatedPct(app, personId, monthKeyStr, undefined, nowIso) / person.capacityPct) * 100;
 }
 
 /* ------------------------------------------------------------------ *

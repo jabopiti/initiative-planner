@@ -256,6 +256,39 @@ test('blended cost prefers a recorded actual over the estimate', () => {
   assert.notEqual(blended['2026-02'], 1234);
 });
 
+test('a closed month with no actual defaults to the estimate; an open one stays undefined', () => {
+  const a = app();
+  const person = standardPerson(a);
+  const p = phase({
+    estStartDate: '2026-01-01',
+    estEndDate: '2026-03-31',
+    allocations: [{ personId: person.id, allocationPct: 100 }],
+  });
+  const estimate = E.phaseEstimateByMonth(p, a);
+
+  assert.equal(E.actualOrEstimate(p, a, '2026-01', '2026-03'), estimate['2026-01']);
+  assert.equal(E.actualOrEstimate(p, a, '2026-03', '2026-03'), undefined, 'the current month is not yet closed');
+  assert.equal(E.actualOrEstimate(p, a, '2026-04', '2026-03'), undefined, 'a future month is not yet closed');
+});
+
+test('a recorded actual always wins over the closed-month default', () => {
+  const a = app();
+  const person = standardPerson(a);
+  const p = phase({
+    estStartDate: '2026-01-01',
+    estEndDate: '2026-02-28',
+    allocations: [{ personId: person.id, allocationPct: 100 }],
+    actualMonths: { '2026-01': 1234 },
+  });
+  assert.equal(E.actualOrEstimate(p, a, '2026-01', '2026-03'), 1234);
+});
+
+test('a closed month costing nothing has no default to fall back on', () => {
+  const a = app();
+  const p = phase({ estStartDate: '2026-01-01', estEndDate: '2026-01-31' });
+  assert.equal(E.actualOrEstimate(p, a, '2026-01', '2026-03'), undefined);
+});
+
 test('coverage moves estimate -> forecast -> actual', () => {
   const a = app();
   const person = standardPerson(a);
@@ -422,6 +455,162 @@ test('allocation is broken down by initiative, since a person can serve several'
   assert.equal(rows.length, 2);
   assert.equal(E.allocatedPct(a, person.id, '2026-06'), 50);
   assert.equal(E.utilisationPct(a, person.id, '2026-06'), (50 / person.capacityPct) * 100);
+});
+
+/* -------------------------------------------------- Provisional / Confirmed */
+
+test('the current phase is always Confirmed, whatever its start date', () => {
+  const a = app();
+  const i = initiative(a, { phaseId: 'plan', phases: {
+    plan: phase({ estStartDate: '2027-06-01' }),
+    build: phase(),
+  } });
+  assert.equal(E.isPhaseConfirmed(i, 'plan', '2026-01-01'), true);
+});
+
+test('a phase starting under a month out is Confirmed; further out is Provisional', () => {
+  const a = app();
+  const i = initiative(a, { phaseId: 'plan', phases: {
+    plan: phase(),
+    build: phase({ estStartDate: '2026-02-14' }),
+  } });
+  assert.equal(E.isPhaseConfirmed(i, 'build', '2026-01-20'), true, 'under a month away');
+  assert.equal(E.isPhaseConfirmed(i, 'build', '2026-01-01'), false, 'over a month away');
+});
+
+test('a phase with no start date yet is Provisional, not a crash', () => {
+  const a = app();
+  const i = initiative(a, { phaseId: 'plan', phases: { plan: phase(), build: phase() } });
+  assert.equal(E.isPhaseConfirmed(i, 'build', '2026-01-01'), false);
+});
+
+test('a Provisional phase\'s allocation is excluded from allocatedPct and counted by provisionalPct instead', () => {
+  const a = app();
+  const person = standardPerson(a);
+  const teamId = person.memberships[0].teamId;
+  const i = initiative(a, {
+    teamId,
+    phaseId: 'plan',
+    phases: {
+      plan: phase(),
+      build: phase({
+        estStartDate: '2026-08-01',
+        estEndDate: '2026-08-31',
+        allocations: [{ personId: person.id, allocationPct: 40 }],
+      }),
+    },
+  });
+  a.INITIATIVES.push(i);
+
+  assert.equal(E.allocatedPct(a, person.id, '2026-08', teamId, '2026-01-01'), 0);
+  assert.equal(E.provisionalPct(a, person.id, '2026-08', teamId, '2026-01-01'), 40);
+  // Confirmed once its own start date is under a month away.
+  assert.equal(E.allocatedPct(a, person.id, '2026-08', teamId, '2026-07-15'), 40);
+  assert.equal(E.provisionalPct(a, person.id, '2026-08', teamId, '2026-07-15'), 0);
+});
+
+test('a Provisional allocation never counts toward either over-allocation ceiling', () => {
+  const a = app();
+  const person = standardPerson(a);
+  const teamId = person.memberships[0].teamId;
+  const i = initiative(a, {
+    teamId,
+    phaseId: 'plan',
+    phases: {
+      plan: phase(),
+      build: phase({
+        estStartDate: '2026-08-01',
+        estEndDate: '2026-08-31',
+        allocations: [{ personId: person.id, allocationPct: 999 }],
+      }),
+    },
+  });
+  a.INITIATIVES.push(i);
+
+  const { overCapacity, overShare } = E.overAllocations(a, '2026-08', '2026-01-01');
+  assert.equal(overCapacity.length, 0);
+  assert.equal(overShare.length, 0);
+});
+
+test('maxAvailablePct is the Team FTE left over after Confirmed allocations elsewhere, at the tightest month', () => {
+  const a = app();
+  const person = standardPerson(a);
+  const teamId = person.memberships[0].teamId;
+  const sharePct = person.memberships[0].sharePct;
+  const other = initiative(a, {
+    id: 'init_other',
+    teamId,
+    phaseId: 'plan',
+    phases: {
+      plan: phase({
+        estStartDate: '2026-05-01',
+        estEndDate: '2026-06-30',
+        allocations: [{ personId: person.id, allocationPct: 20 }],
+      }),
+      build: phase(),
+    },
+  });
+  const targetInitiative = initiative(a, {
+    id: 'init_target',
+    teamId,
+    phaseId: 'plan',
+    phases: {
+      plan: phase({
+        estStartDate: '2026-06-01',
+        estEndDate: '2026-07-31',
+        // The row this exact call is suggesting a new value for — excluded
+        // from its own headroom, not stacked underneath the suggestion.
+        allocations: [{ personId: person.id, allocationPct: 5 }],
+      }),
+      build: phase(),
+    },
+  });
+  a.INITIATIVES.push(other, targetInitiative);
+
+  // June overlaps `other`'s 20%; July does not — June is the tighter month.
+  const result = E.maxAvailablePct(
+    a, person.id, teamId, 'init_target', 'plan', targetInitiative.phases.plan, '2026-01-01',
+  );
+  assert.equal(result.pct, sharePct - 20, "the target phase's own 5% is excluded, not stacked on");
+  assert.equal(result.provisionalPct, 0);
+});
+
+test('maxAvailablePct surfaces Provisional load elsewhere without folding it in', () => {
+  const a = app();
+  const person = standardPerson(a);
+  const teamId = person.memberships[0].teamId;
+  const sharePct = person.memberships[0].sharePct;
+  const other = initiative(a, {
+    id: 'init_other',
+    teamId,
+    phaseId: 'plan',
+    phases: {
+      plan: phase(),
+      build: phase({
+        estStartDate: '2026-09-01',
+        estEndDate: '2026-09-30',
+        allocations: [{ personId: person.id, allocationPct: 30 }],
+      }),
+    },
+  });
+  const target = phase({ estStartDate: '2026-09-01', estEndDate: '2026-09-30', allocations: [] });
+  a.INITIATIVES.push(other);
+
+  // '2026-01-01' is over a month before build's start, so it is Provisional.
+  const result = E.maxAvailablePct(a, person.id, teamId, 'init_target', 'plan', target, '2026-01-01');
+  assert.equal(result.pct, sharePct, 'a Provisional allocation elsewhere never shrinks the headroom');
+  assert.equal(result.provisionalPct, 30);
+});
+
+test('maxAvailablePct is null with no membership or no period to measure', () => {
+  const a = app();
+  const person = standardPerson(a);
+  const teamId = person.memberships[0].teamId;
+  const memberOf = new Set(person.memberships.map((m) => m.teamId));
+  const otherTeamId = Object.keys(a.TEAMS).find((id) => !memberOf.has(id));
+  const dated = phase({ estStartDate: '2026-01-01', estEndDate: '2026-01-31' });
+  assert.equal(E.maxAvailablePct(a, person.id, otherTeamId, 'i', 'plan', dated, '2026-01-01'), null);
+  assert.equal(E.maxAvailablePct(a, person.id, teamId, 'i', 'plan', phase(), '2026-01-01'), null);
 });
 
 test('both ceilings warn and neither blocks', () => {

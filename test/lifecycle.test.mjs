@@ -104,13 +104,13 @@ test('a gate requiring estimates needs every costed phase, not just its own', ()
   L.setAllocation(app, initiative, 'shape', people[0].id, 50);
   setChecklist(process, initiative, gateId, 'green');
 
-  const partial = L.gatePrecondition(app, process, initiative, gateId);
+  const partial = L.gatePrecondition(app, process, initiative, gateId, '2026-01-01');
   assert.equal(partial.ok, false);
   assert.ok(partial.blockers.some((b) => /Deliver/.test(b)), 'must name the phase still ahead');
 
   L.setPhasePeriod(initiative, 'deliver', '2026-03-01', '2026-06-30');
   L.setAllocation(app, initiative, 'deliver', people[0].id, 80);
-  assert.equal(L.gatePrecondition(app, process, initiative, gateId).ok, true);
+  assert.equal(L.gatePrecondition(app, process, initiative, gateId, '2026-01-01').ok, true);
 });
 
 test('gateRequirements reports what a gate needs, met items included', () => {
@@ -139,14 +139,14 @@ test('gateRequirements reports what a gate needs, met items included', () => {
 
   // An unestimated phase names the phases to go to, not just the trouble.
   const estimates = L.gateRequirements(
-    app, process, initiative, E.gateForPhase(process, 'shape').id,
+    app, process, initiative, E.gateForPhase(process, 'shape').id, '2026-01-01',
   ).find((r) => r.kind === 'estimates');
   assert.ok(estimates, 'a gate requiring estimates carries that requirement');
   assert.equal(estimates.state, 'blocker');
   assert.deepEqual([...estimates.phaseIds].sort(), [...E.costedPhaseIds(process)].sort());
 
   estimateAll(app, process, initiative, people[0]);
-  const met = L.gateRequirements(app, process, initiative, E.gateForPhase(process, 'shape').id)
+  const met = L.gateRequirements(app, process, initiative, E.gateForPhase(process, 'shape').id, '2026-01-01')
     .find((r) => r.kind === 'estimates');
   assert.equal(met.state, 'met');
   assert.deepEqual(met.phaseIds, [], 'nothing left to go and fix');
@@ -547,6 +547,7 @@ const FROZEN_IMMUNE = new Set([
   'phaseOtherTotal',
   'phaseBlendedByMonth',
   'phaseBlendedTotal',
+  'actualOrEstimate',
 ]);
 
 /**

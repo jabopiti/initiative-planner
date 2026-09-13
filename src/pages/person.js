@@ -7,7 +7,7 @@ import * as E from '../engine.js';
 import * as P from '../people.js';
 import { PROCESS } from '../process.js';
 import * as store from '../store.js';
-import { app, view, navigate, commit, commitQuietly, withUndo } from '../app.js';
+import { app, view, navigate, commit, commitQuietly, withUndo, today } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, badge } from '../render/components.js';
@@ -259,7 +259,7 @@ function personInitiativesPanel(person, rows, stranded) {
 }
 
 function personCapacity(person, months) {
-  const rows = P.capacityOverTime(app, person.id, months);
+  const rows = P.capacityOverTime(app, person.id, months, today());
   const teams = rows[0]?.nonInitiative ?? [];
   const headers = ['Month', 'Allocated %', 'Capacity %', ...teams.map((t) => `${t.name} non-initiative work %`)];
   const data = rows.map((row) => [
@@ -275,7 +275,9 @@ function personCapacity(person, months) {
       (row) => html`<tr class="${row.overAllocated ? 'row--warn' : ''}">
         <td>${F.month(row.month)}</td>
         <td class="num ${row.overAllocated ? 'over' : ''}">${row.allocatedPct}%${raw(
-          row.overAllocated ? icon('warning', 'icon--lead') : '')}</td>
+          row.overAllocated ? icon('warning', 'icon--lead') : '')}${raw(row.provisionalPct
+          ? html`<span class="cap__provisional">+${row.provisionalPct}% provisional</span>`
+          : '')}</td>
         <td class="num">${row.capacityPct}%</td>
         ${raw(row.nonInitiative.map((entry) => html`<td class="num">${entry.pct}%</td>`).join(''))}
       </tr>`,
