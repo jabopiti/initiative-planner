@@ -884,3 +884,85 @@ test('the threshold scale places every bound inside the bar', () => {
   assert.equal(scale.fraction(scale.max * 10), 1, 'and never past the end');
   assert.ok(scale.fraction(SIMPLE.bands.at(-1).lower) < 1, 'an unbounded top band has room');
 });
+
+/* ------------------------------------------------------------------ *
+ * Estimation-input helpers (Bundle 5)
+ * ------------------------------------------------------------------ */
+
+test('carryForwardPct returns the allocation from the nearest prior costed phase', () => {
+  const i = initiative(app(), {
+    phases: {
+      discover: phase(),
+      shape: phase({ allocations: [{ personId: 'p1', allocationPct: 50 }] }),
+      deliver: phase({ allocations: [{ personId: 'p1', allocationPct: 0 }] }),
+      embed: phase({ allocations: [{ personId: 'p1', allocationPct: 10 }] }),
+    }
+  });
+  
+  // From deliver, it should see shape's 50%
+  assert.deepEqual(E.carryForwardPct(RICH, i, 'deliver', 'p1'), { allocationPct: 50 });
+  
+  // From shape, there's no prior costed phase with an allocation
+  assert.equal(E.carryForwardPct(RICH, i, 'shape', 'p1'), null);
+});
+
+test('usualAllocationPct returns the historical median for a team/role/phase', () => {
+  const a = app();
+  a.INITIATIVES.push(
+    initiative(a, { teamId: 't1', phases: { build: phase({ allocations: [{ personId: 'p1', allocationPct: 50 }] }) } }),
+    initiative(a, { teamId: 't1', phases: { build: phase({ allocations: [{ personId: 'p2', allocationPct: 100 }] }) } }),
+    initiative(a, { teamId: 't1', phases: { build: phase({ allocations: [{ personId: 'p1', allocationPct: 20 }] }) } })
+  );
+  // Give them the same role
+  a.PEOPLE.p1 = { id: 'p1', roleId: 'r1' };
+  a.PEOPLE.p2 = { id: 'p2', roleId: 'r1' };
+  
+  assert.equal(E.usualAllocationPct(a, 't1', 'r1', 'build'), 50); // median of 20, 50, 100
+  assert.equal(E.usualAllocationPct(a, 't2', 'r1', 'build'), null); // wrong team
+});
+
+test('usualStaffing returns per-role medians for a team/phase', () => {
+  const a = app();
+  a.PEOPLE.p1 = { id: 'p1', roleId: 'r1' };
+  a.PEOPLE.p2 = { id: 'p2', roleId: 'r2' };
+  a.PEOPLE.p3 = { id: 'p3', roleId: 'r1' };
+  a.INITIATIVES.push(
+    initiative(a, { teamId: 't1', phases: { build: phase({ allocations: [{ personId: 'p1', allocationPct: 50 }, { personId: 'p2', allocationPct: 100 }] }) } }),
+    initiative(a, { teamId: 't1', phases: { build: phase({ allocations: [{ personId: 'p3', allocationPct: 50 }, { personId: 'p2', allocationPct: 80 }] }) } })
+  );
+  
+  const staffing = E.usualStaffing(a, 't1', 'build');
+  assert.equal(staffing.length, 2);
+  assert.equal(staffing[0].roleId, 'r1');
+  assert.equal(staffing[0].medianPct, 50);
+  assert.equal(staffing[1].roleId, 'r2');
+  assert.equal(staffing[1].medianPct, 90);
+});
+
+test('usualPhaseDuration returns the median duration in days', () => {
+  const a = app();
+  a.INITIATIVES.push(
+    initiative(a, { teamId: 't1', phases: { build: phase({ estStartDate: '2026-01-01', estEndDate: '2026-01-11' }) } }), // 10 days
+    initiative(a, { teamId: 't1', phases: { build: phase({ estStartDate: '2026-02-01', estEndDate: '2026-02-21' }) } }), // 20 days
+    initiative(a, { teamId: 't1', phases: { build: phase({ estStartDate: '2026-03-01', estEndDate: '2026-03-16' }) } })  // 15 days
+  );
+  assert.equal(E.usualPhaseDuration(a, 't1', 'build'), 15);
+});
+
+test('otherCostSuggestions merges dataset history and process library', () => {
+  const a = app();
+  a.INITIATIVES.push(
+    initiative(a, { phases: { build: phase({ otherCosts: [{ name: 'Hardware', amount: 500 }, { name: 'hardware', amount: 1500 }] }) } })
+  );
+  
+  const p = { commonOtherCosts: [{ name: 'Hardware', amount: 9999 }, { name: 'Licences', amount: 5000 }] };
+  const suggestions = E.otherCostSuggestions(a, 'build', p);
+  
+  assert.equal(suggestions.length, 2);
+  // 'Hardware' comes from dataset (median 1000) overshadowing the library (9999)
+  assert.equal(suggestions.find((s) => s.name === 'Hardware').amount, 1000);
+  assert.equal(suggestions.find((s) => s.name === 'Hardware').source, 'dataset');
+  // 'Licences' comes from library
+  assert.equal(suggestions.find((s) => s.name === 'Licences').amount, 5000);
+  assert.equal(suggestions.find((s) => s.name === 'Licences').source, 'library');
+});

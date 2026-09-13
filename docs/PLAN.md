@@ -74,7 +74,8 @@ Update the row below in the commit that finishes a bundle.
 | 2 | **Done** |
 | 3 | **Done** |
 | 4 | **Done** |
-| 5–12 | Not started |
+| 5 | **Done** |
+| 6-12 | Not started |
 
 ---
 
@@ -349,3 +350,18 @@ took one good pattern and applied it broadly. Decided outcomes:
 - **Positive "saved" confirmation:** left silent on success, deliberately. Confirmed as consistent with the calm-technology principle already running through this plan — nothing should announce itself unless it needs attention, and only the existing failure banners qualify.
 - **App-wide bulk row-selection** (Initiatives, People): left at phase-level only, matching what's already planned for allocation tables (§2, C7) — not extended further.
 - **Mobile/tablet layout:** confirmed out of scope — a desktop-only planning tool. No testing needed; every review this session ran at 1440×960 and that's an accurate reflection of how the tool is meant to be used.
+
+## 16. Handoff to Next Session
+
+**Current Progress:**
+- **Bundle 5 (Estimation inputs) is fully completed.** The logic for C4 (carry-forward chip), C5 (usual-staffing chip), C7 (bulk edit toolbar), C8 (duration presets), and C9 (common costs) has been successfully implemented in `src/engine.js` and wired to the UI in `src/render/phase-panel.js`.
+- The `src/styles.css` file was updated to style the new elements correctly.
+- All new pure functions in `src/engine.js` were comprehensively tested in `test/engine.test.mjs`.
+- The full test suite of 164 tests, including the e2e smoke test, passes. 
+- Typechecking (`npm run typecheck`) and linting (`npm run lint`) pass.
+
+**Next Steps (Bundle 6):**
+- The next session should pick up **Bundle 6**, which involves the gate-checklist rework (G3, G2, G4, G5, G6).
+- *Review before starting:* Look over the requirements for G1-G6 in `docs/PLAN.md` (Gate requirements & checklists). Ensure you understand the distinction between blocking red items and passing amber items as discussed in the spec.
+- *Dependencies:* This depends on the carry-forward mechanism (Bundle 5) which is now in place. 
+

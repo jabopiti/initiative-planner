@@ -1038,6 +1038,192 @@ export function utilisationPct(app, personId, monthKeyStr, nowIso) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Estimation-input helpers (Bundle 5: C4, C5, C7, C8, C9)
+ * ------------------------------------------------------------------ */
+
+/**
+ * A helper that takes an array of numbers and returns the median, or null
+ * if fewer than `minPoints` samples exist (default 2). Used by the "usual"
+ * suggestion functions below.
+ * @param {number[]} values @param {number} [minPoints]
+ * @returns {number | null}
+ */
+function median(values, minPoints = 2) {
+  if (values.length < minPoints) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
+/**
+ * C4 — Carry-forward: the allocation a person held on the most recent costed
+ * phase before `phaseId` in the same initiative. Returns `{ allocationPct }`
+ * or `null` if the person was not allocated on any prior phase.
+ *
+ * A later phase inheriting an earlier one's shape is the single-person
+ * version of the existing "Copy [Phase]'s allocations" seed action — that
+ * one copies the whole team when a phase has nobody at all; this one carries
+ * forward one person's percentage, so the first digit typed on a row that
+ * was previously 0% can show what the person was doing in the prior phase.
+ *
+ * @param {object} process the compiled-in process (for phase order)
+ * @param {object} initiative @param {string} phaseId @param {string} personId
+ * @returns {{ allocationPct: number } | null}
+ */
+export function carryForwardPct(process, initiative, phaseId, personId) {
+  const costed = costedPhaseIds(process).filter((id) => initiative.phases[id]);
+  const index = costed.indexOf(phaseId);
+  for (let before = index - 1; before >= 0; before -= 1) {
+    const phase = initiative.phases[costed[before]];
+    const allocation = phase.allocations.find((a) => a.personId === personId);
+    if (allocation && allocation.allocationPct > 0) {
+      return { allocationPct: allocation.allocationPct };
+    }
+  }
+  return null;
+}
+
+/**
+ * C5 — Historical median allocation % for a given (team, role, phase-type)
+ * combination, computed locally across all initiatives in the dataset.
+ *
+ * Scans every initiative owned by `teamId`, collecting all allocation
+ * percentages on `phaseId` where the person's role matches `roleId`.
+ * Returns the median or `null` if fewer than 2 data points exist.
+ *
+ * @param {object} app @param {string} teamId @param {string | null} roleId
+ * @param {string} phaseId
+ * @returns {number | null}
+ */
+export function usualAllocationPct(app, teamId, roleId, phaseId) {
+  const samples = [];
+  for (const initiative of app.INITIATIVES) {
+    if (initiative.teamId !== teamId) continue;
+    const phase = initiative.phases[phaseId];
+    if (!phase) continue;
+    for (const allocation of phase.allocations) {
+      if (allocation.allocationPct <= 0) continue;
+      const person = app.PEOPLE[allocation.personId];
+      if (!person) continue;
+      const personRoleId = person.customRole ? null : person.roleId;
+      if (personRoleId === roleId) {
+        samples.push(allocation.allocationPct);
+      }
+    }
+  }
+  return median(samples);
+}
+
+/**
+ * C7 — A team's typical staffing shape for a given phase type: for each role,
+ * the median allocation % across historical initiatives on that team/phase.
+ *
+ * Returns an array of `{ roleId, medianPct }` entries, sorted by roleId,
+ * or an empty array if there is no historical data. Only standard roles are
+ * included (custom-rate people are too individual to template from).
+ *
+ * @param {object} app @param {string} teamId @param {string} phaseId
+ * @returns {Array<{ roleId: string, medianPct: number }>}
+ */
+export function usualStaffing(app, teamId, phaseId) {
+  /** @type {Record<string, number[]>} */
+  const byRole = {};
+  for (const initiative of app.INITIATIVES) {
+    if (initiative.teamId !== teamId) continue;
+    const phase = initiative.phases[phaseId];
+    if (!phase) continue;
+    for (const allocation of phase.allocations) {
+      if (allocation.allocationPct <= 0) continue;
+      const person = app.PEOPLE[allocation.personId];
+      if (!person || person.customRole) continue;
+      const roleId = person.roleId;
+      if (!byRole[roleId]) byRole[roleId] = [];
+      byRole[roleId].push(allocation.allocationPct);
+    }
+  }
+  const result = [];
+  for (const [roleId, samples] of Object.entries(byRole)) {
+    const med = median(samples);
+    if (med !== null) result.push({ roleId, medianPct: med });
+  }
+  return result.sort((a, b) => a.roleId.localeCompare(b.roleId));
+}
+
+/**
+ * C8 — Median phase duration (in calendar days) for a given (team, phase)
+ * combination, computed from initiatives that have both start and end dates.
+ *
+ * Returns `null` if fewer than 2 data points.
+ *
+ * @param {object} app @param {string} teamId @param {string} phaseId
+ * @returns {number | null}
+ */
+export function usualPhaseDuration(app, teamId, phaseId) {
+  const durations = [];
+  for (const initiative of app.INITIATIVES) {
+    if (initiative.teamId !== teamId) continue;
+    const phase = initiative.phases[phaseId];
+    if (!phase?.estStartDate || !phase?.estEndDate) continue;
+    const start = new Date(phase.estStartDate);
+    const end = new Date(phase.estEndDate);
+    const days = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    if (days > 0) durations.push(days);
+  }
+  return median(durations);
+}
+
+/**
+ * C9 — Other-cost suggestions, drawn from two sources:
+ * 1. Names already used on the same phase type across the dataset, with their
+ *    median amount ("dataset" source).
+ * 2. A build-time library of common recurring items from `process.commonOtherCosts`
+ *    ("library" source).
+ *
+ * Deduplicated by name (case-insensitive): a dataset item takes precedence
+ * over a library item with the same name, since the dataset reflects what
+ * this team actually uses. Sorted alphabetically.
+ *
+ * @param {object} app @param {string} phaseId @param {object} process
+ * @returns {Array<{ name: string, amount: number, source: 'dataset' | 'library' }>}
+ */
+export function otherCostSuggestions(app, phaseId, process) {
+  // Collect dataset items per name
+  /** @type {Record<string, { name: string, amounts: number[] }>} */
+  const byName = {};
+  for (const initiative of app.INITIATIVES) {
+    const phase = initiative.phases[phaseId];
+    if (!phase) continue;
+    for (const item of phase.otherCosts) {
+      if (!item.name) continue;
+      const key = item.name.toLowerCase();
+      if (!byName[key]) byName[key] = { name: item.name, amounts: [] };
+      byName[key].amounts.push(item.amount);
+    }
+  }
+
+  /** @type {Map<string, { name: string, amount: number, source: 'dataset' | 'library' }>} */
+  const result = new Map();
+
+  // Dataset items first (they take precedence)
+  for (const [key, { name, amounts }] of Object.entries(byName)) {
+    const med = median(amounts, 1); // even a single sample is useful for recall
+    result.set(key, { name, amount: med ?? 0, source: 'dataset' });
+  }
+
+  // Library items, skipping any name already covered by dataset
+  for (const item of process.commonOtherCosts ?? []) {
+    const key = item.name.toLowerCase();
+    if (!result.has(key)) {
+      result.set(key, { name: item.name, amount: item.amount, source: 'library' });
+    }
+  }
+
+  return [...result.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/* ------------------------------------------------------------------ *
  * The process
  * ------------------------------------------------------------------ */
 

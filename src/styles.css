@@ -776,6 +776,48 @@ h3,
 }
 
 /*
+ * ESTIMATION CHIPS & BULK EDIT (Bundle 5)
+ */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-1) 0;
+}
+
+.bulk-edit {
+  margin: var(--space-2) 0;
+  padding: var(--space-1) var(--space-2);
+  border: var(--size-border) solid var(--color-border);
+  border-radius: var(--brand-radius);
+  background: var(--color-surface);
+}
+
+.bulk-edit > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.bulk-edit > summary::-webkit-details-marker {
+  display: none;
+}
+
+.bulk-edit__body {
+  margin-top: var(--space-2);
+  padding-bottom: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.bulk-edit__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/*
  * LINK — a button that behaves as a link: navigation, not action. Underlined
  * on hover rather than always, because a dense table of underlined names is
  * unreadable.

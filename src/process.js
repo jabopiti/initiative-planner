@@ -143,4 +143,14 @@ export const PROCESS = {
       severity: 3,
     },
   ],
+
+  // C9: common other-cost items — an org-standard category list the
+  // suggestion chips draw on alongside dataset-derived names. Name only;
+  // the amount is a typical default the user can adjust. A brand build
+  // may replace this list wholesale.
+  commonOtherCosts: [
+    { name: 'Licences', amount: 5000 },
+    { name: 'External review', amount: 3000 },
+    { name: 'Training', amount: 2000 },
+  ],
 };
