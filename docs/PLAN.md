@@ -76,7 +76,8 @@ Update the row below in the commit that finishes a bundle.
 | 4 | **Done** |
 | 5 | **Done** |
 | 6 | **Done** |
-| 7-12 | Not started |
+| 7 | **Done** |
+| 8-12 | Not started |
 
 ---
 
@@ -362,7 +363,47 @@ took one good pattern and applied it broadly. Decided outcomes:
 - 12 new/updated tests in `test/lifecycle.test.mjs` (carry-forward reappearing across multiple gates until resolved, never blocking the gate it reappears on, resolving against the origin gate; gate records snapshotting checklist substance on both pass and skip, and on the createInitiative backfill path). The full suite (168 tests, including the e2e smoke test) passes, along with typecheck, lint and build.
 - Verified by hand in a real browser (demo.json loaded via localStorage, all three themes): the note field's required styling, carry-forward showing up on the next gate untagged as a blocker, the frozen "At each gate" history staying put after the live item was later marked Complete, and the consequence line's figure.
 
-**Next Steps (Bundle 7):**
-- The next session should pick up **Bundle 7**: G1, N1, N3 (+ I9), N2, U2 — Needs-attention & calm signaling.
-- *Review before starting:* §4 and §15 in `docs/PLAN.md`. This bundle depends on Bundle 4's overdue-actuals work and Bundle 6's Tentative carry-forward (both now in place) to have anything to surface.
+- **Bundle 7 (Needs-attention & calm signaling) is fully completed.** Two new
+  `src/lifecycle.js` functions carry the shared logic: `gateProgress` (N3) —
+  one `{ complete, total, overdue }` ratio derived from `gateRequirements`,
+  with `overdue` true only once the phase behind the gate has run past its
+  own estimated end date — and `needsAttention` (G1/N1) — every open
+  initiative's current-gate state (escalated / overdue / checklist / ready),
+  ranked consequential-first, ready-last, finished initiatives excluded.
+  Both are documented in `docs/SPEC.md` §6.1 and the new §6.5 (with a
+  glossary row), since the ranking and the two distinct meanings of
+  "overdue" are decisions the code alone doesn't say.
+- **N3 + I9**: the "N BLOCKER(S)" badge — always red, in three places
+  (`src/pages/initiative.js`'s stepper, summary bar, and gate banner) — is
+  replaced everywhere by a shared `progressMark()` helper: a calm "X of Y
+  complete" badge (neutral/ok/danger by `gateProgress`'s own `overdue` flag)
+  plus a dot-progression (`●●○`, `.dot-progress` in `src/styles.css`,
+  `aria-hidden`).
+- **N1**: `src/pages/portfolio.js`'s `attentionMarkup()` renders a "Needs
+  attention" panel above the Initiatives table, reusing the `.reqs`/`.req`
+  component the gate panel already uses. Omitted entirely when
+  `needsAttention` returns nothing — no empty-state box announcing that
+  everything is fine, per the calm-technology precedent already set in §15.
+- **N2**: `render()` in `src/app.js` now computes `needsAttention` once per
+  render and puts the count on the Initiatives nav button as `.nav-badge` —
+  the same computation N1 reads, so the two can never disagree.
+- **U2**: `summaryBarMarkup` gained a `.summary__name` line (the initiative's
+  name) at the top of the sticky bar, `flex: 1 0 100%` so it always forces
+  the figures/facts/actions row onto a fresh line beneath it.
+- 3 new tests in `test/lifecycle.test.mjs` for `gateProgress` and
+  `needsAttention` (the overdue-date transition, ranking order across
+  escalated/overdue/checklist/ready, finished initiatives excluded). The
+  full suite (171 tests) passes, along with typecheck, lint and build.
+- Verified by hand in a real browser (demo.json loaded via localStorage,
+  light/dark/system): the nav badge and Portfolio strip agree on the same
+  count, the gate badge reads calm neutral gray while merely incomplete and
+  turns red once a phase's own end date was pushed into the past, and the
+  sticky bar carries the initiative's name while scrolled.
+
+**Next Steps (Bundle 8):**
+- The next session should pick up **Bundle 8**: F1, F2 — the creation flow
+  ("Start from an existing initiative" as the front door; add-person chips
+  replacing the pre-listed-at-0% allocation table). Independent of every
+  earlier bundle.
+- *Review before starting:* §5 in `docs/PLAN.md`.
 

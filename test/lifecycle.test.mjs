@@ -274,6 +274,88 @@ test('a gate record snapshots its checklist as it stood, not as it reads later',
     'gate history is a snapshot, not a live view');
 });
 
+test('gateProgress is one ratio derived from gateRequirements, plus an overdue flag', () => {
+  const { app, process, teamId, people } = setup(RICH);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+  L.skipGate(app, process, initiative, 'g_discover', 'not needed', '2026-01-05');
+  const gateId = 'g_shape';
+
+  const before = L.gateRequirements(app, process, initiative, gateId, '2026-01-01')
+    .filter((r) => r.kind !== 'state');
+  const untouched = L.gateProgress(app, process, initiative, gateId, '2026-01-01');
+  assert.equal(untouched.total, before.length, 'the same list gateRequirements itself reports');
+  assert.equal(untouched.complete, before.filter((r) => r.state === 'met').length);
+  assert.equal(untouched.overdue, false, 'no end date yet, so nothing to be overdue against');
+
+  L.setPhasePeriod(initiative, 'shape', '2026-01-01', '2026-02-28');
+  L.setAllocation(app, initiative, 'shape', people[0].id, 50);
+  setChecklist(process, initiative, gateId, 'complete');
+
+  const midway = L.gateProgress(app, process, initiative, gateId, '2026-01-15');
+  assert.equal(midway.overdue, false, 'today has not reached the phase\'s own end date yet');
+
+  const late = L.gateProgress(app, process, initiative, gateId, '2026-03-01');
+  assert.equal(late.overdue, true, 'today is past the phase\'s own estimated end date');
+});
+
+test('needsAttention surfaces a current gate\'s own unresolved checklist items, and skips finished initiatives', () => {
+  const { app, process, teamId } = setup(RICH);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+
+  const own = L.needsAttention(app, process, '2026-01-01')
+    .filter((item) => item.initiativeId === initiative.id);
+  assert.equal(own.length, 1, 'the one Incomplete item on its current gate — nothing else yet');
+  assert.equal(own[0].kind, 'checklist');
+  assert.match(own[0].text, /Problem agreed/);
+
+  L.setStatus(initiative, 'cancelled');
+  assert.deepEqual(
+    L.needsAttention(app, process, '2026-01-01').filter((item) => item.initiativeId === initiative.id),
+    [],
+    'a finished initiative is frozen; nothing about it is actionable',
+  );
+});
+
+test('needsAttention ranks escalated and overdue ahead of checklist and ready housekeeping', () => {
+  const ORDER = ['escalated', 'overdue', 'checklist', 'ready'];
+  const { app, process, teamId, people } = setup(SIMPLE);
+  const person = people[0];
+
+  // Ready: fully estimated, and far enough out that nothing has closed yet.
+  const ready = L.createInitiative(app, process, { name: 'ReadyOne', teamId });
+  L.setPhasePeriod(ready, 'plan', '2027-01-01', '2027-01-31');
+  L.setAllocation(app, ready, 'plan', person.id, 50);
+  L.setPhasePeriod(ready, 'build', '2027-02-01', '2027-02-28');
+  L.setAllocation(app, ready, 'build', person.id, 50);
+
+  // Overdue: one closed month, nothing recorded against it.
+  const overdue = L.createInitiative(app, process, { name: 'OverdueOne', teamId });
+  L.setPhasePeriod(overdue, 'plan', '2026-01-01', '2026-01-31');
+  L.setAllocation(app, overdue, 'plan', person.id, 50);
+
+  // Escalated: passed at a low total, then pushed into the next band.
+  const escalated = L.createInitiative(app, process, { name: 'EscalatedOne', teamId });
+  L.setPhasePeriod(escalated, 'plan', '2026-01-01', '2026-01-31');
+  L.setAllocation(app, escalated, 'plan', person.id, 5);
+  L.setPhasePeriod(escalated, 'build', '2026-02-01', '2026-12-31');
+  L.setAllocation(app, escalated, 'build', person.id, 5);
+  L.passGate(app, process, escalated, 'g_plan', '2026-01-31');
+  assert.equal(E.resolveBand(process.bands, E.grandTotal(escalated, app))?.id, 'b_low');
+  L.setAllocation(app, escalated, 'build', person.id, 100);
+  assert.equal(E.resolveBand(process.bands, E.grandTotal(escalated, app))?.id, 'b_high');
+
+  const items = L.needsAttention(app, process, '2026-03-01');
+  const kinds = items.map((item) => item.kind);
+  const ranks = kinds.map((kind) => ORDER.indexOf(kind));
+  for (let i = 1; i < ranks.length; i += 1) {
+    assert.ok(ranks[i - 1] <= ranks[i], `out of order: ${kinds[i - 1]} appears before ${kinds[i]}`);
+  }
+
+  assert.ok(items.some((item) => item.initiativeId === escalated.id && item.kind === 'escalated'));
+  assert.ok(items.some((item) => item.initiativeId === overdue.id && item.kind === 'overdue'));
+  assert.ok(items.some((item) => item.initiativeId === ready.id && item.kind === 'ready'));
+});
+
 /* -------------------------------------------------- skipping */
 
 test('skipping requires a reason, approves nothing, and freezes nothing', () => {

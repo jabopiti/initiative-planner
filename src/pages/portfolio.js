@@ -44,6 +44,29 @@ function portfolioRows() {
   });
 }
 
+/** One line, one initiative, one click to where it's resolved (N1). Absent
+ * entirely when nothing needs a look — calm technology says nothing here,
+ * not an empty box announcing that everything is fine. */
+function attentionMarkup() {
+  const items = L.needsAttention(app, PROCESS, today());
+  if (items.length === 0) return '';
+
+  const rows = items
+    .map((item) => html`<li class="req req--${item.state}">
+      <span class="req__mark">${raw(icon(item.state === 'met' ? 'check' : 'warning'))}</span>
+      <div class="req__body">
+        <p class="req__text"><a class="link" href="#/initiative/${item.initiativeId}"
+          >${item.initiativeName}</a> — ${item.text}</p>
+      </div>
+    </li>`)
+    .join('');
+
+  return html`<div class="panel">
+    <h2>Needs attention</h2>
+    <ul class="reqs">${raw(rows)}</ul>
+  </div>`;
+}
+
 export function renderPortfolio() {
   const all = portfolioRows();
   const selected = view.params.bandId ?? null;
@@ -155,6 +178,8 @@ export function renderPortfolio() {
           </div>
         </div>
       </div>
+
+      ${raw(attentionMarkup())}
 
       <div class="panel">
         <h2>Initiatives</h2>

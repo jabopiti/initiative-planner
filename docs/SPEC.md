@@ -277,6 +277,14 @@ blocked until someone has looked at each one. Missing actuals never block
 — they only warn, and less often now that a closed month defaults to its
 estimate (§5.4).
 
+Unmet requirements are the ordinary state of a gate for most of its phase's
+life, not an alarm — the current gate reads calmly as "X of Y complete"
+everywhere it appears, with real alarm colour reserved for the one thing
+that is genuinely late: the phase behind it running past the date it was
+itself estimated to end on. That is a different "overdue" from §6.5's —
+one is a date already past, the other is a month already closed with
+nothing recorded against it.
+
 Passing **freezes** the exited phase's estimate along with the role, country
 and person data behind it, so later master-data changes can never move an
 approved figure. Every gate records one gate record, whether or not it
@@ -311,6 +319,35 @@ Both freeze the whole initiative: phases, actuals, and every field on it.
 The single exception is **notes**, which stays writable, because recording
 why something ended is exactly what a finished initiative still needs to
 accept. Reopening unlocks everything.
+
+### 6.5 Needs attention
+
+A checklist item is worth a look the moment its phase goes current, not
+saved up for the pile a gate would otherwise discover it in — so the
+Portfolio's "Needs attention" strip, and the matching count on the
+Initiatives nav item, surface **every open initiative's current-gate state**
+continuously, not only when someone opens the gate panel to try passing it.
+Closed and Cancelled initiatives never appear; they are frozen and nothing
+about them is actionable.
+
+Four kinds of thing can appear, in the order a reader should work through
+them — consequential first, an opportunity last, since nothing in that last
+kind is actually wrong:
+
+1. **Escalated** — the live total now needs a stricter approval track than
+   the one last approved (§5.5's escalation comparison).
+2. **Overdue** — a **closed** month with no actual recorded against it yet
+   (§5.4). Narrower than the gate panel's own "missing actuals" warning,
+   which also counts months not due yet — a future month is not overdue,
+   it just hasn't happened.
+3. **Checklist** — an item on the current gate is Incomplete, or still
+   Tentative (including one carried forward from an earlier gate, §3).
+4. **Ready** — nothing is left blocking the current gate. Listed last
+   because it is a "you could do this now," never a problem.
+
+Each item's own state (blocker/warning/met) is kept from wherever it was
+computed, so the strip never invents a fourth colour scale a reader would
+have to learn separately from the gate panel's.
 
 ## 7. Capacity overview
 
@@ -372,3 +409,4 @@ and Cancelled initiatives are excluded from it).
 | Custom role | A per-person role label with its own absolute day rate (§5.2) |
 | Non-initiative work | The portion of a person a team holds but hasn't allocated, costed the same as initiative work |
 | Estimate / Forecast / Actual | See §3; a closed month with no recorded actual defaults to its estimate (§5.4) |
+| Needs attention | The ranked, portfolio-wide list of current-gate states worth a look (§6.5) |

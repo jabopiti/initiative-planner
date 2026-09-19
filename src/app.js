@@ -16,6 +16,7 @@ import * as F from './format.js';
  */
 
 import * as E from './engine.js';
+import * as L from './lifecycle.js';
 import * as T from './transfer.js';
 import * as store from './store.js';
 import { PROCESS } from './process.js';
@@ -707,11 +708,21 @@ export function render() {
   renderShellActions();
   renderBanner();
 
+  // Reflects the same items as Portfolio's "Needs attention" strip (N1) —
+  // one computation, read from two places, so the nav can never claim a
+  // count the strip itself would disagree with. Visible from anywhere in
+  // the app is the whole point (N2), so it lives on Initiatives, not buried
+  // a click away on Portfolio.
+  const attentionCount = L.needsAttention(app, PROCESS, today()).length;
+
   fill(
     'nav',
     PAGES.map(
       (page) => html`<button type="button" data-act="page" data-page="${page.id}"
-        ${raw(page.id === view.page ? 'aria-current="page"' : '')}>${page.label}</button>`,
+        ${raw(page.id === view.page ? 'aria-current="page"' : '')}>${page.label}${raw(
+          page.id === 'initiatives' && attentionCount
+            ? html` <span class="nav-badge">${attentionCount}</span>`
+            : '')}</button>`,
     ).join(''),
   );
   // The nav is replaced wholesale above, so the collapsed state has to be

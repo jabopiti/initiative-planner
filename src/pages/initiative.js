@@ -21,7 +21,7 @@ import {
 } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, badge, panel, railNav } from '../render/components.js';
+import { pageHead, scroller, empty, badge, badgeClass, panel, railNav } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
 import { phasePanel } from '../render/phase-panel.js';
 
@@ -160,6 +160,22 @@ function notesMarkup(initiative) {
  * ------------------------------------------------------------------ */
 
 /**
+ * The repeated "N BLOCKER(S)" badge, replaced everywhere it appeared (N3):
+ * a ratio rather than a bare count with nothing to read it against, plus a
+ * dot-progression (I9) so it scans without counting words. Most of a gate's
+ * life it has unmet requirements — that is ordinary work in progress, not a
+ * problem — so real alarm colour is reserved for `overdue`, never for "not
+ * finished yet."
+ */
+function progressMark({ complete, total, overdue }) {
+  if (total === 0) return '';
+  const dots = '●'.repeat(complete) + '○'.repeat(total - complete);
+  const kind = overdue ? 'danger' : complete === total ? 'ok' : 'neutral';
+  return html`<span class="badge ${badgeClass(kind)}"><span class="dot-progress"
+    aria-hidden="true">${raw(dots)}</span>${complete} of ${total} complete</span>`;
+}
+
+/**
  * What one step of the rail says under its name, and where clicking it goes.
  *
  * A rail that only shows outcome answers "where am I" and nothing else, which
@@ -255,18 +271,15 @@ function stepperMarkup(initiative) {
       // A skipped gate must never read as a passed one; the glyph says which
       // before the colour does, and survives being printed in grey.
       const mark = state === 'passed' ? 'check' : state === 'skipped' ? 'skip' : '';
-      const blockers = state === 'current'
-        ? L.gatePrecondition(app, PROCESS, initiative, phase.gate.id, today()).blockers.length
-        : 0;
+      const progress = state === 'current'
+        ? L.gateProgress(app, PROCESS, initiative, phase.gate.id, today())
+        : null;
 
       // The figure last and pushed to the foot, so figures line up across the
       // rail however much prose the segments above them carry.
       const body = html`<span class="step__name">${raw(mark ? icon(mark) : '')}${phase.label}</span>
         <span class="step__meta">${raw(detail.meta)}</span>
-        ${raw(state === 'current' && blockers
-          ? html`<span class="step__flag">${raw(icon('warning', 'icon--lead'))}${blockers}
-              ${blockers === 1 ? 'blocker' : 'blockers'}</span>`
-          : '')}
+        ${raw(progress ? html`<span class="step__flag">${raw(progressMark(progress))}</span>` : '')}
         ${raw(detail.figure
           ? html`<span class="step__figure">${detail.figure}<span class="step__qual"
               >${detail.qualifier}</span></span>`
@@ -312,11 +325,12 @@ export function summaryBarMarkup(initiative) {
   const passed = L.lastPassedGate(PROCESS, initiative);
   const escalated = passed && E.compareBands(passed.band, band) === 'escalation';
   const finished = E.isFinished(initiative);
+  const gateId = E.gateForPhase(PROCESS, initiative.phaseId).id;
 
   const blockers = finished
     ? 0
-    : L.gateRequirements(app, PROCESS, initiative, E.gateForPhase(PROCESS, initiative.phaseId).id, today())
-      .filter((requirement) => requirement.state === 'blocker').length;
+    : L.gatePrecondition(app, PROCESS, initiative, gateId, today()).blockers.length;
+  const progress = finished ? null : L.gateProgress(app, PROCESS, initiative, gateId, today());
 
   const figure = (label, value, on, note = '') => html`<div
     class="summary__figure ${on ? 'summary__figure--on' : ''}">
@@ -324,7 +338,12 @@ export function summaryBarMarkup(initiative) {
     <dd>${F.money(value)}${raw(note ? html`<span class="summary__note">${note}</span>` : '')}</dd>
   </div>`;
 
-  return html`<dl class="summary__figures">
+  // A five-screen-long page loses the header from view almost immediately,
+  // so the bar it scrolls with carries the one thing every figure below it
+  // is about (U2) — otherwise every number on it reads correctly for
+  // whichever initiative you last scrolled past, not the one it's for.
+  return html`<p class="summary__name">${initiative.name}</p>
+    <dl class="summary__figures">
       ${raw(figure('Estimate', totals.estimate, totals.coverage === 'estimate'))}
       ${raw(figure('Forecast', totals.forecast, totals.coverage === 'forecast'))}
       ${raw(figure('Actual', totals.actual, totals.coverage === 'actual',
@@ -342,10 +361,7 @@ export function summaryBarMarkup(initiative) {
         <span class="label-voice">Phase</span>
         <span>${finished
           ? STATUS_LABELS[initiative.status]
-          : E.phaseLabel(PROCESS, initiative.phaseId)}${raw(blockers
-          ? html` ${raw(badge(`${blockers} ${blockers === 1 ? 'blocker' : 'blockers'}`,
-              'warn', 'warning'))}`
-          : '')}</span>
+          : E.phaseLabel(PROCESS, initiative.phaseId)}${raw(progress ? html` ${raw(progressMark(progress))}` : '')}</span>
       </p>
     </div>
 
@@ -410,9 +426,7 @@ function gateBannerMarkup(initiative) {
   return panel({
     id: 'panel-gate',
     title: `${phase.label} — ${gate.label}`,
-    mark: blockers
-      ? badge(`${blockers} ${blockers === 1 ? 'blocker' : 'blockers'}`, 'warn', 'warning')
-      : badge('ready to pass', 'ok', 'check'),
+    mark: progressMark(L.gateProgress(app, PROCESS, initiative, gate.id, today())),
     extraClass: 'banner',
     body: html`<div class="gate__part">
         <p class="muted">${closes

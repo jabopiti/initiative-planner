@@ -453,6 +453,31 @@ export function gatePrecondition(app, process, initiative, gateId, nowIso) {
   return { ok: blockers.length === 0, blockers, warnings: of('warning') };
 }
 
+/**
+ * How far this gate is toward satisfied, as one calm ratio rather than a
+ * blocker count with nothing to compare it against (N3) — also derived from
+ * `gateRequirements`, for the same reason `gatePrecondition` is.
+ *
+ * `overdue` is the one signal still worth real alarm color: not "this gate
+ * has unmet requirements" (expected right up until the gate is actually
+ * passed), but "the phase behind it has already run past the date it was
+ * itself estimated to end on." A non-costed phase carries no date to compare
+ * against, so it is never overdue by this measure.
+ *
+ * @returns {{ complete: number, total: number, overdue: boolean }}
+ */
+export function gateProgress(app, process, initiative, gateId, nowIso) {
+  const requirements = gateRequirements(app, process, initiative, gateId, nowIso)
+    .filter((r) => r.kind !== 'state');
+  const phase = E.phaseForGate(process, gateId);
+  const costedPhase = initiative.phases[phase.id];
+  return {
+    complete: requirements.filter((r) => r.state === 'met').length,
+    total: requirements.length,
+    overdue: Boolean(costedPhase?.estEndDate && costedPhase.estEndDate < nowIso),
+  };
+}
+
 /** Snapshot everything an approved figure depends on, so it can never move. */
 function freeze(app, initiative, phaseId) {
   const phase = initiative.phases[phaseId];
@@ -561,6 +586,95 @@ export function lastPassedGate(process, initiative) {
     if (record?.outcome === 'passed') return record;
   }
   return null;
+}
+
+/** Closed months — already in the past — with no actual recorded yet. Wider
+ * than this (a future month, not due) is not overdue; it just hasn't happened. */
+function overdueMonths(initiative, nowMonthKey) {
+  const gaps = [];
+  for (const [phaseId, phase] of Object.entries(initiative.phases ?? {})) {
+    for (const month of E.phaseMonths(phase)) {
+      if (month < nowMonthKey && phase.actualMonths[month] === undefined) gaps.push({ phaseId, month });
+    }
+  }
+  return gaps;
+}
+
+/**
+ * Everything across the whole portfolio worth a look, ranked so the more
+ * consequential things surface first (N1) — the point of G1 is that a
+ * checklist item is worth surfacing the moment its phase goes current, not
+ * saved up until the gate that would finally force a look at it.
+ *
+ * Four kinds, in the order a reader should work through them:
+ *   1. escalated — the live total now needs a stricter track than what was
+ *      last approved; a governance fact, not routine housekeeping.
+ *   2. overdue   — a closed month still has no actual recorded against it.
+ *   3. checklist — an item on the current gate is Incomplete, or still
+ *      Tentative (including one carried forward from an earlier gate).
+ *   4. ready     — nothing is left blocking the current gate. Listed last
+ *      because it is an opportunity, not a problem: nothing here is wrong.
+ *
+ * Finished initiatives (closed or cancelled) are frozen and never appear.
+ *
+ * `state` carries the same `'blocker'|'warning'|'met'` vocabulary the gate
+ * panel itself uses, so a reader who already knows what amber and red mean
+ * there does not have to learn a second scale here. A checklist item keeps
+ * its own state (Incomplete reads as a blocker even here, since it blocks
+ * *some* gate — just not necessarily this list's ranking); the other three
+ * kinds are assigned one: escalated and overdue are a warning (worth a
+ * look, nothing broken), ready is met (an opportunity, not a problem).
+ *
+ * @returns {Array<{ id: string, kind: 'escalated'|'overdue'|'checklist'|'ready',
+ *   state: 'blocker'|'warning'|'met', initiativeId: string,
+ *   initiativeName: string, text: string }>}
+ */
+export function needsAttention(app, process, nowIso) {
+  const nowMonthKey = nowIso.slice(0, 7);
+  /** @type {Array<any>} */
+  const out = [];
+
+  for (const initiative of app.INITIATIVES) {
+    if (E.isFinished(initiative)) continue;
+    const name = initiative.name;
+    const gate = E.gateForPhase(process, initiative.phaseId);
+    const requirements = gateRequirements(app, process, initiative, gate.id, nowIso);
+
+    const passed = lastPassedGate(process, initiative);
+    const liveBand = E.resolveBand(process.bands, E.grandTotal(initiative, app));
+    if (passed && E.compareBands(passed.band, liveBand) === 'escalation') {
+      out.push({
+        id: `escalated:${initiative.id}`, kind: 'escalated', state: 'warning',
+        initiativeId: initiative.id, initiativeName: name,
+        text: `now needs a stricter approval track than ${passed.band ? passed.band.name : 'the last one'} approved`,
+      });
+    }
+
+    const overdue = overdueMonths(initiative, nowMonthKey);
+    if (overdue.length > 0) {
+      out.push({
+        id: `overdue:${initiative.id}`, kind: 'overdue', state: 'warning',
+        initiativeId: initiative.id, initiativeName: name,
+        text: `${overdue.length} closed month${overdue.length === 1 ? '' : 's'} still using the estimate`,
+      });
+    }
+
+    for (const r of requirements.filter((req) => req.kind === 'checklist' && req.state !== 'met')) {
+      out.push({ id: `checklist:${initiative.id}:${r.id}`, kind: 'checklist', state: r.state,
+        initiativeId: initiative.id, initiativeName: name, text: r.text });
+    }
+
+    const blocked = requirements.some((r) => r.kind !== 'state' && r.state === 'blocker');
+    if (!blocked) {
+      out.push({
+        id: `ready:${initiative.id}`, kind: 'ready', state: 'met',
+        initiativeId: initiative.id, initiativeName: name, text: `${gate.label} is ready to pass`,
+      });
+    }
+  }
+
+  const RANK = { escalated: 1, overdue: 2, checklist: 3, ready: 4 };
+  return out.sort((a, b) => RANK[a.kind] - RANK[b.kind] || a.initiativeName.localeCompare(b.initiativeName));
 }
 
 /** Months in a costed phase that have no actual recorded. */
