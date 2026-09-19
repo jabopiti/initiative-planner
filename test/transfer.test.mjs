@@ -31,7 +31,7 @@ function populated() {
 
   const gate = E.gateForPhase(PROCESS, firstCosted);
   for (const item of gate.checklist ?? []) {
-    L.setChecklistStatus(initiative, gate.id, item.id, 'green');
+    L.setChecklistStatus(initiative, gate.id, item.id, 'complete');
   }
   L.passGate(app, PROCESS, initiative, gate.id, '2026-02-28');
   L.recordActual(initiative, firstCosted, '2026-01', 12345);

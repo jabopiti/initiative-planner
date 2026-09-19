@@ -75,7 +75,8 @@ Update the row below in the commit that finishes a bundle.
 | 3 | **Done** |
 | 4 | **Done** |
 | 5 | **Done** |
-| 6-12 | Not started |
+| 6 | **Done** |
+| 7-12 | Not started |
 
 ---
 
@@ -354,14 +355,14 @@ took one good pattern and applied it broadly. Decided outcomes:
 ## 16. Handoff to Next Session
 
 **Current Progress:**
-- **Bundle 5 (Estimation inputs) is fully completed.** The logic for C4 (carry-forward chip), C5 (usual-staffing chip), C7 (bulk edit toolbar), C8 (duration presets), and C9 (common costs) has been successfully implemented in `src/engine.js` and wired to the UI in `src/render/phase-panel.js`.
-- The `src/styles.css` file was updated to style the new elements correctly.
-- All new pure functions in `src/engine.js` were comprehensively tested in `test/engine.test.mjs`.
-- The full test suite of 164 tests, including the e2e smoke test, passes. 
-- Typechecking (`npm run typecheck`) and linting (`npm run lint`) pass.
+- **Bundle 6 (gate-checklist rework) is fully completed.** G3 (Incomplete/Tentative/Complete rename), G2 (carry-forward of still-Tentative items onto every later gate, resolved against their origin gate — `L.carriedForwardItems` in `src/lifecycle.js`), G4 (the note field appears, and is visually required, only once an item is Tentative), G5 (`buildGateRecord` now snapshots each gate's checklist substance — name/description/status/note — so "At each gate" stays readable after a later carry-forward resolution moves the live status), and G6 (a one-line "this freezes €X and opens/closes …" next to the Pass-gate button, computed live) all landed in `src/lifecycle.js` and `src/pages/initiative.js`.
+- `src/styles.css` gained the minimal styling the above needed: `.req__required`, the gate-history detail row (`.row--sub`, overriding the frozen-first-column rule since its one cell is a colspan), and `.gate-checklist`'s `<details>`/`<summary>`.
+- `docs/SPEC.md` and `docs/DESIGN.md` already described this bundle's target behavior in full (written spec-first, per a prior session) — no further SPEC changes were needed; DESIGN.md gained one paragraph explaining *why* gate records need their own checklist snapshot rather than just referencing the live one (the carry-forward mechanism is exactly what can move the live copy afterward).
+- `examples/exports/demo.json`'s checklist items used the old `"green"` literal — updated to `"complete"` so the fixture stays valid against the renamed states.
+- 12 new/updated tests in `test/lifecycle.test.mjs` (carry-forward reappearing across multiple gates until resolved, never blocking the gate it reappears on, resolving against the origin gate; gate records snapshotting checklist substance on both pass and skip, and on the createInitiative backfill path). The full suite (168 tests, including the e2e smoke test) passes, along with typecheck, lint and build.
+- Verified by hand in a real browser (demo.json loaded via localStorage, all three themes): the note field's required styling, carry-forward showing up on the next gate untagged as a blocker, the frozen "At each gate" history staying put after the live item was later marked Complete, and the consequence line's figure.
 
-**Next Steps (Bundle 6):**
-- The next session should pick up **Bundle 6**, which involves the gate-checklist rework (G3, G2, G4, G5, G6).
-- *Review before starting:* Look over the requirements for G1-G6 in `docs/PLAN.md` (Gate requirements & checklists). Ensure you understand the distinction between blocking red items and passing amber items as discussed in the spec.
-- *Dependencies:* This depends on the carry-forward mechanism (Bundle 5) which is now in place. 
+**Next Steps (Bundle 7):**
+- The next session should pick up **Bundle 7**: G1, N1, N3 (+ I9), N2, U2 — Needs-attention & calm signaling.
+- *Review before starting:* §4 and §15 in `docs/PLAN.md`. This bundle depends on Bundle 4's overdue-actuals work and Bundle 6's Tentative carry-forward (both now in place) to have anything to surface.
 

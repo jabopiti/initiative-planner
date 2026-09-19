@@ -408,7 +408,7 @@
       "checklist": {
         "gate_discovery": {
           "chk_problem": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           }
         }
@@ -784,11 +784,11 @@
       "checklist": {
         "gate_validation": {
           "chk_scope": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           },
           "chk_risk": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           }
         }
@@ -1461,23 +1461,23 @@
       "checklist": {
         "gate_discovery": {
           "chk_problem": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           }
         },
         "gate_validation": {
           "chk_scope": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           },
           "chk_risk": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           }
         },
         "gate_development": {
           "chk_ready": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           }
         }
@@ -2166,29 +2166,29 @@
       "checklist": {
         "gate_discovery": {
           "chk_problem": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           }
         },
         "gate_validation": {
           "chk_scope": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           },
           "chk_risk": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           }
         },
         "gate_development": {
           "chk_ready": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           }
         },
         "gate_rollout": {
           "chk_benefits": {
-            "status": "green",
+            "status": "complete",
             "note": ""
           }
         }

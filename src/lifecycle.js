@@ -95,6 +95,11 @@ export function createInitiative(app, process, input) {
       grandTotal: 0,
       band: null,
       phaseCosts: {},
+      // Nobody reviewed this checklist — it was never opened — so it freezes
+      // the same shape a real gate record carries, all Incomplete, no note.
+      checklist: (gate.checklist ?? []).map((item) => (
+        { id: item.id, name: item.name, description: item.description, status: 'incomplete', note: '' }
+      )),
     };
   }
 
@@ -242,14 +247,14 @@ export function setNotes(initiative, notes) {
  * Checklists
  * ------------------------------------------------------------------ */
 
-export const CHECKLIST_STATUSES = Object.freeze(['red', 'amber', 'green']);
+export const CHECKLIST_STATUSES = Object.freeze(['incomplete', 'tentative', 'complete']);
 
-/** Items start red, so a gate is blocked until someone has looked at each. */
+/** Items start Incomplete, so a gate is blocked until someone has looked at each. */
 export function checklistState(initiative, gate) {
   const stored = initiative.checklist[gate.id] ?? {};
   return (gate.checklist ?? []).map((item) => ({
     ...item,
-    status: stored[item.id]?.status ?? 'red',
+    status: stored[item.id]?.status ?? 'incomplete',
     note: stored[item.id]?.note ?? '',
   }));
 }
@@ -258,13 +263,43 @@ export function setChecklistStatus(initiative, gateId, itemId, status) {
   if (!CHECKLIST_STATUSES.includes(status)) throw new Error(`unknown status: ${status}`);
   assertOpen(initiative);
   const forGate = (initiative.checklist[gateId] ??= {});
-  (forGate[itemId] ??= { status: 'red', note: '' }).status = status;
+  (forGate[itemId] ??= { status: 'incomplete', note: '' }).status = status;
 }
 
 export function setChecklistNote(initiative, gateId, itemId, note) {
   assertOpen(initiative);
   const forGate = (initiative.checklist[gateId] ??= {});
-  (forGate[itemId] ??= { status: 'red', note: '' }).note = note;
+  (forGate[itemId] ??= { status: 'incomplete', note: '' }).note = note;
+}
+
+/**
+ * Items still Tentative on a gate already passed, reappearing on every later
+ * gate's own checklist until someone marks them Complete (SPEC §3). Looked
+ * up by querying every already-passed gate rather than stored a second time
+ * (DESIGN.md §2) — resolving one here means calling `setChecklistStatus`
+ * against its *origin* gate, the same record this query reads.
+ *
+ * Never a blocker at the gate it reappears on: only Incomplete blocks, and
+ * only at the gate that actually defines the item.
+ *
+ * @returns {Array<{ id: string, name: string, description: string, status: string,
+ *   note: string, originGateId: string, originGateLabel: string }>}
+ */
+export function carriedForwardItems(process, initiative, gateId) {
+  const order = E.phaseOrder(process);
+  const thisPhase = E.phaseForGate(process, gateId);
+  const thisIndex = order.indexOf(thisPhase.id);
+  const out = [];
+  for (const phaseId of order.slice(0, thisIndex)) {
+    const originGate = E.gateForPhase(process, phaseId);
+    if (initiative.gates[originGate.id]?.outcome !== 'passed') continue;
+    for (const item of checklistState(initiative, originGate)) {
+      if (item.status === 'tentative') {
+        out.push({ ...item, originGateId: originGate.id, originGateLabel: originGate.label });
+      }
+    }
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------------ *
@@ -318,7 +353,8 @@ export function unestimatedPhases(process, initiative, nowIso) {
  *
  * @returns {Array<{ id: string, kind: 'state'|'estimates'|'checklist'|'actuals',
  *   state: 'blocker'|'warning'|'met', text: string, itemId?: string,
- *   phaseIds?: string[] }>}
+ *   phaseIds?: string[], carried?: boolean, originGateId?: string,
+ *   originGateLabel?: string }>}
  */
 export function gateRequirements(app, process, initiative, gateId, nowIso) {
   const phase = E.phaseForGate(process, gateId);
@@ -358,12 +394,28 @@ export function gateRequirements(app, process, initiative, gateId, nowIso) {
       id: `checklist:${item.id}`,
       kind: 'checklist',
       itemId: item.id,
-      state: item.status === 'red' ? 'blocker' : item.status === 'amber' ? 'warning' : 'met',
-      text: item.status === 'red'
+      state: item.status === 'incomplete' ? 'blocker' : item.status === 'tentative' ? 'warning' : 'met',
+      text: item.status === 'incomplete'
         ? `“${item.name}” is not resolved`
-        : item.status === 'amber'
+        : item.status === 'tentative'
           ? `“${item.name}” is only partly resolved`
           : `“${item.name}” is resolved`,
+    });
+  }
+
+  // Tentative items from earlier gates reappear here until Complete, but
+  // never as a blocker at this later gate — only Incomplete ever blocks,
+  // and only at the gate that actually defines the item (SPEC §3).
+  for (const item of carriedForwardItems(process, initiative, gate.id)) {
+    out.push({
+      id: `carried:${item.originGateId}:${item.id}`,
+      kind: 'checklist',
+      itemId: item.id,
+      carried: true,
+      originGateId: item.originGateId,
+      originGateLabel: item.originGateLabel,
+      state: 'warning',
+      text: `“${item.name}” is still Tentative, carried from ${item.originGateLabel}`,
     });
   }
 
@@ -430,8 +482,19 @@ function advance(process, initiative, phaseId) {
   initiative.phaseId = E.nextPhase(process, phaseId);
 }
 
-/** The gate record shared by passing and skipping: the figures frozen at the moment either happens. */
-function buildGateRecord(app, process, initiative, outcome, reason, takenAt) {
+/**
+ * The gate record shared by passing and skipping: the figures frozen at the
+ * moment either happens.
+ *
+ * The checklist is snapshotted here too — name, description, status and note
+ * — not just referenced, because a carried-forward item's live status
+ * (`initiative.checklist[gateId]`) can keep moving after this gate is left:
+ * it is resolved under its *origin* gate, which is this one for items this
+ * gate itself defines. Without a frozen copy, "what did this gate verify"
+ * would answer with whatever the item says today, not what it said when the
+ * gate actually passed.
+ */
+function buildGateRecord(app, process, initiative, gate, outcome, reason, takenAt) {
   const total = E.grandTotal(initiative, app);
   const band = E.resolveBand(process.bands, total);
   return {
@@ -441,6 +504,13 @@ function buildGateRecord(app, process, initiative, outcome, reason, takenAt) {
     grandTotal: total,
     band: band && { id: band.id, name: band.name, abbr: band.abbr, severity: band.severity },
     phaseCosts: E.phaseCosts(initiative, app),
+    checklist: checklistState(initiative, gate).map((item) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      status: item.status,
+      note: item.note,
+    })),
   };
 }
 
@@ -457,7 +527,7 @@ export function passGate(app, process, initiative, gateId, takenAt, nowIso = tak
 
   freeze(app, initiative, phase.id);
 
-  initiative.gates[gateId] = buildGateRecord(app, process, initiative, 'passed', null, takenAt);
+  initiative.gates[gateId] = buildGateRecord(app, process, initiative, phase.gate, 'passed', null, takenAt);
 
   advance(process, initiative, phase.id);
   return initiative.gates[gateId];
@@ -476,7 +546,9 @@ export function skipGate(app, process, initiative, gateId, reason, takenAt) {
   if (E.isFinished(initiative)) throw new Error(`this initiative is ${initiative.status}`);
   if (!reason || !String(reason).trim()) throw new Error('skipping a gate requires a reason');
 
-  initiative.gates[gateId] = buildGateRecord(app, process, initiative, 'skipped', String(reason).trim(), takenAt);
+  initiative.gates[gateId] = buildGateRecord(
+    app, process, initiative, phase.gate, 'skipped', String(reason).trim(), takenAt,
+  );
 
   advance(process, initiative, phase.id);
   return initiative.gates[gateId];

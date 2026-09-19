@@ -57,6 +57,15 @@ nothing.
 rather than referencing it, so escalation still resolves after the bands
 change in a later build.
 
+**Gate records also snapshot their checklist** (`id`, `name`, `description`,
+`status`, `note`, per item) rather than just referencing the live one. That
+live checklist (`initiative.checklist[gateId]`) can keep moving after this
+gate is left — a carried-forward item still Tentative is resolved under its
+*origin* gate, which is this one for the items this gate itself defines — so
+without a frozen copy, "what did this gate verify" would answer with
+whatever the item says today, not what it said when the gate actually
+passed.
+
 **Per-year records cover a rolling four-year window** — last year, this
 year, and the next two — recomputed on load. Last year is included because
 entering work retrospectively is a first-class flow, and clamping those

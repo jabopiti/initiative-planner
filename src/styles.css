@@ -1199,6 +1199,37 @@ h3,
   font-weight: var(--weight-medium);
 }
 
+/* A gate history row's own checklist substance (G5) — collapsed by default,
+   so a table read for its figures isn't lengthened by prose underneath. Its
+   one cell spans the row, so it is also `:first-child`; that selector's
+   sticky/no-wrap rule (above) is for a frozen identity column, not prose,
+   and is overridden here at matching specificity. */
+.row--sub > td {
+  padding-top: 0;
+  border-top: none;
+}
+
+.grid > tbody > tr.row--sub > td:first-child {
+  position: static;
+  white-space: normal;
+  border-right: none;
+}
+
+.gate-checklist > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.gate-checklist > summary::-webkit-details-marker {
+  display: none;
+}
+
+.gate-checklist[open] > summary {
+  margin-bottom: var(--space-2);
+}
+
 .grid--narrow {
   width: auto;
 }
@@ -1396,6 +1427,12 @@ h3,
 
 .req__body .field-inline {
   margin-top: var(--space-2);
+}
+
+/* Only Tentative offers the note field, and it is required there — said
+   once, beside the label, rather than left for an empty field to imply. */
+.req__required {
+  color: var(--color-amber);
 }
 
 .req__fix {

@@ -430,11 +430,11 @@ function gateBannerMarkup(initiative) {
         ${raw(requirementsMarkup(initiative, gate, requirements))}
       </div>
 
-      ${raw(gateActionsMarkup(initiative, gate, closes, blockers === 0))}`,
+      ${raw(gateActionsMarkup(PROCESS, initiative, phase, gate, closes, blockers === 0))}`,
   });
 }
 
-const CHECK_LABELS = { red: 'Not resolved', amber: 'Partly', green: 'Resolved' };
+const CHECK_LABELS = { incomplete: 'Incomplete', tentative: 'Tentative', complete: 'Complete' };
 
 /**
  * Every requirement, each with the control that settles it.
@@ -444,19 +444,28 @@ const CHECK_LABELS = { red: 'Not resolved', amber: 'Partly', green: 'Resolved' }
  * sentence-sized control (an estimate, a missing actual) offer the trip to
  * where they can, which is the honest version of "resolvable in place": the
  * control is a period and a table of people, not something that fits here.
+ *
+ * A carried-forward item (reappearing from an earlier, already-passed gate)
+ * resolves against its *origin* gate, not this one — that is the single
+ * stored record it has ever had (DESIGN §2), so the control here targets it
+ * by id rather than this gate's.
  */
 function requirementsMarkup(initiative, gate, requirements) {
   const checklist = L.checklistState(initiative, gate);
-  const itemFor = (id) => checklist.find((item) => item.id === id);
+  const carried = L.carriedForwardItems(PROCESS, initiative, gate.id);
+  const itemFor = (requirement) => (requirement.carried
+    ? carried.find((item) => item.id === requirement.itemId)
+    : checklist.find((item) => item.id === requirement.itemId));
 
   const items = requirements
     .map((requirement) => {
       const mark = requirement.state === 'met' ? 'check' : 'warning';
-      const item = requirement.kind === 'checklist' ? itemFor(requirement.itemId) : null;
+      const item = requirement.kind === 'checklist' ? itemFor(requirement) : null;
+      const itemGateId = requirement.carried ? requirement.originGateId : gate.id;
 
       const fix = item
         ? html`<select class="field field--select" data-act="checklist-status"
-            data-id="${initiative.id}" data-gate="${gate.id}" data-item="${item.id}"
+            data-id="${initiative.id}" data-gate="${itemGateId}" data-item="${item.id}"
             aria-label="${requirement.text}">
             ${raw(L.CHECKLIST_STATUSES.map((status) => html`<option value="${status}"
               ${raw(item.status === status ? 'selected' : '')}
@@ -471,16 +480,21 @@ function requirementsMarkup(initiative, gate, requirements) {
                 data-panel="panel-months">Month by month${raw(icon('chevron-right'))}</button>`
             : '';
 
+      // Incomplete and Complete are self-explanatory; only Tentative needs a
+      // note saying what's still outstanding, so that is the one state that
+      // offers the field at all (SPEC §3).
+      const note = item && item.status === 'tentative'
+        ? html`<label class="field-inline"><span>Note<span class="req__required"> — required</span></span>
+            <input class="field ${item.note.trim() ? '' : 'field--warn'}" data-act="checklist-note"
+              data-id="${initiative.id}" data-gate="${itemGateId}" data-item="${item.id}"
+              value="${item.note}" placeholder="What's still outstanding?" /></label>`
+        : '';
+
       return html`<li class="req req--${requirement.state}">
         <span class="req__mark">${raw(icon(mark))}</span>
         <div class="req__body">
           <p class="req__text">${requirement.text}</p>
-          ${raw(item
-            ? html`<p class="micro">${item.description}</p>
-              <label class="field-inline"><span>Note</span>
-                <input class="field" data-act="checklist-note" data-id="${initiative.id}"
-                  data-gate="${gate.id}" data-item="${item.id}" value="${item.note}" /></label>`
-            : '')}
+          ${raw(item ? html`<p class="micro">${item.description}</p>${raw(note)}` : '')}
         </div>
         <div class="req__fix">${raw(fix)}</div>
       </li>`;
@@ -488,9 +502,10 @@ function requirementsMarkup(initiative, gate, requirements) {
     .join('');
 
   return html`<ul class="reqs">${raw(items)}</ul>
-    ${raw((gate.checklist ?? []).length
-      ? html`<p class="micro">Checklist items start unresolved, so a gate with one is blocked
-          until someone has looked at each. “Partly” lets the gate pass with a warning.</p>`
+    ${raw((gate.checklist ?? []).length || carried.length
+      ? html`<p class="micro">Checklist items start Incomplete, so a gate with one is blocked
+          until someone has looked at each. Tentative lets the gate pass with a warning, and
+          carries the item forward to every later gate until it is marked Complete.</p>`
       : '')}`;
 }
 
@@ -500,12 +515,25 @@ function requirementsMarkup(initiative, gate, requirements) {
  * Skipping and reopening are both rarer than passing and both undo or bypass
  * governance, so neither belongs beside the button people actually press.
  * The menu is absent rather than empty when this gate offers neither.
+ *
+ * The consequence line is information, not a confirmation to click through —
+ * what passing *this* gate, right now, actually does: the figure it freezes
+ * and where the initiative goes next.
  */
-function gateActionsMarkup(initiative, gate, closes, ready) {
-  const canReopen = E.phaseOrder(PROCESS).indexOf(initiative.phaseId) > 0;
+function gateActionsMarkup(process, initiative, phase, gate, closes, ready) {
+  const canReopen = E.phaseOrder(process).indexOf(initiative.phaseId) > 0;
   const hasMenu = gate.skippable || canReopen;
 
+  const costedPhase = initiative.phases[phase.id];
+  const freezeText = costedPhase
+    ? `freezes ${F.money(E.phaseEstimateTotal(costedPhase, app))}`
+    : 'freezes nothing';
+  const nextText = closes
+    ? 'closes the initiative'
+    : `opens ${E.phaseLabel(process, E.nextPhase(process, phase.id))}`;
+
   return html`<div class="gate__part gate__part--actions">
+    <p class="micro">This ${freezeText} and ${nextText}.</p>
     <label class="field-inline"><span>Gate date</span>
       <input type="date" class="field field--date" data-field="gate-date"
         value="${today()}" /></label>
@@ -842,7 +870,7 @@ function gateComparisonMarkup(initiative) {
     .map((row, index) => {
       const entry = left[index];
       const skipped = entry?.record.outcome === 'skipped';
-      return html`<tr class="${index === data.length - 1 ? 'row--live' : skipped ? 'row--warn' : ''}">
+      const mainRow = html`<tr class="${index === data.length - 1 ? 'row--live' : skipped ? 'row--warn' : ''}">
         <td>${row[0]}</td>
         <td class="cell--wrap">${raw(skipped
           ? badge('skipped', 'warn', 'skip') + html`<span class="micro">${entry.record.reason}</span>`
@@ -852,6 +880,7 @@ function gateComparisonMarkup(initiative) {
         <td>${row[3 + costed.length]}</td>
         <td class="num"><strong>${F.money(row[4 + costed.length])}</strong></td>
       </tr>`;
+      return mainRow + (entry ? gateChecklistDetail(entry.record, headers.length) : '');
     })
     .join('');
 
@@ -866,6 +895,36 @@ function gateComparisonMarkup(initiative) {
     </table>`))}
     ${raw(tableActions('gates', 'comparison'))}`,
   });
+}
+
+/**
+ * What a gate's checklist looked like the moment it was left — not what it
+ * says now, since a carried-forward item keeps moving under its origin gate
+ * after this one is history (G5, `buildGateRecord`'s own comment). Absent
+ * for a gate whose process definition carries no checklist at all.
+ */
+function gateChecklistDetail(record, span) {
+  const items = record.checklist ?? [];
+  if (items.length === 0) return '';
+  const resolved = items.filter((item) => item.status === 'complete').length;
+
+  const rows = items
+    .map((item) => {
+      const state = item.status === 'incomplete' ? 'blocker' : item.status === 'tentative' ? 'warning' : 'met';
+      return html`<li class="req req--${state}">
+        <span class="req__mark">${raw(icon(state === 'met' ? 'check' : 'warning'))}</span>
+        <div class="req__body">
+          <p class="req__text">${item.name} — ${CHECK_LABELS[item.status]}</p>
+          ${raw(item.note ? html`<p class="micro">${item.note}</p>` : '')}
+        </div>
+      </li>`;
+    })
+    .join('');
+
+  return html`<tr class="row--sub"><td colspan="${span}"><details class="gate-checklist">
+      <summary>Checklist — ${resolved} of ${items.length} complete</summary>
+      <ul class="reqs">${raw(rows)}</ul>
+    </details></td></tr>`;
 }
 
 export const initiativeClickActions = {
@@ -952,8 +1011,11 @@ export const initiativeChangeActions = {
       L.setChecklistStatus(findInitiative(id), target.dataset.gate, target.dataset.item, target.value);
     });
     commit();
+    // A carried-forward item can appear twice — once read-only in its origin
+    // gate's own history, once live here — so match on gate too, not item
+    // alone, or focus could land on the wrong copy.
     const restored = document.querySelector(
-      `[data-act="checklist-status"][data-item="${target.dataset.item}"]`,
+      `[data-act="checklist-status"][data-gate="${target.dataset.gate}"][data-item="${target.dataset.item}"]`,
     );
     if (restored instanceof HTMLSelectElement) restored.focus();
   },
