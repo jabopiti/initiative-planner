@@ -97,8 +97,8 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
       const maxAvail = editable
         ? E.maxAvailablePct(app, person.id, initiative.teamId, initiative.id, phaseId, phase, today())
         : null;
-      // C4: if this person was allocated on an earlier phase, show the prior
-      // percentage as a placeholder and a quick-apply chip.
+      // C4: if this person was allocated on an earlier phase, offer a
+      // quick-apply chip carrying that percentage forward.
       const carry = editable && allocationPct === 0
         ? E.carryForwardPct(PROCESS, initiative, phaseId, person.id)
         : null;
@@ -125,7 +125,6 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
               'data-person': person.id,
               'aria-label': `${person.name} allocation`,
               extraClass: 'field--pct',
-              placeholder: carry ? String(carry.allocationPct) : undefined,
             }))}${raw(carry
               ? html`<button type="button" class="btn--small" data-act="allocation-carry"
                   data-id="${initiative.id}" data-phase="${phaseId}" data-person="${person.id}"

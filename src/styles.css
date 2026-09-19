@@ -789,7 +789,7 @@ h3,
 .bulk-edit {
   margin: var(--space-2) 0;
   padding: var(--space-1) var(--space-2);
-  border: var(--size-border) solid var(--color-border);
+  border: var(--size-border) solid var(--color-line);
   border-radius: var(--brand-radius);
   background: var(--color-surface);
 }
