@@ -160,9 +160,14 @@ function recordRecentlyViewed(page, params) {
   ].slice(0, RECENTLY_VIEWED_LIMIT);
 }
 
+const RESULT_ICON = { Person: 'person', Team: 'team', Initiative: 'initiative' };
+
+// I10: a result used to repeat its category as a word on every row
+// ("Person Ada Vance") — a small glyph per type lets results be scanned by
+// shape instead, with the word kept for assistive tech via `sr-only`.
 function resultRowMarkup(r) {
-  return html`<a class="btn" href="${r.href}" data-act="search-select">
-      <span class="micro muted">${r.kind}</span> ${r.name}
+  return html`<a class="btn" href="${r.href}" data-act="search-select" title="${r.kind}">
+      ${raw(icon(RESULT_ICON[r.kind]))}<span class="sr-only">${r.kind}</span> ${r.name}
       ${raw(r.note ? html`<span class="micro muted">· ${r.note}</span>` : '')}</a>`;
 }
 
@@ -556,6 +561,17 @@ export const STATUS_BADGE_KIND = {
   'on-hold': 'warn',
   cancelled: 'danger',
   closed: 'quiet',
+};
+
+/** The glyph riding alongside each status badge (I3) — additive, since status
+ * is scanned too often to risk dropping the label. Cancelled and Closed reuse
+ * the existing cross/check rather than inventing a second way to say the
+ * same thing. */
+export const STATUS_ICON = {
+  active: 'status-active',
+  'on-hold': 'status-hold',
+  cancelled: 'remove',
+  closed: 'check',
 };
 
 /** `YYYY-MM` for today, the month picker's default. */

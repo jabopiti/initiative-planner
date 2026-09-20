@@ -57,10 +57,45 @@ const PATHS = {
 
   // Theme: a disc half in shadow says "light or dark" without picking one.
   theme: ['M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z', 'M8 2.5v11'],
+
+  // Coverage: Estimate / Forecast / Actual read as one ring filling in —
+  // hollow, half, solid — the same disc the theme icon already draws.
+  'coverage-estimate': ['M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'],
+  'coverage-forecast': ['M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z', 'M8 2.5v11'],
+  'coverage-actual': ['M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'],
+
+  // Status: Active/On hold keep their color; the shape carries the rest
+  // (Cancelled reuses `remove`, Closed reuses `check`).
+  'status-active': ['M5 3.5l7 4.5-7 4.5z'],
+  'status-hold': ['M6 3.5v9', 'M10 3.5v9'],
+
+  // Tags
+  inactive: ['M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z', 'M4.6 4.6l6.8 6.8'],
+  'custom-rate': ['M8 2.75l5.25 5.25-5.25 5.25-5.25-5.25z'],
+  'not-in-capacity': ['M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z', 'M5.5 8h5'],
+  lock: ['M4.75 7.25h6.5v6h-6.5z', 'M6.25 7.25v-2a1.75 1.75 0 1 1 3.5 0v2'],
+
+  // Row actions: Deactivate reuses `inactive` — the state a person or team
+  // is moving to.
+  reactivate: ['M13.25 8A5.25 5.25 0 1 1 10.7 3.55', 'M13.25 3.25v3.25h-3.25'],
+  leave: ['M5.5 3.25h-2.75v9.5h2.75', 'M5.5 8H13', 'M9.5 4.5L13 8l-3.5 3.5'],
+  rejoin: ['M10.5 3.25h2.75v9.5h-2.75', 'M10.5 8H3', 'M6.5 4.5L3 8l3.5 3.5'],
+
+  // Search result types
+  person: ['M8 4.25a2 2 0 1 1 0 4 2 2 0 0 1 0-4z', 'M3.5 13.25a4.5 4.5 0 0 1 9 0'],
+  team: ['M5.75 4.5a1.75 1.75 0 1 1 0 3.5 1.75 1.75 0 0 1 0-3.5z',
+    'M10.25 5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z',
+    'M2.5 13.25a3.5 3.5 0 0 1 6.5-2.6', 'M8.5 13.25a3.25 3.25 0 0 1 5-2.75'],
+  initiative: ['M4.5 2.75v10.5', 'M4.5 3.25h7l-2 2.25 2 2.25h-7'],
 };
 
 /** Icons whose meaning needs a filled area rather than an outline. */
-const FILLED = { theme: 'M8 2.5a5.5 5.5 0 0 1 0 11z' };
+const FILLED = {
+  theme: 'M8 2.5a5.5 5.5 0 0 1 0 11z',
+  'coverage-forecast': 'M8 2.5a5.5 5.5 0 0 1 0 11z',
+  'coverage-actual': 'M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z',
+  'status-active': 'M5 3.5l7 4.5-7 4.5z',
+};
 
 /**
  * The whole sprite, as markup. Rendered once into the shell; every `icon()`

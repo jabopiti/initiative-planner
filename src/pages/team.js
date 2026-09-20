@@ -36,7 +36,7 @@ export function renderTeam() {
       const warning = P.shareWarning(row.person);
       return html`<tr class="row--clickable ${row.membership.active && row.person.active ? '' : 'row--inactive'}">
         <td><a class="row-link" href="#/person/${row.person.id}">${row.person.name}</a>
-          ${raw(row.person.active ? '' : badge('person inactive', 'quiet'))}</td>
+          ${raw(row.person.active ? '' : badge('', 'quiet', 'inactive', 'Person inactive'))}</td>
         <td>${E.roleLabel(row.person, app.ROLES)}</td>
         <td>${raw(numberField({
           value: row.membership.sharePct,
@@ -54,7 +54,7 @@ export function renderTeam() {
         <td class="cell--action">
           <button type="button" class="btn--small" data-act="membership-active"
             data-id="${row.person.id}" data-team="${team.id}"
-            >${row.membership.active ? 'Leave team' : 'Rejoin'}</button>
+            >${raw(icon(row.membership.active ? 'leave' : 'rejoin'))}${row.membership.active ? 'Leave team' : 'Rejoin'}</button>
         </td>
       </tr>`;
     })
@@ -87,7 +87,8 @@ export function renderTeam() {
       title: team.name,
       back: { page: 'teams', label: 'Teams' },
       actions: html`<button type="button" class="btn" data-act="team-active"
-        data-id="${team.id}">${team.active ? 'Deactivate' : 'Reactivate'}</button>`,
+        data-id="${team.id}">${raw(icon(team.active ? 'inactive' : 'reactivate'))}
+        ${team.active ? 'Deactivate' : 'Reactivate'}</button>`,
     }))}
       ${raw(team.active ? '' : html`<p class="panel banner banner--alert warn">
         ${raw(icon('warning', 'icon--lead'))}This team is deactivated. Existing work keeps

@@ -94,8 +94,10 @@ export function renderPeople() {
     .map(
       (entry) => html`<tr class="row--clickable ${entry.person.active ? '' : 'row--inactive'}">
         <td><a class="row-link" href="#/person/${entry.person.id}">${entry.person.name}</a>
-          ${raw(entry.person.active ? '' : badge('inactive', 'quiet'))}</td>
-        <td>${entry.row[1]} ${raw(entry.person.customRole ? badge('custom rate', 'info') : '')}</td>
+          ${raw(entry.person.active ? '' : badge('', 'quiet', 'inactive', 'Inactive'))}</td>
+        <td>${entry.row[1]} ${raw(entry.person.customRole
+          ? badge('', 'info', 'custom-rate', 'Custom rate — paid at a negotiated rate, not the country/role standard.')
+          : '')}</td>
         <td>${entry.row[2]}</td>
         <td class="num">${F.money(entry.row[3])}</td>
         <td class="num">${entry.person.capacityPct}%</td>
@@ -108,6 +110,7 @@ export function renderPeople() {
         <td class="cell--action">
           <button type="button" class="btn--small" data-act="person-active"
             data-id="${entry.person.id}">
+            ${raw(icon(entry.person.active ? 'inactive' : 'reactivate'))}
             ${entry.person.active ? 'Deactivate' : 'Reactivate'}</button></td>
       </tr>`,
     )

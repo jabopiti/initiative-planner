@@ -81,7 +81,7 @@ Update the row below in the commit that finishes a bundle.
 | 9 | **Done** |
 | 10 | **Done** |
 | 11 | **Done** |
-| 12 | Not started |
+| 12 | **Done** |
 
 ---
 
@@ -642,11 +642,70 @@ took one good pattern and applied it broadly. Decided outcomes:
   listener); and the import-rejection reassurance clause with a
   deliberately invalid JSON file.
 
-**Next Steps (Bundle 12):**
-- The next session should pick up **Bundle 12**: I1, I2, I3, I4, I5, I6,
-  I7, I8, I10, I11 — the rest of the icon pass, the plan's last remaining
-  bundle.
-- *Review before starting:* §13 in `docs/PLAN.md` for each item's detail,
-  and the `frontend-design` skill per CLAUDE.md's "Also load" note before
-  reshaping any visual language.
+- **Bundle 12 (the rest of the icon pass — I1, I2, I3, I4, I5, I6, I7, I8,
+  I10, I11) is fully completed.** `src/render/icons.js` gained 15 glyphs,
+  drawn to the file's existing rules (16-unit square, 1.5-unit stroke,
+  square caps, mitred joins): a hollow/half/filled ring for coverage, a
+  play/pause pair for Active/On hold status, a circle-slash for inactive,
+  a diamond for custom rate, a circle-with-bar for not-in-capacity, a
+  padlock for frozen, a circular arrow for Reactivate, mirrored door-arrows
+  for Leave team/Rejoin, and person/team/flag glyphs for search result
+  types. `components.js`'s `badge()` now sets `aria-label` from `title`
+  whenever `text` is empty, so an icon-only mark still has an accessible
+  name — the icon itself stays `aria-hidden` either way; a new
+  `coverageBadge()`/`coverageTitle()` pair centralizes I1's wording so the
+  five places it appears can't drift apart.
+- **I1**: the Estimate/Forecast/Actual word is gone from Portfolio,
+  Initiatives list, the band panel (`initiative.js`), the wizard's live
+  grand total (`phase-panel.js`'s `grandMarkup`), and the sticky summary
+  bar's three figures — replaced by the ring, with the exact meaning and
+  the recorded/months tally in the tooltip (`initiativeTotals()` now
+  called wherever the count wasn't already available). **I2**: Portfolio
+  and Initiatives-list rows show the LT/STD/MAJ abbreviated badge instead
+  of the spelled-out band name, full name as the tooltip. **I3**: a new
+  `STATUS_ICON` map in `app.js` rides alongside `STATUS_LABELS`/
+  `STATUS_BADGE_KIND`; Cancelled and Closed reuse the existing cross/check
+  rather than a second glyph for the same meaning. **I4**: the three
+  "inactive"/"person inactive" badges (People, Teams, Team roster) are
+  icon+tooltip now, text dropped. **I5**: "custom rate" converted at both
+  existing sites (People list, the allocation detail popover) and *added*
+  to the allocation table row itself, which had no marker at all before —
+  the diamond next to a custom-rate person's name. **I6**: person.js's
+  "not in capacity" badge keeps its existing tooltip wording, now icon-led.
+  **I7**: "out of period" and "no longer in this team" (`phase-panel.js`)
+  dropped their visible text, icon+tooltip only, recovering table width.
+  **I8**: the frozen phase panel's "approved and frozen" mark is a lock
+  icon with `aria-label="Approved and frozen"` — still read as part of the
+  panel heading's accessible name per `panel()`'s own contract, verified in
+  the DOM. **I10**: `app.js`'s `resultRowMarkup` shows a type glyph instead
+  of the "Person"/"Team"/"Initiative" word, kept for assistive tech via
+  `sr-only`. **I11**: Deactivate/Reactivate/Leave team/Rejoin buttons
+  (People, Person, Teams, Team) gained icons, text stays visible on all
+  four per the item's own reasoning about misreading a state change;
+  Deactivate reuses the `inactive` glyph — the state the click leads to.
+  Settings' role/country Deactivate buttons were left alone: a different,
+  three-state arm/confirm control the plan's item text never named.
+  I9 was already done in Bundle 7, not touched here.
+- No SPEC.md/DESIGN.md changes were needed — this bundle is a visual
+  treatment over already-documented values (coverage, band, status), not a
+  new concept.
+- The full suite (171 tests, unchanged in count) passes, along with
+  typecheck, lint and build. Verified by hand in a real browser (demo.json
+  loaded via localStorage, light/dark/system): the coverage ring on all
+  five call sites with correct per-row month tallies, the STD abbreviated
+  badge, status glyphs on Active/On hold/Closed, deactivating and
+  reactivating a person to see both the inactive badge and the
+  Deactivate/Reactivate icon swap, the not-in-capacity tooltip on Ada
+  Vance's history, the lock icon on a frozen phase panel (confirmed via the
+  DOM that its `aria-label` still reaches the panel heading's accessible
+  name), and the search popover's type glyphs for a person, a team and an
+  initiative result.
+
+**Next Steps:**
+- Bundle 12 was the plan's last remaining bundle (§0's table). Every
+  bundle 0–12 is now **Done**. Before starting anything new: check with Bo
+  whether to retire this file now, per its own stated lifecycle ("this
+  file is deleted once the last workstream lands," per the header) — SPEC.md
+  and DESIGN.md are the durable record of what shipped; PLAN.md itself was
+  only ever the sequencing scratchpad.
 

@@ -27,7 +27,7 @@ export function renderTeams() {
       return html`<div class="card card--clickable ${team.active ? '' : 'card--inactive'}">
         <div>
           <a class="card-link card__title" href="#/team/${team.id}">${team.name}</a>
-          ${raw(team.active ? '' : badge('inactive', 'quiet'))}
+          ${raw(team.active ? '' : badge('', 'quiet', 'inactive', 'Inactive'))}
         </div>
         <dl class="card__stats">
           <div><dt>Members</dt><dd>${summary.activeMembers}</dd></div>
@@ -39,7 +39,7 @@ export function renderTeams() {
         </dl>
         <div class="card__actions">
           <button type="button" data-act="team-active" data-id="${team.id}">
-            ${team.active ? 'Deactivate' : 'Reactivate'}</button>
+            ${raw(icon(team.active ? 'inactive' : 'reactivate'))}${team.active ? 'Deactivate' : 'Reactivate'}</button>
           <button type="button" data-act="team-delete" data-id="${team.id}"
             ${raw(deletable.ok ? '' : 'disabled')}
             title="${deletable.ok ? 'Delete this team' : 'Cannot delete — see below'}"

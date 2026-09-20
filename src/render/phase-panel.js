@@ -12,7 +12,7 @@ import {
 } from '../app.js';
 import { html, raw, numberField } from './dom.js';
 import { icon } from './icons.js';
-import { scroller, empty, badge, panel } from './components.js';
+import { scroller, empty, badge, coverageBadge, panel } from './components.js';
 import { TABLES, tableActions } from './tables.js';
 
 /**
@@ -124,7 +124,9 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
       return html`<tr class="${stranded ? 'row--warn' : ''}"
         data-alloc-phase="${phaseId}" data-alloc-person="${person.id}">
         <td>${person.name} ${raw(stranded
-          ? badge('no longer in this team', 'warn', 'warning')
+          ? badge('', 'warn', 'warning', 'No longer a member of this team — still allocated, so this keeps costing.')
+          : '')}${raw(person.customRole
+          ? badge('', 'info', 'custom-rate', 'Custom rate — paid at a negotiated rate, not the country/role standard.')
           : '')}</td>
         <td>${E.roleLabel(person, at.ROLES)}</td>
         <td>${app.COUNTRIES[person.countryId]?.name ?? ''}</td>
@@ -203,7 +205,7 @@ export function allocationDetailMarkup(initiativeId, phaseId, personId) {
   return html`<h3>${person.name} — ${E.phaseLabel(PROCESS, phaseId)}</h3>
     <p class="micro">${E.roleLabel(person, at.ROLES)} ·
       ${at.COUNTRIES[person.countryId]?.name ?? '—'}${raw(person.customRole
-        ? html` · ${raw(badge('custom rate', 'info'))}`
+        ? html` · ${raw(badge('', 'info', 'custom-rate', 'Custom rate — paid at a negotiated rate, not the country/role standard.'))}`
         : '')}</p>
     <dl class="detail">
       ${raw(line('Working days in the period', workingDays.toFixed(1)))}
@@ -362,7 +364,7 @@ export function phasePanel(initiative, phaseId, editable) {
               data-phase="${phaseId}" data-cost="${item.id}" type="month" value="${item.month}"
               aria-label="Month" />`
           : item.month)} ${raw(outOfPeriod
-          ? badge('out of period', 'warn', 'warning')
+          ? badge('', 'warn', 'warning', "This cost falls outside the phase's estimated period.")
           : '')}</td>
         <td class="num">${raw(editable
           ? numberField({ value: item.amount, 'data-act': 'cost-field', 'data-field': 'amount', 'data-id': initiative.id,
@@ -385,7 +387,7 @@ export function phasePanel(initiative, phaseId, editable) {
   return panel({
     id: `panel-phase-${phaseId}`,
     title: label,
-    mark: frozen ? badge('approved and frozen', 'ok', 'check') : provisional ? badge('provisional', 'quiet') : '',
+    mark: frozen ? badge('', 'ok', 'lock', 'Approved and frozen') : provisional ? badge('provisional', 'quiet') : '',
     extraClass: frozen ? 'banner banner--done' : '',
     body: html`${raw(editable
       ? html`<div class="fields">
@@ -545,9 +547,9 @@ export function phaseTotalsMarkup(initiative, phaseId) {
 export function grandMarkup(initiative) {
   const total = E.grandTotal(initiative, app);
   const band = E.resolveBand(PROCESS.bands, total);
-  const coverage = E.initiativeCoverage(initiative);
+  const totals = E.initiativeTotals(initiative, app);
   return html`<strong>${F.money(total)}</strong>
-    ${raw(badge(coverage, 'info'))}
+    ${raw(coverageBadge(totals.coverage, totals))}
     — ${band ? band.name : 'Not yet known'}${raw(band
       ? html`<span class="micro">${band.req}</span>`
       : html`<span class="micro">No approval track covers this total.</span>`)}`;

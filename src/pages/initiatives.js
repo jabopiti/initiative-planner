@@ -6,12 +6,14 @@ import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
 import {
-  app, view, STATUS_LABELS, STATUS_BADGE_KIND, commit, closePopover, openPopover,
+  app, view, STATUS_LABELS, STATUS_BADGE_KIND, STATUS_ICON, commit, closePopover, openPopover,
   currentPopoverTrigger, findInitiative, withUndo, today,
 } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, sortHeader, sortRows, badge, badgeClass } from '../render/components.js';
+import {
+  pageHead, scroller, empty, sortHeader, sortRows, badge, badgeClass, coverageBadge,
+} from '../render/components.js';
 
 /**
  * Sortable columns, each with how to read the value it sorts on. `status` is
@@ -41,7 +43,7 @@ export function renderInitiatives() {
       band: E.resolveBand(PROCESS.bands, total),
       teamName: app.TEAMS[initiative.teamId]?.name ?? '—',
       phaseIndex: order.indexOf(initiative.phaseId),
-      coverage: E.initiativeCoverage(initiative),
+      totals: E.initiativeTotals(initiative, app),
       // An initiative whose costed phases are not all estimated cannot pass
       // a gate that requires them. Most often that is one the creation
       // wizard was walked away from, which used to leave nothing behind to
@@ -84,9 +86,9 @@ export function renderInitiatives() {
           ${raw(row.unestimated ? badge('needs an estimate', 'warn', 'warning') : '')}</td>
         <td>${row.teamName}</td>
         <td>${E.phaseLabel(PROCESS, row.initiative.phaseId)}</td>
-        <td>${row.band ? row.band.name : 'Not yet known'}</td>
+        <td>${raw(row.band ? badge(row.band.abbr, 'neutral', '', row.band.name) : 'Not yet known')}</td>
         <td class="num">${F.money(row.total)}
-          <span class="micro">${row.coverage}</span></td>
+          ${raw(coverageBadge(row.totals.coverage, row.totals))}</td>
         <td class="cell--action">
           <button type="button" class="btn--small" data-act="duplicate-initiative"
             data-id="${row.initiative.id}">${raw(icon('duplicate'))}Duplicate</button></td>
@@ -154,10 +156,11 @@ export function renderInitiatives() {
 function statusCellMarkup(initiative) {
   const label = STATUS_LABELS[initiative.status];
   const kind = STATUS_BADGE_KIND[initiative.status];
-  if (initiative.status === 'closed') return badge(label, kind);
+  const statusIcon = STATUS_ICON[initiative.status];
+  if (initiative.status === 'closed') return badge(label, kind, statusIcon);
   return html`<button type="button" class="badge badge--button ${badgeClass(kind)}"
     data-act="status-menu" data-id="${initiative.id}" aria-haspopup="menu">
-    ${label}${raw(icon('chevron-down'))}</button>`;
+    ${raw(icon(statusIcon))}${label}${raw(icon('chevron-down'))}</button>`;
 }
 
 /** The status badge's menu: switch directly, or arm a confirm for Cancelled. */

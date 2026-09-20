@@ -21,7 +21,10 @@ import {
 } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, badge, badgeClass, panel, railNav } from '../render/components.js';
+import {
+  pageHead, scroller, empty, badge, badgeClass, coverageBadge, coverageTitle, COVERAGE_ICON,
+  panel, railNav,
+} from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
 import { phasePanel } from '../render/phase-panel.js';
 
@@ -332,9 +335,13 @@ export function summaryBarMarkup(initiative) {
     : L.gatePrecondition(app, PROCESS, initiative, gateId, today()).blockers.length;
   const progress = finished ? null : L.gateProgress(app, PROCESS, initiative, gateId, today());
 
-  const figure = (label, value, on, note = '') => html`<div
+  // I1: the label is the same hollow/half/filled ring used everywhere else
+  // this figure appears, with the word itself carried by the tooltip and an
+  // `sr-only` fallback rather than sitting on the page a fourth time.
+  const figure = (label, coverage, value, on, note = '') => html`<div
     class="summary__figure ${on ? 'summary__figure--on' : ''}">
-    <dt>${label}</dt>
+    <dt title="${coverageTitle(coverage, totals)}">${raw(icon(COVERAGE_ICON[coverage]))}
+      <span class="sr-only">${label}</span></dt>
     <dd>${F.money(value)}${raw(note ? html`<span class="summary__note">${note}</span>` : '')}</dd>
   </div>`;
 
@@ -344,9 +351,9 @@ export function summaryBarMarkup(initiative) {
   // whichever initiative you last scrolled past, not the one it's for.
   return html`<p class="summary__name">${initiative.name}</p>
     <dl class="summary__figures">
-      ${raw(figure('Estimate', totals.estimate, totals.coverage === 'estimate'))}
-      ${raw(figure('Forecast', totals.forecast, totals.coverage === 'forecast'))}
-      ${raw(figure('Actual', totals.actual, totals.coverage === 'actual',
+      ${raw(figure('Estimate', 'estimate', totals.estimate, totals.coverage === 'estimate'))}
+      ${raw(figure('Forecast', 'forecast', totals.forecast, totals.coverage === 'forecast'))}
+      ${raw(figure('Actual', 'actual', totals.actual, totals.coverage === 'actual',
         totals.months ? `${totals.recorded} of ${totals.months} months` : ''))}
     </dl>
 
@@ -648,8 +655,10 @@ export function bandPanelMarkup(initiative) {
   const variance = passed ? total - passed.grandTotal : null;
   const move = passed ? E.compareBands(passed.band, band) : 'unknown';
 
+  const totals = E.initiativeTotals(initiative, app);
+
   return html`<p class="results"><strong>${F.money(total)}</strong>
-      ${raw(badge(E.initiativeCoverage(initiative), 'info'))}
+      ${raw(coverageBadge(totals.coverage, totals))}
       — ${band ? band.name : 'Not yet known'}</p>
     <p class="muted">${band ? band.req : 'No configured approval track covers this total.'}</p>
 

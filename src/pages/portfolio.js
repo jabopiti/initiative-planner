@@ -8,7 +8,7 @@ import { PROCESS } from '../process.js';
 import { app, view, STATUS_LABELS, currentMonth, navigate, today } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, sortHeader, sortRows } from '../render/components.js';
+import { pageHead, scroller, empty, sortHeader, sortRows, badge, coverageBadge } from '../render/components.js';
 import { chartYear, monthsOfYear, yearNav, stackedBarsMarkup } from '../render/charts.js';
 
 const NO_BAND = 'none';
@@ -34,6 +34,7 @@ function portfolioRows() {
     return {
       initiative,
       effective,
+      totals: E.initiativeTotals(initiative, app),
       approved: passed ? passed.grandTotal : null,
       variance: passed ? effective - passed.grandTotal : null,
       band: E.resolveBand(PROCESS.bands, effective),
@@ -142,10 +143,10 @@ export function renderPortfolio() {
         <td>${E.phaseLabel(PROCESS, r.initiative.phaseId)}</td>
         <td>${STATUS_LABELS[r.initiative.status]}</td>
         <td>${r.period.start ? `${F.date(r.period.start)} → ${r.period.end ? F.date(r.period.end) : '?'}` : '—'}</td>
-        <td>${r.band ? r.band.name : 'Not yet known'}</td>
+        <td>${raw(r.band ? badge(r.band.abbr, 'neutral', '', r.band.name) : 'Not yet known')}</td>
         <td class="num">${r.approved === null ? '—' : F.money(r.approved)}</td>
         <td class="num">${F.money(r.effective)}
-          <span class="micro">${E.initiativeCoverage(r.initiative)}</span></td>
+          ${raw(coverageBadge(r.totals.coverage, r.totals))}</td>
         <td class="num ${varianceClass(r)}">${r.variance === null
           ? '—'
           : `${r.variance > 0 ? '+' : ''}${F.money(r.variance)}`}</td>

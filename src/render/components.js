@@ -153,8 +153,45 @@ export function badgeClass(kind) {
 }
 
 export function badge(text, kind = 'neutral', iconName = '', title = '') {
+  // An icon-only mark (I1, I4–I8) has no visible text for its accessible
+  // name to come from, so the tooltip doubles as one — the icon itself
+  // stays aria-hidden either way (icons.js).
   return html`<span class="badge ${badgeClass(kind)}" ${raw(title ? html`title="${title}"` : '')}
+    ${raw(!text && title ? html`aria-label="${title}"` : '')}
     >${raw(iconName ? icon(iconName) : '')}${text}</span>`;
+}
+
+/**
+ * Estimate/Forecast/Actual as one ring filling in rather than the word
+ * spelled out (I1) — the single most-repeated text tag in the app.
+ */
+export const COVERAGE_ICON = {
+  estimate: 'coverage-estimate',
+  forecast: 'coverage-forecast',
+  actual: 'coverage-actual',
+};
+const COVERAGE_MEANING = {
+  estimate: 'Estimate — every month is a forward projection, none recorded yet.',
+  forecast: 'Forecast — some months recorded, the rest estimated.',
+  actual: 'Actual — every month has a recorded actual.',
+};
+
+/**
+ * The exact meaning behind a coverage value, plus the month tally that backs
+ * it up — the tooltip text I1 asks for, shared by every place the ring
+ * appears so the wording never drifts between them.
+ *
+ * @param {'estimate'|'forecast'|'actual'} coverage
+ * @param {{ recorded: number, months: number }} counts
+ */
+export function coverageTitle(coverage, counts) {
+  return `${COVERAGE_MEANING[coverage]} (${counts.recorded} of ${counts.months} months)`;
+}
+
+/** @param {'estimate'|'forecast'|'actual'} coverage
+ * @param {{ recorded: number, months: number }} counts */
+export function coverageBadge(coverage, counts) {
+  return badge('', 'info', COVERAGE_ICON[coverage], coverageTitle(coverage, counts));
 }
 
 /**

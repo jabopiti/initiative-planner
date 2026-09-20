@@ -30,7 +30,8 @@ export function renderPerson() {
       title: person.name,
       back: { page: 'people', label: 'People' },
       actions: html`<button type="button" class="btn" data-act="person-active"
-        data-id="${person.id}">${person.active ? 'Deactivate' : 'Reactivate'}</button>`,
+        data-id="${person.id}">${raw(icon(person.active ? 'inactive' : 'reactivate'))}
+        ${person.active ? 'Deactivate' : 'Reactivate'}</button>`,
     }))}
       ${raw(person.active ? '' : html`<p class="panel banner banner--alert warn">
         ${raw(icon('warning', 'icon--lead'))}This person is deactivated. Existing allocations
@@ -184,7 +185,7 @@ function personTeams(person, warning, stranded) {
         <td class="cell--action">
           <button type="button" class="btn--small" data-act="membership-active"
             data-id="${person.id}" data-team="${membership.teamId}"
-            >${membership.active ? 'Leave team' : 'Rejoin'}</button>
+            >${raw(icon(membership.active ? 'leave' : 'rejoin'))}${membership.active ? 'Leave team' : 'Rejoin'}</button>
         </td>
       </tr>`;
     })
@@ -240,8 +241,8 @@ function personInitiativesPanel(person, rows, stranded) {
         <td>${row.allocationPct}</td>
         <td>${F.date(row.start)}</td>
         <td>${F.date(row.end)}</td>
-        <td>${raw(row.countsTowardCapacity ? '' : badge('not in capacity', 'quiet', '',
-          "Past or cancelled work doesn't count toward current capacity."))}</td>
+        <td>${raw(row.countsTowardCapacity ? '' : badge('', 'quiet', 'not-in-capacity',
+          "Not in capacity — past or cancelled work doesn't count toward current capacity."))}</td>
       </tr>`,
     )
     .join('');
