@@ -387,24 +387,32 @@ export function phasePanel(initiative, phaseId, editable) {
     title: label,
     mark: frozen ? badge('approved and frozen', 'ok', 'check') : provisional ? badge('provisional', 'quiet') : '',
     extraClass: frozen ? 'banner banner--done' : '',
-    body: html`<div class="fields">
-      <label class="field-row"><span>From</span>
-        <input type="date" class="field field--date" data-act="phase-start"
-          data-id="${initiative.id}" data-phase="${phaseId}"
-          value="${phase.estStartDate ?? ''}" ${raw(editable ? '' : 'disabled')} /></label>
-      <label class="field-row"><span>To</span>
-        <input type="date" class="field field--date" data-act="phase-end"
-          data-id="${initiative.id}" data-phase="${phaseId}"
-          value="${phase.estEndDate ?? ''}" ${raw(editable ? '' : 'disabled')} /></label>
-    </div>
-    ${raw(editable && !phase.estEndDate ? durationPresetsMarkup(initiative, phaseId) : '')}
-    ${raw(phase.estStartDate && phase.estEndDate && phase.estEndDate < phase.estStartDate
-      ? html`<p class="field-message">${raw(icon('warning', 'icon--lead'))}Ends before it starts —
-          nothing in this period costs anything until that's fixed.</p>`
-      : editable && (phase.allocations.length || phase.otherCosts.length)
-        ? html`<p class="micro">Changing this period rescales every allocation's cost beneath
-            it.</p>`
-        : '')}
+    body: html`${raw(editable
+      ? html`<div class="fields">
+          <label class="field-row"><span>From</span>
+            <input type="date" class="field field--date" data-act="phase-start"
+              data-id="${initiative.id}" data-phase="${phaseId}"
+              value="${phase.estStartDate ?? ''}" /></label>
+          <label class="field-row"><span>To</span>
+            <input type="date" class="field field--date" data-act="phase-end"
+              data-id="${initiative.id}" data-phase="${phaseId}"
+              value="${phase.estEndDate ?? ''}" /></label>
+        </div>
+        ${raw(!phase.estEndDate ? durationPresetsMarkup(initiative, phaseId) : '')}
+        ${raw(phase.estStartDate && phase.estEndDate && phase.estEndDate < phase.estStartDate
+          ? html`<p class="field-message">${raw(icon('warning', 'icon--lead'))}Ends before it
+              starts — nothing in this period costs anything until that's fixed.</p>`
+          : phase.allocations.length || phase.otherCosts.length
+            ? html`<p class="micro">Changing this period rescales every allocation's cost
+                beneath it.</p>`
+            : '')}`
+      // P2 — a phase no longer being edited reads its period as a fact, not
+      // as a pair of disabled form fields still shaped like something you
+      // could type into.
+      : html`<div class="fields"><p class="field-row"><span>Period</span>
+          <span>${phase.estStartDate && phase.estEndDate
+            ? html`${F.date(phase.estStartDate)} – ${F.date(phase.estEndDate)}`
+            : 'No period was set.'}</span></p></div>`)}
 
     <h3>People</h3>
     ${raw(seedFrom && editable
@@ -452,7 +460,8 @@ export function phasePanel(initiative, phaseId, editable) {
         + (editable ? costSuggestionsMarkup(initiative, phaseId) : '')
       : empty('No non-labour costs.'))}
 
-    <p class="results" data-calc="total-${phaseId}">${raw(phaseTotalsMarkup(initiative, phaseId))}</p>`,
+    <p class="results ${editable ? 'results--quiet' : ''}" data-calc="total-${phaseId}"
+      >${raw(phaseTotalsMarkup(initiative, phaseId))}</p>`,
   });
 }
 

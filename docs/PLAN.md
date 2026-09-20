@@ -79,7 +79,8 @@ Update the row below in the commit that finishes a bundle.
 | 7 | **Done** |
 | 8 | **Done** |
 | 9 | **Done** |
-| 10-12 | Not started |
+| 10 | **Done** |
+| 11-12 | Not started |
 
 ---
 
@@ -483,11 +484,104 @@ took one good pattern and applied it broadly. Decided outcomes:
   and the pre-existing Danger-zone arm/confirm/cancel flow still working
   unchanged underneath the fallback-value fix.
 
-**Next Steps (Bundle 10):**
-- The next session should pick up **Bundle 10**: P1–P8, T3, T7, T8 — visual/
-  UX polish and the remaining explainer copy, sequenced after the
-  structural/behavioral bundles (this session's own note flagged P2/P8
-  against Bundle 4/5's phase-panel changes in particular).
-- *Review before starting:* §7 (P1–P8), and the relevant rows of §12
-  (T3, T7, T8) in `docs/PLAN.md`.
+- **Bundle 10 (Visual/UX polish and remaining explainer copy) is fully
+  completed.** **P1** (whole-card/row clickable) turned out to already be
+  built — every table row and Teams card in the app already uses the
+  stretched-link pattern (`row-link`/`card-link` plus `.row--clickable`/
+  `.card--clickable` in `src/styles.css`), a pure-CSS "click anywhere,
+  destructive buttons stay their own targets via `z-index`" mechanism with
+  no JS involved. Nothing to build; confirmed by grep across every page and
+  by hand in the browser.
+- **P2**: a non-editable phase panel (`src/render/phase-panel.js`'s
+  `phasePanel()`) now reads its period as plain text ("1 Jan 2026 – 30 Apr
+  2026") instead of a pair of disabled `<input type="date">` fields that
+  still looked like something you could type into — the one part of the
+  panel that visibly "reused the live-editing shape." The People/Other
+  costs tables were already collapsing to read-only cells correctly
+  (AGENTS.md: comparison tables stay tables), so this was the only real gap.
+- **P3**: `.scroller--tall` (`src/styles.css`) gained a top/bottom scroll-
+  shadow fade — the classic four-layer `background-attachment: local`/
+  `scroll` CSS trick, colors composed from `--color-surface`/`--color-fg`
+  via `color-mix` rather than literal values, so it re-derives correctly
+  under dark mode and a rebrand. Applies automatically to both existing
+  `scroller--tall` tables (Person's "Capacity over time," Initiative's
+  "Month by month") with no markup change needed.
+- **P4**: the wizard's General step and the team/person creation drafts each
+  had a stale "X is needed first" caption that only the Create button's
+  `disabled` state actually reacted to on keystroke — the caption itself
+  needed a full re-render to update. Each caption now carries a
+  `data-hint="…-create"` id and renders with a `hidden` attribute computed
+  the same way the button's `disabled` is; the three input handlers
+  (`wizardInputActions['draft-field']`, `teamsInputActions['team-draft-field']`,
+  `personInputActions['person-draft-field']`) now toggle both together, so
+  typing a name (or, in the wizard's "existing" mode, picking a source)
+  clears the hint the moment it stops being true.
+- **P5**: `src/pages/people.js` gained an explainer paragraph above the
+  roster table stating that Allocated % and Utilisation % read alike for
+  anyone at 100% Capacity % (everyone in the seed data) and diverge once
+  someone's ceiling isn't the default.
+- **P6**: `badge()` (`src/render/components.js`) gained an optional fourth
+  `title` parameter — a native tooltip, escaped through the same `html`
+  tag every other value goes through. The Person page's "not in capacity"
+  tag (`src/pages/person.js`) is the one call site that uses it so far,
+  carrying the explanation already agreed in the very first review round
+  (past/cancelled work doesn't count toward current capacity); I6 in §13
+  still owns turning the tag into an icon later.
+- **P7**: Portfolio's Variance column (`src/pages/portfolio.js`) now reads
+  its severity against the approved baseline as a percentage rather than
+  coloring every non-zero positive figure the same — under 2% reads as
+  plain text (rounding drift), 2–10% amber (`variance--mild`), above that
+  the existing red `over` class. Coming in under budget is never colored.
+  **Found and fixed a pre-existing bug while wiring this up**: `.grid td`
+  (`src/styles.css`) sets `color: var(--color-fg)` at a *higher*
+  specificity than a bare `.over`/severity class, so every existing
+  over-capacity/over-utilisation figure in a `.grid` table (People's
+  Utilisation %, Capacity's two over-allocation tables) was silently
+  rendering in the default text color instead of red — the warning icon
+  still showed, but the color half of the signal never did. Added
+  `.grid td.over` / `.grid td.variance--mild` overrides right beside the
+  rule that was winning, which fixes both the pre-existing cells and the
+  new Variance ones in one place.
+- **P8**: a phase panel's own running total (`phaseTotalsMarkup`'s `<p
+  class="results">` line) now renders with a `results--quiet` modifier
+  while the phase is actively editable — smaller, regular-weight, muted —
+  so the allocation figures being worked on keep the visual weight instead
+  of competing with a bold total on every keystroke. A frozen/read-only
+  phase, the initiative's own grand total, and Portfolio are all untouched
+  and keep full prominence.
+- **T3**: the Team roster's existing "a Team FTE is…" explainer pattern is
+  now echoed on the Capacity page (`src/pages/capacity.js`, defining
+  Capacity % vs. Allocated % up front) and the Team page's capacity grid
+  (`src/pages/team.js`'s `capacityGridMarkup`, clarifying that each grid
+  figure is read against the member's Team FTE here, not their whole
+  Capacity %).
+- **T7**: Portfolio's Initiatives panel (`src/pages/portfolio.js`) gained
+  the agreed one-line explainer for "Approved" verbatim (reworded from
+  "this initiative's" to "each initiative's" for a table caption spanning
+  every row).
+- **T8**: the gate panel's "What this gate needs" section
+  (`src/pages/initiative.js`'s `gateBannerMarkup`) gained a one-line
+  explainer distinguishing the three requirement kinds — the estimate
+  check is automatic, a checklist item is a manual judgement call, and a
+  missing actual only ever warns.
+- No SPEC.md/DESIGN.md changes were needed — every item here is UI-layer
+  polish and copy over already-documented behavior, not a new persisted
+  concept or a changed calculation rule.
+- The full suite (171 tests, unchanged in count) passes, along with
+  typecheck, lint and build. Verified by hand in a real browser (demo.json
+  loaded via localStorage, light/dark/system): the frozen-phase read-only
+  period text, the quiet vs. prominent running total side by side on the
+  same initiative, the scroll-shadow fade's computed background layers on
+  both `scroller--tall` tables, the reactive hints on all three creation
+  forms (including the wizard's "existing" mode depending on both a typed
+  name and a picked source), the now-red over-allocation figures on People
+  and Capacity, Portfolio's Variance in danger red, and every new
+  explainer paragraph's placement and wording.
+
+**Next Steps (Bundle 11):**
+- The next session should pick up **Bundle 11**: M1, M3–M8 — the
+  message-copy audit's decided outcomes, scattered small string/behavior
+  edits across several pages, independent of everything else in the plan.
+- *Review before starting:* §11 in `docs/PLAN.md`, and the full findings in
+  the standalone `message-audit.md`.
 

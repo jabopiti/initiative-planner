@@ -441,6 +441,10 @@ function gateBannerMarkup(initiative) {
 
       <div class="gate__part">
         <h3>What this gate needs</h3>
+        <p class="micro">Three different kinds of check, not one uniform list: the estimate
+          check is automatic and blocks until every costed phase has one; a checklist item is a
+          manual judgement call, resolved by hand; a missing actual only ever warns — it never
+          blocks a gate from passing.</p>
         ${raw(requirementsMarkup(initiative, gate, requirements))}
       </div>
 

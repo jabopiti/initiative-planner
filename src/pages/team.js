@@ -169,7 +169,8 @@ function renderTeamDraft() {
             >${raw(icon('add'))}Create team</button>
           <button type="button" class="btn" data-act="team-draft-discard">Cancel</button>
         </div>
-        ${raw((draft.name ?? '').trim() ? '' : html`<p class="muted">A name is needed first.</p>`)}
+        <p class="muted" data-hint="team-draft-create" ${raw((draft.name ?? '').trim() ? 'hidden' : '')}
+          >A name is needed first.</p>
       </div>`,
   );
 }
@@ -241,8 +242,9 @@ function capacityGridMarkup(team) {
   return html`<div class="panel" id="panel-capacity">
     <h2>Capacity</h2>
     ${raw(yearNav("Allocation against each member's Team FTE."))}
-    <p class="muted">Over-allocation past a member's Team FTE is flagged, never blocked. Click a
-      figure to see which initiatives make it up.</p>
+    <p class="muted">Each figure is Allocated % against this member's own Team FTE here — not
+      their whole Capacity %, of which this team only holds a share. Over-allocation past that
+      share is flagged, never blocked. Click a figure to see which initiatives make it up.</p>
     ${raw(scroller('Allocation per member per month', html`<table class="grid grid--cap">
       <thead><tr><th>Member</th>${raw(months
         .map((m) => html`<th>${m.slice(5)}</th>`).join(''))}</tr></thead>

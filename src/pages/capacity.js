@@ -96,6 +96,9 @@ export function renderCapacity() {
       lede: 'Over-allocation across every team and person, one month at a time. '
         + 'Both ceilings warn — neither ever blocks.',
     }))}
+      <p class="muted">Capacity % is what a person can take on in total. Allocated % is what has
+        actually been committed against it. The two panels below read that gap at two different
+        scopes — a person's whole Capacity %, then one team's own Team FTE share of it.</p>
       <div class="toolbar">${raw(monthPicker())}</div>
       <div class="panel-stack">
         ${raw(overCapacityMarkup(overCapacity))}

@@ -151,6 +151,9 @@ export function renderPeople() {
           data-filter="showInactive" ${raw(filters.showInactive ? 'checked' : '')} />
           <span>Show inactive</span></label>
       </div>
+      <p class="muted">Allocated % is what's committed against a person, in total. Utilisation %
+        is that same figure measured against their own Capacity % instead — the two read alike
+        for anyone at 100% Capacity %, which is everyone here until it's changed.</p>
       ${raw(data.length
         ? scroller(`People in ${F.month(month)}`, html`<table class="grid">
             <thead><tr>${raw(sortableHeaders)}<th></th></tr></thead>

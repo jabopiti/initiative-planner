@@ -85,7 +85,8 @@ function renderPersonDraft() {
             >${raw(icon('add'))}Create person</button>
           <button type="button" class="btn" data-act="person-draft-discard">Cancel</button>
         </div>
-        ${raw((draft.name ?? '').trim() ? '' : html`<p class="muted">A name is needed first.</p>`)}
+        <p class="muted" data-hint="person-draft-create" ${raw((draft.name ?? '').trim() ? 'hidden' : '')}
+          >A name is needed first.</p>
       </div>`,
   );
 }
@@ -239,7 +240,8 @@ function personInitiativesPanel(person, rows, stranded) {
         <td>${row.allocationPct}</td>
         <td>${F.date(row.start)}</td>
         <td>${F.date(row.end)}</td>
-        <td>${raw(row.countsTowardCapacity ? '' : badge('not in capacity', 'quiet'))}</td>
+        <td>${raw(row.countsTowardCapacity ? '' : badge('not in capacity', 'quiet', '',
+          "Past or cancelled work doesn't count toward current capacity."))}</td>
       </tr>`,
     )
     .join('');
@@ -382,7 +384,10 @@ export const personInputActions = {
   'person-draft-field': ({ target, field }) => {
     const draft = { ...view.params.draft, [field]: target.value };
     view.params = { ...view.params, draft };
+    const named = Boolean((draft.name ?? '').trim());
     const create = document.querySelector('[data-act="person-draft-create"]');
-    if (create instanceof HTMLButtonElement) create.disabled = !(draft.name ?? '').trim();
+    if (create instanceof HTMLButtonElement) create.disabled = !named;
+    const hint = document.querySelector('[data-hint="person-draft-create"]');
+    if (hint instanceof HTMLElement) hint.hidden = named;
   },
 };

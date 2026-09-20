@@ -458,6 +458,12 @@ h3,
   font-weight: var(--weight-medium);
 }
 
+/* P7 — Portfolio Variance, one step down from `.over`: worth a look, not yet
+   the same as a genuinely overrun initiative. */
+.variance--mild {
+  color: var(--color-amber);
+}
+
 /* ---- icons ---- */
 
 /*
@@ -1039,6 +1045,18 @@ h3,
   white-space: nowrap;
 }
 
+/* A severity color on a cell needs to outrank the plain `.grid td` rule just
+   above — `.over`/`.variance--mild` alone tie it on specificity and lose to
+   it on source order, which left every over-capacity and over-utilisation
+   figure in a table silently un-colored (found while wiring up P7). */
+.grid td.over {
+  color: var(--color-danger);
+}
+
+.grid td.variance--mild {
+  color: var(--color-amber);
+}
+
 /* A definition, a requirement, a checklist item's description: sentences, and
    the one thing in a table allowed to take the height it needs. */
 .cell--wrap {
@@ -1285,9 +1303,26 @@ h3,
 
 /* Vertical stickiness only works where the table owns its vertical scroll —
    a horizontally-scrolling wrapper is only as tall as its table. */
+/* P3 — a top/bottom fade that appears only where there is more to scroll to,
+   so "content continues past the edge" reads from the table itself rather
+   than a thin scrollbar thumb someone has to notice. The two solid layers
+   scroll with the content (background-attachment: local) and mask the two
+   shadow layers, which stay fixed to the container — at either end, the
+   matching solid layer covers its shadow completely, so the fade vanishes
+   exactly where there is nothing left to scroll to. */
 .scroller--tall {
   max-height: var(--scroller-tall);
   overflow-y: auto;
+  background-repeat: no-repeat;
+  background-color: var(--color-surface);
+  background-image:
+    linear-gradient(var(--color-surface) 30%, transparent),
+    linear-gradient(transparent, var(--color-surface) 70%),
+    linear-gradient(color-mix(in oklab, var(--color-fg) 20%, transparent), transparent),
+    linear-gradient(transparent, color-mix(in oklab, var(--color-fg) 20%, transparent));
+  background-position: top, bottom, top, bottom;
+  background-size: 100% var(--space-6), 100% var(--space-6), 100% var(--space-2), 100% var(--space-2);
+  background-attachment: local, local, scroll, scroll;
 }
 
 .scroller__hint {
@@ -2362,6 +2397,21 @@ body:has(.summary) #toast {
   font-variant-numeric: tabular-nums;
   font-size: var(--text-lg);
   letter-spacing: var(--tracking-tight);
+}
+
+/* P8 — while a phase is actively being edited, its own running total steps
+   back so the allocation figures above it (the thing actually being worked
+   on) keep the weight. Full prominence returns once the phase is no longer
+   editable, and always belongs to the initiative's grand total and to
+   Portfolio, neither of which uses this modifier. */
+.results--quiet {
+  color: var(--color-muted);
+}
+
+.results--quiet strong {
+  font-size: inherit;
+  font-weight: var(--weight-regular);
+  letter-spacing: normal;
 }
 
 #wizard-grand .micro {

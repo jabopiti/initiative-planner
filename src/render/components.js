@@ -142,6 +142,8 @@ export function empty(text, spec = {}) {
  * @param {string} text
  * @param {'neutral'|'accent'|'info'|'ok'|'warn'|'danger'|'quiet'} [kind]
  * @param {string} [iconName]
+ * @param {string} [title] a native tooltip, for a mark whose meaning isn't
+ *   obvious from its short text alone (P6)
  */
 /** The `badge--<kind>` modifier class, or none for `neutral`. Shared with anything that needs
  * the badge look without the fixed `<span>` shape `badge()` renders — a status menu's trigger
@@ -150,8 +152,8 @@ export function badgeClass(kind) {
   return kind === 'neutral' ? '' : `badge--${kind}`;
 }
 
-export function badge(text, kind = 'neutral', iconName = '') {
-  return html`<span class="badge ${badgeClass(kind)}"
+export function badge(text, kind = 'neutral', iconName = '', title = '') {
+  return html`<span class="badge ${badgeClass(kind)}" ${raw(title ? html`title="${title}"` : '')}
     >${raw(iconName ? icon(iconName) : '')}${text}</span>`;
 }
 

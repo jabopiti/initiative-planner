@@ -44,6 +44,21 @@ function portfolioRows() {
   });
 }
 
+/**
+ * P7 — how loudly Variance reads. A plain "+€X" used to look the same
+ * whether it was rounding drift or a real problem; severity is read against
+ * the approved baseline itself (a percentage), since what counts as drift
+ * scales with the initiative rather than being a flat euro amount. Coming in
+ * under budget is never colored — there is nothing there worth a warning.
+ */
+function varianceClass(r) {
+  if (!r.variance || r.variance < 0) return '';
+  const base = r.approved || r.effective;
+  const pct = base ? r.variance / base : 1;
+  if (pct < 0.02) return '';
+  return pct < 0.10 ? 'variance--mild' : 'over';
+}
+
 /** One line, one initiative, one click to where it's resolved (N1). Absent
  * entirely when nothing needs a look — calm technology says nothing here,
  * not an empty box announcing that everything is fine. */
@@ -131,7 +146,7 @@ export function renderPortfolio() {
         <td class="num">${r.approved === null ? '—' : F.money(r.approved)}</td>
         <td class="num">${F.money(r.effective)}
           <span class="micro">${E.initiativeCoverage(r.initiative)}</span></td>
-        <td class="num ${r.variance > 0 ? 'over' : ''}">${r.variance === null
+        <td class="num ${varianceClass(r)}">${r.variance === null
           ? '—'
           : `${r.variance > 0 ? '+' : ''}${F.money(r.variance)}`}</td>
       </tr>`,
@@ -183,6 +198,8 @@ export function renderPortfolio() {
 
       <div class="panel">
         <h2>Initiatives</h2>
+        <p class="muted">Approved is what each initiative's total stood at when its last gate was
+          passed — a fixed point to measure drift against, not a running figure.</p>
         ${raw(sorted.length
           ? scroller('Initiatives by cost', html`<table class="grid">
               <thead><tr>${raw(headers)}</tr></thead>

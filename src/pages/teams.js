@@ -106,7 +106,10 @@ export const teamsInputActions = {
   'team-draft-field': ({ target, field }) => {
     const draft = { ...view.params.draft, [field]: target.value };
     view.params = { ...view.params, draft };
+    const named = Boolean((draft.name ?? '').trim());
     const create = document.querySelector('[data-act="team-draft-create"]');
-    if (create instanceof HTMLButtonElement) create.disabled = !(draft.name ?? '').trim();
+    if (create instanceof HTMLButtonElement) create.disabled = !named;
+    const hint = document.querySelector('[data-hint="team-draft-create"]');
+    if (hint instanceof HTMLElement) hint.hidden = named;
   },
 };

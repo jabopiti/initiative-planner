@@ -146,11 +146,10 @@ function renderWizardGeneral() {
             >${raw(icon('add'))}Create and continue</button>
           <button type="button" class="btn" data-act="draft-discard">Cancel</button>
         </div>
-        ${raw(canCreate
-          ? ''
-          : html`<p class="muted">${mode === 'existing'
+        <p class="muted" data-hint="draft-create" ${raw(canCreate ? 'hidden' : '')}
+          >${mode === 'existing'
               ? 'Pick an initiative to copy from, and give the copy a name.'
-              : 'A name is needed first.'}</p>`)}
+              : 'A name is needed first.'}</p>
       </div>`,
   );
 }
@@ -315,9 +314,15 @@ export const wizardInputActions = {
     const draft = { ...(view.params.draft ?? store.loadDraft()), [field]: target.value };
     view.params = { ...view.params, draft };
     store.saveDraft(draft);
-    // Only the create button's enabled state depends on this, so refresh
-    // nothing else and leave the caret alone.
+    // Only the create button's enabled state and its hint depend on this
+    // (P4), so refresh nothing else and leave the caret alone.
+    const mode = resolveDraftMode(draft);
+    const canCreate = mode === 'existing'
+      ? Boolean(draft.sourceId) && (draft.name ?? '').trim()
+      : Boolean((draft.name ?? '').trim());
     const create = document.querySelector('[data-act="draft-create"]');
-    if (create instanceof HTMLButtonElement) create.disabled = !(draft.name ?? '').trim();
+    if (create instanceof HTMLButtonElement) create.disabled = !canCreate;
+    const hint = document.querySelector('[data-hint="draft-create"]');
+    if (hint instanceof HTMLElement) hint.hidden = Boolean(canCreate);
   },
 };
