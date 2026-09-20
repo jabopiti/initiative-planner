@@ -14,6 +14,27 @@ import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+/**
+ * How long to wait for a CDP response or a page-load event before giving
+ * up — the same budget `launch()` already gives Chrome's own start. Without
+ * this, a wedged call (a dropped WebSocket message, Chrome stalled under
+ * system load) hangs its `await` forever: `node --test` runs this suite
+ * with timeouts effectively disabled, so nothing else catches it either,
+ * and `t.after`'s cleanup never runs because the test function never
+ * returns — which is why a slow machine can leave behind a `planner-smoke-*`
+ * temp profile per hung run instead of one clean pass or one clear failure.
+ */
+const CDP_TIMEOUT_MS = 20000;
+
+/** Race a promise against `CDP_TIMEOUT_MS`, rejecting with `message` if it loses. */
+function withTimeout(promise, message) {
+  let timer;
+  const timeout = new Promise((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), CDP_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 /** Where Chrome usually lives, most specific first. */
 const CANDIDATES = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -119,7 +140,12 @@ export async function launch(chromePath) {
   const send = (method, params = {}, sessionId = undefined) => {
     const id = ++nextId;
     socket.send(JSON.stringify({ id, method, params, sessionId }));
-    return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+    const response = new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+    return withTimeout(response, `Chrome did not respond to ${method} within ${CDP_TIMEOUT_MS}ms`)
+      .catch((error) => {
+        pending.delete(id);
+        throw error;
+      });
   };
 
   const { targetId } = /** @type {any} */ (
@@ -151,17 +177,19 @@ export async function launch(chromePath) {
 
     /** Navigate and wait for the load event. */
     async goto(url) {
+      let onEvent;
       const loaded = new Promise((resolve) => {
-        const onEvent = (event) => {
-          if (event.sessionId === sessionId && event.method === 'Page.loadEventFired') {
-            listeners.splice(listeners.indexOf(onEvent), 1);
-            resolve(undefined);
-          }
+        onEvent = (event) => {
+          if (event.sessionId === sessionId && event.method === 'Page.loadEventFired') resolve(undefined);
         };
         listeners.push(onEvent);
       });
       await send('Page.navigate', { url }, sessionId);
-      await loaded;
+      try {
+        await withTimeout(loaded, `Chrome did not finish loading ${url} within ${CDP_TIMEOUT_MS}ms`);
+      } finally {
+        listeners.splice(listeners.indexOf(onEvent), 1);
+      }
     },
 
     /**
