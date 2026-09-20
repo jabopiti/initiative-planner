@@ -16,43 +16,55 @@ import { scroller, empty, badge, panel } from './components.js';
 import { TABLES, tableActions } from './tables.js';
 
 /**
- * Who the allocation table lists.
+ * Who the allocation table lists: only people actually allocated. (An
+ * earlier design pre-listed the whole team roster at 0% instead, so
+ * allocating was typing a number next to an already-visible name — F2
+ * replaced it with the add-person chips below, since a roster that size
+ * mostly reads as rows to skip past.)
  *
- * While a phase is editable it lists **the whole team roster**, allocated or
- * not, with a percentage field on every row (D2). Allocating is then typing a
- * number next to a name, rather than finding a select, choosing a person, and
- * correcting the 50% they arrive at — a magic number with no explanation,
- * which is what this replaces. A 0% row costs nothing and must not warn (D2's
- * caveat).
- *
- * Once a gate freezes the phase the roster is gone and only the allocations
- * remain: the list of people you could still add is an editing affordance,
- * and there is nothing left to edit.
- *
- * Someone allocated who is no longer a member of the team is listed either
- * way — their allocation keeps costing (SPEC §5.2) — after the roster, and
- * marked.
+ * Someone allocated who is no longer a member of the team is still listed —
+ * their allocation keeps costing (SPEC §5.2) — and marked.
  */
-function allocationPeople(initiative, phase, editable, at) {
-  const roster = editable
-    ? Object.values(app.PEOPLE)
-      .filter((person) => person.active && E.membership(person, initiative.teamId))
-      .sort((a, b) => a.name.localeCompare(b.name))
-    : [];
-  const listed = new Set(roster.map((person) => person.id));
-
-  const rest = phase.allocations
-    .filter((allocation) => !listed.has(allocation.personId))
+function allocationPeople(phase, at) {
+  return phase.allocations
     .map((allocation) => at.PEOPLE[allocation.personId] ?? app.PEOPLE[allocation.personId])
     .filter(Boolean)
     .sort((a, b) => a.name.localeCompare(b.name));
+}
 
-  return [...roster, ...rest];
+/**
+ * F2 — team members not yet on this phase: the click-to-add chips that
+ * replace the old pre-listed-at-0% rows. Only offered while editable; a
+ * frozen phase has nothing left to add.
+ */
+function addablePeople(initiative, phase) {
+  const allocated = new Set(phase.allocations.map((allocation) => allocation.personId));
+  return Object.values(app.PEOPLE)
+    .filter((person) => person.active && E.membership(person, initiative.teamId)
+      && !allocated.has(person.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * F2 — clicking a chip allocates that person immediately, at the best guess
+ * already computed elsewhere for this exact person/phase: their own prior-
+ * phase carry-forward (C4), then the team/role/phase historical median (C5),
+ * then a plain 100% — fully dedicated — when neither exists. Never a 0% row
+ * left waiting to be typed over.
+ */
+function addPersonChipsMarkup(initiative, phaseId, candidates) {
+  if (candidates.length === 0) return '';
+  return html`<div class="chip-row">
+    <span class="micro">Add:</span>
+    ${raw(candidates.map((person) => html`<button type="button" class="btn btn--small"
+      data-act="allocation-add" data-id="${initiative.id}" data-phase="${phaseId}"
+      data-person="${person.id}">${raw(icon('add'))}${person.name}</button>`).join(' '))}
+  </div>`;
 }
 
 /**
  * The phase to seed this one from: the nearest costed phase before it that
- * has anyone allocated (D2).
+ * has anyone allocated.
  *
  * Offered as one click rather than done silently. Copying someone else's
  * percentages into a phase is a real edit with a real cost attached, and a
@@ -85,7 +97,7 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
     phase.allocations.map((allocation) => [allocation.personId, allocation.allocationPct]),
   );
 
-  return allocationPeople(initiative, phase, editable, at)
+  return allocationPeople(phase, at)
     .map((person) => {
       const allocationPct = allocationByPerson.get(person.id) ?? 0;
       const figures = E.allocationFigures(phase, person.id, allocationPct, at);
@@ -332,6 +344,7 @@ export function phasePanel(initiative, phaseId, editable) {
   const seedFrom = editable && phase.allocations.length === 0
     ? seedSource(initiative, phaseId)
     : null;
+  const candidates = editable ? addablePeople(initiative, phase) : [];
 
   const costRows = phase.otherCosts
     .map((item) => {
@@ -400,16 +413,23 @@ export function phasePanel(initiative, phaseId, editable) {
             data-id="${initiative.id}" data-phase="${phaseId}" data-from="${seedFrom}"
             >${raw(icon('duplicate'))}Copy ${E.phaseLabel(PROCESS, seedFrom)}'s allocations</button></p>`
       : '')}
-    ${raw(editable && allocationRows ? bulkEditMarkup(initiative, phaseId) : '')}
+    ${raw(editable && (allocationRows || candidates.length) ? bulkEditMarkup(initiative, phaseId) : '')}
     ${raw(allocationRows
       ? scroller(`${label} allocations`, html`<table class="grid">
           <thead><tr><th>Person</th><th>Role</th><th>Country</th>
             <th>Allocation %</th><th>Person-days</th><th>Cost</th><th></th></tr></thead>
           <tbody>${raw(allocationRows)}</tbody></table>`)
         + (phase.allocations.length ? registerAllocationTable(initiative, phaseId, at) : '')
-      : empty(editable
-          ? 'Nobody is in this team yet. Add people to the team, then allocate them here.'
-          : 'Nobody was allocated.'))}
+      // Nobody allocated yet: with nobody left to add either, there really is
+      // no one on this team (a real empty state); otherwise the chips below
+      // are the whole affordance, and a redundant "nobody yet" box on top of
+      // them would be exactly the noise F2 removed the pre-listed rows for.
+      : !editable || candidates.length === 0
+        ? empty(editable
+            ? 'Nobody is in this team yet. Add people to the team, then allocate them here.'
+            : 'Nobody was allocated.')
+        : '')}
+    ${raw(editable ? addPersonChipsMarkup(initiative, phaseId, candidates) : '')}
 
     <h3>Other costs</h3>
     ${raw(phase.otherCosts.length || editable
@@ -525,9 +545,8 @@ export const phasePanelClickActions = {
     trigger, allocationDetailMarkup(id, trigger.dataset.phase, trigger.dataset.person),
   ),
   'allocation-seed': ({ trigger, id }) => {
-    // D2's first half: seeded on a click, never on a render — a panel that
-    // writes allocations merely by being looked at would be worse than the
-    // 50% magic number this replaces.
+    // Seeded on a click, never on a render — a panel that writes allocations
+    // merely by being looked at would be worse than a magic default.
     const initiative = findInitiative(id);
     const from = trigger.dataset.from;
     const phaseId = trigger.dataset.phase;
@@ -555,6 +574,25 @@ export const phasePanelClickActions = {
     const initiative = findInitiative(id);
     withUndo('Removed allocation', () => {
       L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, 0);
+    });
+    return commit();
+  },
+  // F2: add-person chip — allocate at the best available default (C4's
+  // carry-forward, then C5's usual, then 100%) rather than a 0% row waiting
+  // to be typed over.
+  'allocation-add': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const phaseId = trigger.dataset.phase;
+    const personId = trigger.dataset.person;
+    const person = app.PEOPLE[personId];
+    const carry = E.carryForwardPct(PROCESS, initiative, phaseId, personId);
+    const personRoleId = person.customRole ? null : person.roleId;
+    const usual = personRoleId
+      ? E.usualAllocationPct(app, initiative.teamId, personRoleId, phaseId)
+      : null;
+    const pct = carry?.allocationPct ?? usual ?? 100;
+    withUndo(`Added ${person.name} at ${pct}%`, () => {
+      L.setAllocation(app, initiative, phaseId, personId, pct);
     });
     return commit();
   },
@@ -674,9 +712,9 @@ export const phasePanelInputActions = {
   'allocation-pct': ({ target }) => {
     const initiative = findInitiative(target.dataset.id);
     const phaseId = target.dataset.phase;
-    // Every roster row carries this field, allocated or not (D2), so there
-    // may be no record yet — in which case unreadable input falls back to 0
-    // rather than to a percentage that does not exist.
+    // Every row here does have a record by the time this field renders, but
+    // unreadable input still needs a fallback that isn't a percentage that
+    // doesn't exist.
     const current = initiative.phases[phaseId].allocations
       .find((a) => a.personId === target.dataset.person);
     L.setAllocation(app, initiative, phaseId, target.dataset.person,

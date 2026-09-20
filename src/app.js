@@ -765,10 +765,10 @@ export function refreshCalcRegions(initiative) {
   for (const [phaseId, phase] of Object.entries(initiative.phases)) {
     const at = E.ratesFor(app, phase);
     // Driven by the rows on screen rather than the allocations in the model:
-    // an allocation table lists the whole team roster while it is editable
-    // (D2), so a row can exist for someone who has no allocation record — and
-    // typing a percentage back down to 0 removes the record while leaving the
-    // row. Either way its figures still have to fall to zero.
+    // typing a percentage down to 0 removes its record (`setAllocation`), but
+    // this runs quietly without rebuilding the table, so the row is still on
+    // screen a beat after the record behind it is gone. Its figures still
+    // have to fall to zero either way.
     const rows = Array.from(document.querySelectorAll(`[data-alloc-phase="${phaseId}"]`));
     const allocationByPerson = new Map(
       phase.allocations.map((allocation) => [allocation.personId, allocation.allocationPct]),

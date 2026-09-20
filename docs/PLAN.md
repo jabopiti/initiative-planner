@@ -77,7 +77,8 @@ Update the row below in the commit that finishes a bundle.
 | 5 | **Done** |
 | 6 | **Done** |
 | 7 | **Done** |
-| 8-12 | Not started |
+| 8 | **Done** |
+| 9-12 | Not started |
 
 ---
 
@@ -400,10 +401,53 @@ took one good pattern and applied it broadly. Decided outcomes:
   turns red once a phase's own end date was pushed into the past, and the
   sticky bar carries the initiative's name while scrolled.
 
-**Next Steps (Bundle 8):**
-- The next session should pick up **Bundle 8**: F1, F2 — the creation flow
-  ("Start from an existing initiative" as the front door; add-person chips
-  replacing the pre-listed-at-0% allocation table). Independent of every
-  earlier bundle.
-- *Review before starting:* §5 in `docs/PLAN.md`.
+- **Bundle 8 (Creation flow) is fully completed.** F1: "New initiative"'s
+  first step now opens with a chooser (`src/pages/wizard.js`) — "Start from
+  an existing initiative," the default-focused tab, or "Start from scratch."
+  Picking a source pre-fills Name/Description/Team from it (the same
+  defaults a manual Duplicate would give); Create-and-continue then calls
+  the existing `L.duplicate()` and layers the draft's own edits on top via
+  `renameInitiative`/`setDescription`/`setTeam`, so every phase's period,
+  allocations and other costs carry over exactly as a Duplicate's would,
+  landing in step 2 (Estimates) already populated to "adjust what's
+  different." The chooser itself is skipped entirely when there is nothing
+  yet to copy from (a brand-new dataset) — no dead-end tab. A `resolveDraftMode`
+  helper is shared between the render and the create action specifically so
+  a bare, mode-less draft (the state a fresh wizard starts in, since the
+  default tab needs no click to already be selected) resolves the same way
+  in both places — an early manual test caught the two disagreeing before
+  this fix.
+- **F2**: `src/render/phase-panel.js`'s allocation table now lists only
+  people already allocated; `allocationPeople()` dropped its old whole-
+  roster-while-editable branch entirely. A new `addablePeople()` computes
+  the team members not yet on the phase, rendered as click-to-add chips
+  (`addPersonChipsMarkup`) below the table — clicking one allocates
+  immediately via a new `allocation-add` action, at the best guess already
+  computed elsewhere for that exact person/phase (C4's carry-forward, then
+  C5's usual, then a plain 100% when neither exists), never a 0% row left
+  waiting to be typed over. The empty state is skipped when there is anyone
+  left to add — the chips are the whole affordance, and a "nobody yet" box
+  on top of them would be exactly the noise F2 removed the pre-listed rows
+  for. Stale D2-era code comments describing the old pre-listed-roster
+  design were corrected in the same commit (`src/render/phase-panel.js`,
+  `src/app.js`).
+- No SPEC.md/DESIGN.md changes were needed — F1/F2 are UI-flow changes over
+  already-documented lifecycle functions (`duplicate`, `setAllocation`),
+  not new persisted concepts or vocabulary.
+- The full suite (171 tests, unchanged in count — no new lifecycle behavior,
+  only new UI wiring already covered by the smoke test and the
+  every-action-has-a-handler test) passes, along with typecheck, lint and
+  build. Verified by hand in a real browser (demo.json loaded via
+  localStorage, light/dark/system): both wizard front-door tabs, a
+  duplicated initiative's phases arriving pre-filled, add-person chips on
+  both an empty and a partially-staffed phase, the chip's toast/undo, a
+  frozen phase still reading its own snapshot with no chips, and the
+  no-initiatives-yet fallback (chooser hidden, scratch-only).
+
+**Next Steps (Bundle 9):**
+- The next session should pick up **Bundle 9**: S1, S2 — Settings section
+  reorder, and the admin password gate. S2 needs one open call made during
+  implementation (where the password constant lives — see §14's DESIGN
+  note in this file).
+- *Review before starting:* §6 in `docs/PLAN.md`.
 
