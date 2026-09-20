@@ -608,7 +608,7 @@ export function skipDialogMarkup(initiativeId, gateId) {
       editable and no figure here becomes a baseline.</p>
     <div class="fields">
       <label class="field-row"><span>Reason</span>
-        <input class="field" data-field="skip-reason"
+        <input class="field" data-act="skip-reason" data-field="skip-reason"
           placeholder="Why is this gate not needed?" /></label>
       <label class="field-row"><span>Date</span>
         <input type="date" class="field field--date" data-field="skip-date"
@@ -617,7 +617,7 @@ export function skipDialogMarkup(initiativeId, gateId) {
     <p class="field-message" data-note="skip-error" hidden>${raw(icon('warning', 'icon--lead'))}A
       reason is required before a gate can be skipped.</p>
     <div class="actions">
-      <button type="button" class="btn btn--primary" data-act="skip-gate"
+      <button type="button" class="btn btn--primary" data-act="skip-gate" disabled
         data-id="${initiative.id}" data-gate="${gateId}">${raw(icon('skip'))}Skip ${gate.label}</button>
       <button type="button" class="btn" data-act="dialog-cancel">Cancel</button>
     </div>`;
@@ -689,10 +689,16 @@ function monthTableMarkup(initiative) {
   const now = E.monthKey(new Date());
 
   if (months.length === 0) {
+    const firstCostedId = E.costedPhaseIds(PROCESS)[0];
     return panel({
       id: 'panel-months',
       title: 'Month by month',
-      body: empty('Nothing is costed yet. Give a phase a period and allocate someone.'),
+      body: empty('Nothing is costed yet. Give a phase a period and allocate someone.', firstCostedId ? {
+        icon: 'add',
+        action: html`<button type="button" class="btn btn--primary" data-act="panel"
+          data-panel="panel-phase-${firstCostedId}"
+          >${raw(icon('add'))}Go to ${E.phaseLabel(PROCESS, firstCostedId)}</button>`,
+      } : {}),
     });
   }
 
@@ -1056,6 +1062,16 @@ export const initiativeChangeActions = {
 };
 
 export const initiativeInputActions = {
+  'skip-reason': ({ target }) => {
+    const reasoned = Boolean(target.value.trim());
+    const button = document.querySelector('[data-act="skip-gate"]');
+    if (button instanceof HTMLButtonElement) button.disabled = !reasoned;
+    if (reasoned) {
+      const message = document.querySelector('[data-note="skip-error"]');
+      if (message instanceof HTMLElement) message.hidden = true;
+      target.classList.remove('field--warn');
+    }
+  },
   'checklist-note': ({ target, id }) => {
     L.setChecklistNote(findInitiative(id), target.dataset.gate, target.dataset.item, target.value);
     commitQuietly();

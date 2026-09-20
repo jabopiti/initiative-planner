@@ -435,7 +435,11 @@ export function phasePanel(initiative, phaseId, editable) {
       : !editable || candidates.length === 0
         ? empty(editable
             ? 'Nobody is in this team yet. Add people to the team, then allocate them here.'
-            : 'Nobody was allocated.')
+            : 'Nobody was allocated.', editable ? {
+            icon: 'add',
+            action: html`<a class="btn btn--primary" href="#/team/${initiative.teamId}"
+              >${raw(icon('add'))}Go to ${app.TEAMS[initiative.teamId]?.name ?? 'the team'}</a>`,
+          } : {})
         : '')}
     ${raw(editable ? addPersonChipsMarkup(initiative, phaseId, candidates) : '')}
 

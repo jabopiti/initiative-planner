@@ -80,7 +80,8 @@ Update the row below in the commit that finishes a bundle.
 | 8 | **Done** |
 | 9 | **Done** |
 | 10 | **Done** |
-| 11-12 | Not started |
+| 11 | **Done** |
+| 12 | Not started |
 
 ---
 
@@ -578,10 +579,74 @@ took one good pattern and applied it broadly. Decided outcomes:
   and Capacity, Portfolio's Variance in danger red, and every new
   explainer paragraph's placement and wording.
 
-**Next Steps (Bundle 11):**
-- The next session should pick up **Bundle 11**: M1, M3–M8 — the
-  message-copy audit's decided outcomes, scattered small string/behavior
-  edits across several pages, independent of everything else in the plan.
-- *Review before starting:* §11 in `docs/PLAN.md`, and the full findings in
-  the standalone `message-audit.md`.
+- **Bundle 11 (M1, M3–M8 — message-copy audit) is fully completed.**
+  **M1**: the "starting fresh, not from what was here" banner
+  (`renderBanner()` in `src/app.js`) gained the same `data-act="export"`
+  Export now button every other severe banner already carries, instead of
+  Dismiss-only.
+  **M3**: the "Copy failed" toast (`src/app.js`'s `copy-table` click action)
+  now states the likely cause and an alternative — "Copy failed — clipboard
+  access may be blocked. Select the table and copy manually."
+  **M4**: the skip dialog (`src/pages/initiative.js`'s `skipDialogMarkup`)
+  renders its Skip button `disabled` from the start; a new `skip-reason`
+  input action toggles it (and clears the warning state) live as the reason
+  field is typed into, matching every other required-field flow's
+  pre-emptive disabling.
+  **M5**: the deactivated-team banner (`src/pages/team.js`) now states the
+  consequence explicitly — "Existing work keeps running; no one can join
+  while it stays deactivated" — and that consequence is now real, not just
+  claimed: `joinable` is forced empty while `!team.active`, so the roster's
+  inline add-row and its empty-state text both reflect that no one can be
+  added to a deactivated team.
+  **M6**: the team-can't-delete message is now visible text naming the
+  blocking initiatives in both places it appears — the team detail page's
+  own paragraph (previously nameless) and the Teams card list, where the
+  names moved from the Delete button's hover-only `title` into a `<p
+  class="micro">` under the actions row.
+  **M7**: four empty states that described an action in prose now carry the
+  actual destination as a button — Team's empty Initiatives panel links to
+  a new-initiative flow pre-seeded with this team (`teamClickActions['team-
+  new-initiative']`, which persists the pick through `store.saveDraft()`
+  rather than through `navigate()`'s params, since only `id` round-trips
+  through the hash — see the code comment for why passing it as a param
+  silently lost it on the first attempt); Person's empty Initiatives panel
+  links to the person's first active team; the phase panel's empty
+  allocation state (nobody on the team) links to that initiative's team;
+  and the month table's "nothing is costed yet" state jumps to the first
+  costed phase's panel via the existing `panel` scroll action.
+  **Found and fixed a pre-existing bug while wiring M7's two `<a
+  class="btn">` destinations**: `.btn` (`src/styles.css`) never reset
+  `text-decoration`, so an anchor styled as a button rendered with a
+  default underline — invisible until this bundle, since no anchor had
+  used the `.btn` class before. Added `text-decoration: none` to the
+  shared `.btn`/`.cell--action button`/`.card__actions button` rule.
+  **M8**: `importPreviewMarkup()` (`src/pages/settings.js`) appends "Nothing
+  was changed — this is checked before anything here is touched" to every
+  import-rejection message, regardless of which of `parseImport()`'s three
+  reasons produced it.
+  M2 (an export/duplicate escape hatch on delete/discard confirmations)
+  stays declined, as recorded in §11 — no change made.
+- No SPEC.md/DESIGN.md changes were needed — every item is copy or a small
+  behavior correction over already-documented flows, not a new concept.
+- The full suite (171 tests, unchanged in count) passes, along with
+  typecheck, lint and build. Verified by hand in a real browser (demo.json
+  loaded via localStorage, light/dark/system): the Export now button on the
+  starting-fresh banner with a corrupted-schema dataset; the Copy failed
+  toast with `navigator.clipboard` stubbed to reject; the skip dialog's
+  Skip button enabling live on keystroke; deactivating a team and
+  confirming its roster's add-row disappears; the Used-by names on both
+  the Teams cards and the team detail page; all four new "Go to …"
+  destinations, including the wizard landing on "Start from scratch" with
+  the right team preselected (which required routing the pick through
+  `store.saveDraft()` after the first attempt lost it to the hashchange
+  listener); and the import-rejection reassurance clause with a
+  deliberately invalid JSON file.
+
+**Next Steps (Bundle 12):**
+- The next session should pick up **Bundle 12**: I1, I2, I3, I4, I5, I6,
+  I7, I8, I10, I11 — the rest of the icon pass, the plan's last remaining
+  bundle.
+- *Review before starting:* §13 in `docs/PLAN.md` for each item's detail,
+  and the `frontend-design` skill per CLAUDE.md's "Also load" note before
+  reshaping any visual language.
 

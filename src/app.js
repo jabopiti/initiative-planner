@@ -281,6 +281,7 @@ function renderBanner() {
         the seed data instead. Nothing has been deleted yet, but saving anything here will
         overwrite it — if you need it back, open it in a build that still recognises it
         before doing anything else in this one.</span>
+      <button type="button" class="btn btn--small" data-act="export">Export now</button>
       <button type="button" class="btn btn--small" data-act="dismiss-load-warning">Dismiss</button>
     </div>`);
     return;
@@ -932,7 +933,9 @@ registerClickActions({
     // button sits under tables that scroll inside their own box, so the
     // note could land off-screen from the thing that produced it.
     store.copyTable(table.headers, table.rows).then((result) => {
-      if (result === 'failed') showToast('Copy failed', 'toast--warn');
+      if (result === 'failed') {
+        showToast('Copy failed — clipboard access may be blocked. Select the table and copy manually.', 'toast--warn');
+      }
       else showToast('Copied');
     });
   },

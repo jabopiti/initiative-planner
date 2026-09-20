@@ -4,6 +4,7 @@ import * as F from '../format.js';
  */
 import * as E from '../engine.js';
 import * as P from '../people.js';
+import * as store from '../store.js';
 import { PROCESS } from '../process.js';
 import { app, view, navigate, commit, commitQuietly, openPopover, withUndo, today } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
@@ -59,10 +60,15 @@ export function renderTeam() {
     })
     .join('');
 
-  const joinable = Object.values(app.PEOPLE).filter(
-    (person) =>
-      person.active && !(person.memberships ?? []).some((m) => m.teamId === team.id && m.active),
-  );
+  // A deactivated team gains no new membership — matching the deactivated-
+  // person rule below, which excludes them from every OTHER team's list the
+  // same way.
+  const joinable = team.active
+    ? Object.values(app.PEOPLE).filter(
+        (person) =>
+          person.active && !(person.memberships ?? []).some((m) => m.teamId === team.id && m.active),
+      )
+    : [];
 
   const initiativeRows = initiatives
     .map(
@@ -84,7 +90,8 @@ export function renderTeam() {
         data-id="${team.id}">${team.active ? 'Deactivate' : 'Reactivate'}</button>`,
     }))}
       ${raw(team.active ? '' : html`<p class="panel banner banner--alert warn">
-        ${raw(icon('warning', 'icon--lead'))}This team is deactivated.</p>`)}
+        ${raw(icon('warning', 'icon--lead'))}This team is deactivated. Existing work keeps
+        running; no one can join while it stays deactivated.</p>`)}
 
       <div class="rail-layout">
         ${raw(railNav(TEAM_PANELS))}
@@ -122,8 +129,10 @@ export function renderTeam() {
                         <td colspan="5"></td>
                       </tr>` : '')}
                     </tbody></table>`)
-                : empty('Nobody to add — every active person already belongs here, or there are '
-                    + 'no active people yet.'))}`,
+                : empty(team.active
+                    ? 'Nobody to add — every active person already belongs here, or there are '
+                      + 'no active people yet.'
+                    : 'This team is deactivated, so no one can be added to it.'))}`,
           }))}
 
           ${raw(panel({
@@ -133,11 +142,16 @@ export function renderTeam() {
                 ? scroller('Initiatives owned by this team', html`<table class="grid">
                     <thead><tr><th>Name</th><th>Phase</th><th>Status</th><th>Total</th></tr></thead>
                     <tbody>${raw(initiativeRows)}</tbody></table>`)
-                : empty('This team has no initiatives yet. Create one from Initiatives, with this '
-                    + 'team selected.'))}
+                : empty('This team has no initiatives yet. Create one with this team already selected.', {
+                    icon: 'add',
+                    action: html`<button type="button" class="btn btn--primary"
+                      data-act="team-new-initiative" data-id="${team.id}"
+                      >${raw(icon('add'))}New initiative</button>`,
+                  }))}
               ${raw(deletable.ok
                 ? ''
-                : html`<p class="muted">This team cannot be deleted while it owns initiatives.</p>`)}`,
+                : html`<p class="muted">This team cannot be deleted while it owns
+                    ${deletable.blockers.join(', ')}.</p>`)}`,
           }))}
 
           ${raw(capacityGridMarkup(team))}
@@ -317,6 +331,16 @@ export const teamClickActions = {
     trigger,
     capacityCellMarkup(trigger.dataset.person, trigger.dataset.team, trigger.dataset.month),
   ),
+  // Saved to the draft store rather than passed as a param: navigate() only
+  // round-trips `id` through the hash, so anything else handed to it here
+  // would be lost the instant the hashchange listener re-derives view from
+  // the URL (the same reason every other draft edit in wizard.js persists
+  // through store.saveDraft before it navigates).
+  'team-new-initiative': ({ trigger }) => {
+    const draft = { ...store.loadDraft(), mode: 'scratch', teamId: trigger.dataset.id };
+    store.saveDraft(draft);
+    return navigate('wizard', {});
+  },
   'membership-active': ({ trigger, id }) => {
     const person = app.PEOPLE[id];
     const team = trigger.dataset.team;

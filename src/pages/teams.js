@@ -42,10 +42,10 @@ export function renderTeams() {
             ${team.active ? 'Deactivate' : 'Reactivate'}</button>
           <button type="button" data-act="team-delete" data-id="${team.id}"
             ${raw(deletable.ok ? '' : 'disabled')}
-            title="${deletable.ok
-              ? 'Delete this team'
-              : `Used by ${deletable.blockers.join(', ')}`}">${raw(icon('remove'))}Delete</button>
+            title="${deletable.ok ? 'Delete this team' : 'Cannot delete — see below'}"
+            >${raw(icon('remove'))}Delete</button>
         </div>
+        ${raw(deletable.ok ? '' : html`<p class="micro">Used by ${deletable.blockers.join(', ')}.</p>`)}
       </div>`;
     })
     .join('');

@@ -256,8 +256,25 @@ function personInitiativesPanel(person, rows, stranded) {
       ? scroller('Initiatives this person is allocated to', html`<table class="grid">
           <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}<th></th></tr></thead>
           <tbody>${raw(body)}</tbody></table>`) + tableActions('personInitiatives', 'initiatives')
-      : empty('Not allocated to anything yet. Allocate them from a costed phase on an '
-          + 'initiative their team owns.'))}`;
+      : emptyInitiativesForPerson(person))}`;
+}
+
+/** Names an actual destination — the first team this person belongs to,
+ * where a costed phase can allocate them — rather than describing an
+ * action with no way to reach it from here. */
+function emptyInitiativesForPerson(person) {
+  const firstTeamId = (person.memberships ?? []).find((m) => m.active)?.teamId;
+  const team = firstTeamId ? app.TEAMS[firstTeamId] : null;
+  if (!team) {
+    return empty('Not allocated to anything yet. This person needs a team before they can be '
+      + 'allocated to one of its initiatives.');
+  }
+  return empty('Not allocated to anything yet. Allocate them from a costed phase on an '
+      + `initiative ${team.name} owns.`, {
+    icon: 'add',
+    action: html`<a class="btn btn--primary" href="#/team/${team.id}"
+      >${raw(icon('add'))}Go to ${team.name}</a>`,
+  });
 }
 
 function personCapacity(person, months) {

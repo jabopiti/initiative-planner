@@ -359,7 +359,8 @@ export function importPreviewMarkup() {
   if (!pendingImport) return '';
   if (pendingImport.error) {
     return html`<div class="issues"><p class="warn">${raw(icon('warning', 'icon--lead'))}${
-      pendingImport.error}</p></div>`;
+      pendingImport.error} Nothing was changed — this is checked before anything here is
+      touched.</p></div>`;
   }
 
   const mode = pendingImport.mode;
