@@ -949,7 +949,7 @@ registerClickActions({
     store.reset();
     const fresh = store.load();
     app = fresh.app;
-    navigate('settings', { section: 'roles' });
+    navigate('settings', { section: 'general' });
   },
 });
 

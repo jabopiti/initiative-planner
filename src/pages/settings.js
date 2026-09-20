@@ -9,6 +9,7 @@ import * as E from '../engine.js';
 import * as F from '../format.js';
 import * as L from '../lifecycle.js';
 import * as store from '../store.js';
+import { PROCESS } from '../process.js';
 import {
   app, view, pendingImport, navigate, commit, commitQuietly, restoreCaretAfter, withUndo,
 } from '../app.js';
@@ -18,13 +19,43 @@ import { pageHead, scroller, railNav } from '../render/components.js';
 import { processSectionMarkup } from '../render/process.js';
 
 const SETTINGS_SECTIONS = [
-  { id: 'roles', label: 'Roles', render: renderRoles },
-  { id: 'countries', label: 'Countries & rates', render: renderCountries },
-  { id: 'process', label: 'Process', render: processSectionMarkup },
   { id: 'general', label: 'General', render: renderGeneral },
   { id: 'data', label: 'Data', render: renderData },
+  { id: 'process', label: 'Process', render: processSectionMarkup },
+  { id: 'roles', label: 'Roles', render: renderRoles },
+  { id: 'countries', label: 'Countries & rates', render: renderCountries },
   { id: 'danger', label: 'Danger zone', render: renderDanger },
 ];
+
+/**
+ * S2: a soft deterrent against casual/accidental edits on a shared device,
+ * not access control — see `PROCESS.adminPassword`'s own doc comment.
+ * Session-only (module state, like `navOpen` in `app.js`): once unlocked,
+ * stays unlocked until the page reloads, and unlocking anywhere unlocks
+ * every gated section, since it's one password guarding one trust level.
+ */
+const GATED_SECTIONS = new Set(['general', 'roles', 'countries']);
+let adminUnlocked = false;
+
+function lockedSectionMarkup(id) {
+  const failed = view.params.adminError === id;
+  return html`<p class="muted">Locked to deter accidental edits on a shared device — this
+      isn't real access control, since anyone who can open this build can also read the
+      password out of its own source.</p>
+    <div class="fields">
+      <label class="field-row">
+        <span>Admin password</span>
+        <input class="field" type="password" aria-label="Admin password" />
+      </label>
+    </div>
+    ${raw(failed
+      ? html`<p class="warn">${raw(icon('warning', 'icon--lead'))}Incorrect password.</p>`
+      : '')}
+    <div class="actions">
+      <button type="button" class="btn btn--primary" data-act="admin-unlock" data-id="${id}"
+        >Unlock</button>
+    </div>`;
+}
 
 export function renderSettings() {
   const section = view.params.section ?? SETTINGS_SECTIONS[0].id;
@@ -33,7 +64,9 @@ export function renderSettings() {
     (item) => html`<section id="settings-section-${item.id}" class="panel"
       aria-labelledby="settings-heading-${item.id}">
       <h2 id="settings-heading-${item.id}">${item.label}</h2>
-      ${raw(item.render())}
+      ${raw(GATED_SECTIONS.has(item.id) && !adminUnlocked
+        ? lockedSectionMarkup(item.id)
+        : item.render())}
     </section>`,
   ).join('');
 
@@ -424,7 +457,7 @@ export const settingsClickActions = {
     navigate('settings', { ...view.params, confirmDeactivate: id }),
   'deactivate-cancel': () => navigate('settings', { ...view.params, confirmDeactivate: null }),
   'country-expand': ({ id }) => navigate('settings', {
-    section: view.params.section ?? 'roles',
+    section: view.params.section ?? SETTINGS_SECTIONS[0].id,
     expanded: view.params.expanded === id ? null : id,
   }),
   'country-apply-all': ({ trigger, id }) => {
@@ -469,9 +502,19 @@ export const settingsClickActions = {
     pendingImport.mode = trigger.dataset.mode;
     return fill('import-preview', importPreviewMarkup());
   },
-  'reset-arm': () => navigate('settings', { section: view.params.section ?? 'roles', armed: true }),
+  'reset-arm': () =>
+    navigate('settings', { section: view.params.section ?? SETTINGS_SECTIONS[0].id, armed: true }),
   'reset-cancel': () =>
-    navigate('settings', { section: view.params.section ?? 'roles', armed: false }),
+    navigate('settings', { section: view.params.section ?? SETTINGS_SECTIONS[0].id, armed: false }),
+  'admin-unlock': ({ trigger, id }) => {
+    const input = trigger.closest('section')?.querySelector('input[type="password"]');
+    if (!(input instanceof HTMLInputElement)) return undefined;
+    if (input.value === PROCESS.adminPassword) {
+      adminUnlocked = true;
+      return navigate('settings', { ...view.params, adminError: null });
+    }
+    return navigate('settings', { ...view.params, adminError: id });
+  },
 };
 
 export const settingsInputActions = {

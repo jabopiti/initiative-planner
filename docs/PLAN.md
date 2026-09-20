@@ -78,7 +78,8 @@ Update the row below in the commit that finishes a bundle.
 | 6 | **Done** |
 | 7 | **Done** |
 | 8 | **Done** |
-| 9-12 | Not started |
+| 9 | **Done** |
+| 10-12 | Not started |
 
 ---
 
@@ -444,10 +445,49 @@ took one good pattern and applied it broadly. Decided outcomes:
   frozen phase still reading its own snapshot with no chips, and the
   no-initiatives-yet fallback (chooser hidden, scratch-only).
 
-**Next Steps (Bundle 9):**
-- The next session should pick up **Bundle 9**: S1, S2 — Settings section
-  reorder, and the admin password gate. S2 needs one open call made during
-  implementation (where the password constant lives — see §14's DESIGN
-  note in this file).
-- *Review before starting:* §6 in `docs/PLAN.md`.
+- **Bundle 9 (Settings) is fully completed.** S1: `SETTINGS_SECTIONS` in
+  `src/pages/settings.js` is now ordered General → Data → Process → Roles →
+  Countries & rates → Danger zone. S2: `PROCESS.adminPassword` in
+  `src/process.js` is the hardcoded build-time constant — the open call from
+  §14's DESIGN note resolved as expected, alongside `currency` and
+  `wordmark`, with a doc comment stating explicitly it's a soft deterrent,
+  never real access control. `GATED_SECTIONS` (`general`, `roles`,
+  `countries`) in `settings.js` gates those three; Data and Danger zone stay
+  open, and Process needed no gating since it already renders nothing
+  editable. A gated section renders a password prompt in place of its normal
+  content instead of the section itself disappearing, so the rail nav and
+  every other section's layout stay unaffected. Unlocking is one flag
+  (`adminUnlocked`, module state — session-only, like `app.js`'s `navOpen`)
+  shared across all three: entering the password correctly in any one of
+  them unlocks all three at once, since it's a single trust level, not
+  three independent ones. A wrong attempt is scoped to the section it was
+  tried in via `view.params.adminError` carrying that section's id, so one
+  section's "Incorrect password" doesn't bleed into another's — verified by
+  hand (typing it wrong under Roles left Countries' prompt clean, then the
+  correct password unlocked General/Roles/Countries together). Three call
+  sites that hardcoded the *old* first section (`'roles'`) as their
+  no-current-section fallback — `country-expand`, `reset-arm`, `reset-cancel`
+  in `settings.js`, and `reset-confirm` in `app.js` — were updated to the new
+  first section so a direct `#/settings` deep link still falls back sensibly.
+- No SPEC.md/DESIGN.md changes were needed — both already documented S2 in
+  full (§2 and the glossary in SPEC.md, §4 in DESIGN.md), written spec-first
+  in an earlier session per this plan's own §14 sequencing note; this bundle
+  only had to build against what was already decided there.
+- The full suite (171 tests, unchanged in count — no new lifecycle behavior,
+  pure UI/settings wiring already covered by the smoke test and the
+  every-action-has-a-handler test) passes, along with typecheck, lint and
+  build. Verified by hand in a real browser (demo.json loaded via
+  localStorage, light/dark/system): the new section order, all three gated
+  sections showing the lock prompt on a fresh load, the wrong-password error
+  scoped to one section, the correct password unlocking all three at once,
+  and the pre-existing Danger-zone arm/confirm/cancel flow still working
+  unchanged underneath the fallback-value fix.
+
+**Next Steps (Bundle 10):**
+- The next session should pick up **Bundle 10**: P1–P8, T3, T7, T8 — visual/
+  UX polish and the remaining explainer copy, sequenced after the
+  structural/behavioral bundles (this session's own note flagged P2/P8
+  against Bundle 4/5's phase-panel changes in particular).
+- *Review before starting:* §7 (P1–P8), and the relevant rows of §12
+  (T3, T7, T8) in `docs/PLAN.md`.
 
