@@ -43,7 +43,7 @@ import {
 import { renderCapacity } from './pages/capacity.js';
 import {
   renderSettings, importPreviewMarkup, scrollToSettingsSection, fileStatusMarkup,
-  settingsClickActions, settingsInputActions,
+  settingsClickActions, settingsInputActions, DEFAULT_SECTION,
 } from './pages/settings.js';
 
 /* ------------------------------------------------------------------ *
@@ -730,7 +730,8 @@ export function render() {
   // count the strip itself would disagree with. Visible from anywhere in
   // the app is the whole point (N2), so it lives on Initiatives, not buried
   // a click away on Portfolio.
-  const attentionCount = L.needsAttention(app, PROCESS, today()).length;
+  const attentionItems = L.needsAttention(app, PROCESS, today());
+  const attentionCount = attentionItems.length;
 
   fill(
     'nav',
@@ -755,7 +756,7 @@ export function render() {
   else if (view.page === 'initiatives') renderInitiatives();
   else if (view.page === 'wizard') renderWizard();
   else if (view.page === 'initiative') renderInitiative();
-  else if (view.page === 'portfolio') renderPortfolio();
+  else if (view.page === 'portfolio') renderPortfolio(attentionItems);
   else {
     fill(
       'root',
@@ -860,6 +861,18 @@ export function restoreCaretAfter(target, selector, action) {
     restored.focus();
     if (caret !== null) restored.setSelectionRange(caret, caret);
   }
+}
+
+/**
+ * A draft's "create" button and its explanatory hint, kept in sync with
+ * whether the draft is ready — the same pairing every draft-field handler
+ * needs (person, team, wizard), written once rather than once per page.
+ */
+export function syncDraftCreate(actName, hintName, canCreate) {
+  const create = document.querySelector(`[data-act="${actName}"]`);
+  if (create instanceof HTMLButtonElement) create.disabled = !canCreate;
+  const hint = document.querySelector(`[data-hint="${hintName}"]`);
+  if (hint instanceof HTMLElement) hint.hidden = Boolean(canCreate);
 }
 
 registerInputActions({
@@ -968,7 +981,7 @@ registerClickActions({
     store.reset();
     const fresh = store.load();
     app = fresh.app;
-    navigate('settings', { section: 'general' });
+    navigate('settings', { section: DEFAULT_SECTION });
   },
 });
 

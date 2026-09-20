@@ -5,6 +5,7 @@ import * as F from '../format.js';
  */
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
+import * as P from '../people.js';
 import { PROCESS } from '../process.js';
 import {
   app, withUndo, commit, commitQuietly, findInitiative, refreshCalcRegions, openPopover,
@@ -12,7 +13,7 @@ import {
 } from '../app.js';
 import { html, raw, numberField } from './dom.js';
 import { icon } from './icons.js';
-import { scroller, empty, badge, coverageBadge, panel } from './components.js';
+import { scroller, empty, badge, coverageBadge, panel, teamLinkAction } from './components.js';
 import { TABLES, tableActions } from './tables.js';
 
 /**
@@ -43,6 +44,22 @@ function addablePeople(initiative, phase) {
     .filter((person) => person.active && E.membership(person, initiative.teamId)
       && !allocated.has(person.id))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** A person's role for role-scoped lookups — null for a custom rate, which
+ * has no standard role to match a historical median against. */
+const effectiveRoleId = (person) => (person.customRole ? null : person.roleId);
+
+/**
+ * C7 — every active team member, for the bulk-edit actions that apply a
+ * percentage across the roster rather than one row at a time. Reuses the
+ * same roster `teamRoster` already builds, filtered to who a bulk edit can
+ * actually reach, instead of each action re-scanning `app.PEOPLE` by hand.
+ */
+function activeRosterPeople(teamId) {
+  return P.teamRoster(app, teamId)
+    .filter((row) => row.person.active && row.membership.active)
+    .map((row) => row.person);
 }
 
 /**
@@ -96,6 +113,10 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
   const allocationByPerson = new Map(
     phase.allocations.map((allocation) => [allocation.personId, allocation.allocationPct]),
   );
+  // One scan for the whole roster's medians, not one per row (C5).
+  const usualByRole = new Map(
+    E.usualStaffing(app, initiative.teamId, phaseId).map((s) => [s.roleId, s.medianPct]),
+  );
 
   return allocationPeople(phase, at)
     .map((person) => {
@@ -116,10 +137,8 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
         : null;
       // C5: the historical median for this team/role/phase combination —
       // shown alongside Max available, as a separate chip.
-      const personRoleId = person.customRole ? null : person.roleId;
-      const usual = editable && personRoleId
-        ? E.usualAllocationPct(app, initiative.teamId, personRoleId, phaseId)
-        : null;
+      const personRoleId = effectiveRoleId(person);
+      const usual = editable && personRoleId ? usualByRole.get(personRoleId) ?? null : null;
 
       return html`<tr class="${stranded ? 'row--warn' : ''}"
         data-alloc-phase="${phaseId}" data-alloc-person="${person.id}">
@@ -140,17 +159,17 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
               'aria-label': `${person.name} allocation`,
               extraClass: 'field--pct',
             }))}${raw(carry
-              ? html`<button type="button" class="btn--small" data-act="allocation-carry"
+              ? html`<button type="button" class="btn--small" data-act="allocation-suggest"
                   data-id="${initiative.id}" data-phase="${phaseId}" data-person="${person.id}"
-                  data-amount="${carry.allocationPct}"
+                  data-amount="${carry.allocationPct}" data-label="from prior phase"
                   >Prev ${carry.allocationPct}%</button>`
               : '')}${raw(usual
-              ? html`<button type="button" class="btn--small" data-act="allocation-usual"
+              ? html`<button type="button" class="btn--small" data-act="allocation-suggest"
                   data-id="${initiative.id}" data-phase="${phaseId}" data-person="${person.id}"
-                  data-amount="${usual}"
+                  data-amount="${usual}" data-label="usual"
                   >Usual ${usual}%</button>`
               : '')}${raw(maxAvail
-              ? html`<button type="button" class="btn--small" data-act="allocation-max"
+              ? html`<button type="button" class="btn--small" data-act="allocation-suggest"
                   data-id="${initiative.id}" data-phase="${phaseId}" data-person="${person.id}"
                   data-amount="${maxAvail.pct}"
                   >Max available ${maxAvail.pct}%</button>${raw(maxAvail.provisionalPct
@@ -439,8 +458,7 @@ export function phasePanel(initiative, phaseId, editable) {
             ? 'Nobody is in this team yet. Add people to the team, then allocate them here.'
             : 'Nobody was allocated.', editable ? {
             icon: 'add',
-            action: html`<a class="btn btn--primary" href="#/team/${initiative.teamId}"
-              >${raw(icon('add'))}Go to ${app.TEAMS[initiative.teamId]?.name ?? 'the team'}</a>`,
+            action: teamLinkAction(initiative.teamId, app.TEAMS[initiative.teamId]?.name ?? 'the team'),
           } : {})
         : '')}
     ${raw(editable ? addPersonChipsMarkup(initiative, phaseId, candidates) : '')}
@@ -545,9 +563,11 @@ export function phaseTotalsMarkup(initiative, phaseId) {
 
 /** The live grand total and resolved track, recomputed without a rebuild. */
 export function grandMarkup(initiative) {
-  const total = E.grandTotal(initiative, app);
-  const band = E.resolveBand(PROCESS.bands, total);
+  // `initiativeTotals` already computes the grand total as `forecast` —
+  // reuse that instead of a second `E.grandTotal` walk for the same figure.
   const totals = E.initiativeTotals(initiative, app);
+  const total = totals.forecast;
+  const band = E.resolveBand(PROCESS.bands, total);
   return html`<strong>${F.money(total)}</strong>
     ${raw(coverageBadge(totals.coverage, totals))}
     — ${band ? band.name : 'Not yet known'}${raw(band
@@ -576,11 +596,15 @@ export const phasePanelClickActions = {
     });
     return commit();
   },
-  'allocation-max': ({ trigger, id }) => {
+  // A suggestion chip (C4's carry-forward, C5's usual, or the existing max-
+  // available) applies its amount — one handler, told which chip it was by
+  // `data-label`, rather than three copies differing only in that suffix.
+  'allocation-suggest': ({ trigger, id }) => {
     const initiative = findInitiative(id);
     const person = app.PEOPLE[trigger.dataset.person];
     const pct = Number(trigger.dataset.amount);
-    withUndo(`Set ${person.name} to ${pct}%`, () => {
+    const label = trigger.dataset.label ? ` (${trigger.dataset.label})` : '';
+    withUndo(`Set ${person.name} to ${pct}%${label}`, () => {
       L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, pct);
     });
     return commit();
@@ -601,7 +625,7 @@ export const phasePanelClickActions = {
     const personId = trigger.dataset.person;
     const person = app.PEOPLE[personId];
     const carry = E.carryForwardPct(PROCESS, initiative, phaseId, personId);
-    const personRoleId = person.customRole ? null : person.roleId;
+    const personRoleId = effectiveRoleId(person);
     const usual = personRoleId
       ? E.usualAllocationPct(app, initiative.teamId, personRoleId, phaseId)
       : null;
@@ -617,26 +641,6 @@ export const phasePanelClickActions = {
     const cost = phase.otherCosts.find((c) => c.id === trigger.dataset.cost);
     withUndo(`Removed ${cost.name}`, () => {
       phase.otherCosts = phase.otherCosts.filter((c) => c.id !== trigger.dataset.cost);
-    });
-    return commit();
-  },
-  // C4: carry-forward chip — apply the prior phase's allocation %.
-  'allocation-carry': ({ trigger, id }) => {
-    const initiative = findInitiative(id);
-    const person = app.PEOPLE[trigger.dataset.person];
-    const pct = Number(trigger.dataset.amount);
-    withUndo(`Set ${person.name} to ${pct}% (from prior phase)`, () => {
-      L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, pct);
-    });
-    return commit();
-  },
-  // C5: usual allocation chip — apply the historical median %.
-  'allocation-usual': ({ trigger, id }) => {
-    const initiative = findInitiative(id);
-    const person = app.PEOPLE[trigger.dataset.person];
-    const pct = Number(trigger.dataset.amount);
-    withUndo(`Set ${person.name} to ${pct}% (usual)`, () => {
-      L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, pct);
     });
     return commit();
   },
@@ -665,8 +669,7 @@ export const phasePanelClickActions = {
     const pct = F.readNumber(input?.value ?? '', 0);
     if (pct <= 0) return;
     withUndo(`Set everyone to ${pct}%`, () => {
-      for (const person of Object.values(app.PEOPLE)) {
-        if (!person.active || !E.membership(person, initiative.teamId)) continue;
+      for (const person of activeRosterPeople(initiative.teamId)) {
         L.setAllocation(app, initiative, phaseId, person.id, pct);
       }
     });
@@ -684,9 +687,8 @@ export const phasePanelClickActions = {
     if (pct <= 0 || !roleId) return;
     const roleName = app.ROLES[roleId]?.name ?? roleId;
     withUndo(`Set all ${roleName} to ${pct}%`, () => {
-      for (const person of Object.values(app.PEOPLE)) {
-        if (!person.active || !E.membership(person, initiative.teamId)) continue;
-        if (person.roleId !== roleId || person.customRole) continue;
+      for (const person of activeRosterPeople(initiative.teamId)) {
+        if (effectiveRoleId(person) !== roleId) continue;
         L.setAllocation(app, initiative, phaseId, person.id, pct);
       }
     });
@@ -700,10 +702,8 @@ export const phasePanelClickActions = {
     if (!staffing.length) return;
     const byRole = new Map(staffing.map((s) => [s.roleId, s.medianPct]));
     withUndo('Applied usual staffing', () => {
-      for (const person of Object.values(app.PEOPLE)) {
-        if (!person.active || !E.membership(person, initiative.teamId)) continue;
-        if (person.customRole) continue;
-        const pct = byRole.get(person.roleId);
+      for (const person of activeRosterPeople(initiative.teamId)) {
+        const pct = byRole.get(effectiveRoleId(person));
         if (pct) L.setAllocation(app, initiative, phaseId, person.id, pct);
       }
     });

@@ -72,11 +72,14 @@ export function panel({ id, title, mark = '', body, extraClass = '' }) {
  * `aria-current` as the reader scrolls past each panel.
  *
  * @param {Array<{ id: string, label: string }>} items
- * @param {{ activeId?: string, act?: string, attr?: string }} [opts]
+ * @param {{ activeId?: string, kind?: string }} [opts] `kind` names both the
+ *   click action and the data attribute it reads its target from — every
+ *   call site wants the same word for both, so one option does the job of
+ *   the two this used to take.
  */
-export function railNav(items, { activeId, act = 'panel', attr = 'panel' } = {}) {
-  const buttons = items.map((item) => html`<button type="button" data-act="${act}"
-    data-${attr}="${item.id}" ${raw(item.id === activeId ? 'aria-current="location"' : '')}
+export function railNav(items, { activeId, kind = 'panel' } = {}) {
+  const buttons = items.map((item) => html`<button type="button" data-act="${kind}"
+    data-${kind}="${item.id}" ${raw(item.id === activeId ? 'aria-current="location"' : '')}
     >${item.label}</button>`).join('');
   return html`<nav class="rail-nav" aria-label="Page sections"
     ${raw(activeId === undefined ? 'data-scrollspy' : '')}>${raw(buttons)}</nav>`;
@@ -123,6 +126,13 @@ export function empty(text, spec = {}) {
     <p>${text}</p>
     ${raw(spec.action ?? '')}
   </div>`;
+}
+
+/** An empty state's destination link to a team — "Go to X", not just a
+ * description of where to go — for the two places (a phase panel with no
+ * roster, a person with no allocations) that both name a team as the fix. */
+export function teamLinkAction(teamId, teamName) {
+  return html`<a class="btn btn--primary" href="#/team/${teamId}">${raw(icon('add'))}Go to ${teamName}</a>`;
 }
 
 /**

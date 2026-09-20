@@ -202,18 +202,19 @@ function capacityGridMarkup(team) {
   );
 
   if (roster.length === 0) {
-    return html`<div class="panel" id="panel-capacity"><h2>Capacity</h2>
-      ${raw(empty('Nobody active in this team yet.'))}</div>`;
+    return panel({ id: 'panel-capacity', title: 'Capacity', body: empty('Nobody active in this team yet.') });
   }
-
 
   const nowIso = today();
   const rows = roster
     .map((row) => {
       const cells = months
         .map((month) => {
-          const allocated = E.allocatedPct(app, row.person.id, month, team.id, nowIso);
-          const provisional = E.provisionalPct(app, row.person.id, month, team.id, nowIso);
+          // One breakdown scan per cell, not two: `allocatedPct`/`provisionalPct`
+          // would each re-walk it independently for the same result.
+          const breakdown = E.allocationBreakdown(app, row.person.id, month, team.id, nowIso);
+          const allocated = breakdown.filter((r) => r.confirmed).reduce((t, r) => t + r.allocationPct, 0);
+          const provisional = breakdown.filter((r) => !r.confirmed).reduce((t, r) => t + r.allocationPct, 0);
           const over = allocated > row.membership.sharePct;
           const hasAny = allocated > 0 || provisional > 0;
           return html`<td class="cap ${over ? 'cap--over' : ''} ${hasAny ? 'cap--on' : ''}">
@@ -254,22 +255,23 @@ function capacityGridMarkup(team) {
     })
     .join('');
 
-  return html`<div class="panel" id="panel-capacity">
-    <h2>Capacity</h2>
-    ${raw(yearNav("Allocation against each member's Team FTE."))}
-    <p class="muted">Each figure is Allocated % against this member's own Team FTE here — not
-      their whole Capacity %, of which this team only holds a share. Over-allocation past that
-      share is flagged, never blocked. Click a figure to see which initiatives make it up.</p>
-    ${raw(scroller('Allocation per member per month', html`<table class="grid grid--cap">
-      <thead><tr><th>Member</th>${raw(months
-        .map((m) => html`<th>${m.slice(5)}</th>`).join(''))}</tr></thead>
-      <tbody>
-        ${raw(rows)}
-        <tr class="row--spare"><th scope="row">Non-initiative work
-          <span class="micro">Team FTE not committed</span></th>${raw(spareCells)}</tr>
-      </tbody>
-    </table>`))}
-  </div>`;
+  return panel({
+    id: 'panel-capacity',
+    title: 'Capacity',
+    body: html`${raw(yearNav("Allocation against each member's Team FTE."))}
+      <p class="muted">Each figure is Allocated % against this member's own Team FTE here — not
+        their whole Capacity %, of which this team only holds a share. Over-allocation past that
+        share is flagged, never blocked. Click a figure to see which initiatives make it up.</p>
+      ${raw(scroller('Allocation per member per month', html`<table class="grid grid--cap">
+        <thead><tr><th>Member</th>${raw(months
+          .map((m) => html`<th>${m.slice(5)}</th>`).join(''))}</tr></thead>
+        <tbody>
+          ${raw(rows)}
+          <tr class="row--spare"><th scope="row">Non-initiative work
+            <span class="micro">Team FTE not committed</span></th>${raw(spareCells)}</tr>
+        </tbody>
+      </table>`))}`,
+  });
 }
 
 /** What one capacity cell is made of — a person can serve several at once. */
@@ -318,13 +320,14 @@ function runRateMarkup(team) {
   const data = E.teamRunRate(app, team.id, monthsOfYear(chartYear()), today());
   const yearTotal = data.reduce((t, row) => t + row.total, 0);
 
-  return html`<div class="panel" id="panel-run-rate">
-    <h2>Cost run rate</h2>
-    ${raw(yearNav(`${F.money(yearTotal)} across ${chartYear()}.`))}
-    ${raw(yearTotal === 0
-      ? empty('Nothing costs anything in this year yet.', { icon: 'warning' })
-      : stackedBarsMarkup(data, 'teamRunRate', 'Run rate'))}
-  </div>`;
+  return panel({
+    id: 'panel-run-rate',
+    title: 'Cost run rate',
+    body: html`${raw(yearNav(`${F.money(yearTotal)} across ${chartYear()}.`))}
+      ${raw(yearTotal === 0
+        ? empty('Nothing costs anything in this year yet.', { icon: 'warning' })
+        : stackedBarsMarkup(data, 'teamRunRate', 'Run rate'))}`,
+  });
 }
 
 export const teamClickActions = {

@@ -29,12 +29,15 @@ const PORTFOLIO_COLUMNS = [
 function portfolioRows() {
   const order = E.phaseOrder(PROCESS);
   return app.INITIATIVES.map((initiative) => {
-    const effective = E.grandTotal(initiative, app);
+    // `initiativeTotals` already computes the grand total as `forecast` —
+    // reuse that instead of a second `E.grandTotal` walk for the same figure.
+    const totals = E.initiativeTotals(initiative, app);
+    const effective = totals.forecast;
     const passed = L.lastPassedGate(PROCESS, initiative);
     return {
       initiative,
       effective,
-      totals: E.initiativeTotals(initiative, app),
+      totals,
       approved: passed ? passed.grandTotal : null,
       variance: passed ? effective - passed.grandTotal : null,
       band: E.resolveBand(PROCESS.bands, effective),
@@ -62,9 +65,13 @@ function varianceClass(r) {
 
 /** One line, one initiative, one click to where it's resolved (N1). Absent
  * entirely when nothing needs a look — calm technology says nothing here,
- * not an empty box announcing that everything is fine. */
-function attentionMarkup() {
-  const items = L.needsAttention(app, PROCESS, today());
+ * not an empty box announcing that everything is fine.
+ *
+ * Takes the already-computed list rather than deriving it again: `render()`
+ * needs the same items for the nav badge, and a second scan here would only
+ * risk the two disagreeing (N2).
+ */
+function attentionMarkup(items) {
   if (items.length === 0) return '';
 
   const rows = items
@@ -83,7 +90,7 @@ function attentionMarkup() {
   </div>`;
 }
 
-export function renderPortfolio() {
+export function renderPortfolio(attentionItems) {
   const all = portfolioRows();
   const selected = view.params.bandId ?? null;
   const rows = selected ? all.filter((r) => (r.band?.id ?? NO_BAND) === selected) : all;
@@ -195,7 +202,7 @@ export function renderPortfolio() {
         </div>
       </div>
 
-      ${raw(attentionMarkup())}
+      ${raw(attentionMarkup(attentionItems))}
 
       <div class="panel">
         <h2>Initiatives</h2>

@@ -96,10 +96,10 @@ export function createInitiative(app, process, input) {
       band: null,
       phaseCosts: {},
       // Nobody reviewed this checklist — it was never opened — so it freezes
-      // the same shape a real gate record carries, all Incomplete, no note.
-      checklist: (gate.checklist ?? []).map((item) => (
-        { id: item.id, name: item.name, description: item.description, status: 'incomplete', note: '' }
-      )),
+      // the same shape a real gate record carries: `checklistState` against
+      // the still-empty `initiative.checklist` already defaults every item
+      // to Incomplete with no note.
+      checklist: checklistState(initiative, gate),
     };
   }
 
@@ -249,6 +249,13 @@ export function setNotes(initiative, notes) {
 
 export const CHECKLIST_STATUSES = Object.freeze(['incomplete', 'tentative', 'complete']);
 
+/** How a checklist item's status reads visually — live in the requirements
+ * list and frozen in a gate's own history alike, so the two views can't
+ * silently disagree about what a status means. */
+export function checklistItemState(status) {
+  return status === 'incomplete' ? 'blocker' : status === 'tentative' ? 'warning' : 'met';
+}
+
 /** Items start Incomplete, so a gate is blocked until someone has looked at each. */
 export function checklistState(initiative, gate) {
   const stored = initiative.checklist[gate.id] ?? {};
@@ -354,7 +361,9 @@ export function unestimatedPhases(process, initiative, nowIso) {
  * @returns {Array<{ id: string, kind: 'state'|'estimates'|'checklist'|'actuals',
  *   state: 'blocker'|'warning'|'met', text: string, itemId?: string,
  *   phaseIds?: string[], carried?: boolean, originGateId?: string,
- *   originGateLabel?: string }>}
+ *   originGateLabel?: string,
+ *   checklistItem?: { id: string, name: string, description: string,
+ *     status: string, note: string } }>}
  */
 export function gateRequirements(app, process, initiative, gateId, nowIso) {
   const phase = E.phaseForGate(process, gateId);
@@ -394,7 +403,8 @@ export function gateRequirements(app, process, initiative, gateId, nowIso) {
       id: `checklist:${item.id}`,
       kind: 'checklist',
       itemId: item.id,
-      state: item.status === 'incomplete' ? 'blocker' : item.status === 'tentative' ? 'warning' : 'met',
+      checklistItem: item,
+      state: checklistItemState(item.status),
       text: item.status === 'incomplete'
         ? `“${item.name}” is not resolved`
         : item.status === 'tentative'
@@ -414,6 +424,7 @@ export function gateRequirements(app, process, initiative, gateId, nowIso) {
       carried: true,
       originGateId: item.originGateId,
       originGateLabel: item.originGateLabel,
+      checklistItem: item,
       state: 'warning',
       text: `“${item.name}” is still Tentative, carried from ${item.originGateLabel}`,
     });
@@ -529,13 +540,10 @@ function buildGateRecord(app, process, initiative, gate, outcome, reason, takenA
     grandTotal: total,
     band: band && { id: band.id, name: band.name, abbr: band.abbr, severity: band.severity },
     phaseCosts: E.phaseCosts(initiative, app),
-    checklist: checklistState(initiative, gate).map((item) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      status: item.status,
-      note: item.note,
-    })),
+    // `checklistState` already returns exactly this shape — id/name/
+    // description spread from the process's own item, status/note from what
+    // has (or hasn't) been recorded — so the snapshot is that array as-is.
+    checklist: checklistState(initiative, gate),
   };
 }
 
@@ -591,13 +599,7 @@ export function lastPassedGate(process, initiative) {
 /** Closed months — already in the past — with no actual recorded yet. Wider
  * than this (a future month, not due) is not overdue; it just hasn't happened. */
 function overdueMonths(initiative, nowMonthKey) {
-  const gaps = [];
-  for (const [phaseId, phase] of Object.entries(initiative.phases ?? {})) {
-    for (const month of E.phaseMonths(phase)) {
-      if (month < nowMonthKey && phase.actualMonths[month] === undefined) gaps.push({ phaseId, month });
-    }
-  }
-  return gaps;
+  return missingActuals(initiative).filter((gap) => gap.month < nowMonthKey);
 }
 
 /**

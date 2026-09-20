@@ -1093,27 +1093,15 @@ export function carryForwardPct(process, initiative, phaseId, personId) {
  * percentages on `phaseId` where the person's role matches `roleId`.
  * Returns the median or `null` if fewer than 2 data points exist.
  *
+ * One person's role read against `usualStaffing`'s per-role medians — the
+ * same scan, filtered down to a single role rather than repeated for it.
+ *
  * @param {object} app @param {string} teamId @param {string | null} roleId
  * @param {string} phaseId
  * @returns {number | null}
  */
 export function usualAllocationPct(app, teamId, roleId, phaseId) {
-  const samples = [];
-  for (const initiative of app.INITIATIVES) {
-    if (initiative.teamId !== teamId) continue;
-    const phase = initiative.phases[phaseId];
-    if (!phase) continue;
-    for (const allocation of phase.allocations) {
-      if (allocation.allocationPct <= 0) continue;
-      const person = app.PEOPLE[allocation.personId];
-      if (!person) continue;
-      const personRoleId = person.customRole ? null : person.roleId;
-      if (personRoleId === roleId) {
-        samples.push(allocation.allocationPct);
-      }
-    }
-  }
-  return median(samples);
+  return usualStaffing(app, teamId, phaseId).find((s) => s.roleId === roleId)?.medianPct ?? null;
 }
 
 /**

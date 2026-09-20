@@ -5,7 +5,7 @@ import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import * as store from '../store.js';
 import { PROCESS } from '../process.js';
-import { app, view, navigate, today } from '../app.js';
+import { app, view, navigate, today, syncDraftCreate } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, empty, panel } from '../render/components.js';
@@ -320,9 +320,6 @@ export const wizardInputActions = {
     const canCreate = mode === 'existing'
       ? Boolean(draft.sourceId) && (draft.name ?? '').trim()
       : Boolean((draft.name ?? '').trim());
-    const create = document.querySelector('[data-act="draft-create"]');
-    if (create instanceof HTMLButtonElement) create.disabled = !canCreate;
-    const hint = document.querySelector('[data-hint="draft-create"]');
-    if (hint instanceof HTMLElement) hint.hidden = Boolean(canCreate);
+    syncDraftCreate('draft-create', 'draft-create', canCreate);
   },
 };

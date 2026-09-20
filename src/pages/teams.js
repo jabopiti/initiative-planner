@@ -4,7 +4,7 @@
 import * as F from '../format.js';
 import * as P from '../people.js';
 import * as store from '../store.js';
-import { app, view, currentMonth, navigate, commit, withUndo, today } from '../app.js';
+import { app, view, currentMonth, navigate, commit, withUndo, today, syncDraftCreate } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, empty, badge } from '../render/components.js';
@@ -106,10 +106,6 @@ export const teamsInputActions = {
   'team-draft-field': ({ target, field }) => {
     const draft = { ...view.params.draft, [field]: target.value };
     view.params = { ...view.params, draft };
-    const named = Boolean((draft.name ?? '').trim());
-    const create = document.querySelector('[data-act="team-draft-create"]');
-    if (create instanceof HTMLButtonElement) create.disabled = !named;
-    const hint = document.querySelector('[data-hint="team-draft-create"]');
-    if (hint instanceof HTMLElement) hint.hidden = named;
+    syncDraftCreate('team-draft-create', 'team-draft-create', Boolean((draft.name ?? '').trim()));
   },
 };

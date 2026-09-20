@@ -18,23 +18,28 @@ import { icon } from '../render/icons.js';
 import { pageHead, scroller, railNav } from '../render/components.js';
 import { processSectionMarkup } from '../render/process.js';
 
+/**
+ * `gated: true` marks a section behind S2's password (a soft deterrent
+ * against casual/accidental edits on a shared device, not access control —
+ * see `PROCESS.adminPassword`'s own doc comment), kept on the section's own
+ * entry rather than a second list that could drift out of sync with this
+ * one. Unlocking is session-only (module state, like `navOpen` in
+ * `app.js`): once unlocked, stays unlocked until the page reloads, and
+ * unlocking anywhere unlocks every gated section, since it's one password
+ * guarding one trust level.
+ */
 const SETTINGS_SECTIONS = [
-  { id: 'general', label: 'General', render: renderGeneral },
+  { id: 'general', label: 'General', gated: true, render: renderGeneral },
   { id: 'data', label: 'Data', render: renderData },
   { id: 'process', label: 'Process', render: processSectionMarkup },
-  { id: 'roles', label: 'Roles', render: renderRoles },
-  { id: 'countries', label: 'Countries & rates', render: renderCountries },
+  { id: 'roles', label: 'Roles', gated: true, render: renderRoles },
+  { id: 'countries', label: 'Countries & rates', gated: true, render: renderCountries },
   { id: 'danger', label: 'Danger zone', render: renderDanger },
 ];
 
-/**
- * S2: a soft deterrent against casual/accidental edits on a shared device,
- * not access control — see `PROCESS.adminPassword`'s own doc comment.
- * Session-only (module state, like `navOpen` in `app.js`): once unlocked,
- * stays unlocked until the page reloads, and unlocking anywhere unlocks
- * every gated section, since it's one password guarding one trust level.
- */
-const GATED_SECTIONS = new Set(['general', 'roles', 'countries']);
+/** Where a missing/unknown `section` param falls back to. */
+export const DEFAULT_SECTION = SETTINGS_SECTIONS[0].id;
+
 let adminUnlocked = false;
 
 function lockedSectionMarkup(id) {
@@ -58,13 +63,13 @@ function lockedSectionMarkup(id) {
 }
 
 export function renderSettings() {
-  const section = view.params.section ?? SETTINGS_SECTIONS[0].id;
+  const section = view.params.section ?? DEFAULT_SECTION;
 
   const sections = SETTINGS_SECTIONS.map(
     (item) => html`<section id="settings-section-${item.id}" class="panel"
       aria-labelledby="settings-heading-${item.id}">
       <h2 id="settings-heading-${item.id}">${item.label}</h2>
-      ${raw(GATED_SECTIONS.has(item.id) && !adminUnlocked
+      ${raw(item.gated && !adminUnlocked
         ? lockedSectionMarkup(item.id)
         : item.render())}
     </section>`,
@@ -74,7 +79,7 @@ export function renderSettings() {
     'root',
     html`${raw(pageHead({ title: 'Settings' }))}
       <div class="rail-layout">
-        ${raw(railNav(SETTINGS_SECTIONS, { activeId: section, act: 'section', attr: 'section' }))}
+        ${raw(railNav(SETTINGS_SECTIONS, { activeId: section, kind: 'section' }))}
         <div class="rail-sections">${raw(sections)}</div>
       </div>`,
   );
@@ -87,7 +92,7 @@ export function renderSettings() {
  * section the reader is already looking at.
  */
 export function scrollToSettingsSection() {
-  const section = view.params.section ?? SETTINGS_SECTIONS[0].id;
+  const section = view.params.section ?? DEFAULT_SECTION;
   document.getElementById(`settings-section-${section}`)?.scrollIntoView({ block: 'start' });
 }
 
@@ -458,7 +463,7 @@ export const settingsClickActions = {
     navigate('settings', { ...view.params, confirmDeactivate: id }),
   'deactivate-cancel': () => navigate('settings', { ...view.params, confirmDeactivate: null }),
   'country-expand': ({ id }) => navigate('settings', {
-    section: view.params.section ?? SETTINGS_SECTIONS[0].id,
+    section: view.params.section ?? DEFAULT_SECTION,
     expanded: view.params.expanded === id ? null : id,
   }),
   'country-apply-all': ({ trigger, id }) => {
@@ -504,9 +509,9 @@ export const settingsClickActions = {
     return fill('import-preview', importPreviewMarkup());
   },
   'reset-arm': () =>
-    navigate('settings', { section: view.params.section ?? SETTINGS_SECTIONS[0].id, armed: true }),
+    navigate('settings', { section: view.params.section ?? DEFAULT_SECTION, armed: true }),
   'reset-cancel': () =>
-    navigate('settings', { section: view.params.section ?? SETTINGS_SECTIONS[0].id, armed: false }),
+    navigate('settings', { section: view.params.section ?? DEFAULT_SECTION, armed: false }),
   'admin-unlock': ({ trigger, id }) => {
     const input = trigger.closest('section')?.querySelector('input[type="password"]');
     if (!(input instanceof HTMLInputElement)) return undefined;

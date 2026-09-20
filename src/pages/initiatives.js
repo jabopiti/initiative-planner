@@ -36,14 +36,17 @@ export function renderInitiatives() {
   const order = E.phaseOrder(PROCESS);
 
   const filtered = app.INITIATIVES.map((initiative) => {
-    const total = E.grandTotal(initiative, app);
+    // `initiativeTotals` already computes the grand total as `forecast` —
+    // reuse that instead of a second `E.grandTotal` walk for the same figure.
+    const totals = E.initiativeTotals(initiative, app);
+    const total = totals.forecast;
     return {
       initiative,
       total,
       band: E.resolveBand(PROCESS.bands, total),
       teamName: app.TEAMS[initiative.teamId]?.name ?? '—',
       phaseIndex: order.indexOf(initiative.phaseId),
-      totals: E.initiativeTotals(initiative, app),
+      totals,
       // An initiative whose costed phases are not all estimated cannot pass
       // a gate that requires them. Most often that is one the creation
       // wizard was walked away from, which used to leave nothing behind to

@@ -33,6 +33,7 @@ export function renderInitiative() {
   if (!initiative) return navigate('initiatives');
 
   const deleting = view.params.confirmDelete === true;
+  const panels = panelsFor(initiative);
 
   fill(
     'root',
@@ -49,8 +50,8 @@ export function renderInitiative() {
       ${raw(deleting ? deleteConfirmMarkup(initiative) : '')}
       ${raw(stepperMarkup(initiative))}
       <div class="rail-layout">
-        ${raw(railNav(panelsFor(initiative)))}
-        <div class="rail-sections panel-stack">${raw(panelsFor(initiative)
+        ${raw(railNav(panels))}
+        <div class="rail-sections panel-stack">${raw(panels
           .map((entry) => entry.render(initiative))
           .join(''))}</div>
       </div>
@@ -476,16 +477,10 @@ const CHECK_LABELS = { incomplete: 'Incomplete', tentative: 'Tentative', complet
  * by id rather than this gate's.
  */
 function requirementsMarkup(initiative, gate, requirements) {
-  const checklist = L.checklistState(initiative, gate);
-  const carried = L.carriedForwardItems(PROCESS, initiative, gate.id);
-  const itemFor = (requirement) => (requirement.carried
-    ? carried.find((item) => item.id === requirement.itemId)
-    : checklist.find((item) => item.id === requirement.itemId));
-
   const items = requirements
     .map((requirement) => {
       const mark = requirement.state === 'met' ? 'check' : 'warning';
-      const item = requirement.kind === 'checklist' ? itemFor(requirement) : null;
+      const item = requirement.checklistItem ?? null;
       const itemGateId = requirement.carried ? requirement.originGateId : gate.id;
 
       const fix = item
@@ -527,7 +522,7 @@ function requirementsMarkup(initiative, gate, requirements) {
     .join('');
 
   return html`<ul class="reqs">${raw(items)}</ul>
-    ${raw((gate.checklist ?? []).length || carried.length
+    ${raw((gate.checklist ?? []).length || requirements.some((r) => r.carried)
       ? html`<p class="micro">Checklist items start Incomplete, so a gate with one is blocked
           until someone has looked at each. Tentative lets the gate pass with a warning, and
           carries the item forward to every later gate until it is marked Complete.</p>`
@@ -636,7 +631,10 @@ export function skipDialogMarkup(initiativeId, gateId) {
 
 /** The grand total, its track, where it sits among the bands, and variance. */
 export function bandPanelMarkup(initiative) {
-  const total = E.grandTotal(initiative, app);
+  // `initiativeTotals` already computes the grand total as `forecast` —
+  // reuse that instead of a second `E.grandTotal` walk for the same figure.
+  const totals = E.initiativeTotals(initiative, app);
+  const total = totals.forecast;
   const band = E.resolveBand(PROCESS.bands, total);
   const scale = E.bandScale(PROCESS.bands);
 
@@ -654,8 +652,6 @@ export function bandPanelMarkup(initiative) {
   const passed = L.lastPassedGate(PROCESS, initiative);
   const variance = passed ? total - passed.grandTotal : null;
   const move = passed ? E.compareBands(passed.band, band) : 'unknown';
-
-  const totals = E.initiativeTotals(initiative, app);
 
   return html`<p class="results"><strong>${F.money(total)}</strong>
       ${raw(coverageBadge(totals.coverage, totals))}
@@ -943,7 +939,7 @@ function gateChecklistDetail(record, span) {
 
   const rows = items
     .map((item) => {
-      const state = item.status === 'incomplete' ? 'blocker' : item.status === 'tentative' ? 'warning' : 'met';
+      const state = L.checklistItemState(item.status);
       return html`<li class="req req--${state}">
         <span class="req__mark">${raw(icon(state === 'met' ? 'check' : 'warning'))}</span>
         <div class="req__body">

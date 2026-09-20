@@ -7,10 +7,10 @@ import * as E from '../engine.js';
 import * as P from '../people.js';
 import { PROCESS } from '../process.js';
 import * as store from '../store.js';
-import { app, view, navigate, commit, commitQuietly, withUndo, today } from '../app.js';
+import { app, view, navigate, commit, commitQuietly, withUndo, today, syncDraftCreate } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, badge } from '../render/components.js';
+import { pageHead, scroller, empty, badge, teamLinkAction } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
 
 export function renderPerson() {
@@ -273,8 +273,7 @@ function emptyInitiativesForPerson(person) {
   return empty('Not allocated to anything yet. Allocate them from a costed phase on an '
       + `initiative ${team.name} owns.`, {
     icon: 'add',
-    action: html`<a class="btn btn--primary" href="#/team/${team.id}"
-      >${raw(icon('add'))}Go to ${team.name}</a>`,
+    action: teamLinkAction(team.id, team.name),
   });
 }
 
@@ -402,10 +401,6 @@ export const personInputActions = {
   'person-draft-field': ({ target, field }) => {
     const draft = { ...view.params.draft, [field]: target.value };
     view.params = { ...view.params, draft };
-    const named = Boolean((draft.name ?? '').trim());
-    const create = document.querySelector('[data-act="person-draft-create"]');
-    if (create instanceof HTMLButtonElement) create.disabled = !named;
-    const hint = document.querySelector('[data-hint="person-draft-create"]');
-    if (hint instanceof HTMLElement) hint.hidden = named;
+    syncDraftCreate('person-draft-create', 'person-draft-create', Boolean((draft.name ?? '').trim()));
   },
 };
