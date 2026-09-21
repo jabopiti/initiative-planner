@@ -1,17 +1,17 @@
 # Initiative Planner (white-label core)
 
-A single-user, offline **companion** for planning the **cost** and
-**people capacity** of initiatives — not a management tool that adds
-oversight, but one that takes the manual work out of estimating, tracking
-and governing them. The goal is minutes spent in the tool, not hours, and
+A multi-user **companion** for planning the **cost** and **people
+capacity** of initiatives — not a management tool that adds oversight,
+but one that takes the manual work out of estimating, tracking and
+governing them. The goal is minutes spent in the tool, not hours, and
 passing through the process's gates should feel like a side detail of the
 work, never an event of its own. See
 [SPEC.md §1](docs/SPEC.md#1-purpose--scope) for the full case.
 
-Local-first, no server, no accounts. Builds to one self-contained HTML
-file with no runtime dependencies or network calls. Data lives in the
-browser's `localStorage`; JSON export/import is the sharing and backup
-mechanism.
+Statically hosted (e.g. GitHub Pages), no custom backend. The storage and
+sync mechanism that lets multiple users read and write the same data, and
+the authentication mechanism, are not yet decided. JSON export/import
+remains available as a backup and portability path.
 
 Initiatives run through a stage-gate process that is **fixed when the
 tool is built**, not configured by the person using it: which phases
@@ -26,8 +26,10 @@ the implementation wins and the document is corrected.
 
 ## Status
 
-Complete. `npm install && npm run build` produces the shipped file. It was
-built spec-first, one phase per commit — `git log` is the build record.
+The single-user core is complete; a multi-user, statically-hosted revamp
+is now underway. `npm install && npm run build` produces the current
+build. It was built spec-first, one phase per commit — `git log` is the
+build record.
 
 ## Start here
 
@@ -45,14 +47,14 @@ built spec-first, one phase per commit — `git log` is the build record.
 ```text
 npm install
 npm run dev         # local dev server
-npm run build       # -> initiative-planner.html
+npm run build       # -> dist/ (static site)
 npm test
 npm run typecheck
 npm run lint
 npm run demo        # regenerate examples/exports/demo.json
 ```
 
-Serve the built file with `python3 -m http.server 8899` for manual
+Serve `dist/` with `python3 -m http.server 8899` for manual
 browser checks. [`examples/exports/demo.json`](examples/exports/demo.json)
 is a fictional dataset covering every state the UI renders — import it
 through Settings → Data rather than typing one in.

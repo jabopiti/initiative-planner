@@ -11,7 +11,7 @@ If the two ever disagree, the code wins and this document is wrong. See
 
 ## 1. Purpose & scope
 
-A single-user, local-first **companion** — not a management tool — for
+A multi-user **companion** — not a management tool — for
 planning the **cost** and the **people capacity** of "initiatives"
 (projects) as they run through a stage-gate process. Cost and capacity
 are co-equal outputs: the tool answers both "what will this initiative
@@ -74,7 +74,10 @@ for more time or attention than the initiatives it exists to support.
 - Multi-team initiatives (one initiative belongs to exactly one team).
 - Scenario comparison / what-if modelling.
 - Bulk actual-cost entry (actuals are entered one month at a time).
-- Audit identity (the tool does not track *who* made a change).
+- Audit identity (the tool does not track *who* made a change). **Flagged
+  for review:** multi-user work puts real pressure on this one (see
+  "Durable decisions" in [AGENTS.md](../AGENTS.md)); it stays as written
+  until that's discussed with the repo owner.
 
 ## 2. What the build fixes, and what the user changes
 
@@ -383,7 +386,10 @@ and Cancelled initiatives are excluded from it).
   disagrees with this build. There is no migration path, and a dataset whose
   phases and gates mean something different is worse than no dataset at all.
   The rejection says which of the two failed, because "wrong process" and
-  "too old" need different fixes.
+  "too old" need different fixes. With multiple users sharing data, this
+  may stop being the primary way data moves between people, but it still
+  holds as the backup/portability path, and its rejection rules stay in
+  force wherever it's used.
 - **Copy**: every table of consequence can be copied, as both plain text and
   rich HTML, so it lands as cells in a spreadsheet or as a table in a
   document.

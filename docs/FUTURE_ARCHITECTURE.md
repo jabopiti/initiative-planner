@@ -7,18 +7,22 @@ This document outlines the architectural direction for the next major iteration 
 To support team collaboration and complex UI requirements, several foundational constraints from the original `SPEC.md` and `DESIGN.md` are officially retired for this future iteration:
 
 *   **RETIRED: Single-User Limitation.** The tool will support multiple concurrent users reading and writing to the same data.
-*   **RETIRED: "Vanilla JavaScript Only."** The project will adopt a modern frontend framework to manage complex UI state and DOM synchronization.
-*   **RETIRED: "Zero Dependencies / 10-Year No-Rot."** While a lightweight footprint remains a priority, the project will accept necessary dependencies for frameworks, UI components, and data synchronization logic (e.g., CRDTs).
+*   **RETIRED: "Zero Dependencies / 10-Year No-Rot."** While a lightweight footprint remains a priority, the project will accept necessary dependencies for data synchronization and authentication logic (e.g., CRDTs).
+*   **DEFERRED, NOT RETIRED: "Vanilla JavaScript Only."** Adopting a frontend framework is not part of the current direction — vanilla JS continues to govern application and UI code. This may be revisited later, but it is not being pursued now.
 
 ## 2. Modernizing the Frontend Stack
+
+**Status: deferred, not part of the current direction.** Vanilla JS
+continues to govern application and UI code (see §1). This section is
+kept as a record of the option considered, not a plan being executed.
 
 **Problem Statement:**
 As the application grows, managing complex, highly interactive UI features (such as data grids, cross-entity capacity calculations, and popovers) via manual DOM manipulation has become a development bottleneck. 
 
-**Architectural Direction:**
-The frontend will be rebuilt or migrated to a modern declarative UI framework. This will provide an automated way to keep the user interface in sync with the underlying data state, eliminating manual DOM-updating bugs while remaining compatible with static hosting on GitHub Pages.
+**Architectural Direction (if revisited later):**
+The frontend could be rebuilt or migrated to a modern declarative UI framework. This would provide an automated way to keep the user interface in sync with the underlying data state, eliminating manual DOM-updating bugs while remaining compatible with static hosting on GitHub Pages.
 
-**To Be Defined (TBD) upon implementation:**
+**To Be Defined (TBD), if this is ever picked back up:**
 *   The specific JavaScript framework to adopt (e.g., Svelte, React, Lit, Solid).
 *   The migration strategy (e.g., an incremental rollout vs. a complete rewrite).
 *   Selection of specific headless UI libraries for complex components.

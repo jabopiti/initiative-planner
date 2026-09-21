@@ -2,9 +2,9 @@
 
 ## What this repository is
 
-This is the **white-label core** of a single-user, offline initiative
-planner, built from the documents in this folder rather than from an
-existing codebase: [SPEC.md](docs/SPEC.md) (what/why) and
+This is the **white-label core** of a multi-user initiative planner,
+built from the documents in this folder rather than from an existing
+codebase: [SPEC.md](docs/SPEC.md) (what/why) and
 [DESIGN.md](docs/DESIGN.md) (how). These documents were the
 authoritative source until code exists, at which point **the implementation
 becomes authoritative** and these documents should be corrected if they
@@ -17,17 +17,20 @@ exists to protect.
 
 ## Non-negotiable constraints
 
-- The shipped artifact is **one self-contained HTML file** with no runtime
-  dependencies, no network calls, and no server.
+- The shipped artifact is a **statically hosted site** (e.g. GitHub
+  Pages) built from a small set of static assets — no custom backend, no
+  server-side runtime. It is no longer a single self-contained HTML file;
+  network calls and third-party dependencies are permitted where the
+  hosting and multi-user model need them.
 - **Vanilla JavaScript only** — no UI framework, no state-management
-  library, no CSS framework.
-- Data lives in the browser's `localStorage` — the only thing a load ever
-  reads from. It may optionally also mirror to a file on disk (the File
-  System Access API, Chromium only, §4.7) purely as a write-through
-  convenience; a file edited elsewhere is never read back automatically.
-  JSON export/import remains the only sharing and reconciliation mechanism.
-- Single-user. No authentication, multi-user editing, FX conversion, time
-  tracking, or vacation modelling.
+  library, no CSS framework. This still governs application and UI code;
+  it does not forbid a dependency taken on for storage, sync, or auth.
+- Multi-user: concurrent users read and write the same data. The storage,
+  sync, and authentication mechanisms are not yet decided. `localStorage`
+  may still serve as an on-device cache, but it is no longer the sole
+  thing a load ever reads from.
+- Still out of scope regardless: FX conversion, time tracking, and
+  vacation modelling.
 - The process — which phases exist, which carry cost, what each gate
   requires — is **fixed at build time**, never edited by the user. Adding
   a runtime process editor means changing [SPEC.md](docs/SPEC.md) first.
@@ -87,17 +90,17 @@ These commands exist and behave as follows:
 
 ```text
 npm run dev         # local dev server
-npm run build       # -> initiative-planner.html (single file)
+npm run build       # -> dist/ (static site, ready for static hosting)
 npm test            # unit tests + a headless smoke test, node:test
 npm run typecheck   # tsc --noEmit over src/**/*.js (checkJs, not strict)
 npm run lint        # eslint over src/
 ```
 
-Serve the built file with `python3 -m http.server 8899` for browser
-checks. Engine and lifecycle regressions are covered by `npm test`, which
-also boots the built file headlessly; that proves it runs, not that it is
-right. UI changes still require real browser verification, which you are
-expected to do yourself (see "Testing expectations").
+Serve `dist/` with `python3 -m http.server 8899` for browser checks.
+Engine and lifecycle regressions are covered by `npm test`, which also
+boots the built `dist/` output headlessly; that proves it runs, not that
+it is right. UI changes still require real browser verification, which
+you are expected to do yourself (see "Testing expectations").
 
 ## Invariants
 
@@ -132,10 +135,10 @@ order it's built in:
   locking, reopening, closing) by driving the real exported functions, not
   a duplicate implementation.
 - Smoke-test the shipped artifact: `test/smoke.test.mjs` serves the built
-  file, opens it in headless Chrome and walks every page, so a change that
-  stops the app rendering fails a gate instead of reaching a browser. It
-  skips when no Chrome is installed. Keep it shallow — it answers "does it
-  run", never "is it right".
+  `dist/` output, opens it in headless Chrome and walks every page, so a
+  change that stops the app rendering fails a gate instead of reaching a
+  browser. It skips when no Chrome is installed. Keep it shallow — it
+  answers "does it run", never "is it right".
 - UI/interaction correctness beyond that has no automated coverage. **No DOM
   simulator and no browser-automation dependency** — `test/browser.mjs`
   speaks the DevTools protocol over node builtins precisely so `npm install`
@@ -165,6 +168,11 @@ order it's built in:
   Anything on that list is out of scope until SPEC.md itself is changed —
   and changing it is a decision to bring to the repo owner, not one to
   make while implementing a phase.
+- **Open, not yet resolved:** SPEC.md §1 lists "audit identity" (the tool
+  does not track *who* made a change) as a non-goal. Multi-user puts real
+  pressure on that — at minimum for surfacing conflicting edits. Do not
+  resolve this by quietly editing the non-goals list; it needs the repo
+  owner's decision first, per the rule immediately above.
 
 ### Prefer Auto-Approvable Command Shapes
 To ensure a smooth, uninterrupted "automode" experience, write shell commands in a way that remains prefix-matchable by the security sandbox. 
