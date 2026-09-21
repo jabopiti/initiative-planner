@@ -9,7 +9,6 @@ import * as E from '../engine.js';
 import * as F from '../format.js';
 import * as L from '../lifecycle.js';
 import * as store from '../store.js';
-import { PROCESS } from '../process.js';
 import {
   app, view, pendingImport, navigate, commit, commitQuietly, restoreCaretAfter, withUndo,
 } from '../app.js';
@@ -19,14 +18,17 @@ import { pageHead, scroller, railNav } from '../render/components.js';
 import { processSectionMarkup } from '../render/process.js';
 
 /**
- * `gated: true` marks a section behind S2's password (a soft deterrent
- * against casual/accidental edits on a shared device, not access control —
- * see `PROCESS.adminPassword`'s own doc comment), kept on the section's own
- * entry rather than a second list that could drift out of sync with this
- * one. Unlocking is session-only (module state, like `navOpen` in
- * `app.js`): once unlocked, stays unlocked until the page reloads, and
- * unlocking anywhere unlocks every gated section, since it's one password
- * guarding one trust level.
+ * `gated: true` marks a section that renders read-only until unlocked — a
+ * deterrent against casual/accidental edits on a shared device, kept on the
+ * section's own entry rather than a second list that could drift out of
+ * sync with this one. A lock icon on the section's own heading toggles it;
+ * there is nothing to know, so no password. Unlocking is session-only
+ * (module state, like `navOpen` in `app.js`): it stays unlocked while the
+ * reader moves between settings sections (§4.3's one continuous scroll),
+ * but resets to locked the moment they leave the Settings page entirely
+ * (`resetSettingsLock`, called from `app.js`'s `navigate`) or click the
+ * lock icon again. Unlocking anywhere unlocks every gated section, since
+ * it's one trust level, not three.
  */
 const SETTINGS_SECTIONS = [
   { id: 'general', label: 'General', gated: true, render: renderGeneral },
@@ -40,40 +42,33 @@ const SETTINGS_SECTIONS = [
 /** Where a missing/unknown `section` param falls back to. */
 export const DEFAULT_SECTION = SETTINGS_SECTIONS[0].id;
 
-let adminUnlocked = false;
+let settingsUnlocked = false;
 
-function lockedSectionMarkup(id) {
-  const failed = view.params.adminError === id;
-  return html`<p class="muted">Locked to deter accidental edits on a shared device — this
-      isn't real access control, since anyone who can open this build can also read the
-      password out of its own source.</p>
-    <div class="fields">
-      <label class="field-row">
-        <span>Admin password</span>
-        <input class="field" type="password" aria-label="Admin password" />
-      </label>
-    </div>
-    ${raw(failed
-      ? html`<p class="warn">${raw(icon('warning', 'icon--lead'))}Incorrect password.</p>`
-      : '')}
-    <div class="actions">
-      <button type="button" class="btn btn--primary" data-act="admin-unlock" data-id="${id}"
-        >Unlock</button>
-    </div>`;
+/** Called from `app.js` on any navigation that leaves the Settings page. */
+export function resetSettingsLock() {
+  settingsUnlocked = false;
+}
+
+function lockToggleMarkup(locked) {
+  const label = locked ? 'Unlock to edit' : 'Lock';
+  return html`<button type="button" class="btn btn--ghost btn--icon" data-act="settings-lock-toggle"
+    aria-label="${label}" title="${label}">${raw(icon(locked ? 'lock' : 'unlock'))}</button>`;
 }
 
 export function renderSettings() {
   const section = view.params.section ?? DEFAULT_SECTION;
 
-  const sections = SETTINGS_SECTIONS.map(
-    (item) => html`<section id="settings-section-${item.id}" class="panel"
+  const sections = SETTINGS_SECTIONS.map((item) => {
+    const locked = item.gated && !settingsUnlocked;
+    return html`<section id="settings-section-${item.id}" class="panel"
       aria-labelledby="settings-heading-${item.id}">
-      <h2 id="settings-heading-${item.id}">${item.label}</h2>
-      ${raw(item.gated && !adminUnlocked
-        ? lockedSectionMarkup(item.id)
-        : item.render())}
-    </section>`,
-  ).join('');
+      <div class="settings-section-head">
+        <h2 id="settings-heading-${item.id}">${item.label}</h2>
+        ${raw(item.gated ? lockToggleMarkup(locked) : '')}
+      </div>
+      ${raw(item.render(locked))}
+    </section>`;
+  }).join('');
 
   fill(
     'root',
@@ -98,7 +93,7 @@ export function scrollToSettingsSection() {
 
 /* ---- roles ---- */
 
-function renderRoles() {
+function renderRoles(locked) {
   const confirming = view.params.confirmDeactivate;
   const usageByRole = new Map();
   for (const person of Object.values(app.PEOPLE)) {
@@ -111,23 +106,25 @@ function renderRoles() {
         ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}Used by
               ${usage} ${usage === 1 ? 'person' : 'people'}.</span>
             <button type="button" class="btn--small btn--danger" data-act="role-active"
-              data-id="${role.id}">Yes, deactivate</button>
+              data-id="${role.id}" ${raw(locked ? 'disabled' : '')}>Yes, deactivate</button>
             <button type="button" class="btn--small" data-act="deactivate-cancel"
-              >Cancel</button>`
+              ${raw(locked ? 'disabled' : '')}>Cancel</button>`
         : role.active && usage > 0
           ? html`<button type="button" class="btn--small" data-act="role-deactivate-arm"
-              data-id="${role.id}">Deactivate</button>`
+              data-id="${role.id}" ${raw(locked ? 'disabled' : '')}>Deactivate</button>`
           : html`<button type="button" class="btn--small" data-act="role-active"
-              data-id="${role.id}">${role.active ? 'Deactivate' : 'Reactivate'}</button>`;
+              data-id="${role.id}" ${raw(locked ? 'disabled' : '')}
+              >${role.active ? 'Deactivate' : 'Reactivate'}</button>`;
 
       return html`<tr data-id="${role.id}" class="${role.active ? '' : 'row--inactive'}">
         <td><input class="field" data-act="role-field" data-field="name" data-id="${role.id}"
-          value="${role.name}" aria-label="Role name" /></td>
+          value="${role.name}" aria-label="Role name" ${raw(locked ? 'disabled' : '')} /></td>
         <td><input class="field field--abbr" data-act="role-field" data-field="abbr"
-          data-id="${role.id}" value="${role.abbr}" aria-label="Abbreviation" /></td>
+          data-id="${role.id}" value="${role.abbr}" aria-label="Abbreviation"
+          ${raw(locked ? 'disabled' : '')} /></td>
         <td>${raw(numberField({ value: role.factor, 'data-act': 'role-field',
           'data-field': 'factor', 'data-id': role.id, 'aria-label': 'Factor',
-          extraClass: 'field--pct' }))}</td>
+          extraClass: 'field--pct', ...(locked ? { disabled: true } : {}) }))}</td>
         <td class="cell--action">${raw(action)}</td>
       </tr>`;
     })
@@ -135,12 +132,13 @@ function renderRoles() {
 
   const emptyRow = html`<tr data-id="new">
     <td><input class="field" data-act="role-field" data-field="name" data-id="new"
-      placeholder="New role…" aria-label="New role name" /></td>
+      placeholder="New role…" aria-label="New role name" ${raw(locked ? 'disabled' : '')} /></td>
     <td><input class="field field--abbr" data-act="role-field" data-field="abbr"
-      data-id="new" placeholder="Abbr" aria-label="Abbreviation" /></td>
+      data-id="new" placeholder="Abbr" aria-label="Abbreviation"
+      ${raw(locked ? 'disabled' : '')} /></td>
     <td>${raw(numberField({ 'data-act': 'role-field',
       'data-field': 'factor', 'data-id': 'new', 'aria-label': 'Factor', placeholder: '100',
-      extraClass: 'field--pct' }))}</td>
+      extraClass: 'field--pct', ...(locked ? { disabled: true } : {}) }))}</td>
     <td></td>
   </tr>`;
 
@@ -156,7 +154,7 @@ function renderRoles() {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function renderCountries() {
+function renderCountries(locked) {
   const expanded = view.params.expanded ?? null;
   const confirming = view.params.confirmDeactivate;
   const thisYear = new Date().getFullYear();
@@ -176,14 +174,15 @@ function renderCountries() {
         ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}Used by
               ${usage} ${usage === 1 ? 'person' : 'people'}.</span>
             <button type="button" class="btn--small btn--danger" data-act="country-active"
-              data-id="${country.id}">Yes, deactivate</button>
+              data-id="${country.id}" ${raw(locked ? 'disabled' : '')}>Yes, deactivate</button>
             <button type="button" class="btn--small" data-act="deactivate-cancel"
-              >Cancel</button>`
+              ${raw(locked ? 'disabled' : '')}>Cancel</button>`
         : country.active && usage > 0
           ? html`<button type="button" class="btn--small" data-act="country-deactivate-arm"
-              data-id="${country.id}">Deactivate</button>`
+              data-id="${country.id}" ${raw(locked ? 'disabled' : '')}>Deactivate</button>`
           : html`<button type="button" class="btn--small" data-act="country-active"
-              data-id="${country.id}">${country.active ? 'Deactivate' : 'Reactivate'}</button>`;
+              data-id="${country.id}" ${raw(locked ? 'disabled' : '')}
+              >${country.active ? 'Deactivate' : 'Reactivate'}</button>`;
 
       const yearBlocks = years
         .map((year) => {
@@ -199,6 +198,7 @@ function renderCountries() {
                 'data-month': index,
                 'aria-label': `${label} ${year} working days`,
                 extraClass: 'field--tiny',
+                ...(locked ? { disabled: true } : {}),
               }))}
             </td>`,
           ).join('');
@@ -212,6 +212,7 @@ function renderCountries() {
               'data-year': year,
               'aria-label': `${year} day rate`,
               extraClass: `field--money ${record.rate < 0 ? 'field--warn' : ''}`,
+              ...(locked ? { disabled: true } : {}),
             }))}
               ${raw(record.rate < 0
                 ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}A negative
@@ -226,12 +227,15 @@ function renderCountries() {
                   'aria-label': `Value to apply to every month of ${year}`,
                   placeholder: 'Value',
                   extraClass: 'field--tiny',
+                  ...(locked ? { disabled: true } : {}),
                 }))}
                 <button type="button" class="btn--small" data-act="country-apply-all"
-                  data-id="${country.id}" data-year="${year}">Apply to every month</button>
+                  data-id="${country.id}" data-year="${year}" ${raw(locked ? 'disabled' : '')}
+                  >Apply to every month</button>
                 ${raw(years.length > 1
                   ? html`<button type="button" class="btn--small" data-act="country-copy-year"
-                      data-id="${country.id}" data-year="${year}">Copy to other years</button>`
+                      data-id="${country.id}" data-year="${year}" ${raw(locked ? 'disabled' : '')}
+                      >Copy to other years</button>`
                   : '')}
               </div>
               ${raw(scroller(`Working days in ${year}`,
@@ -243,7 +247,7 @@ function renderCountries() {
       return html`<tbody data-id="${country.id}" class="${country.active ? '' : 'row--inactive'}">
         <tr>
           <td><input class="field" data-act="country-field" data-field="name" data-id="${country.id}"
-            value="${country.name}" aria-label="Country name" />
+            value="${country.name}" aria-label="Country name" ${raw(locked ? 'disabled' : '')} />
             ${raw(zeroRate
               ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}${thisYear}
                   rate is 0 — everyone here costs nothing this year</span>`
@@ -267,7 +271,8 @@ function renderCountries() {
   const emptyRow = html`<tbody data-id="new">
     <tr>
       <td><input class="field" data-act="country-field" data-field="name" data-id="new"
-        placeholder="New country…" aria-label="New country name" /></td>
+        placeholder="New country…" aria-label="New country name"
+        ${raw(locked ? 'disabled' : '')} /></td>
       <td></td>
     </tr>
   </tbody>`;
@@ -285,12 +290,13 @@ function renderCountries() {
 
 /* ---- general ---- */
 
-function renderGeneral() {
+function renderGeneral(locked) {
   return html`<div class="fields">
     <label class="field-row">
       <span>Days before the export reminder appears</span>
       ${raw(numberField({ value: app.GENERAL.exportReminderDays, 'data-act': 'general-field',
-        'data-field': 'exportReminderDays', extraClass: 'field--pct' }))}
+        'data-field': 'exportReminderDays', extraClass: 'field--pct',
+        ...(locked ? { disabled: true } : {}) }))}
     </label>
   </div>
   <p class="muted">0 turns the reminder off entirely, rather than hiding it.</p>`;
@@ -512,14 +518,9 @@ export const settingsClickActions = {
     navigate('settings', { section: view.params.section ?? DEFAULT_SECTION, armed: true }),
   'reset-cancel': () =>
     navigate('settings', { section: view.params.section ?? DEFAULT_SECTION, armed: false }),
-  'admin-unlock': ({ trigger, id }) => {
-    const input = trigger.closest('section')?.querySelector('input[type="password"]');
-    if (!(input instanceof HTMLInputElement)) return undefined;
-    if (input.value === PROCESS.adminPassword) {
-      adminUnlocked = true;
-      return navigate('settings', { ...view.params, adminError: null });
-    }
-    return navigate('settings', { ...view.params, adminError: id });
+  'settings-lock-toggle': () => {
+    settingsUnlocked = !settingsUnlocked;
+    return renderSettings();
   },
 };
 

@@ -20,13 +20,6 @@
  * and a brand build free to pick its own has nowhere else agnostic code
  * could source it from.
  *
- * `adminPassword` (SPEC §2, DESIGN §4): gates edits to General, Roles and
- * Countries & rates. A hardcoded constant, not user-set and with no
- * first-run prompt — changing it means rebuilding, same as any other value
- * on this page. Explicitly a soft deterrent against casual or accidental
- * changes on a shared device, never real access control: a client-side
- * password in an offline, single-file app cannot be more than that.
- *
  * Everything here is fictional placeholder content, shaped to exercise the
  * model rather than to look tidy: four phases, only two of them costed, a
  * mix of skippable and mandatory gates, and checklists on some gates but not
@@ -38,7 +31,6 @@ export const PROCESS = {
   version: 1,
   currency: '€',
   wordmark: 'Initiative Planner',
-  adminPassword: 'admin',
 
   phases: [
     {
@@ -125,7 +117,7 @@ export const PROCESS = {
   bands: [
     {
       id: 'band_light',
-      name: 'Light touch',
+      name: 'Light',
       abbr: 'LT',
       lower: 0,
       upper: 50000,
@@ -137,7 +129,7 @@ export const PROCESS = {
       name: 'Standard',
       abbr: 'STD',
       lower: 50000,
-      upper: 250000,
+      upper: 200000,
       req: 'Department head sign-off.',
       severity: 2,
     },
@@ -145,7 +137,7 @@ export const PROCESS = {
       id: 'band_major',
       name: 'Major',
       abbr: 'MAJ',
-      lower: 250000,
+      lower: 200000,
       upper: null,
       req: 'Board approval and a written business case.',
       severity: 3,

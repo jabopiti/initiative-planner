@@ -43,7 +43,7 @@ import {
 import { renderCapacity } from './pages/capacity.js';
 import {
   renderSettings, importPreviewMarkup, scrollToSettingsSection, fileStatusMarkup,
-  settingsClickActions, settingsInputActions, DEFAULT_SECTION,
+  settingsClickActions, settingsInputActions, DEFAULT_SECTION, resetSettingsLock,
 } from './pages/settings.js';
 
 /* ------------------------------------------------------------------ *
@@ -623,6 +623,17 @@ function parseHash() {
 }
 
 /**
+ * The single place `view` is replaced, so a Settings section's lock (§4.3)
+ * can reset exactly when the reader leaves the page it guards — moving
+ * between sections within Settings keeps it, since that is one continuous
+ * scroll, not a departure.
+ */
+function setView(next) {
+  if (view.page === 'settings' && next.page !== 'settings') resetSettingsLock();
+  view = next;
+}
+
+/**
  * Move focus to the page and tell assistive tech what changed. There is no
  * page reload to do this for free the way there is on a normal site (§2.1).
  * The heading is read back from what just rendered rather than looked up
@@ -642,7 +653,7 @@ function announceNavigation() {
 }
 
 export function navigate(page, params = {}) {
-  view = { page, params };
+  setView({ page, params });
   // Going somewhere is what the collapsed menu is for, so arriving closes it.
   navOpen = false;
   render();
@@ -1206,7 +1217,7 @@ export function boot() {
   // itself — re-deriving the same view from the same string, so that leg is
   // a harmless repeat of a render that already happened.
   window.addEventListener('hashchange', () => {
-    view = parseHash();
+    setView(parseHash());
     render();
     announceNavigation();
   });

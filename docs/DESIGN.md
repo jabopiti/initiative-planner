@@ -147,15 +147,11 @@ Renaming a label is free.
 on their concrete values, only on their shape:
 
 1. **`src/process.js`** — the compiled-in process and approval tracks, the
-   governance the build fixes (SPEC §2), plus three build-fixed identity
+   governance the build fixes (SPEC §2), plus two build-fixed identity
    fields that aren't process structure but have nowhere more agnostic to
    live: `currency` and `wordmark` (§4.8 — the app's own name, read once at
-   boot into the shell and the document title), and the **admin password**
-   (SPEC §2) — a hardcoded constant, not read from anywhere a user could
-   change it, and documented at its point of use as a soft deterrent only:
-   a client-side password in an offline, single-file app cannot be real
-   access control, and this file must never imply otherwise. That file is
-   the shape; read it rather than a copy of it here.
+   boot into the shell and the document title). That file is the shape;
+   read it rather than a copy of it here.
 
    Every phase has a gate, including the last, whose gate closes the
    initiative (SPEC §6). Ids in it are permanent — they end up in stored

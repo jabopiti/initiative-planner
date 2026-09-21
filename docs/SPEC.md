@@ -102,13 +102,13 @@ depends on it.
 - Teams and people, with their memberships and Team FTE %s.
 - The export-reminder threshold.
 - Export, import and reset.
-- **An admin password** gates edits to Roles, Countries & rates and
-  General — Data and Danger zone stay open to everyone regardless. It is
-  a hardcoded, build-time constant (the same category as the process
-  identity below), explicitly a soft deterrent against casual or
-  accidental changes on a shared device, never real access control — a
-  client-side password in an offline, single-file app cannot be more than
-  that, and it is documented as such rather than sold as security.
+- **A lock/unlock toggle** on Roles, Countries & rates and General: each
+  renders read-only until a lock icon on its heading is clicked, and
+  re-locks when that icon is clicked again or the reader leaves Settings
+  entirely — moving between sections within Settings does not re-lock it.
+  Data and Danger zone stay editable regardless. This is a deterrent
+  against casual or accidental changes on a shared device, not access
+  control — there is no password to protect it with.
 
 The process is visible but not editable, on its own page.
 

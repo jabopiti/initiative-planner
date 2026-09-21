@@ -74,6 +74,7 @@ const PATHS = {
   'custom-rate': ['M8 2.75l5.25 5.25-5.25 5.25-5.25-5.25z'],
   'not-in-capacity': ['M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z', 'M5.5 8h5'],
   lock: ['M4.75 7.25h6.5v6h-6.5z', 'M6.25 7.25v-2a1.75 1.75 0 1 1 3.5 0v2'],
+  unlock: ['M4.75 7.25h6.5v6h-6.5z', 'M6.25 7.25v-2a1.75 1.75 0 1 1 3.5 0'],
 
   // Row actions: Deactivate reuses `inactive` — the state a person or team
   // is moving to.

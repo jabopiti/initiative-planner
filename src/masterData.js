@@ -22,9 +22,17 @@
  */
 import { weekdaysInMonth, trackedYears } from './engine.js';
 
-/** A rough public-holiday calendar: reduction off each month's weekdays. */
-const NORTH_HOLIDAYS = [2, 1, 1, 2, 2, 0, 0, 3, 0, 1, 1, 4];
-const SOUTH_HOLIDAYS = [1, 0, 2, 1, 3, 1, 0, 2, 1, 0, 2, 3];
+/**
+ * A rough public-holiday calendar: reduction off each month's weekdays.
+ * Germany: Hamburg's 10 statutory holidays (incl. Reformation Day, which
+ * only some states observe) — Jan 1; Good Friday + Easter Monday; May 1 +
+ * Ascension Day; Whit Monday; Oct 3 + Oct 31; Dec 25 + 26.
+ * Spain: Madrid city's 12 statutory holidays — Jan 1 + 6; Good Friday;
+ * May 1 + May 2 (Comunidad de Madrid Day); Aug 15; Oct 12; Nov 1 + Nov 9
+ * (La Almudena, a municipal holiday); Dec 6 + 8 + 25.
+ */
+const GERMANY_HOLIDAYS = [1, 0, 0, 2, 2, 1, 0, 0, 0, 2, 0, 2];
+const SPAIN_HOLIDAYS = [2, 0, 0, 1, 2, 0, 0, 1, 0, 1, 2, 3];
 
 /** @param {number} year @param {number[]} holidays reduction per month */
 function workingDaysByMonth(year, holidays) {
@@ -57,30 +65,30 @@ export function createMasterData(now = new Date().getFullYear()) {
 
 
     ROLES: {
-      role_eng: { id: 'role_eng', name: 'Engineer', abbr: 'ENG', factor: 1.0, active: true },
-      role_des: { id: 'role_des', name: 'Designer', abbr: 'DES', factor: 1.0, active: true },
-      role_lead: { id: 'role_lead', name: 'Lead', abbr: 'LEAD', factor: 1.25, active: true },
-      role_pm: { id: 'role_pm', name: 'Product Manager', abbr: 'PM', factor: 1.1, active: true },
+      role_pm: { id: 'role_pm', name: 'Product Manager', abbr: 'PM', factor: 0.8, active: true },
+      role_xd: { id: 'role_xd', name: 'Experience Designer', abbr: 'XD', factor: 1.0, active: true },
+      role_tl: { id: 'role_tl', name: 'Tech Lead', abbr: 'TL', factor: 0.8, active: true },
+      role_dev: { id: 'role_dev', name: 'Developer', abbr: 'DEV', factor: 1.0, active: true },
     },
 
     COUNTRIES: {
-      country_north: {
-        id: 'country_north',
-        name: 'Northland',
+      country_germany: {
+        id: 'country_germany',
+        name: 'Germany',
         active: true,
         // Rate drifts upward year on year so tests can tell the years apart.
         byYear: byYear(years, (year, i) => ({
-          rate: 600 + i * 25,
-          workingDays: workingDaysByMonth(year, NORTH_HOLIDAYS),
+          rate: 1000 + i * 25,
+          workingDays: workingDaysByMonth(year, GERMANY_HOLIDAYS),
         })),
       },
-      country_south: {
-        id: 'country_south',
-        name: 'Southland',
+      country_spain: {
+        id: 'country_spain',
+        name: 'Spain',
         active: true,
         byYear: byYear(years, (year, i) => ({
-          rate: 420 + i * 15,
-          workingDays: workingDaysByMonth(year, SOUTH_HOLIDAYS),
+          rate: 800 + i * 15,
+          workingDays: workingDaysByMonth(year, SPAIN_HOLIDAYS),
         })),
       },
     },
@@ -96,9 +104,9 @@ export function createMasterData(now = new Date().getFullYear()) {
         id: 'person_ada',
         name: 'Ada Vance',
         active: true,
-        countryId: 'country_north',
+        countryId: 'country_germany',
         capacityPct: 100,
-        roleId: 'role_lead',
+        roleId: 'role_tl',
         customRole: null,
         memberships: [
           { teamId: 'team_platform', sharePct: 60, active: true },
@@ -109,9 +117,9 @@ export function createMasterData(now = new Date().getFullYear()) {
         id: 'person_bo',
         name: 'Bo Ferreira',
         active: true,
-        countryId: 'country_north',
+        countryId: 'country_germany',
         capacityPct: 100,
-        roleId: 'role_eng',
+        roleId: 'role_dev',
         customRole: null,
         memberships: [{ teamId: 'team_platform', sharePct: 100, active: true }],
       },
@@ -119,9 +127,9 @@ export function createMasterData(now = new Date().getFullYear()) {
         id: 'person_cy',
         name: 'Cy Okafor',
         active: true,
-        countryId: 'country_south',
+        countryId: 'country_spain',
         capacityPct: 80,
-        roleId: 'role_des',
+        roleId: 'role_xd',
         customRole: null,
         memberships: [{ teamId: 'team_growth', sharePct: 80, active: true }],
       },
@@ -130,7 +138,7 @@ export function createMasterData(now = new Date().getFullYear()) {
         id: 'person_di',
         name: 'Di Marchetti',
         active: true,
-        countryId: 'country_south',
+        countryId: 'country_spain',
         capacityPct: 100,
         roleId: null,
         customRole: {
@@ -144,7 +152,7 @@ export function createMasterData(now = new Date().getFullYear()) {
         id: 'person_el',
         name: 'El Nakamura',
         active: true,
-        countryId: 'country_north',
+        countryId: 'country_germany',
         capacityPct: 100,
         roleId: 'role_pm',
         customRole: null,

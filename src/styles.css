@@ -147,6 +147,7 @@
      the whole scale from that one number rather than seven. A tight ratio
      between steps, so eight levels coexist without any of them shouting
      over the data. */
+  --text-3xs: calc(var(--brand-text-base) * 0.55);
   --text-2xs: calc(var(--brand-text-base) * 0.7857);
   --text-xs: calc(var(--brand-text-base) * 0.8571);
   --text-sm: calc(var(--brand-text-base) * 0.9286);
@@ -164,6 +165,7 @@
   --leading-normal: 1.45;
 
   --tracking-wide: 0.06em;
+  --tracking-loose: 0.13em;
   --tracking-tight: -0.01em;
   --measure: 64ch;
   /* A prose cell needs a floor, or the table squeezes it to one word a line. */
@@ -1982,6 +1984,18 @@ body:has(.summary) #toast {
   min-width: 0;
 }
 
+.settings-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.settings-section-head h2 {
+  margin: 0;
+  margin-right: auto;
+}
+
 @media (max-width: 48rem) {
   .rail-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -2132,8 +2146,8 @@ body:has(.summary) #toast {
    words on every repeat, but the words are what a screen reader gets. */
 .dot-progress {
   margin-right: var(--space-half);
-  font-size: 0.7em;
-  letter-spacing: 1px;
+  font-size: var(--text-3xs);
+  letter-spacing: var(--tracking-loose);
 }
 
 .step--passed {
