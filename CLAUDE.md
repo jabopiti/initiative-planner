@@ -24,13 +24,6 @@ npm run lint && npm run typecheck && npm test && npm run build
 Don't call something done until it is. Not "mostly", not "true once I
 circle back".
 
-This repo doesn't use an issue tracker. A future body of work large enough
-to need sequencing gets the same treatment REVAMP.md got: a temporary plan
-document scoping the work and the decisions it waits on, deleted once it
-lands. Deferred work and discovered gaps in the meantime are a conversation
-with Bo, not a ticket. Don't create GitHub issues here, and don't set up a
-board.
-
 ## Verifying UI yourself
 
 `npm test` boots the built file and checks every page renders — that is a
