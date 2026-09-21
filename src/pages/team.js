@@ -4,12 +4,22 @@ import * as F from '../format.js';
  */
 import * as E from '../engine.js';
 import * as P from '../people.js';
+import * as store from '../store.js';
 import { PROCESS } from '../process.js';
-import { app, view, navigate } from '../app.js';
+import { app, view, navigate, commit, commitQuietly, openPopover, withUndo, today } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, badge } from '../render/components.js';
+import { pageHead, scroller, empty, badge, panel, railNav } from '../render/components.js';
 import { chartYear, monthsOfYear, yearNav, stackedBarsMarkup } from '../render/charts.js';
+
+/** Every panel on this page, in the order it appears — the rail nav's list. */
+const TEAM_PANELS = [
+  { id: 'panel-name', label: 'Name' },
+  { id: 'panel-roster', label: 'Roster' },
+  { id: 'panel-initiatives', label: 'Initiatives' },
+  { id: 'panel-capacity', label: 'Capacity' },
+  { id: 'panel-run-rate', label: 'Cost run rate' },
+];
 
 export function renderTeam() {
   if (view.params.id === 'new') return renderTeamDraft();
@@ -26,14 +36,14 @@ export function renderTeam() {
       const warning = P.shareWarning(row.person);
       return html`<tr class="row--clickable ${row.membership.active && row.person.active ? '' : 'row--inactive'}">
         <td><a class="row-link" href="#/person/${row.person.id}">${row.person.name}</a>
-          ${raw(row.person.active ? '' : badge('person inactive', 'quiet'))}</td>
+          ${raw(row.person.active ? '' : badge('', 'quiet', 'inactive', 'Person inactive'))}</td>
         <td>${E.roleLabel(row.person, app.ROLES)}</td>
         <td>${raw(numberField({
           value: row.membership.sharePct,
           'data-act': 'membership-share',
           'data-id': row.person.id,
           'data-team': team.id,
-          'aria-label': `${row.person.name} share`,
+          'aria-label': `${row.person.name} Team FTE %`,
           extraClass: `field--pct ${warning.overCommitted ? 'field--warn' : ''}`,
         }))}</td>
         <td class="num">${row.person.capacityPct}%</td>
@@ -44,16 +54,21 @@ export function renderTeam() {
         <td class="cell--action">
           <button type="button" class="btn--small" data-act="membership-active"
             data-id="${row.person.id}" data-team="${team.id}"
-            >${row.membership.active ? 'Leave team' : 'Rejoin'}</button>
+            >${raw(icon(row.membership.active ? 'leave' : 'rejoin'))}${row.membership.active ? 'Leave team' : 'Rejoin'}</button>
         </td>
       </tr>`;
     })
     .join('');
 
-  const joinable = Object.values(app.PEOPLE).filter(
-    (person) =>
-      person.active && !(person.memberships ?? []).some((m) => m.teamId === team.id && m.active),
-  );
+  // A deactivated team gains no new membership — matching the deactivated-
+  // person rule below, which excludes them from every OTHER team's list the
+  // same way.
+  const joinable = team.active
+    ? Object.values(app.PEOPLE).filter(
+        (person) =>
+          person.active && !(person.memberships ?? []).some((m) => m.teamId === team.id && m.active),
+      )
+    : [];
 
   const initiativeRows = initiatives
     .map(
@@ -72,61 +87,78 @@ export function renderTeam() {
       title: team.name,
       back: { page: 'teams', label: 'Teams' },
       actions: html`<button type="button" class="btn" data-act="team-active"
-        data-id="${team.id}">${team.active ? 'Deactivate' : 'Reactivate'}</button>`,
+        data-id="${team.id}">${raw(icon(team.active ? 'inactive' : 'reactivate'))}
+        ${team.active ? 'Deactivate' : 'Reactivate'}</button>`,
     }))}
       ${raw(team.active ? '' : html`<p class="panel banner banner--alert warn">
-        ${raw(icon('warning', 'icon--lead'))}This team is deactivated.</p>`)}
+        ${raw(icon('warning', 'icon--lead'))}This team is deactivated. Existing work keeps
+        running; no one can join while it stays deactivated.</p>`)}
 
-      <div class="panel">
-        <h2>Name</h2>
-        <div class="fields"><label class="field-row"><span>Team name</span>
-          <input class="field" data-act="team-name" data-id="${team.id}"
-            value="${team.name}" /></label></div>
-      </div>
+      <div class="rail-layout">
+        ${raw(railNav(TEAM_PANELS))}
+        <div class="rail-sections panel-stack">
+          ${raw(panel({
+            id: 'panel-name',
+            title: 'Name',
+            body: html`<div class="fields"><label class="field-row"><span>Team name</span>
+              <input class="field" data-act="team-name" data-id="${team.id}"
+                value="${team.name}" /></label></div>`,
+          }))}
 
-      <div class="panel">
-        <h2>Roster</h2>
-        <p class="muted">A share is how much of a person this team holds. Editing it here is
-          the same edit as editing it on the person — there is one record, seen from two
-          sides. People are added by assigning someone who already exists, and removed by
-          leaving the team, never by deletion.</p>
-        ${raw(roster.length || joinable.length
-          // The inline add-row lives inside this table, so a team with an
-          // empty roster still needs the table rendered whenever there is
-          // anyone left to add — hiding it behind the empty state would hide
-          // the only control that fixes it (§4.6).
-          ? scroller('Team roster', html`<table class="grid">
-              <thead><tr><th>Person</th><th>Role</th><th>Share %</th><th>Capacity %</th>
-                <th></th><th></th></tr></thead>
-              <tbody>
-                ${raw(rosterRows)}
-                ${raw(joinable.length ? html`<tr data-id="new">
-                  <td><select class="field field--select" data-act="add-member" data-id="${team.id}">
-                    <option value="" disabled selected>Add to team…</option>
-                    ${raw(joinable.map((p) => html`<option value="${p.id}">${p.name}</option>`).join(''))}
-                  </select></td>
-                  <td colspan="5"></td>
-                </tr>` : '')}
-              </tbody></table>`)
-          : empty('Nobody to add — every active person already belongs here, or there are '
-              + 'no active people yet.'))}
-      </div>
+          ${raw(panel({
+            id: 'panel-roster',
+            title: 'Roster',
+            body: html`<p class="muted">A Team FTE is how much of a person this team holds.
+                Editing it here is the same edit as editing it on the person — there is one
+                record, seen from two sides. People are added by assigning someone who already
+                exists, and removed by leaving the team, never by deletion.</p>
+              ${raw(roster.length || joinable.length
+                // The inline add-row lives inside this table, so a team with an
+                // empty roster still needs the table rendered whenever there is
+                // anyone left to add — hiding it behind the empty state would hide
+                // the only control that fixes it (§4.6).
+                ? scroller('Team roster', html`<table class="grid">
+                    <thead><tr><th>Person</th><th>Role</th><th>Team FTE %</th><th>Capacity %</th>
+                      <th></th><th></th></tr></thead>
+                    <tbody>
+                      ${raw(rosterRows)}
+                      ${raw(joinable.length ? html`<tr data-id="new">
+                        <td><select class="field field--select" data-act="add-member" data-id="${team.id}">
+                          <option value="" disabled selected>Add to team…</option>
+                          ${raw(joinable.map((p) => html`<option value="${p.id}">${p.name}</option>`).join(''))}
+                        </select></td>
+                        <td colspan="5"></td>
+                      </tr>` : '')}
+                    </tbody></table>`)
+                : empty(team.active
+                    ? 'Nobody to add — every active person already belongs here, or there are '
+                      + 'no active people yet.'
+                    : 'This team is deactivated, so no one can be added to it.'))}`,
+          }))}
 
-      <div class="panel">
-        <h2>Initiatives</h2>
-        ${raw(initiatives.length
-          ? scroller('Initiatives owned by this team', html`<table class="grid">
-              <thead><tr><th>Name</th><th>Phase</th><th>Status</th><th>Total</th></tr></thead>
-              <tbody>${raw(initiativeRows)}</tbody></table>`)
-          : empty('This team has no initiatives yet. Create one from Initiatives, with this '
-              + 'team selected.'))}
-        ${raw(deletable.ok
-          ? ''
-          : html`<p class="muted">This team cannot be deleted while it owns initiatives.</p>`)}
-      </div>
+          ${raw(panel({
+            id: 'panel-initiatives',
+            title: 'Initiatives',
+            body: html`${raw(initiatives.length
+                ? scroller('Initiatives owned by this team', html`<table class="grid">
+                    <thead><tr><th>Name</th><th>Phase</th><th>Status</th><th>Total</th></tr></thead>
+                    <tbody>${raw(initiativeRows)}</tbody></table>`)
+                : empty('This team has no initiatives yet. Create one with this team already selected.', {
+                    icon: 'add',
+                    action: html`<button type="button" class="btn btn--primary"
+                      data-act="team-new-initiative" data-id="${team.id}"
+                      >${raw(icon('add'))}New initiative</button>`,
+                  }))}
+              ${raw(deletable.ok
+                ? ''
+                : html`<p class="muted">This team cannot be deleted while it owns
+                    ${deletable.blockers.join(', ')}.</p>`)}`,
+          }))}
 
-      ${raw(capacityGridMarkup(team))}
-      ${raw(runRateMarkup(team))}`,
+          ${raw(capacityGridMarkup(team))}
+          ${raw(runRateMarkup(team))}
+        </div>
+      </div>`,
   );
 }
 
@@ -152,15 +184,16 @@ function renderTeamDraft() {
             >${raw(icon('add'))}Create team</button>
           <button type="button" class="btn" data-act="team-draft-discard">Cancel</button>
         </div>
-        ${raw((draft.name ?? '').trim() ? '' : html`<p class="muted">A name is needed first.</p>`)}
+        <p class="muted" data-hint="team-draft-create" ${raw((draft.name ?? '').trim() ? 'hidden' : '')}
+          >A name is needed first.</p>
       </div>`,
   );
 }
 
 /**
  * One row per active member, one column per month. Rows are bounded by the
- * member's share in *this* team, not their whole capacity — a person split
- * 60/40 shows against 60 here.
+ * member's Team FTE in *this* team, not their whole capacity — a person
+ * split 60/40 shows against 60 here.
  */
 function capacityGridMarkup(team) {
   const months = monthsOfYear(chartYear());
@@ -169,19 +202,23 @@ function capacityGridMarkup(team) {
   );
 
   if (roster.length === 0) {
-    return html`<div class="panel"><h2>Capacity</h2>
-      ${raw(empty('Nobody active in this team yet.'))}</div>`;
+    return panel({ id: 'panel-capacity', title: 'Capacity', body: empty('Nobody active in this team yet.') });
   }
 
-
+  const nowIso = today();
   const rows = roster
     .map((row) => {
       const cells = months
         .map((month) => {
-          const allocated = E.allocatedPct(app, row.person.id, month, team.id);
+          // One breakdown scan per cell, not two: `allocatedPct`/`provisionalPct`
+          // would each re-walk it independently for the same result.
+          const breakdown = E.allocationBreakdown(app, row.person.id, month, team.id, nowIso);
+          const allocated = breakdown.filter((r) => r.confirmed).reduce((t, r) => t + r.allocationPct, 0);
+          const provisional = breakdown.filter((r) => !r.confirmed).reduce((t, r) => t + r.allocationPct, 0);
           const over = allocated > row.membership.sharePct;
-          return html`<td class="cap ${over ? 'cap--over' : ''} ${allocated ? 'cap--on' : ''}">
-            ${raw(allocated
+          const hasAny = allocated > 0 || provisional > 0;
+          return html`<td class="cap ${over ? 'cap--over' : ''} ${hasAny ? 'cap--on' : ''}">
+            ${raw(hasAny
               ? html`<button type="button" class="cap__btn" data-act="capacity-cell"
                   data-person="${row.person.id}" data-team="${team.id}" data-month="${month}"
                   title="${row.person.name}, ${F.month(month)}: ${allocated}% allocated">
@@ -190,12 +227,15 @@ function capacityGridMarkup(team) {
               // cannot traverse is worse than no keyboard support at all.
               : html`<span class="cap__empty" tabindex="-1"
                   aria-label="${row.person.name}, ${F.month(month)}, nothing allocated">—</span>`)}
+            ${raw(provisional
+              ? html`<span class="cap__provisional">+${provisional}% provisional</span>`
+              : '')}
           </td>`;
         })
         .join('');
       return html`<tr>
         <th scope="row">${row.person.name}
-          <span class="micro">share ${row.membership.sharePct}%</span></th>
+          <span class="micro">Team FTE ${row.membership.sharePct}%</span></th>
         ${raw(cells)}
       </tr>`;
     })
@@ -204,50 +244,55 @@ function capacityGridMarkup(team) {
   const spareCells = months
     .map((month) => {
       const pct = roster.reduce(
-        (total, row) => total + E.nonInitiativeWorkPct(app, row.person.id, team.id, month),
+        (total, row) => total + E.nonInitiativeWorkPct(app, row.person.id, team.id, month, nowIso),
         0,
       );
       const cost = roster.reduce(
-        (total, row) => total + E.nonInitiativeWorkCost(app, row.person.id, team.id, month),
+        (total, row) => total + E.nonInitiativeWorkCost(app, row.person.id, team.id, month, nowIso),
         0,
       );
       return html`<td class="cap cap--spare">${pct}%<span class="micro">${F.money(cost)}</span></td>`;
     })
     .join('');
 
-  return html`<div class="panel">
-    <h2>Capacity</h2>
-    ${raw(yearNav('Allocation against each member’s share of this team.'))}
-    <p class="muted">Over-allocation past a member’s share is flagged, never blocked. Click a
-      figure to see which initiatives make it up.</p>
-    ${raw(scroller('Allocation per member per month', html`<table class="grid grid--cap">
-      <thead><tr><th>Member</th>${raw(months
-        .map((m) => html`<th>${m.slice(5)}</th>`).join(''))}</tr></thead>
-      <tbody>
-        ${raw(rows)}
-        <tr class="row--spare"><th scope="row">Non-initiative work
-          <span class="micro">share not committed</span></th>${raw(spareCells)}</tr>
-      </tbody>
-    </table>`))}
-  </div>`;
+  return panel({
+    id: 'panel-capacity',
+    title: 'Capacity',
+    body: html`${raw(yearNav("Allocation against each member's Team FTE."))}
+      <p class="muted">Each figure is Allocated % against this member's own Team FTE here — not
+        their whole Capacity %, of which this team only holds a share. Over-allocation past that
+        share is flagged, never blocked. Click a figure to see which initiatives make it up.</p>
+      ${raw(scroller('Allocation per member per month', html`<table class="grid grid--cap">
+        <thead><tr><th>Member</th>${raw(months
+          .map((m) => html`<th>${m.slice(5)}</th>`).join(''))}</tr></thead>
+        <tbody>
+          ${raw(rows)}
+          <tr class="row--spare"><th scope="row">Non-initiative work
+            <span class="micro">Team FTE not committed</span></th>${raw(spareCells)}</tr>
+        </tbody>
+      </table>`))}`,
+  });
 }
 
 /** What one capacity cell is made of — a person can serve several at once. */
 export function capacityCellMarkup(personId, teamId, month) {
+  const nowIso = today();
   const person = app.PEOPLE[personId];
-  const rows = E.allocationBreakdown(app, personId, month, teamId);
-  const spare = E.nonInitiativeWorkPct(app, personId, teamId, month);
+  const rows = E.allocationBreakdown(app, personId, month, teamId, nowIso);
+  const spare = E.nonInitiativeWorkPct(app, personId, teamId, month, nowIso);
   const membership = E.membership(person, teamId);
 
   const items = rows
     .map((row) => {
       const initiative = app.INITIATIVES.find((i) => i.id === row.initiativeId);
       return html`<li><strong>${row.allocationPct}%</strong> ${initiative?.name ?? row.initiativeId}
-        <span class="micro">${E.phaseLabel(PROCESS, row.phaseId)}</span></li>`;
+        <span class="micro">${E.phaseLabel(PROCESS, row.phaseId)}${raw(row.confirmed
+          ? '' : ' · provisional')}</span></li>`;
     })
     .join('');
 
-  const total = rows.reduce((t, r) => t + r.allocationPct, 0);
+  const total = rows.filter((r) => r.confirmed).reduce((t, r) => t + r.allocationPct, 0);
+  const provisional = rows.filter((r) => !r.confirmed).reduce((t, r) => t + r.allocationPct, 0);
 
   // The membership is resolved at click time, not render time, so it can be
   // gone — a second tab, or an import applied while the grid is open. That is
@@ -257,27 +302,73 @@ export function capacityCellMarkup(personId, teamId, month) {
     return html`<h3>${person.name} — ${F.month(month)}</h3>
       <ul class="popover__list">${raw(items)}</ul>
       <p class="warn">${raw(icon('warning', 'icon--lead'))}${total}% allocated, but this person
-        no longer holds an active membership in this team. The work still costs; the share does
-        not exist.</p>`;
+        no longer holds an active membership in this team. The work still costs; the Team FTE
+        does not exist.</p>`;
   }
 
   return html`<h3>${person.name} — ${F.month(month)}</h3>
     <ul class="popover__list">${raw(items)}</ul>
     <p class="${total > membership.sharePct ? 'warn' : 'muted'}">
       ${total}% of the ${membership.sharePct}% this team holds${raw(total > membership.sharePct
-        ? html` — more than its share.`
-        : html`, ${spare}% not committed.`)}</p>`;
+        ? html` — more than its Team FTE.`
+        : html`, ${spare}% not committed.`)}${raw(provisional
+        ? html` <span class="muted">(+${provisional}% provisional, not counted above)</span>`
+        : '')}</p>`;
 }
 
 function runRateMarkup(team) {
-  const data = E.teamRunRate(app, team.id, monthsOfYear(chartYear()));
+  const data = E.teamRunRate(app, team.id, monthsOfYear(chartYear()), today());
   const yearTotal = data.reduce((t, row) => t + row.total, 0);
 
-  return html`<div class="panel">
-    <h2>Cost run rate</h2>
-    ${raw(yearNav(`${F.money(yearTotal)} across ${chartYear()}.`))}
-    ${raw(yearTotal === 0
-      ? empty('Nothing costs anything in this year yet.', { icon: 'warning' })
-      : stackedBarsMarkup(data, 'teamRunRate', 'Run rate'))}
-  </div>`;
+  return panel({
+    id: 'panel-run-rate',
+    title: 'Cost run rate',
+    body: html`${raw(yearNav(`${F.money(yearTotal)} across ${chartYear()}.`))}
+      ${raw(yearTotal === 0
+        ? empty('Nothing costs anything in this year yet.', { icon: 'warning' })
+        : stackedBarsMarkup(data, 'teamRunRate', 'Run rate'))}`,
+  });
 }
+
+export const teamClickActions = {
+  'capacity-cell': ({ trigger }) => openPopover(
+    trigger,
+    capacityCellMarkup(trigger.dataset.person, trigger.dataset.team, trigger.dataset.month),
+  ),
+  // Saved to the draft store rather than passed as a param: navigate() only
+  // round-trips `id` through the hash, so anything else handed to it here
+  // would be lost the instant the hashchange listener re-derives view from
+  // the URL (the same reason every other draft edit in wizard.js persists
+  // through store.saveDraft before it navigates).
+  'team-new-initiative': ({ trigger }) => {
+    const draft = { ...store.loadDraft(), mode: 'scratch', teamId: trigger.dataset.id };
+    store.saveDraft(draft);
+    return navigate('wizard', {});
+  },
+  'membership-active': ({ trigger, id }) => {
+    const person = app.PEOPLE[id];
+    const team = trigger.dataset.team;
+    const current = person.memberships.find((m) => m.teamId === team);
+    withUndo(`${current.active ? 'Deactivated' : 'Reactivated'} ${person.name}'s membership`, () => {
+      P.setMembershipActive(app, person, team, !current.active);
+    });
+    return commit();
+  },
+};
+
+export const teamChangeActions = {
+  'add-member': ({ target, id }) => {
+    const person = app.PEOPLE[target.value];
+    withUndo(`Added ${person.name} to the team`, () => {
+      P.addMembership(person, id, 0);
+    });
+    return commit();
+  },
+};
+
+export const teamInputActions = {
+  'team-name': ({ target, id }) => {
+    P.renameTeam(app.TEAMS[id], target.value);
+    commitQuietly();
+  },
+};

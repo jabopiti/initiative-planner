@@ -8,7 +8,7 @@ import * as F from '../format.js';
  * exact-figures twin of the picture.
  */
 import * as E from '../engine.js';
-import { app, view } from '../app.js';
+import { app, view, navigate } from '../app.js';
 import { html, raw } from './dom.js';
 import { icon } from './icons.js';
 import { TABLES, tableActions } from './tables.js';
@@ -260,3 +260,26 @@ export function stackedBarsMarkup(data, key, label) {
       View as table</button>
   </div>`;
 }
+
+export const chartsClickActions = {
+  'year-step': ({ trigger }) =>
+    navigate(view.page, { ...view.params, year: chartYear() + Number(trigger.dataset.step) }),
+  'year-today': () => navigate(view.page, { ...view.params, year: new Date().getFullYear() }),
+  // A pure DOM swap, not a re-render: which of a chart's two equivalent
+  // views is showing is not state worth tracking in `view.params`, and a
+  // full re-render would undo whatever else the page happens to be
+  // showing (a filter, a scroll position) for no reason.
+  // `.chart-block`, not `[data-chart]` — the toggle button itself also
+  // carries `data-chart`, so an attribute-value selector would match the
+  // button before it ever reaches the wrapper that holds the two views.
+  'chart-table-toggle': ({ trigger }) => {
+    const block = trigger.closest('.chart-block');
+    const visual = block?.querySelector('.chart-block__visual');
+    const tableView = block?.querySelector('.chart-block__table');
+    if (!(visual instanceof HTMLElement) || !(tableView instanceof HTMLElement)) return;
+    const showingTable = !tableView.hidden;
+    tableView.hidden = showingTable;
+    visual.hidden = !showingTable;
+    trigger.textContent = showingTable ? 'View as table' : 'View as chart';
+  },
+};

@@ -5,10 +5,10 @@ import * as F from '../format.js';
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
-import { app, view, STATUS_LABELS, currentMonth } from '../app.js';
+import { app, view, STATUS_LABELS, currentMonth, navigate, today } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, sortHeader, sortRows } from '../render/components.js';
+import { pageHead, scroller, empty, sortHeader, sortRows, badge, coverageBadge } from '../render/components.js';
 import { chartYear, monthsOfYear, yearNav, stackedBarsMarkup } from '../render/charts.js';
 
 const NO_BAND = 'none';
@@ -22,18 +22,22 @@ const PORTFOLIO_COLUMNS = [
   { key: 'period', label: 'Period', value: (r) => r.period.start ?? '' },
   { key: 'track', label: 'Approval track', value: (r) => r.band?.severity ?? -1 },
   { key: 'approved', label: 'Approved', value: (r) => r.approved ?? -1 },
-  { key: 'effective', label: 'Effective', value: (r) => r.effective },
+  { key: 'effective', label: 'Forecast', value: (r) => r.effective },
   { key: 'variance', label: 'Variance', value: (r) => r.variance ?? 0 },
 ];
 
 function portfolioRows() {
   const order = E.phaseOrder(PROCESS);
   return app.INITIATIVES.map((initiative) => {
-    const effective = E.grandTotal(initiative, app);
+    // `initiativeTotals` already computes the grand total as `forecast` —
+    // reuse that instead of a second `E.grandTotal` walk for the same figure.
+    const totals = E.initiativeTotals(initiative, app);
+    const effective = totals.forecast;
     const passed = L.lastPassedGate(PROCESS, initiative);
     return {
       initiative,
       effective,
+      totals,
       approved: passed ? passed.grandTotal : null,
       variance: passed ? effective - passed.grandTotal : null,
       band: E.resolveBand(PROCESS.bands, effective),
@@ -44,7 +48,49 @@ function portfolioRows() {
   });
 }
 
-export function renderPortfolio() {
+/**
+ * P7 — how loudly Variance reads. A plain "+€X" used to look the same
+ * whether it was rounding drift or a real problem; severity is read against
+ * the approved baseline itself (a percentage), since what counts as drift
+ * scales with the initiative rather than being a flat euro amount. Coming in
+ * under budget is never colored — there is nothing there worth a warning.
+ */
+function varianceClass(r) {
+  if (!r.variance || r.variance < 0) return '';
+  const base = r.approved || r.effective;
+  const pct = base ? r.variance / base : 1;
+  if (pct < 0.02) return '';
+  return pct < 0.10 ? 'variance--mild' : 'over';
+}
+
+/** One line, one initiative, one click to where it's resolved (N1). Absent
+ * entirely when nothing needs a look — calm technology says nothing here,
+ * not an empty box announcing that everything is fine.
+ *
+ * Takes the already-computed list rather than deriving it again: `render()`
+ * needs the same items for the nav badge, and a second scan here would only
+ * risk the two disagreeing (N2).
+ */
+function attentionMarkup(items) {
+  if (items.length === 0) return '';
+
+  const rows = items
+    .map((item) => html`<li class="req req--${item.state}">
+      <span class="req__mark">${raw(icon(item.state === 'met' ? 'check' : 'warning'))}</span>
+      <div class="req__body">
+        <p class="req__text"><a class="link" href="#/initiative/${item.initiativeId}"
+          >${item.initiativeName}</a> — ${item.text}</p>
+      </div>
+    </li>`)
+    .join('');
+
+  return html`<div class="panel">
+    <h2>Needs attention</h2>
+    <ul class="reqs">${raw(rows)}</ul>
+  </div>`;
+}
+
+export function renderPortfolio(attentionItems) {
   const all = portfolioRows();
   const selected = view.params.bandId ?? null;
   const rows = selected ? all.filter((r) => (r.band?.id ?? NO_BAND) === selected) : all;
@@ -87,7 +133,7 @@ export function renderPortfolio() {
   // it is a "right now" question, independent of which year the cost chart
   // happens to be showing (SPEC §7).
   const capacityMonth = currentMonth();
-  const { overCapacity, overShare } = E.overAllocations(app, capacityMonth);
+  const { overCapacity, overShare } = E.overAllocations(app, capacityMonth, today());
 
   const sort = view.params.sort ?? { key: 'effective', dir: 'desc' };
   const sorted = sortRows(rows, PORTFOLIO_COLUMNS, sort);
@@ -104,11 +150,11 @@ export function renderPortfolio() {
         <td>${E.phaseLabel(PROCESS, r.initiative.phaseId)}</td>
         <td>${STATUS_LABELS[r.initiative.status]}</td>
         <td>${r.period.start ? `${F.date(r.period.start)} → ${r.period.end ? F.date(r.period.end) : '?'}` : '—'}</td>
-        <td>${r.band ? r.band.name : 'Not yet known'}</td>
+        <td>${raw(r.band ? badge(r.band.abbr, 'neutral', '', r.band.name) : 'Not yet known')}</td>
         <td class="num">${r.approved === null ? '—' : F.money(r.approved)}</td>
         <td class="num">${F.money(r.effective)}
-          <span class="micro">${E.initiativeCoverage(r.initiative)}</span></td>
-        <td class="num ${r.variance > 0 ? 'over' : ''}">${r.variance === null
+          ${raw(coverageBadge(r.totals.coverage, r.totals))}</td>
+        <td class="num ${varianceClass(r)}">${r.variance === null
           ? '—'
           : `${r.variance > 0 ? '+' : ''}${F.money(r.variance)}`}</td>
       </tr>`,
@@ -151,13 +197,17 @@ export function renderPortfolio() {
           </div>
           <div class="tile ${overShare.length ? 'tile--warn' : ''}">
             <span class="tile__value">${overShare.length}</span>
-            <span class="tile__label">over their team's share</span>
+            <span class="tile__label">over their Team FTE</span>
           </div>
         </div>
       </div>
 
+      ${raw(attentionMarkup(attentionItems))}
+
       <div class="panel">
         <h2>Initiatives</h2>
+        <p class="muted">Approved is what each initiative's total stood at when its last gate was
+          passed — a fixed point to measure drift against, not a running figure.</p>
         ${raw(sorted.length
           ? scroller('Initiatives by cost', html`<table class="grid">
               <thead><tr>${raw(headers)}</tr></thead>
@@ -168,3 +218,12 @@ export function renderPortfolio() {
       </div>`,
   );
 }
+
+export const portfolioClickActions = {
+  // Clicking the selected tile again clears the filter.
+  'portfolio-tile': ({ trigger }) => {
+    const band = trigger.dataset.band;
+    const next = view.params.bandId === band ? null : band;
+    return navigate('portfolio', { ...view.params, bandId: next });
+  },
+};

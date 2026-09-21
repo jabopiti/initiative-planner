@@ -61,6 +61,31 @@ export function panel({ id, title, mark = '', body, extraClass = '' }) {
 }
 
 /**
+ * The side rail (a sticky bar on narrow viewports) linking to every panel on
+ * a long page — Settings' own section nav, and Initiative/Team detail's
+ * jump-to-panel nav, are the same component (`styles.css`'s `.rail-nav`).
+ *
+ * Settings knows its current section from the route and passes `activeId`
+ * directly. Initiative and Team detail have no per-panel route — they omit
+ * `activeId` and get `data-scrollspy` instead, which app.js's `syncRailNav`
+ * (a single scroll listener installed once, per AGENTS.md) uses to toggle
+ * `aria-current` as the reader scrolls past each panel.
+ *
+ * @param {Array<{ id: string, label: string }>} items
+ * @param {{ activeId?: string, kind?: string }} [opts] `kind` names both the
+ *   click action and the data attribute it reads its target from — every
+ *   call site wants the same word for both, so one option does the job of
+ *   the two this used to take.
+ */
+export function railNav(items, { activeId, kind = 'panel' } = {}) {
+  const buttons = items.map((item) => html`<button type="button" data-act="${kind}"
+    data-${kind}="${item.id}" ${raw(item.id === activeId ? 'aria-current="location"' : '')}
+    >${item.label}</button>`).join('');
+  return html`<nav class="rail-nav" aria-label="Page sections"
+    ${raw(activeId === undefined ? 'data-scrollspy' : '')}>${raw(buttons)}</nav>`;
+}
+
+/**
  * The region a wide table lives in.
  *
  * Focusable and named, because a region that scrolls and cannot be focused is
@@ -103,6 +128,13 @@ export function empty(text, spec = {}) {
   </div>`;
 }
 
+/** An empty state's destination link to a team — "Go to X", not just a
+ * description of where to go — for the two places (a phase panel with no
+ * roster, a person with no allocations) that both name a team as the fix. */
+export function teamLinkAction(teamId, teamName) {
+  return html`<a class="btn btn--primary" href="#/team/${teamId}">${raw(icon('add'))}Go to ${teamName}</a>`;
+}
+
 /**
  * A short mark on a value.
  *
@@ -120,6 +152,8 @@ export function empty(text, spec = {}) {
  * @param {string} text
  * @param {'neutral'|'accent'|'info'|'ok'|'warn'|'danger'|'quiet'} [kind]
  * @param {string} [iconName]
+ * @param {string} [title] a native tooltip, for a mark whose meaning isn't
+ *   obvious from its short text alone (P6)
  */
 /** The `badge--<kind>` modifier class, or none for `neutral`. Shared with anything that needs
  * the badge look without the fixed `<span>` shape `badge()` renders — a status menu's trigger
@@ -128,9 +162,46 @@ export function badgeClass(kind) {
   return kind === 'neutral' ? '' : `badge--${kind}`;
 }
 
-export function badge(text, kind = 'neutral', iconName = '') {
-  return html`<span class="badge ${badgeClass(kind)}"
+export function badge(text, kind = 'neutral', iconName = '', title = '') {
+  // An icon-only mark (I1, I4–I8) has no visible text for its accessible
+  // name to come from, so the tooltip doubles as one — the icon itself
+  // stays aria-hidden either way (icons.js).
+  return html`<span class="badge ${badgeClass(kind)}" ${raw(title ? html`title="${title}"` : '')}
+    ${raw(!text && title ? html`aria-label="${title}"` : '')}
     >${raw(iconName ? icon(iconName) : '')}${text}</span>`;
+}
+
+/**
+ * Estimate/Forecast/Actual as one ring filling in rather than the word
+ * spelled out (I1) — the single most-repeated text tag in the app.
+ */
+export const COVERAGE_ICON = {
+  estimate: 'coverage-estimate',
+  forecast: 'coverage-forecast',
+  actual: 'coverage-actual',
+};
+const COVERAGE_MEANING = {
+  estimate: 'Estimate — every month is a forward projection, none recorded yet.',
+  forecast: 'Forecast — some months recorded, the rest estimated.',
+  actual: 'Actual — every month has a recorded actual.',
+};
+
+/**
+ * The exact meaning behind a coverage value, plus the month tally that backs
+ * it up — the tooltip text I1 asks for, shared by every place the ring
+ * appears so the wording never drifts between them.
+ *
+ * @param {'estimate'|'forecast'|'actual'} coverage
+ * @param {{ recorded: number, months: number }} counts
+ */
+export function coverageTitle(coverage, counts) {
+  return `${COVERAGE_MEANING[coverage]} (${counts.recorded} of ${counts.months} months)`;
+}
+
+/** @param {'estimate'|'forecast'|'actual'} coverage
+ * @param {{ recorded: number, months: number }} counts */
+export function coverageBadge(coverage, counts) {
+  return badge('', 'info', COVERAGE_ICON[coverage], coverageTitle(coverage, counts));
 }
 
 /**

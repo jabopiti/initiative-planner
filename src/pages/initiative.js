@@ -5,17 +5,26 @@ import * as F from '../format.js';
  *
  * This is the longest page in the app — five screens of panels that all move
  * when one allocation percentage changes. Two devices hold it together: the
- * rail across the top, which says where the initiative is and jumps to the
- * panel behind each step, and `panelsFor`, the one list of panels that the
- * rail and the jump menu both address.
+ * process rail across the top, which says where the initiative is and jumps
+ * to the panel behind each step, and the left-hand section nav (a page-jump
+ * rail, sticky, highlighted by scroll position rather than a route since
+ * this page has none per panel) — both address panels through `panelsFor`,
+ * the one list of every panel on the page.
  */
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import { PROCESS } from '../process.js';
-import { app, view, navigate, STATUS_LABELS, today } from '../app.js';
+import * as store from '../store.js';
+import {
+  app, view, navigate, STATUS_LABELS, today, commit, commitQuietly, findInitiative,
+  openPopover, closePopover, openDialog, closeDialog, withUndo,
+} from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, badge, panel } from '../render/components.js';
+import {
+  pageHead, scroller, empty, badge, badgeClass, coverageBadge, coverageTitle, COVERAGE_ICON,
+  panel, railNav,
+} from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
 import { phasePanel } from '../render/phase-panel.js';
 
@@ -24,6 +33,7 @@ export function renderInitiative() {
   if (!initiative) return navigate('initiatives');
 
   const deleting = view.params.confirmDelete === true;
+  const panels = panelsFor(initiative);
 
   fill(
     'root',
@@ -39,9 +49,12 @@ export function renderInitiative() {
     }))}
       ${raw(deleting ? deleteConfirmMarkup(initiative) : '')}
       ${raw(stepperMarkup(initiative))}
-      <div class="panel-stack">${raw(panelsFor(initiative)
-        .map((entry) => entry.render(initiative))
-        .join(''))}</div>
+      <div class="rail-layout">
+        ${raw(railNav(panels))}
+        <div class="rail-sections panel-stack">${raw(panels
+          .map((entry) => entry.render(initiative))
+          .join(''))}</div>
+      </div>
       <div class="summary" data-calc="summary" role="region"
         aria-label="Totals, approval track and what is next"
         aria-live="polite" aria-atomic="true">${raw(summaryBarMarkup(initiative))}</div>`,
@@ -151,6 +164,22 @@ function notesMarkup(initiative) {
  * ------------------------------------------------------------------ */
 
 /**
+ * The repeated "N BLOCKER(S)" badge, replaced everywhere it appeared (N3):
+ * a ratio rather than a bare count with nothing to read it against, plus a
+ * dot-progression (I9) so it scans without counting words. Most of a gate's
+ * life it has unmet requirements — that is ordinary work in progress, not a
+ * problem — so real alarm colour is reserved for `overdue`, never for "not
+ * finished yet."
+ */
+function progressMark({ complete, total, overdue }) {
+  if (total === 0) return '';
+  const dots = '●'.repeat(complete) + '○'.repeat(total - complete);
+  const kind = overdue ? 'danger' : complete === total ? 'ok' : 'neutral';
+  return html`<span class="badge ${badgeClass(kind)}"><span class="dot-progress"
+    aria-hidden="true">${raw(dots)}</span>${complete} of ${total} complete</span>`;
+}
+
+/**
  * What one step of the rail says under its name, and where clicking it goes.
  *
  * A rail that only shows outcome answers "where am I" and nothing else, which
@@ -246,18 +275,15 @@ function stepperMarkup(initiative) {
       // A skipped gate must never read as a passed one; the glyph says which
       // before the colour does, and survives being printed in grey.
       const mark = state === 'passed' ? 'check' : state === 'skipped' ? 'skip' : '';
-      const blockers = state === 'current'
-        ? L.gatePrecondition(app, PROCESS, initiative, phase.gate.id).blockers.length
-        : 0;
+      const progress = state === 'current'
+        ? L.gateProgress(app, PROCESS, initiative, phase.gate.id, today())
+        : null;
 
       // The figure last and pushed to the foot, so figures line up across the
       // rail however much prose the segments above them carry.
       const body = html`<span class="step__name">${raw(mark ? icon(mark) : '')}${phase.label}</span>
         <span class="step__meta">${raw(detail.meta)}</span>
-        ${raw(state === 'current' && blockers
-          ? html`<span class="step__flag">${raw(icon('warning', 'icon--lead'))}${blockers}
-              ${blockers === 1 ? 'blocker' : 'blockers'}</span>`
-          : '')}
+        ${raw(progress ? html`<span class="step__flag">${raw(progressMark(progress))}</span>` : '')}
         ${raw(detail.figure
           ? html`<span class="step__figure">${detail.figure}<span class="step__qual"
               >${detail.qualifier}</span></span>`
@@ -303,22 +329,32 @@ export function summaryBarMarkup(initiative) {
   const passed = L.lastPassedGate(PROCESS, initiative);
   const escalated = passed && E.compareBands(passed.band, band) === 'escalation';
   const finished = E.isFinished(initiative);
+  const gateId = E.gateForPhase(PROCESS, initiative.phaseId).id;
 
   const blockers = finished
     ? 0
-    : L.gateRequirements(app, PROCESS, initiative, E.gateForPhase(PROCESS, initiative.phaseId).id)
-      .filter((requirement) => requirement.state === 'blocker').length;
+    : L.gatePrecondition(app, PROCESS, initiative, gateId, today()).blockers.length;
+  const progress = finished ? null : L.gateProgress(app, PROCESS, initiative, gateId, today());
 
-  const figure = (label, value, on, note = '') => html`<div
+  // I1: the label is the same hollow/half/filled ring used everywhere else
+  // this figure appears, with the word itself carried by the tooltip and an
+  // `sr-only` fallback rather than sitting on the page a fourth time.
+  const figure = (label, coverage, value, on, note = '') => html`<div
     class="summary__figure ${on ? 'summary__figure--on' : ''}">
-    <dt>${label}</dt>
+    <dt title="${coverageTitle(coverage, totals)}">${raw(icon(COVERAGE_ICON[coverage]))}
+      <span class="sr-only">${label}</span></dt>
     <dd>${F.money(value)}${raw(note ? html`<span class="summary__note">${note}</span>` : '')}</dd>
   </div>`;
 
-  return html`<dl class="summary__figures">
-      ${raw(figure('Estimate', totals.estimate, totals.coverage === 'estimate'))}
-      ${raw(figure('Forecast', totals.forecast, totals.coverage === 'forecast'))}
-      ${raw(figure('Actual', totals.actual, totals.coverage === 'actual',
+  // A five-screen-long page loses the header from view almost immediately,
+  // so the bar it scrolls with carries the one thing every figure below it
+  // is about (U2) — otherwise every number on it reads correctly for
+  // whichever initiative you last scrolled past, not the one it's for.
+  return html`<p class="summary__name">${initiative.name}</p>
+    <dl class="summary__figures">
+      ${raw(figure('Estimate', 'estimate', totals.estimate, totals.coverage === 'estimate'))}
+      ${raw(figure('Forecast', 'forecast', totals.forecast, totals.coverage === 'forecast'))}
+      ${raw(figure('Actual', 'actual', totals.actual, totals.coverage === 'actual',
         totals.months ? `${totals.recorded} of ${totals.months} months` : ''))}
     </dl>
 
@@ -333,10 +369,7 @@ export function summaryBarMarkup(initiative) {
         <span class="label-voice">Phase</span>
         <span>${finished
           ? STATUS_LABELS[initiative.status]
-          : E.phaseLabel(PROCESS, initiative.phaseId)}${raw(blockers
-          ? html` ${raw(badge(`${blockers} ${blockers === 1 ? 'blocker' : 'blockers'}`,
-              'warn', 'warning'))}`
-          : '')}</span>
+          : E.phaseLabel(PROCESS, initiative.phaseId)}${raw(progress ? html` ${raw(progressMark(progress))}` : '')}</span>
       </p>
     </div>
 
@@ -347,21 +380,7 @@ export function summaryBarMarkup(initiative) {
             data-act="panel" data-panel="panel-gate">${blockers
               ? `Clear ${blockers === 1 ? 'the blocker' : 'the blockers'}`
               : `Pass ${E.gateForPhase(PROCESS, initiative.phaseId).label}`}</button>`)}
-      <button type="button" class="btn" data-act="jump-menu" data-id="${initiative.id}"
-        aria-haspopup="menu">Jump to${raw(icon('chevron-down'))}</button>
     </div>`;
-}
-
-/** Every panel on this page, as somewhere to go. */
-export function jumpMenuMarkup(initiativeId) {
-  const initiative = app.INITIATIVES.find((i) => i.id === initiativeId);
-  const items = panelsFor(initiative)
-    .map((entry) => html`<button type="button" class="btn" data-act="panel"
-      data-panel="${entry.id}">${entry.label}</button>`)
-    .join('');
-
-  return html`<h3>On this page</h3>
-    <div class="popover__actions">${raw(items)}</div>`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -408,16 +427,14 @@ function gateBannerMarkup(initiative) {
 
   const phase = E.phaseById(PROCESS, initiative.phaseId);
   const gate = phase.gate;
-  const requirements = L.gateRequirements(app, PROCESS, initiative, gate.id);
+  const requirements = L.gateRequirements(app, PROCESS, initiative, gate.id, today());
   const blockers = requirements.filter((r) => r.state === 'blocker').length;
   const closes = E.isFinalPhase(PROCESS, initiative.phaseId);
 
   return panel({
     id: 'panel-gate',
     title: `${phase.label} — ${gate.label}`,
-    mark: blockers
-      ? badge(`${blockers} ${blockers === 1 ? 'blocker' : 'blockers'}`, 'warn', 'warning')
-      : badge('ready to pass', 'ok', 'check'),
+    mark: progressMark(L.gateProgress(app, PROCESS, initiative, gate.id, today())),
     extraClass: 'banner',
     body: html`<div class="gate__part">
         <p class="muted">${closes
@@ -432,14 +449,18 @@ function gateBannerMarkup(initiative) {
 
       <div class="gate__part">
         <h3>What this gate needs</h3>
+        <p class="micro">Three different kinds of check, not one uniform list: the estimate
+          check is automatic and blocks until every costed phase has one; a checklist item is a
+          manual judgement call, resolved by hand; a missing actual only ever warns — it never
+          blocks a gate from passing.</p>
         ${raw(requirementsMarkup(initiative, gate, requirements))}
       </div>
 
-      ${raw(gateActionsMarkup(initiative, gate, closes, blockers === 0))}`,
+      ${raw(gateActionsMarkup(PROCESS, initiative, phase, gate, closes, blockers === 0))}`,
   });
 }
 
-const CHECK_LABELS = { red: 'Not resolved', amber: 'Partly', green: 'Resolved' };
+const CHECK_LABELS = { incomplete: 'Incomplete', tentative: 'Tentative', complete: 'Complete' };
 
 /**
  * Every requirement, each with the control that settles it.
@@ -449,19 +470,22 @@ const CHECK_LABELS = { red: 'Not resolved', amber: 'Partly', green: 'Resolved' }
  * sentence-sized control (an estimate, a missing actual) offer the trip to
  * where they can, which is the honest version of "resolvable in place": the
  * control is a period and a table of people, not something that fits here.
+ *
+ * A carried-forward item (reappearing from an earlier, already-passed gate)
+ * resolves against its *origin* gate, not this one — that is the single
+ * stored record it has ever had (DESIGN §2), so the control here targets it
+ * by id rather than this gate's.
  */
 function requirementsMarkup(initiative, gate, requirements) {
-  const checklist = L.checklistState(initiative, gate);
-  const itemFor = (id) => checklist.find((item) => item.id === id);
-
   const items = requirements
     .map((requirement) => {
       const mark = requirement.state === 'met' ? 'check' : 'warning';
-      const item = requirement.kind === 'checklist' ? itemFor(requirement.itemId) : null;
+      const item = requirement.checklistItem ?? null;
+      const itemGateId = requirement.carried ? requirement.originGateId : gate.id;
 
       const fix = item
         ? html`<select class="field field--select" data-act="checklist-status"
-            data-id="${initiative.id}" data-gate="${gate.id}" data-item="${item.id}"
+            data-id="${initiative.id}" data-gate="${itemGateId}" data-item="${item.id}"
             aria-label="${requirement.text}">
             ${raw(L.CHECKLIST_STATUSES.map((status) => html`<option value="${status}"
               ${raw(item.status === status ? 'selected' : '')}
@@ -476,16 +500,21 @@ function requirementsMarkup(initiative, gate, requirements) {
                 data-panel="panel-months">Month by month${raw(icon('chevron-right'))}</button>`
             : '';
 
+      // Incomplete and Complete are self-explanatory; only Tentative needs a
+      // note saying what's still outstanding, so that is the one state that
+      // offers the field at all (SPEC §3).
+      const note = item && item.status === 'tentative'
+        ? html`<label class="field-inline"><span>Note<span class="req__required"> — required</span></span>
+            <input class="field ${item.note.trim() ? '' : 'field--warn'}" data-act="checklist-note"
+              data-id="${initiative.id}" data-gate="${itemGateId}" data-item="${item.id}"
+              value="${item.note}" placeholder="What's still outstanding?" /></label>`
+        : '';
+
       return html`<li class="req req--${requirement.state}">
         <span class="req__mark">${raw(icon(mark))}</span>
         <div class="req__body">
           <p class="req__text">${requirement.text}</p>
-          ${raw(item
-            ? html`<p class="micro">${item.description}</p>
-              <label class="field-inline"><span>Note</span>
-                <input class="field" data-act="checklist-note" data-id="${initiative.id}"
-                  data-gate="${gate.id}" data-item="${item.id}" value="${item.note}" /></label>`
-            : '')}
+          ${raw(item ? html`<p class="micro">${item.description}</p>${raw(note)}` : '')}
         </div>
         <div class="req__fix">${raw(fix)}</div>
       </li>`;
@@ -493,9 +522,10 @@ function requirementsMarkup(initiative, gate, requirements) {
     .join('');
 
   return html`<ul class="reqs">${raw(items)}</ul>
-    ${raw((gate.checklist ?? []).length
-      ? html`<p class="micro">Checklist items start unresolved, so a gate with one is blocked
-          until someone has looked at each. “Partly” lets the gate pass with a warning.</p>`
+    ${raw((gate.checklist ?? []).length || requirements.some((r) => r.carried)
+      ? html`<p class="micro">Checklist items start Incomplete, so a gate with one is blocked
+          until someone has looked at each. Tentative lets the gate pass with a warning, and
+          carries the item forward to every later gate until it is marked Complete.</p>`
       : '')}`;
 }
 
@@ -505,12 +535,25 @@ function requirementsMarkup(initiative, gate, requirements) {
  * Skipping and reopening are both rarer than passing and both undo or bypass
  * governance, so neither belongs beside the button people actually press.
  * The menu is absent rather than empty when this gate offers neither.
+ *
+ * The consequence line is information, not a confirmation to click through —
+ * what passing *this* gate, right now, actually does: the figure it freezes
+ * and where the initiative goes next.
  */
-function gateActionsMarkup(initiative, gate, closes, ready) {
-  const canReopen = E.phaseOrder(PROCESS).indexOf(initiative.phaseId) > 0;
+function gateActionsMarkup(process, initiative, phase, gate, closes, ready) {
+  const canReopen = E.phaseOrder(process).indexOf(initiative.phaseId) > 0;
   const hasMenu = gate.skippable || canReopen;
 
+  const costedPhase = initiative.phases[phase.id];
+  const freezeText = costedPhase
+    ? `freezes ${F.money(E.phaseEstimateTotal(costedPhase, app))}`
+    : 'freezes nothing';
+  const nextText = closes
+    ? 'closes the initiative'
+    : `opens ${E.phaseLabel(process, E.nextPhase(process, phase.id))}`;
+
   return html`<div class="gate__part gate__part--actions">
+    <p class="micro">This ${freezeText} and ${nextText}.</p>
     <label class="field-inline"><span>Gate date</span>
       <input type="date" class="field field--date" data-field="gate-date"
         value="${today()}" /></label>
@@ -567,7 +610,7 @@ export function skipDialogMarkup(initiativeId, gateId) {
       editable and no figure here becomes a baseline.</p>
     <div class="fields">
       <label class="field-row"><span>Reason</span>
-        <input class="field" data-field="skip-reason"
+        <input class="field" data-act="skip-reason" data-field="skip-reason"
           placeholder="Why is this gate not needed?" /></label>
       <label class="field-row"><span>Date</span>
         <input type="date" class="field field--date" data-field="skip-date"
@@ -576,7 +619,7 @@ export function skipDialogMarkup(initiativeId, gateId) {
     <p class="field-message" data-note="skip-error" hidden>${raw(icon('warning', 'icon--lead'))}A
       reason is required before a gate can be skipped.</p>
     <div class="actions">
-      <button type="button" class="btn btn--primary" data-act="skip-gate"
+      <button type="button" class="btn btn--primary" data-act="skip-gate" disabled
         data-id="${initiative.id}" data-gate="${gateId}">${raw(icon('skip'))}Skip ${gate.label}</button>
       <button type="button" class="btn" data-act="dialog-cancel">Cancel</button>
     </div>`;
@@ -588,7 +631,10 @@ export function skipDialogMarkup(initiativeId, gateId) {
 
 /** The grand total, its track, where it sits among the bands, and variance. */
 export function bandPanelMarkup(initiative) {
-  const total = E.grandTotal(initiative, app);
+  // `initiativeTotals` already computes the grand total as `forecast` —
+  // reuse that instead of a second `E.grandTotal` walk for the same figure.
+  const totals = E.initiativeTotals(initiative, app);
+  const total = totals.forecast;
   const band = E.resolveBand(PROCESS.bands, total);
   const scale = E.bandScale(PROCESS.bands);
 
@@ -608,7 +654,7 @@ export function bandPanelMarkup(initiative) {
   const move = passed ? E.compareBands(passed.band, band) : 'unknown';
 
   return html`<p class="results"><strong>${F.money(total)}</strong>
-      ${raw(badge(E.initiativeCoverage(initiative), 'info'))}
+      ${raw(coverageBadge(totals.coverage, totals))}
       — ${band ? band.name : 'Not yet known'}</p>
     <p class="muted">${band ? band.req : 'No configured approval track covers this total.'}</p>
 
@@ -648,17 +694,23 @@ function monthTableMarkup(initiative) {
   const now = E.monthKey(new Date());
 
   if (months.length === 0) {
+    const firstCostedId = E.costedPhaseIds(PROCESS)[0];
     return panel({
       id: 'panel-months',
       title: 'Month by month',
-      body: empty('Nothing is costed yet. Give a phase a period and allocate someone.'),
+      body: empty('Nothing is costed yet. Give a phase a period and allocate someone.', firstCostedId ? {
+        icon: 'add',
+        action: html`<button type="button" class="btn btn--primary" data-act="panel"
+          data-panel="panel-phase-${firstCostedId}"
+          >${raw(icon('add'))}Go to ${E.phaseLabel(PROCESS, firstCostedId)}</button>`,
+      } : {}),
     });
   }
 
   const headers = ['Month', ...costed.flatMap((id) => {
     const label = E.phaseLabel(PROCESS, id);
     return [`${label} estimate`, `${label} actual`];
-  }), 'Blended'];
+  }), 'Forecast'];
 
   const data = months.map((month) => {
     /** @type {Array<string|number>} */
@@ -678,7 +730,7 @@ function monthTableMarkup(initiative) {
   // The foot is part of the table, so it travels with a copy of it: a
   // month-by-month table pasted into a spreadsheet without its totals is a
   // table someone then has to total by hand.
-  const totals = monthTotals(initiative, costed);
+  const totals = monthTotals(initiative, costed, now);
   TABLES.months = {
     headers,
     rows: [
@@ -700,20 +752,28 @@ function monthTableMarkup(initiative) {
           const actual = phase.actualMonths[month];
           blended += E.phaseBlendedByMonth(phase, app)[month] ?? 0;
           const inPeriod = E.phaseMonths(phase).includes(month);
-          const gap = inPeriod && actual === undefined && estimate > 0;
+          const defaulted = E.actualOrEstimate(phase, app, month, now);
+          const usingEstimate = actual === undefined && defaulted !== undefined;
 
           return html`<td class="num">${estimate ? F.money(estimate) : '—'}</td>
-            <td class="num ${gap ? 'cell--gap' : ''}">${raw(locked || !inPeriod
-              ? actual === undefined ? '—' : F.money(actual)
-              : numberField({
-                  value: actual ?? '',
+            <td class="num ${usingEstimate ? 'cell--using-estimate' : ''}">${raw(locked || !inPeriod
+              ? actual === undefined
+                ? usingEstimate ? `${F.money(defaulted)} (using estimate)` : '—'
+                : F.money(actual)
+              : html`<span class="actual-cell">${raw(numberField({
+                  value: actual ?? (usingEstimate ? Math.round(defaulted) : ''),
                   'data-act': 'actual-month',
                   'data-id': initiative.id,
                   'data-phase': phaseId,
                   'data-month': month,
                   'aria-label': `${E.phaseLabel(PROCESS, phaseId)} actual for ${F.month(month)}`,
                   extraClass: 'field--money',
-                }))}</td>`;
+                }))}${raw(usingEstimate
+                  ? html`<button type="button" class="btn--icon btn--small" data-act="confirm-actual"
+                      data-id="${initiative.id}" data-phase="${phaseId}" data-month="${month}"
+                      data-amount="${Math.round(defaulted)}"
+                      title="Confirm ${F.money(defaulted)} as the actual">${raw(icon('check'))}</button>`
+                  : '')}</span>`)}</td>`;
         })
         .join('');
 
@@ -730,7 +790,7 @@ function monthTableMarkup(initiative) {
     title: 'Month by month',
     body: html`<p class="legend">
       <span class="legend__item"><span class="swatch swatch--edit"></span> record an actual here</span>
-      <span class="legend__item"><span class="swatch swatch--gap"></span> expected but not recorded</span>
+      <span class="legend__item"><span class="swatch swatch--using-estimate"></span> using the estimate — confirm or override</span>
       <span class="legend__item"><span class="swatch swatch--now"></span> current month</span>
     </p>
     ${raw(scroller('Cost month by month', html`<table class="grid">
@@ -749,8 +809,10 @@ function monthTableMarkup(initiative) {
  * The estimate columns sum only the months the table shows, which is every
  * month any costed phase touches (`initiativeMonths`), so the foot reconciles
  * with the column above it rather than with a separately-derived phase total.
+ * The actual column sums the same defaulted-to-estimate figure the cells
+ * above it show (SPEC §5.4), for the same reason.
  */
-function monthTotals(initiative, costed) {
+function monthTotals(initiative, costed, now) {
   const months = E.initiativeMonths(initiative);
   /** @type {Record<string, number>} */
   const estimate = {};
@@ -766,7 +828,7 @@ function monthTotals(initiative, costed) {
     actual[phaseId] = 0;
     for (const month of months) {
       estimate[phaseId] += byMonth[month] ?? 0;
-      actual[phaseId] += phase.actualMonths[month] ?? 0;
+      actual[phaseId] += E.actualOrEstimate(phase, app, month, now) ?? 0;
       blended += blendedByMonth[month] ?? 0;
     }
   }
@@ -799,7 +861,7 @@ function monthTotalsRow(costed, totals) {
  */
 export function monthTotalsRowMarkup(initiative) {
   const costed = E.costedPhaseIds(PROCESS).filter((id) => initiative.phases[id]);
-  return monthTotalsRow(costed, monthTotals(initiative, costed));
+  return monthTotalsRow(costed, monthTotals(initiative, costed, E.monthKey(new Date())));
 }
 
 /** Every gate left so far, beside the live figures. */
@@ -837,7 +899,7 @@ function gateComparisonMarkup(initiative) {
     .map((row, index) => {
       const entry = left[index];
       const skipped = entry?.record.outcome === 'skipped';
-      return html`<tr class="${index === data.length - 1 ? 'row--live' : skipped ? 'row--warn' : ''}">
+      const mainRow = html`<tr class="${index === data.length - 1 ? 'row--live' : skipped ? 'row--warn' : ''}">
         <td>${row[0]}</td>
         <td class="cell--wrap">${raw(skipped
           ? badge('skipped', 'warn', 'skip') + html`<span class="micro">${entry.record.reason}</span>`
@@ -847,6 +909,7 @@ function gateComparisonMarkup(initiative) {
         <td>${row[3 + costed.length]}</td>
         <td class="num"><strong>${F.money(row[4 + costed.length])}</strong></td>
       </tr>`;
+      return mainRow + (entry ? gateChecklistDetail(entry.record, headers.length) : '');
     })
     .join('');
 
@@ -862,3 +925,168 @@ function gateComparisonMarkup(initiative) {
     ${raw(tableActions('gates', 'comparison'))}`,
   });
 }
+
+/**
+ * What a gate's checklist looked like the moment it was left — not what it
+ * says now, since a carried-forward item keeps moving under its origin gate
+ * after this one is history (G5, `buildGateRecord`'s own comment). Absent
+ * for a gate whose process definition carries no checklist at all.
+ */
+function gateChecklistDetail(record, span) {
+  const items = record.checklist ?? [];
+  if (items.length === 0) return '';
+  const resolved = items.filter((item) => item.status === 'complete').length;
+
+  const rows = items
+    .map((item) => {
+      const state = L.checklistItemState(item.status);
+      return html`<li class="req req--${state}">
+        <span class="req__mark">${raw(icon(state === 'met' ? 'check' : 'warning'))}</span>
+        <div class="req__body">
+          <p class="req__text">${item.name} — ${CHECK_LABELS[item.status]}</p>
+          ${raw(item.note ? html`<p class="micro">${item.note}</p>` : '')}
+        </div>
+      </li>`;
+    })
+    .join('');
+
+  return html`<tr class="row--sub"><td colspan="${span}"><details class="gate-checklist">
+      <summary>Checklist — ${resolved} of ${items.length} complete</summary>
+      <ul class="reqs">${raw(rows)}</ul>
+    </details></td></tr>`;
+}
+
+export const initiativeClickActions = {
+  'pass-gate': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const date = document.querySelector('[data-field="gate-date"]');
+    L.passGate(app, PROCESS, initiative, trigger.dataset.gate,
+      date instanceof HTMLInputElement && date.value ? date.value : today(), today());
+    return commit();
+  },
+  'gate-menu': ({ trigger, id }) => openPopover(trigger, gateMenuMarkup(id)),
+  // Out of the menu and into the dialog: closing first is what puts the
+  // focus the native dialog restores on the button that opened the menu.
+  'skip-gate-open': ({ trigger, id }) => {
+    closePopover();
+    return openDialog(skipDialogMarkup(id, trigger.dataset.gate));
+  },
+  'dialog-cancel': () => closeDialog(),
+  'skip-gate': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const field = document.querySelector('[data-field="skip-reason"]');
+    const reason = field instanceof HTMLInputElement ? field.value.trim() : '';
+    if (!reason) {
+      // Refusing silently would look broken; say what is missing, as a
+      // message under the field rather than by overwriting its placeholder
+      // with an error — a placeholder is an example, not a state (§4.6).
+      const message = document.querySelector('[data-note="skip-error"]');
+      if (message instanceof HTMLElement) message.hidden = false;
+      if (field instanceof HTMLInputElement) {
+        field.classList.add('field--warn');
+        field.focus();
+      }
+      return undefined;
+    }
+    const date = document.querySelector('[data-field="skip-date"]');
+    L.skipGate(app, PROCESS, initiative, trigger.dataset.gate, reason,
+      date instanceof HTMLInputElement && date.value ? date.value : today());
+    closeDialog();
+    commit();
+    // The dialog hands focus back to the button that opened it, which the
+    // re-render has just removed — so put it on the page rather than
+    // letting it fall to <body>, where the next Tab starts from the top of
+    // the browser chrome.
+    document.getElementById('root')?.focus();
+    return undefined;
+  },
+  'reopen': ({ id }) => {
+    // Reachable from inside the gate menu, which a click on its own items
+    // does not dismiss.
+    closePopover();
+    L.reopen(PROCESS, findInitiative(id));
+    return commit();
+  },
+  'open-initiative': ({ id }) => navigate('initiative', { id }),
+  'duplicate-initiative': ({ id }) => {
+    const copy = L.duplicate(app, PROCESS, findInitiative(id));
+    store.save(app);
+    return navigate('initiative', { id: copy.id });
+  },
+  'initiative-delete-arm': () => navigate('initiative', { ...view.params, confirmDelete: true }),
+  'initiative-delete-cancel': () => navigate('initiative', { ...view.params, confirmDelete: false }),
+  'initiative-delete-confirm': ({ id }) => {
+    L.deleteInitiative(app, id);
+    store.save(app);
+    return navigate('initiatives', {});
+  },
+  'confirm-actual': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const amount = Number(trigger.dataset.amount);
+    withUndo(`Confirmed ${F.money(amount)} as the actual`, () => {
+      L.recordActual(initiative, trigger.dataset.phase, trigger.dataset.month, amount);
+    });
+    return commit();
+  },
+};
+
+export const initiativeChangeActions = {
+  'checklist-status': ({ target, id }) => {
+    // Resolving an item changes what the requirement says about itself, so
+    // the row is rebuilt — and the control that did it goes with it. Put
+    // focus back on its replacement, or working down a checklist by
+    // keyboard drops you at the top of the page after every item.
+    withUndo('Updated checklist item', () => {
+      L.setChecklistStatus(findInitiative(id), target.dataset.gate, target.dataset.item, target.value);
+    });
+    commit();
+    // A carried-forward item can appear twice — once read-only in its origin
+    // gate's own history, once live here — so match on gate too, not item
+    // alone, or focus could land on the wrong copy.
+    const restored = document.querySelector(
+      `[data-act="checklist-status"][data-gate="${target.dataset.gate}"][data-item="${target.dataset.item}"]`,
+    );
+    if (restored instanceof HTMLSelectElement) restored.focus();
+  },
+  'phase-start': ({ target, id }) => {
+    const initiative = findInitiative(id);
+    const phase = initiative.phases[target.dataset.phase];
+    withUndo(`Changed ${E.phaseLabel(PROCESS, target.dataset.phase)}'s start date`, () => {
+      L.setPhasePeriod(initiative, target.dataset.phase, target.value || null, phase.estEndDate);
+    });
+    return commit();
+  },
+  'phase-end': ({ target, id }) => {
+    const initiative = findInitiative(id);
+    const phase = initiative.phases[target.dataset.phase];
+    withUndo(`Changed ${E.phaseLabel(PROCESS, target.dataset.phase)}'s end date`, () => {
+      L.setPhasePeriod(initiative, target.dataset.phase, phase.estStartDate, target.value || null);
+    });
+    return commit();
+  },
+};
+
+export const initiativeInputActions = {
+  'skip-reason': ({ target }) => {
+    const reasoned = Boolean(target.value.trim());
+    const button = document.querySelector('[data-act="skip-gate"]');
+    if (button instanceof HTMLButtonElement) button.disabled = !reasoned;
+    if (reasoned) {
+      const message = document.querySelector('[data-note="skip-error"]');
+      if (message instanceof HTMLElement) message.hidden = true;
+      target.classList.remove('field--warn');
+    }
+  },
+  'checklist-note': ({ target, id }) => {
+    L.setChecklistNote(findInitiative(id), target.dataset.gate, target.dataset.item, target.value);
+    commitQuietly();
+  },
+  'initiative-description': ({ target, id }) => {
+    L.setDescription(findInitiative(id), target.value);
+    commitQuietly();
+  },
+  'initiative-notes': ({ target, id }) => {
+    L.setNotes(findInitiative(id), target.value);
+    commitQuietly();
+  },
+};

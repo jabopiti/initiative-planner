@@ -95,6 +95,11 @@ export function createInitiative(app, process, input) {
       grandTotal: 0,
       band: null,
       phaseCosts: {},
+      // Nobody reviewed this checklist — it was never opened — so it freezes
+      // the same shape a real gate record carries: `checklistState` against
+      // the still-empty `initiative.checklist` already defaults every item
+      // to Incomplete with no note.
+      checklist: checklistState(initiative, gate),
     };
   }
 
@@ -242,14 +247,21 @@ export function setNotes(initiative, notes) {
  * Checklists
  * ------------------------------------------------------------------ */
 
-export const CHECKLIST_STATUSES = Object.freeze(['red', 'amber', 'green']);
+export const CHECKLIST_STATUSES = Object.freeze(['incomplete', 'tentative', 'complete']);
 
-/** Items start red, so a gate is blocked until someone has looked at each. */
+/** How a checklist item's status reads visually — live in the requirements
+ * list and frozen in a gate's own history alike, so the two views can't
+ * silently disagree about what a status means. */
+export function checklistItemState(status) {
+  return status === 'incomplete' ? 'blocker' : status === 'tentative' ? 'warning' : 'met';
+}
+
+/** Items start Incomplete, so a gate is blocked until someone has looked at each. */
 export function checklistState(initiative, gate) {
   const stored = initiative.checklist[gate.id] ?? {};
   return (gate.checklist ?? []).map((item) => ({
     ...item,
-    status: stored[item.id]?.status ?? 'red',
+    status: stored[item.id]?.status ?? 'incomplete',
     note: stored[item.id]?.note ?? '',
   }));
 }
@@ -258,27 +270,62 @@ export function setChecklistStatus(initiative, gateId, itemId, status) {
   if (!CHECKLIST_STATUSES.includes(status)) throw new Error(`unknown status: ${status}`);
   assertOpen(initiative);
   const forGate = (initiative.checklist[gateId] ??= {});
-  (forGate[itemId] ??= { status: 'red', note: '' }).status = status;
+  (forGate[itemId] ??= { status: 'incomplete', note: '' }).status = status;
 }
 
 export function setChecklistNote(initiative, gateId, itemId, note) {
   assertOpen(initiative);
   const forGate = (initiative.checklist[gateId] ??= {});
-  (forGate[itemId] ??= { status: 'red', note: '' }).note = note;
+  (forGate[itemId] ??= { status: 'incomplete', note: '' }).note = note;
+}
+
+/**
+ * Items still Tentative on a gate already passed, reappearing on every later
+ * gate's own checklist until someone marks them Complete (SPEC §3). Looked
+ * up by querying every already-passed gate rather than stored a second time
+ * (DESIGN.md §2) — resolving one here means calling `setChecklistStatus`
+ * against its *origin* gate, the same record this query reads.
+ *
+ * Never a blocker at the gate it reappears on: only Incomplete blocks, and
+ * only at the gate that actually defines the item.
+ *
+ * @returns {Array<{ id: string, name: string, description: string, status: string,
+ *   note: string, originGateId: string, originGateLabel: string }>}
+ */
+export function carriedForwardItems(process, initiative, gateId) {
+  const order = E.phaseOrder(process);
+  const thisPhase = E.phaseForGate(process, gateId);
+  const thisIndex = order.indexOf(thisPhase.id);
+  const out = [];
+  for (const phaseId of order.slice(0, thisIndex)) {
+    const originGate = E.gateForPhase(process, phaseId);
+    if (initiative.gates[originGate.id]?.outcome !== 'passed') continue;
+    for (const item of checklistState(initiative, originGate)) {
+      if (item.status === 'tentative') {
+        out.push({ ...item, originGateId: originGate.id, originGateLabel: originGate.label });
+      }
+    }
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------------ *
  * Gates
  * ------------------------------------------------------------------ */
 
-/** A costed phase is estimated when it has both dates and someone allocated. */
-function phaseIsEstimated(phase) {
-  return Boolean(
-    phase &&
-      phase.estStartDate &&
-      phase.estEndDate &&
-      (phase.allocations ?? []).some((a) => a.allocationPct > 0),
-  );
+/**
+ * A costed phase is estimated when it has a period and someone allocated —
+ * except a Provisional phase (SPEC §3), which is held to less precision: a
+ * start date and a rough allocation are enough, without yet nailing down
+ * when it ends, since a plan that far out is not a commitment (SPEC §6.1).
+ */
+function phaseIsEstimated(initiative, phaseId, nowIso) {
+  const phase = initiative.phases[phaseId];
+  if (!phase?.estStartDate || !(phase.allocations ?? []).some((a) => a.allocationPct > 0)) {
+    return false;
+  }
+  if (!E.isPhaseConfirmed(initiative, phaseId, nowIso)) return true;
+  return Boolean(phase.estEndDate);
 }
 
 /**
@@ -291,9 +338,9 @@ function phaseIsEstimated(phase) {
  *
  * @returns {string[]} phase ids, in process order
  */
-export function unestimatedPhases(process, initiative) {
+export function unestimatedPhases(process, initiative, nowIso) {
   return E.costedPhaseIds(process)
-    .filter((phaseId) => !phaseIsEstimated(initiative.phases[phaseId]));
+    .filter((phaseId) => !phaseIsEstimated(initiative, phaseId, nowIso));
 }
 
 /**
@@ -313,9 +360,12 @@ export function unestimatedPhases(process, initiative) {
  *
  * @returns {Array<{ id: string, kind: 'state'|'estimates'|'checklist'|'actuals',
  *   state: 'blocker'|'warning'|'met', text: string, itemId?: string,
- *   phaseIds?: string[] }>}
+ *   phaseIds?: string[], carried?: boolean, originGateId?: string,
+ *   originGateLabel?: string,
+ *   checklistItem?: { id: string, name: string, description: string,
+ *     status: string, note: string } }>}
  */
-export function gateRequirements(app, process, initiative, gateId) {
+export function gateRequirements(app, process, initiative, gateId, nowIso) {
   const phase = E.phaseForGate(process, gateId);
   const gate = phase.gate;
   /** @type {Array<any>} */
@@ -335,7 +385,7 @@ export function gateRequirements(app, process, initiative, gateId) {
   }
 
   if (gate.requiresEstimates) {
-    const missing = unestimatedPhases(process, initiative);
+    const missing = unestimatedPhases(process, initiative, nowIso);
     const names = missing.map((id) => E.phaseLabel(process, id)).join(' and ');
     out.push({
       id: 'estimates',
@@ -353,12 +403,30 @@ export function gateRequirements(app, process, initiative, gateId) {
       id: `checklist:${item.id}`,
       kind: 'checklist',
       itemId: item.id,
-      state: item.status === 'red' ? 'blocker' : item.status === 'amber' ? 'warning' : 'met',
-      text: item.status === 'red'
+      checklistItem: item,
+      state: checklistItemState(item.status),
+      text: item.status === 'incomplete'
         ? `“${item.name}” is not resolved`
-        : item.status === 'amber'
+        : item.status === 'tentative'
           ? `“${item.name}” is only partly resolved`
           : `“${item.name}” is resolved`,
+    });
+  }
+
+  // Tentative items from earlier gates reappear here until Complete, but
+  // never as a blocker at this later gate — only Incomplete ever blocks,
+  // and only at the gate that actually defines the item (SPEC §3).
+  for (const item of carriedForwardItems(process, initiative, gate.id)) {
+    out.push({
+      id: `carried:${item.originGateId}:${item.id}`,
+      kind: 'checklist',
+      itemId: item.id,
+      carried: true,
+      originGateId: item.originGateId,
+      originGateLabel: item.originGateLabel,
+      checklistItem: item,
+      state: 'warning',
+      text: `“${item.name}” is still Tentative, carried from ${item.originGateLabel}`,
     });
   }
 
@@ -389,11 +457,36 @@ export function gateRequirements(app, process, initiative, gateId) {
  *
  * @returns {{ ok: boolean, blockers: string[], warnings: string[] }}
  */
-export function gatePrecondition(app, process, initiative, gateId) {
-  const requirements = gateRequirements(app, process, initiative, gateId);
+export function gatePrecondition(app, process, initiative, gateId, nowIso) {
+  const requirements = gateRequirements(app, process, initiative, gateId, nowIso);
   const of = (state) => requirements.filter((r) => r.state === state).map((r) => r.text);
   const blockers = of('blocker');
   return { ok: blockers.length === 0, blockers, warnings: of('warning') };
+}
+
+/**
+ * How far this gate is toward satisfied, as one calm ratio rather than a
+ * blocker count with nothing to compare it against (N3) — also derived from
+ * `gateRequirements`, for the same reason `gatePrecondition` is.
+ *
+ * `overdue` is the one signal still worth real alarm color: not "this gate
+ * has unmet requirements" (expected right up until the gate is actually
+ * passed), but "the phase behind it has already run past the date it was
+ * itself estimated to end on." A non-costed phase carries no date to compare
+ * against, so it is never overdue by this measure.
+ *
+ * @returns {{ complete: number, total: number, overdue: boolean }}
+ */
+export function gateProgress(app, process, initiative, gateId, nowIso) {
+  const requirements = gateRequirements(app, process, initiative, gateId, nowIso)
+    .filter((r) => r.kind !== 'state');
+  const phase = E.phaseForGate(process, gateId);
+  const costedPhase = initiative.phases[phase.id];
+  return {
+    complete: requirements.filter((r) => r.state === 'met').length,
+    total: requirements.length,
+    overdue: Boolean(costedPhase?.estEndDate && costedPhase.estEndDate < nowIso),
+  };
 }
 
 /** Snapshot everything an approved figure depends on, so it can never move. */
@@ -425,8 +518,19 @@ function advance(process, initiative, phaseId) {
   initiative.phaseId = E.nextPhase(process, phaseId);
 }
 
-/** The gate record shared by passing and skipping: the figures frozen at the moment either happens. */
-function buildGateRecord(app, process, initiative, outcome, reason, takenAt) {
+/**
+ * The gate record shared by passing and skipping: the figures frozen at the
+ * moment either happens.
+ *
+ * The checklist is snapshotted here too — name, description, status and note
+ * — not just referenced, because a carried-forward item's live status
+ * (`initiative.checklist[gateId]`) can keep moving after this gate is left:
+ * it is resolved under its *origin* gate, which is this one for items this
+ * gate itself defines. Without a frozen copy, "what did this gate verify"
+ * would answer with whatever the item says today, not what it said when the
+ * gate actually passed.
+ */
+function buildGateRecord(app, process, initiative, gate, outcome, reason, takenAt) {
   const total = E.grandTotal(initiative, app);
   const band = E.resolveBand(process.bands, total);
   return {
@@ -436,6 +540,10 @@ function buildGateRecord(app, process, initiative, outcome, reason, takenAt) {
     grandTotal: total,
     band: band && { id: band.id, name: band.name, abbr: band.abbr, severity: band.severity },
     phaseCosts: E.phaseCosts(initiative, app),
+    // `checklistState` already returns exactly this shape — id/name/
+    // description spread from the process's own item, status/note from what
+    // has (or hasn't) been recorded — so the snapshot is that array as-is.
+    checklist: checklistState(initiative, gate),
   };
 }
 
@@ -444,15 +552,15 @@ function buildGateRecord(app, process, initiative, outcome, reason, takenAt) {
  * move on. The final gate is what closes the initiative — finishing is a
  * governed act, never a bare status change (SPEC §6.4).
  */
-export function passGate(app, process, initiative, gateId, takenAt) {
-  const check = gatePrecondition(app, process, initiative, gateId);
+export function passGate(app, process, initiative, gateId, takenAt, nowIso = takenAt) {
+  const check = gatePrecondition(app, process, initiative, gateId, nowIso);
   if (!check.ok) throw new Error(check.blockers.join('; '));
 
   const phase = E.phaseForGate(process, gateId);
 
   freeze(app, initiative, phase.id);
 
-  initiative.gates[gateId] = buildGateRecord(app, process, initiative, 'passed', null, takenAt);
+  initiative.gates[gateId] = buildGateRecord(app, process, initiative, phase.gate, 'passed', null, takenAt);
 
   advance(process, initiative, phase.id);
   return initiative.gates[gateId];
@@ -471,7 +579,9 @@ export function skipGate(app, process, initiative, gateId, reason, takenAt) {
   if (E.isFinished(initiative)) throw new Error(`this initiative is ${initiative.status}`);
   if (!reason || !String(reason).trim()) throw new Error('skipping a gate requires a reason');
 
-  initiative.gates[gateId] = buildGateRecord(app, process, initiative, 'skipped', String(reason).trim(), takenAt);
+  initiative.gates[gateId] = buildGateRecord(
+    app, process, initiative, phase.gate, 'skipped', String(reason).trim(), takenAt,
+  );
 
   advance(process, initiative, phase.id);
   return initiative.gates[gateId];
@@ -484,6 +594,89 @@ export function lastPassedGate(process, initiative) {
     if (record?.outcome === 'passed') return record;
   }
   return null;
+}
+
+/** Closed months — already in the past — with no actual recorded yet. Wider
+ * than this (a future month, not due) is not overdue; it just hasn't happened. */
+function overdueMonths(initiative, nowMonthKey) {
+  return missingActuals(initiative).filter((gap) => gap.month < nowMonthKey);
+}
+
+/**
+ * Everything across the whole portfolio worth a look, ranked so the more
+ * consequential things surface first (N1) — the point of G1 is that a
+ * checklist item is worth surfacing the moment its phase goes current, not
+ * saved up until the gate that would finally force a look at it.
+ *
+ * Four kinds, in the order a reader should work through them:
+ *   1. escalated — the live total now needs a stricter track than what was
+ *      last approved; a governance fact, not routine housekeeping.
+ *   2. overdue   — a closed month still has no actual recorded against it.
+ *   3. checklist — an item on the current gate is Incomplete, or still
+ *      Tentative (including one carried forward from an earlier gate).
+ *   4. ready     — nothing is left blocking the current gate. Listed last
+ *      because it is an opportunity, not a problem: nothing here is wrong.
+ *
+ * Finished initiatives (closed or cancelled) are frozen and never appear.
+ *
+ * `state` carries the same `'blocker'|'warning'|'met'` vocabulary the gate
+ * panel itself uses, so a reader who already knows what amber and red mean
+ * there does not have to learn a second scale here. A checklist item keeps
+ * its own state (Incomplete reads as a blocker even here, since it blocks
+ * *some* gate — just not necessarily this list's ranking); the other three
+ * kinds are assigned one: escalated and overdue are a warning (worth a
+ * look, nothing broken), ready is met (an opportunity, not a problem).
+ *
+ * @returns {Array<{ id: string, kind: 'escalated'|'overdue'|'checklist'|'ready',
+ *   state: 'blocker'|'warning'|'met', initiativeId: string,
+ *   initiativeName: string, text: string }>}
+ */
+export function needsAttention(app, process, nowIso) {
+  const nowMonthKey = nowIso.slice(0, 7);
+  /** @type {Array<any>} */
+  const out = [];
+
+  for (const initiative of app.INITIATIVES) {
+    if (E.isFinished(initiative)) continue;
+    const name = initiative.name;
+    const gate = E.gateForPhase(process, initiative.phaseId);
+    const requirements = gateRequirements(app, process, initiative, gate.id, nowIso);
+
+    const passed = lastPassedGate(process, initiative);
+    const liveBand = E.resolveBand(process.bands, E.grandTotal(initiative, app));
+    if (passed && E.compareBands(passed.band, liveBand) === 'escalation') {
+      out.push({
+        id: `escalated:${initiative.id}`, kind: 'escalated', state: 'warning',
+        initiativeId: initiative.id, initiativeName: name,
+        text: `now needs a stricter approval track than ${passed.band ? passed.band.name : 'the last one'} approved`,
+      });
+    }
+
+    const overdue = overdueMonths(initiative, nowMonthKey);
+    if (overdue.length > 0) {
+      out.push({
+        id: `overdue:${initiative.id}`, kind: 'overdue', state: 'warning',
+        initiativeId: initiative.id, initiativeName: name,
+        text: `${overdue.length} closed month${overdue.length === 1 ? '' : 's'} still using the estimate`,
+      });
+    }
+
+    for (const r of requirements.filter((req) => req.kind === 'checklist' && req.state !== 'met')) {
+      out.push({ id: `checklist:${initiative.id}:${r.id}`, kind: 'checklist', state: r.state,
+        initiativeId: initiative.id, initiativeName: name, text: r.text });
+    }
+
+    const blocked = requirements.some((r) => r.kind !== 'state' && r.state === 'blocker');
+    if (!blocked) {
+      out.push({
+        id: `ready:${initiative.id}`, kind: 'ready', state: 'met',
+        initiativeId: initiative.id, initiativeName: name, text: `${gate.label} is ready to pass`,
+      });
+    }
+  }
+
+  const RANK = { escalated: 1, overdue: 2, checklist: 3, ready: 4 };
+  return out.sort((a, b) => RANK[a.kind] - RANK[b.kind] || a.initiativeName.localeCompare(b.initiativeName));
 }
 
 /** Months in a costed phase that have no actual recorded. */

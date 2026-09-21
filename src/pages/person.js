@@ -6,10 +6,11 @@ import * as F from '../format.js';
 import * as E from '../engine.js';
 import * as P from '../people.js';
 import { PROCESS } from '../process.js';
-import { app, view, navigate } from '../app.js';
+import * as store from '../store.js';
+import { app, view, navigate, commit, commitQuietly, withUndo, today, syncDraftCreate } from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller, empty, badge } from '../render/components.js';
+import { pageHead, scroller, empty, badge, teamLinkAction } from '../render/components.js';
 import { TABLES, tableActions } from '../render/tables.js';
 
 export function renderPerson() {
@@ -29,7 +30,8 @@ export function renderPerson() {
       title: person.name,
       back: { page: 'people', label: 'People' },
       actions: html`<button type="button" class="btn" data-act="person-active"
-        data-id="${person.id}">${person.active ? 'Deactivate' : 'Reactivate'}</button>`,
+        data-id="${person.id}">${raw(icon(person.active ? 'inactive' : 'reactivate'))}
+        ${person.active ? 'Deactivate' : 'Reactivate'}</button>`,
     }))}
       ${raw(person.active ? '' : html`<p class="panel banner banner--alert warn">
         ${raw(icon('warning', 'icon--lead'))}This person is deactivated. Existing allocations
@@ -84,7 +86,8 @@ function renderPersonDraft() {
             >${raw(icon('add'))}Create person</button>
           <button type="button" class="btn" data-act="person-draft-discard">Cancel</button>
         </div>
-        ${raw((draft.name ?? '').trim() ? '' : html`<p class="muted">A name is needed first.</p>`)}
+        <p class="muted" data-hint="person-draft-create" ${raw((draft.name ?? '').trim() ? 'hidden' : '')}
+          >A name is needed first.</p>
       </div>`,
   );
 }
@@ -152,12 +155,12 @@ function personIdentity(person) {
     </div>
     ${raw(custom
       ? html`<p class="muted">A negotiated rate is absolute: it replaces the country rate and
-          the role factor does not apply. Working days still come from the person’s country.</p>
+          the role factor does not apply. Working days still come from the person's country.</p>
         ${raw(scroller('Day rate per year', html`<table class="grid grid--narrow">
           <thead><tr><th>Year</th><th>Day rate</th></tr></thead>
           <tbody>${raw(rateRows)}</tbody></table>`))}`
-      : html`<p class="muted">The rate comes from this person’s country for the year being
-          costed, multiplied by the role’s factor.</p>`)}`;
+      : html`<p class="muted">The rate comes from this person's country for the year being
+          costed, multiplied by the role's factor.</p>`)}`;
 }
 
 function personTeams(person, warning, stranded) {
@@ -172,7 +175,7 @@ function personTeams(person, warning, stranded) {
           'data-act': 'membership-share',
           'data-id': person.id,
           'data-team': membership.teamId,
-          'aria-label': 'Share of capacity',
+          'aria-label': 'Team FTE %',
           extraClass: `field--pct ${warning.overCommitted ? 'field--warn' : ''}`,
         }))}</td>
         <td class="cell--wrap">${raw(strandedHere.length
@@ -182,7 +185,7 @@ function personTeams(person, warning, stranded) {
         <td class="cell--action">
           <button type="button" class="btn--small" data-act="membership-active"
             data-id="${person.id}" data-team="${membership.teamId}"
-            >${membership.active ? 'Leave team' : 'Rejoin'}</button>
+            >${raw(icon(membership.active ? 'leave' : 'rejoin'))}${membership.active ? 'Leave team' : 'Rejoin'}</button>
         </td>
       </tr>`;
     })
@@ -193,11 +196,12 @@ function personTeams(person, warning, stranded) {
   );
 
   return html`<h2>Teams</h2>
-    <p class="muted">A share is how much of this person one team holds. Each team draws only on
-      its own share, which is what keeps someone split across teams from being counted twice.</p>
+    <p class="muted">A Team FTE is how much of this person one team holds. Each team draws only
+      on its own Team FTE, which is what keeps someone split across teams from being counted
+      twice.</p>
     ${raw(rows
       ? scroller('Team memberships', html`<table class="grid">
-          <thead><tr><th>Team</th><th>Share %</th><th></th><th></th></tr></thead>
+          <thead><tr><th>Team</th><th>Team FTE %</th><th></th><th></th></tr></thead>
           <tbody>${raw(rows)}</tbody></table>`)
       : empty('No team yet — valid, and costs nothing. This person is on the bench.'))}
     <p class="${warning.overCommitted ? 'warn' : 'muted'}">
@@ -237,7 +241,8 @@ function personInitiativesPanel(person, rows, stranded) {
         <td>${row.allocationPct}</td>
         <td>${F.date(row.start)}</td>
         <td>${F.date(row.end)}</td>
-        <td>${raw(row.countsTowardCapacity ? '' : badge('not in capacity', 'quiet'))}</td>
+        <td>${raw(row.countsTowardCapacity ? '' : badge('', 'quiet', 'not-in-capacity',
+          "Not in capacity — past or cancelled work doesn't count toward current capacity."))}</td>
       </tr>`,
     )
     .join('');
@@ -252,14 +257,30 @@ function personInitiativesPanel(person, rows, stranded) {
       ? scroller('Initiatives this person is allocated to', html`<table class="grid">
           <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}<th></th></tr></thead>
           <tbody>${raw(body)}</tbody></table>`) + tableActions('personInitiatives', 'initiatives')
-      : empty('Not allocated to anything yet. Allocate them from a costed phase on an '
-          + 'initiative their team owns.'))}`;
+      : emptyInitiativesForPerson(person))}`;
+}
+
+/** Names an actual destination — the first team this person belongs to,
+ * where a costed phase can allocate them — rather than describing an
+ * action with no way to reach it from here. */
+function emptyInitiativesForPerson(person) {
+  const firstTeamId = (person.memberships ?? []).find((m) => m.active)?.teamId;
+  const team = firstTeamId ? app.TEAMS[firstTeamId] : null;
+  if (!team) {
+    return empty('Not allocated to anything yet. This person needs a team before they can be '
+      + 'allocated to one of its initiatives.');
+  }
+  return empty('Not allocated to anything yet. Allocate them from a costed phase on an '
+      + `initiative ${team.name} owns.`, {
+    icon: 'add',
+    action: teamLinkAction(team.id, team.name),
+  });
 }
 
 function personCapacity(person, months) {
-  const rows = P.capacityOverTime(app, person.id, months);
+  const rows = P.capacityOverTime(app, person.id, months, today());
   const teams = rows[0]?.nonInitiative ?? [];
-  const headers = ['Month', 'Allocated %', 'Capacity %', ...teams.map((t) => `${t.name} spare %`)];
+  const headers = ['Month', 'Allocated %', 'Capacity %', ...teams.map((t) => `${t.name} non-initiative work %`)];
   const data = rows.map((row) => [
     row.month,
     row.allocatedPct,
@@ -273,7 +294,9 @@ function personCapacity(person, months) {
       (row) => html`<tr class="${row.overAllocated ? 'row--warn' : ''}">
         <td>${F.month(row.month)}</td>
         <td class="num ${row.overAllocated ? 'over' : ''}">${row.allocatedPct}%${raw(
-          row.overAllocated ? icon('warning', 'icon--lead') : '')}</td>
+          row.overAllocated ? icon('warning', 'icon--lead') : '')}${raw(row.provisionalPct
+          ? html`<span class="cap__provisional">+${row.provisionalPct}% provisional</span>`
+          : '')}</td>
         <td class="num">${row.capacityPct}%</td>
         ${raw(row.nonInitiative.map((entry) => html`<td class="num">${entry.pct}%</td>`).join(''))}
       </tr>`,
@@ -281,11 +304,103 @@ function personCapacity(person, months) {
     .join('');
 
   return html`<h2>Capacity over time</h2>
-    <p class="muted">Every month in the rolling window. “Spare” is the share a team holds but
-      has not allocated — ongoing work, not idle time.</p>
+    <p class="muted">Every month in the rolling window. “Non-initiative work” is the Team FTE a
+      team holds but has not committed to any initiative — ongoing work, not idle time.</p>
     ${raw(scroller('Capacity month by month', html`<table class="grid">
       <thead><tr>${raw(headers.map((h) => html`<th>${h}</th>`).join(''))}</tr></thead>
       <tbody>${raw(body)}</tbody>
     </table>`, 'scroller--tall'))}
     ${raw(tableActions('personCapacity', 'capacity'))}`;
 }
+
+export const personClickActions = {
+  'person-draft-discard': () => navigate('people', {}),
+  'person-draft-create': () => {
+    const draft = view.params.draft ?? {};
+    const name = (draft.name ?? '').trim();
+    if (!name) return undefined;
+    const person = P.createPerson(app, {
+      name,
+      countryId: draft.countryId,
+      roleId: draft.roleId,
+    });
+    store.save(app);
+    return navigate('person', { id: person.id });
+  },
+  'person-active': ({ id }) => {
+    const person = app.PEOPLE[id];
+    withUndo(`${person.active ? 'Deactivated' : 'Reactivated'} ${person.name}`, () => {
+      P.setPersonActive(person, !person.active);
+    });
+    return commit();
+  },
+  'join-team': ({ id }) => {
+    const select = document.querySelector(`[data-act="join-team-pick"][data-id="${id}"]`);
+    if (!(select instanceof HTMLSelectElement)) return commit();
+    const person = app.PEOPLE[id];
+    withUndo(`Added ${person.name} to the team`, () => {
+      P.addMembership(person, select.value, 0);
+    });
+    return commit();
+  },
+};
+
+export const personChangeActions = {
+  'person-draft-select': ({ target }) => {
+    const draft = { ...view.params.draft, [target.dataset.field]: target.value };
+    return navigate('person', { ...view.params, draft });
+  },
+  'person-country': ({ target, id }) => {
+    const person = app.PEOPLE[id];
+    withUndo(`Changed ${person.name}'s country`, () => {
+      person.countryId = target.value;
+    });
+    return commit();
+  },
+  'person-role': ({ target, id }) => {
+    const person = app.PEOPLE[id];
+    withUndo(`Changed ${person.name}'s role`, () => {
+      P.useStandardRole(person, target.value);
+    });
+    return commit();
+  },
+  'rate-kind': ({ target, id }) => {
+    const person = app.PEOPLE[id];
+    withUndo(`Switched ${person.name} to a ${target.dataset.kind === 'custom' ? 'custom' : 'standard'} rate`, () => {
+      if (target.dataset.kind === 'custom') P.useCustomRole(app, person);
+      else P.useStandardRole(person);
+    });
+    return commit();
+  },
+};
+
+export const personInputActions = {
+  'person-field': ({ target, id, field }) => {
+    const person = app.PEOPLE[id];
+    person[field] = field === 'capacityPct' ? F.readNumber(target.value, person.capacityPct) : target.value;
+    commitQuietly();
+  },
+  'person-custom-label': ({ target, id }) => {
+    app.PEOPLE[id].customRole.label = target.value;
+    commitQuietly();
+  },
+  'person-rate': ({ target, id }) => {
+    P.setCustomRate(app.PEOPLE[id], target.dataset.year, F.readNumber(target.value, 0));
+    commitQuietly();
+  },
+  'membership-share': ({ target, id }) => {
+    const person = app.PEOPLE[id];
+    const team = target.dataset.team;
+    const current = person.memberships.find((m) => m.teamId === team);
+    P.setMembershipShare(person, team, F.readNumber(target.value, current.sharePct));
+    commitQuietly();
+  },
+  // Neither team nor person exists yet, so — unlike every other draft — an
+  // in-memory params object is enough; there is nothing worth surviving a
+  // reload before a name has even been typed (D1).
+  'person-draft-field': ({ target, field }) => {
+    const draft = { ...view.params.draft, [field]: target.value };
+    view.params = { ...view.params, draft };
+    syncDraftCreate('person-draft-create', 'person-draft-create', Boolean((draft.name ?? '').trim()));
+  },
+};

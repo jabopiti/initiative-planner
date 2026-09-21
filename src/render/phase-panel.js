@@ -5,51 +5,83 @@ import * as F from '../format.js';
  */
 import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
+import * as P from '../people.js';
 import { PROCESS } from '../process.js';
-import { app } from '../app.js';
+import {
+  app, withUndo, commit, commitQuietly, findInitiative, refreshCalcRegions, openPopover,
+  restoreCaretAfter, today,
+} from '../app.js';
 import { html, raw, numberField } from './dom.js';
 import { icon } from './icons.js';
-import { scroller, empty, badge, panel } from './components.js';
+import { scroller, empty, badge, coverageBadge, panel, teamLinkAction } from './components.js';
 import { TABLES, tableActions } from './tables.js';
 
 /**
- * Who the allocation table lists.
+ * Who the allocation table lists: only people actually allocated. (An
+ * earlier design pre-listed the whole team roster at 0% instead, so
+ * allocating was typing a number next to an already-visible name — F2
+ * replaced it with the add-person chips below, since a roster that size
+ * mostly reads as rows to skip past.)
  *
- * While a phase is editable it lists **the whole team roster**, allocated or
- * not, with a percentage field on every row (D2). Allocating is then typing a
- * number next to a name, rather than finding a select, choosing a person, and
- * correcting the 50% they arrive at — a magic number with no explanation,
- * which is what this replaces. A 0% row costs nothing and must not warn (D2's
- * caveat).
- *
- * Once a gate freezes the phase the roster is gone and only the allocations
- * remain: the list of people you could still add is an editing affordance,
- * and there is nothing left to edit.
- *
- * Someone allocated who is no longer a member of the team is listed either
- * way — their allocation keeps costing (SPEC §5.2) — after the roster, and
- * marked.
+ * Someone allocated who is no longer a member of the team is still listed —
+ * their allocation keeps costing (SPEC §5.2) — and marked.
  */
-function allocationPeople(initiative, phase, editable, at) {
-  const roster = editable
-    ? Object.values(app.PEOPLE)
-      .filter((person) => person.active && E.membership(person, initiative.teamId))
-      .sort((a, b) => a.name.localeCompare(b.name))
-    : [];
-  const listed = new Set(roster.map((person) => person.id));
-
-  const rest = phase.allocations
-    .filter((allocation) => !listed.has(allocation.personId))
+function allocationPeople(phase, at) {
+  return phase.allocations
     .map((allocation) => at.PEOPLE[allocation.personId] ?? app.PEOPLE[allocation.personId])
     .filter(Boolean)
     .sort((a, b) => a.name.localeCompare(b.name));
+}
 
-  return [...roster, ...rest];
+/**
+ * F2 — team members not yet on this phase: the click-to-add chips that
+ * replace the old pre-listed-at-0% rows. Only offered while editable; a
+ * frozen phase has nothing left to add.
+ */
+function addablePeople(initiative, phase) {
+  const allocated = new Set(phase.allocations.map((allocation) => allocation.personId));
+  return Object.values(app.PEOPLE)
+    .filter((person) => person.active && E.membership(person, initiative.teamId)
+      && !allocated.has(person.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** A person's role for role-scoped lookups — null for a custom rate, which
+ * has no standard role to match a historical median against. */
+const effectiveRoleId = (person) => (person.customRole ? null : person.roleId);
+
+/**
+ * C7 — every active team member, for the bulk-edit actions that apply a
+ * percentage across the roster rather than one row at a time. Reuses the
+ * same roster `teamRoster` already builds, filtered to who a bulk edit can
+ * actually reach, instead of each action re-scanning `app.PEOPLE` by hand.
+ */
+function activeRosterPeople(teamId) {
+  return P.teamRoster(app, teamId)
+    .filter((row) => row.person.active && row.membership.active)
+    .map((row) => row.person);
+}
+
+/**
+ * F2 — clicking a chip allocates that person immediately, at the best guess
+ * already computed elsewhere for this exact person/phase: their own prior-
+ * phase carry-forward (C4), then the team/role/phase historical median (C5),
+ * then a plain 100% — fully dedicated — when neither exists. Never a 0% row
+ * left waiting to be typed over.
+ */
+function addPersonChipsMarkup(initiative, phaseId, candidates) {
+  if (candidates.length === 0) return '';
+  return html`<div class="chip-row">
+    <span class="micro">Add:</span>
+    ${raw(candidates.map((person) => html`<button type="button" class="btn btn--small"
+      data-act="allocation-add" data-id="${initiative.id}" data-phase="${phaseId}"
+      data-person="${person.id}">${raw(icon('add'))}${person.name}</button>`).join(' '))}
+  </div>`;
 }
 
 /**
  * The phase to seed this one from: the nearest costed phase before it that
- * has anyone allocated (D2).
+ * has anyone allocated.
  *
  * Offered as one click rather than done silently. Copying someone else's
  * percentages into a phase is a real edit with a real cost attached, and a
@@ -81,22 +113,44 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
   const allocationByPerson = new Map(
     phase.allocations.map((allocation) => [allocation.personId, allocation.allocationPct]),
   );
+  // One scan for the whole roster's medians, not one per row (C5).
+  const usualByRole = new Map(
+    E.usualStaffing(app, initiative.teamId, phaseId).map((s) => [s.roleId, s.medianPct]),
+  );
 
-  return allocationPeople(initiative, phase, editable, at)
+  return allocationPeople(phase, at)
     .map((person) => {
       const allocationPct = allocationByPerson.get(person.id) ?? 0;
       const figures = E.allocationFigures(phase, person.id, allocationPct, at);
       const stranded = !E.membership(person, initiative.teamId);
+      // Safe headroom before over-allocating: this phase's own current
+      // contribution is excluded, since the chip replaces it rather than
+      // stacking on top (§2, C6) — null with nothing to measure against
+      // (no membership, or no period yet), in which case there's no chip.
+      const maxAvail = editable
+        ? E.maxAvailablePct(app, person.id, initiative.teamId, initiative.id, phaseId, phase, today())
+        : null;
+      // C4: if this person was allocated on an earlier phase, offer a
+      // quick-apply chip carrying that percentage forward.
+      const carry = editable && allocationPct === 0
+        ? E.carryForwardPct(PROCESS, initiative, phaseId, person.id)
+        : null;
+      // C5: the historical median for this team/role/phase combination —
+      // shown alongside Max available, as a separate chip.
+      const personRoleId = effectiveRoleId(person);
+      const usual = editable && personRoleId ? usualByRole.get(personRoleId) ?? null : null;
 
       return html`<tr class="${stranded ? 'row--warn' : ''}"
         data-alloc-phase="${phaseId}" data-alloc-person="${person.id}">
         <td>${person.name} ${raw(stranded
-          ? badge('no longer in this team', 'warn', 'warning')
+          ? badge('', 'warn', 'warning', 'No longer a member of this team — still allocated, so this keeps costing.')
+          : '')}${raw(person.customRole
+          ? badge('', 'info', 'custom-rate', 'Custom rate — paid at a negotiated rate, not the country/role standard.')
           : '')}</td>
         <td>${E.roleLabel(person, at.ROLES)}</td>
         <td>${app.COUNTRIES[person.countryId]?.name ?? ''}</td>
         <td>${raw(editable
-          ? numberField({
+          ? html`${raw(numberField({
               value: allocationPct,
               'data-act': 'allocation-pct',
               'data-id': initiative.id,
@@ -104,7 +158,25 @@ function allocationRowsFor(initiative, phaseId, editable, at) {
               'data-person': person.id,
               'aria-label': `${person.name} allocation`,
               extraClass: 'field--pct',
-            })
+            }))}${raw(carry
+              ? html`<button type="button" class="btn--small" data-act="allocation-suggest"
+                  data-id="${initiative.id}" data-phase="${phaseId}" data-person="${person.id}"
+                  data-amount="${carry.allocationPct}" data-label="from prior phase"
+                  >Prev ${carry.allocationPct}%</button>`
+              : '')}${raw(usual
+              ? html`<button type="button" class="btn--small" data-act="allocation-suggest"
+                  data-id="${initiative.id}" data-phase="${phaseId}" data-person="${person.id}"
+                  data-amount="${usual}" data-label="usual"
+                  >Usual ${usual}%</button>`
+              : '')}${raw(maxAvail
+              ? html`<button type="button" class="btn--small" data-act="allocation-suggest"
+                  data-id="${initiative.id}" data-phase="${phaseId}" data-person="${person.id}"
+                  data-amount="${maxAvail.pct}"
+                  >Max available ${maxAvail.pct}%</button>${raw(maxAvail.provisionalPct
+                    ? html`<span class="micro muted">+${maxAvail.provisionalPct}% provisional
+                        elsewhere</span>`
+                    : '')}`
+              : '')}`
           : html`<span class="num">${allocationPct}%</span>`)}</td>
         <td class="num"><span data-calc="days-${phaseId}-${person.id}"
           >${figures.personDays.toFixed(1)}</span></td>
@@ -152,7 +224,7 @@ export function allocationDetailMarkup(initiativeId, phaseId, personId) {
   return html`<h3>${person.name} — ${E.phaseLabel(PROCESS, phaseId)}</h3>
     <p class="micro">${E.roleLabel(person, at.ROLES)} ·
       ${at.COUNTRIES[person.countryId]?.name ?? '—'}${raw(person.customRole
-        ? html` · ${raw(badge('custom rate', 'info'))}`
+        ? html` · ${raw(badge('', 'info', 'custom-rate', 'Custom rate — paid at a negotiated rate, not the country/role standard.'))}`
         : '')}</p>
     <dl class="detail">
       ${raw(line('Working days in the period', workingDays.toFixed(1)))}
@@ -177,6 +249,97 @@ export function allocationDetailMarkup(initiativeId, phaseId, personId) {
 }
 
 /**
+ * C8 — Duration presets: quick-set chips for the phase's end date,
+ * shown when the phase has no end date yet. Fixed presets plus a
+ * data-driven "usual for this team/phase" preset.
+ */
+function durationPresetsMarkup(initiative, phaseId) {
+  const usual = E.usualPhaseDuration(app, initiative.teamId, phaseId);
+  const usualWeeks = usual ? Math.round(usual / 7) : null;
+  const presets = [
+    { label: '6 weeks', days: 42 },
+    { label: '3 months', days: 91 },
+    { label: '6 months', days: 182 },
+  ];
+  if (usualWeeks && usualWeeks > 0) {
+    presets.push({ label: `Usual: ${usualWeeks} weeks`, days: usual });
+  }
+  return html`<div class="chip-row">
+    <span class="micro">Quick duration:</span>
+    ${raw(presets.map((preset) =>
+      html`<button type="button" class="btn btn--small" data-act="duration-preset"
+        data-id="${initiative.id}" data-phase="${phaseId}" data-days="${preset.days}"
+        >${preset.label}</button>`).join(' '))}
+  </div>`;
+}
+
+/**
+ * C7 — Bulk allocation edit. Three modes packed into a compact toolbar:
+ * - Set everyone to X%
+ * - Set all [role] to X%
+ * - Apply usual staffing (from historical medians)
+ *
+ * Each is a small button; the first two open a popover with a number input.
+ */
+function bulkEditMarkup(initiative, phaseId) {
+  const usual = E.usualStaffing(app, initiative.teamId, phaseId);
+  const roles = Object.entries(app.ROLES)
+    .filter(([, role]) => role.active)
+    .map(([id, role]) => ({ id, name: role.name }));
+  return html`<details class="bulk-edit">
+    <summary class="btn btn--small btn--ghost">Bulk edit…</summary>
+    <div class="bulk-edit__body">
+      <div class="bulk-edit__row">
+        <label>Set everyone to
+          <input type="text" inputmode="numeric" class="field field--num field--pct field--inline"
+            data-bulk-pct="all" aria-label="Bulk percentage" />%</label>
+        <button type="button" class="btn btn--small" data-act="bulk-set-all"
+          data-id="${initiative.id}" data-phase="${phaseId}">Apply</button>
+      </div>
+      <div class="bulk-edit__row">
+        <label>Set all
+          <select class="field field--inline" data-bulk-role aria-label="Role">
+            ${raw(roles.map((role) => html`<option value="${role.id}">${role.name}</option>`).join(''))}
+          </select>
+          to <input type="text" inputmode="numeric" class="field field--num field--pct field--inline"
+            data-bulk-pct="role" aria-label="Bulk percentage" />%</label>
+        <button type="button" class="btn btn--small" data-act="bulk-set-role"
+          data-id="${initiative.id}" data-phase="${phaseId}">Apply</button>
+      </div>
+      ${raw(usual.length
+        ? html`<div class="bulk-edit__row">
+            <span>Apply usual staffing</span>
+            <button type="button" class="btn btn--small" data-act="bulk-usual"
+              data-id="${initiative.id}" data-phase="${phaseId}">Apply</button>
+          </div>`
+        : '')}
+    </div>
+  </details>`;
+}
+
+/**
+ * C9 — Cost suggestions: a datalist (for autocomplete) plus quick-apply
+ * buttons for items from the build-time library and dataset history.
+ */
+function costSuggestionsMarkup(initiative, phaseId) {
+  const suggestions = E.otherCostSuggestions(app, phaseId, PROCESS);
+  if (suggestions.length === 0) return '';
+  return html`<datalist id="cost-suggestions-${phaseId}">
+    ${raw(suggestions.map((s) =>
+      html`<option value="${s.name}"></option>`).join(''))}
+  </datalist>
+  <div class="chip-row">
+    <span class="micro">Suggestions:</span>
+    ${raw(suggestions.map((s) =>
+      html`<button type="button" class="btn btn--small" data-act="cost-suggest"
+        data-id="${initiative.id}" data-phase="${phaseId}"
+        data-name="${s.name}" data-amount="${s.amount}"
+        >${s.name}${raw(s.amount ? html` <span class="micro">${F.money(s.amount)}</span>` : '')}</button>`
+    ).join(' '))}
+  </div>`;
+}
+
+/**
  * One costed phase's estimate. Rendered by both the creation wizard and the
  * initiative detail page, so the two can never drift apart.
  *
@@ -188,6 +351,11 @@ export function phasePanel(initiative, phaseId, editable) {
   const phase = initiative.phases[phaseId];
   const label = E.phaseLabel(PROCESS, phaseId);
   const frozen = E.isFrozen(phase);
+  // A phase already gated through is a settled figure, not a plan any more —
+  // Provisional/Confirmed answers "how solid is this plan?", which no longer
+  // applies once there is no longer a plan, only a record (SPEC §3).
+  const provisional = !frozen && phase.estStartDate
+    && !E.isPhaseConfirmed(initiative, phaseId, today());
   // A frozen phase reads its own snapshot — including the people, since a
   // custom rate lives on the person record — so an approved figure on screen
   // never moves when master data changes underneath it.
@@ -197,6 +365,7 @@ export function phasePanel(initiative, phaseId, editable) {
   const seedFrom = editable && phase.allocations.length === 0
     ? seedSource(initiative, phaseId)
     : null;
+  const candidates = editable ? addablePeople(initiative, phase) : [];
 
   const costRows = phase.otherCosts
     .map((item) => {
@@ -214,7 +383,7 @@ export function phasePanel(initiative, phaseId, editable) {
               data-phase="${phaseId}" data-cost="${item.id}" type="month" value="${item.month}"
               aria-label="Month" />`
           : item.month)} ${raw(outOfPeriod
-          ? badge('out of period', 'warn', 'warning')
+          ? badge('', 'warn', 'warning', "This cost falls outside the phase's estimated period.")
           : '')}</td>
         <td class="num">${raw(editable
           ? numberField({ value: item.amount, 'data-act': 'cost-field', 'data-field': 'amount', 'data-id': initiative.id,
@@ -231,29 +400,40 @@ export function phasePanel(initiative, phaseId, editable) {
     .join('');
 
   // A frozen phase is settled by the process, so its mark is the `ok` kind,
-  // not a warning: nothing here needs looking at.
+  // not a warning: nothing here needs looking at. Provisional shares the same
+  // slot — a plan can be exactly one of "already approved" or "not solid
+  // yet", never both, and a Confirmed plan needs no badge at all.
   return panel({
     id: `panel-phase-${phaseId}`,
     title: label,
-    mark: frozen ? badge('approved and frozen', 'ok', 'check') : '',
+    mark: frozen ? badge('', 'ok', 'lock', 'Approved and frozen') : provisional ? badge('provisional', 'quiet') : '',
     extraClass: frozen ? 'banner banner--done' : '',
-    body: html`<div class="fields">
-      <label class="field-row"><span>From</span>
-        <input type="date" class="field field--date" data-act="phase-start"
-          data-id="${initiative.id}" data-phase="${phaseId}"
-          value="${phase.estStartDate ?? ''}" ${raw(editable ? '' : 'disabled')} /></label>
-      <label class="field-row"><span>To</span>
-        <input type="date" class="field field--date" data-act="phase-end"
-          data-id="${initiative.id}" data-phase="${phaseId}"
-          value="${phase.estEndDate ?? ''}" ${raw(editable ? '' : 'disabled')} /></label>
-    </div>
-    ${raw(phase.estStartDate && phase.estEndDate && phase.estEndDate < phase.estStartDate
-      ? html`<p class="field-message">${raw(icon('warning', 'icon--lead'))}Ends before it starts —
-          nothing in this period costs anything until that's fixed.</p>`
-      : editable && (phase.allocations.length || phase.otherCosts.length)
-        ? html`<p class="micro">Changing this period rescales every allocation's cost beneath
-            it.</p>`
-        : '')}
+    body: html`${raw(editable
+      ? html`<div class="fields">
+          <label class="field-row"><span>From</span>
+            <input type="date" class="field field--date" data-act="phase-start"
+              data-id="${initiative.id}" data-phase="${phaseId}"
+              value="${phase.estStartDate ?? ''}" /></label>
+          <label class="field-row"><span>To</span>
+            <input type="date" class="field field--date" data-act="phase-end"
+              data-id="${initiative.id}" data-phase="${phaseId}"
+              value="${phase.estEndDate ?? ''}" /></label>
+        </div>
+        ${raw(!phase.estEndDate ? durationPresetsMarkup(initiative, phaseId) : '')}
+        ${raw(phase.estStartDate && phase.estEndDate && phase.estEndDate < phase.estStartDate
+          ? html`<p class="field-message">${raw(icon('warning', 'icon--lead'))}Ends before it
+              starts — nothing in this period costs anything until that's fixed.</p>`
+          : phase.allocations.length || phase.otherCosts.length
+            ? html`<p class="micro">Changing this period rescales every allocation's cost
+                beneath it.</p>`
+            : '')}`
+      // P2 — a phase no longer being edited reads its period as a fact, not
+      // as a pair of disabled form fields still shaped like something you
+      // could type into.
+      : html`<div class="fields"><p class="field-row"><span>Period</span>
+          <span>${phase.estStartDate && phase.estEndDate
+            ? html`${F.date(phase.estStartDate)} – ${F.date(phase.estEndDate)}`
+            : 'No period was set.'}</span></p></div>`)}
 
     <h3>People</h3>
     ${raw(seedFrom && editable
@@ -262,15 +442,26 @@ export function phasePanel(initiative, phaseId, editable) {
             data-id="${initiative.id}" data-phase="${phaseId}" data-from="${seedFrom}"
             >${raw(icon('duplicate'))}Copy ${E.phaseLabel(PROCESS, seedFrom)}'s allocations</button></p>`
       : '')}
+    ${raw(editable && (allocationRows || candidates.length) ? bulkEditMarkup(initiative, phaseId) : '')}
     ${raw(allocationRows
       ? scroller(`${label} allocations`, html`<table class="grid">
           <thead><tr><th>Person</th><th>Role</th><th>Country</th>
             <th>Allocation %</th><th>Person-days</th><th>Cost</th><th></th></tr></thead>
           <tbody>${raw(allocationRows)}</tbody></table>`)
         + (phase.allocations.length ? registerAllocationTable(initiative, phaseId, at) : '')
-      : empty(editable
-          ? 'Nobody is in this team yet. Add people to the team, then allocate them here.'
-          : 'Nobody was allocated.'))}
+      // Nobody allocated yet: with nobody left to add either, there really is
+      // no one on this team (a real empty state); otherwise the chips below
+      // are the whole affordance, and a redundant "nobody yet" box on top of
+      // them would be exactly the noise F2 removed the pre-listed rows for.
+      : !editable || candidates.length === 0
+        ? empty(editable
+            ? 'Nobody is in this team yet. Add people to the team, then allocate them here.'
+            : 'Nobody was allocated.', editable ? {
+            icon: 'add',
+            action: teamLinkAction(initiative.teamId, app.TEAMS[initiative.teamId]?.name ?? 'the team'),
+          } : {})
+        : '')}
+    ${raw(editable ? addPersonChipsMarkup(initiative, phaseId, candidates) : '')}
 
     <h3>Other costs</h3>
     ${raw(phase.otherCosts.length || editable
@@ -281,7 +472,7 @@ export function phasePanel(initiative, phaseId, editable) {
             ${raw(editable ? html`<tr data-id="new">
               <td class="cell--wrap"><input class="field" data-act="cost-field" data-field="name" data-id="${initiative.id}"
                 data-phase="${phaseId}" data-cost="new" placeholder="New cost item…"
-                aria-label="New cost item name" /></td>
+                aria-label="New cost item name" list="cost-suggestions-${phaseId}" /></td>
               <td><input class="field field--month" data-act="cost-field" data-field="month" data-id="${initiative.id}"
                 data-phase="${phaseId}" data-cost="new" type="month" aria-label="Month" /></td>
               <td class="num">${raw(numberField({ 'data-act': 'cost-field', 'data-field': 'amount', 'data-id': initiative.id,
@@ -290,9 +481,11 @@ export function phasePanel(initiative, phaseId, editable) {
               <td></td>
             </tr>` : '')}
           </tbody></table>`)
+        + (editable ? costSuggestionsMarkup(initiative, phaseId) : '')
       : empty('No non-labour costs.'))}
 
-    <p class="results" data-calc="total-${phaseId}">${raw(phaseTotalsMarkup(initiative, phaseId))}</p>`,
+    <p class="results ${editable ? 'results--quiet' : ''}" data-calc="total-${phaseId}"
+      >${raw(phaseTotalsMarkup(initiative, phaseId))}</p>`,
   });
 }
 
@@ -370,12 +563,216 @@ export function phaseTotalsMarkup(initiative, phaseId) {
 
 /** The live grand total and resolved track, recomputed without a rebuild. */
 export function grandMarkup(initiative) {
-  const total = E.grandTotal(initiative, app);
+  // `initiativeTotals` already computes the grand total as `forecast` —
+  // reuse that instead of a second `E.grandTotal` walk for the same figure.
+  const totals = E.initiativeTotals(initiative, app);
+  const total = totals.forecast;
   const band = E.resolveBand(PROCESS.bands, total);
-  const coverage = E.initiativeCoverage(initiative);
   return html`<strong>${F.money(total)}</strong>
-    ${raw(badge(coverage, 'info'))}
+    ${raw(coverageBadge(totals.coverage, totals))}
     — ${band ? band.name : 'Not yet known'}${raw(band
       ? html`<span class="micro">${band.req}</span>`
       : html`<span class="micro">No approval track covers this total.</span>`)}`;
 }
+
+export const phasePanelClickActions = {
+  'allocation-detail': ({ trigger, id }) => openPopover(
+    trigger, allocationDetailMarkup(id, trigger.dataset.phase, trigger.dataset.person),
+  ),
+  'allocation-seed': ({ trigger, id }) => {
+    // Seeded on a click, never on a render — a panel that writes allocations
+    // merely by being looked at would be worse than a magic default.
+    const initiative = findInitiative(id);
+    const from = trigger.dataset.from;
+    const phaseId = trigger.dataset.phase;
+    withUndo(`Copied ${E.phaseLabel(PROCESS, from)}'s allocations`, () => {
+      for (const allocation of initiative.phases[from].allocations) {
+        const person = app.PEOPLE[allocation.personId];
+        // Someone who has since left the team cannot be allocated afresh
+        // (SPEC §5.2); they are skipped rather than throwing the copy away.
+        if (!person?.active || !E.membership(person, initiative.teamId)) continue;
+        L.setAllocation(app, initiative, phaseId, allocation.personId, allocation.allocationPct);
+      }
+    });
+    return commit();
+  },
+  // A suggestion chip (C4's carry-forward, C5's usual, or the existing max-
+  // available) applies its amount — one handler, told which chip it was by
+  // `data-label`, rather than three copies differing only in that suffix.
+  'allocation-suggest': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const person = app.PEOPLE[trigger.dataset.person];
+    const pct = Number(trigger.dataset.amount);
+    const label = trigger.dataset.label ? ` (${trigger.dataset.label})` : '';
+    withUndo(`Set ${person.name} to ${pct}%${label}`, () => {
+      L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, pct);
+    });
+    return commit();
+  },
+  'allocation-remove': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    withUndo('Removed allocation', () => {
+      L.setAllocation(app, initiative, trigger.dataset.phase, trigger.dataset.person, 0);
+    });
+    return commit();
+  },
+  // F2: add-person chip — allocate at the best available default (C4's
+  // carry-forward, then C5's usual, then 100%) rather than a 0% row waiting
+  // to be typed over.
+  'allocation-add': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const phaseId = trigger.dataset.phase;
+    const personId = trigger.dataset.person;
+    const person = app.PEOPLE[personId];
+    const carry = E.carryForwardPct(PROCESS, initiative, phaseId, personId);
+    const personRoleId = effectiveRoleId(person);
+    const usual = personRoleId
+      ? E.usualAllocationPct(app, initiative.teamId, personRoleId, phaseId)
+      : null;
+    const pct = carry?.allocationPct ?? usual ?? 100;
+    withUndo(`Added ${person.name} at ${pct}%`, () => {
+      L.setAllocation(app, initiative, phaseId, personId, pct);
+    });
+    return commit();
+  },
+  'cost-remove': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const phase = initiative.phases[trigger.dataset.phase];
+    const cost = phase.otherCosts.find((c) => c.id === trigger.dataset.cost);
+    withUndo(`Removed ${cost.name}`, () => {
+      phase.otherCosts = phase.otherCosts.filter((c) => c.id !== trigger.dataset.cost);
+    });
+    return commit();
+  },
+  // C8: duration preset — set end date based on start + days.
+  'duration-preset': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const phaseId = trigger.dataset.phase;
+    const phase = initiative.phases[phaseId];
+    const days = Number(trigger.dataset.days);
+    // Use existing start date, or default to today.
+    const startIso = phase.estStartDate || today();
+    const start = new Date(startIso);
+    const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
+    const endIso = end.toISOString().slice(0, 10);
+    withUndo(`Set ${E.phaseLabel(PROCESS, phaseId)} to ${trigger.textContent.trim()}`, () => {
+      L.setPhasePeriod(initiative, phaseId, startIso, endIso);
+    });
+    return commit();
+  },
+  // C7: bulk set all — set every roster member to the given %.
+  'bulk-set-all': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const phaseId = trigger.dataset.phase;
+    const panel = trigger.closest('.bulk-edit');
+    const input = panel?.querySelector('[data-bulk-pct="all"]');
+    const pct = F.readNumber(input?.value ?? '', 0);
+    if (pct <= 0) return;
+    withUndo(`Set everyone to ${pct}%`, () => {
+      for (const person of activeRosterPeople(initiative.teamId)) {
+        L.setAllocation(app, initiative, phaseId, person.id, pct);
+      }
+    });
+    return commit();
+  },
+  // C7: bulk set role — set every person with a given role to the given %.
+  'bulk-set-role': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const phaseId = trigger.dataset.phase;
+    const panel = trigger.closest('.bulk-edit');
+    const input = panel?.querySelector('[data-bulk-pct="role"]');
+    const select = panel?.querySelector('[data-bulk-role]');
+    const pct = F.readNumber(input?.value ?? '', 0);
+    const roleId = select?.value;
+    if (pct <= 0 || !roleId) return;
+    const roleName = app.ROLES[roleId]?.name ?? roleId;
+    withUndo(`Set all ${roleName} to ${pct}%`, () => {
+      for (const person of activeRosterPeople(initiative.teamId)) {
+        if (effectiveRoleId(person) !== roleId) continue;
+        L.setAllocation(app, initiative, phaseId, person.id, pct);
+      }
+    });
+    return commit();
+  },
+  // C7: bulk usual — apply historical median staffing shape.
+  'bulk-usual': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const phaseId = trigger.dataset.phase;
+    const staffing = E.usualStaffing(app, initiative.teamId, phaseId);
+    if (!staffing.length) return;
+    const byRole = new Map(staffing.map((s) => [s.roleId, s.medianPct]));
+    withUndo('Applied usual staffing', () => {
+      for (const person of activeRosterPeople(initiative.teamId)) {
+        const pct = byRole.get(effectiveRoleId(person));
+        if (pct) L.setAllocation(app, initiative, phaseId, person.id, pct);
+      }
+    });
+    return commit();
+  },
+  // C9: cost suggestion chip — add a pre-filled other-cost item.
+  'cost-suggest': ({ trigger, id }) => {
+    const initiative = findInitiative(id);
+    const phaseId = trigger.dataset.phase;
+    const name = trigger.dataset.name;
+    const amount = Number(trigger.dataset.amount) || 0;
+    withUndo(`Added ${name}`, () => {
+      const item = { id: L.newId('cost'), name, month: '', amount };
+      initiative.phases[phaseId].otherCosts.push(item);
+    });
+    return commit();
+  },
+};
+
+export const phasePanelInputActions = {
+  'allocation-pct': ({ target }) => {
+    const initiative = findInitiative(target.dataset.id);
+    const phaseId = target.dataset.phase;
+    // Every row here does have a record by the time this field renders, but
+    // unreadable input still needs a fallback that isn't a percentage that
+    // doesn't exist.
+    const current = initiative.phases[phaseId].allocations
+      .find((a) => a.personId === target.dataset.person);
+    L.setAllocation(app, initiative, phaseId, target.dataset.person,
+      F.readNumber(target.value, current?.allocationPct ?? 0));
+    commitQuietly();
+    refreshCalcRegions(initiative);
+  },
+  'actual-month': ({ target }) => {
+    const initiative = findInitiative(target.dataset.id);
+    const phaseId = target.dataset.phase;
+    const rawValue = target.value.trim();
+    L.recordActual(initiative, phaseId, target.dataset.month,
+      rawValue === '' ? null : F.readNumber(rawValue, 0));
+    commitQuietly();
+    // Recording an actual moves the blended figures, not the structure.
+    refreshCalcRegions(initiative);
+  },
+  'cost-field': ({ target, field }) => {
+    const initiative = findInitiative(target.dataset.id);
+    const phaseId = target.dataset.phase;
+    const costId = target.dataset.cost;
+
+    if (costId === 'new') {
+      const newCost = {
+        id: L.newId('cost'),
+        name: field === 'name' ? target.value : 'New cost',
+        month: field === 'month' ? target.value : '',
+        amount: field === 'amount' ? F.readNumber(target.value, 0) : 0,
+      };
+      initiative.phases[phaseId].otherCosts.push(newCost);
+      restoreCaretAfter(
+        target,
+        `[data-act="cost-field"][data-field="${field}"][data-phase="${phaseId}"][data-cost="${newCost.id}"]`,
+        commit,
+      );
+      return;
+    }
+
+    const item = initiative.phases[phaseId].otherCosts.find((c) => c.id === costId);
+    if (field === 'amount') item.amount = F.readNumber(target.value, item.amount);
+    else item[field] = target.value;
+    // Changing an amount moves phase totals. Re-render the affected totals.
+    commitQuietly();
+    if (field === 'amount') refreshCalcRegions(initiative);
+  },
+};

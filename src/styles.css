@@ -147,6 +147,7 @@
      the whole scale from that one number rather than seven. A tight ratio
      between steps, so eight levels coexist without any of them shouting
      over the data. */
+  --text-3xs: calc(var(--brand-text-base) * 0.55);
   --text-2xs: calc(var(--brand-text-base) * 0.7857);
   --text-xs: calc(var(--brand-text-base) * 0.8571);
   --text-sm: calc(var(--brand-text-base) * 0.9286);
@@ -164,6 +165,7 @@
   --leading-normal: 1.45;
 
   --tracking-wide: 0.06em;
+  --tracking-loose: 0.13em;
   --tracking-tight: -0.01em;
   --measure: 64ch;
   /* A prose cell needs a floor, or the table squeezes it to one word a line. */
@@ -458,6 +460,12 @@ h3,
   font-weight: var(--weight-medium);
 }
 
+/* P7 — Portfolio Variance, one step down from `.over`: worth a look, not yet
+   the same as a genuinely overrun initiative. */
+.variance--mild {
+  color: var(--color-amber);
+}
+
 /* ---- icons ---- */
 
 /*
@@ -557,6 +565,22 @@ h3,
 .shell-nav button[aria-current='page'] {
   color: var(--color-accent);
   border-bottom-color: var(--color-accent);
+}
+
+/* Ambient, not alarming (N2) — a quiet count, muted like the rest of the
+   nav rather than a red alert badge screaming for attention from every page. */
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25em;
+  padding: 0 var(--space-half);
+  border-radius: var(--radius-round);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+  background: var(--color-line-soft);
 }
 
 /* The menu button only exists below the nav breakpoint. */
@@ -666,6 +690,7 @@ h3,
   padding: var(--space-1) var(--space-3);
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
   transition: background-color var(--motion-fast) var(--ease-standard),
     border-color var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard);
@@ -773,6 +798,48 @@ h3,
 
 .actions--table {
   margin-top: var(--space-2);
+}
+
+/*
+ * ESTIMATION CHIPS & BULK EDIT (Bundle 5)
+ */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin: var(--space-1) 0;
+}
+
+.bulk-edit {
+  margin: var(--space-2) 0;
+  padding: var(--space-1) var(--space-2);
+  border: var(--size-border) solid var(--color-line);
+  border-radius: var(--brand-radius);
+  background: var(--color-surface);
+}
+
+.bulk-edit > summary {
+  cursor: pointer;
+  list-style: none;
+}
+.bulk-edit > summary::-webkit-details-marker {
+  display: none;
+}
+
+.bulk-edit__body {
+  margin-top: var(--space-2);
+  padding-bottom: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.bulk-edit__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 /*
@@ -981,6 +1048,18 @@ h3,
   white-space: nowrap;
 }
 
+/* A severity color on a cell needs to outrank the plain `.grid td` rule just
+   above — `.over`/`.variance--mild` alone tie it on specificity and lose to
+   it on source order, which left every over-capacity and over-utilisation
+   figure in a table silently un-colored (found while wiring up P7). */
+.grid td.over {
+  color: var(--color-danger);
+}
+
+.grid td.variance--mild {
+  color: var(--color-amber);
+}
+
 /* A definition, a requirement, a checklist item's description: sentences, and
    the one thing in a table allowed to take the height it needs. */
 .cell--wrap {
@@ -1140,14 +1219,52 @@ h3,
   --cell-bg: var(--color-now-tint);
 }
 
-.cell--gap {
-  --cell-bg: var(--color-amber-tint);
+.cell--using-estimate {
+  --cell-bg: var(--color-spare-tint);
+}
+
+.actual-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
 }
 
 
 .row--live > td {
   border-top: var(--size-thick) solid var(--color-line);
   font-weight: var(--weight-medium);
+}
+
+/* A gate history row's own checklist substance (G5) — collapsed by default,
+   so a table read for its figures isn't lengthened by prose underneath. Its
+   one cell spans the row, so it is also `:first-child`; that selector's
+   sticky/no-wrap rule (above) is for a frozen identity column, not prose,
+   and is overridden here at matching specificity. */
+.row--sub > td {
+  padding-top: 0;
+  border-top: none;
+}
+
+.grid > tbody > tr.row--sub > td:first-child {
+  position: static;
+  white-space: normal;
+  border-right: none;
+}
+
+.gate-checklist > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.gate-checklist > summary::-webkit-details-marker {
+  display: none;
+}
+
+.gate-checklist[open] > summary {
+  margin-bottom: var(--space-2);
 }
 
 .grid--narrow {
@@ -1189,9 +1306,26 @@ h3,
 
 /* Vertical stickiness only works where the table owns its vertical scroll —
    a horizontally-scrolling wrapper is only as tall as its table. */
+/* P3 — a top/bottom fade that appears only where there is more to scroll to,
+   so "content continues past the edge" reads from the table itself rather
+   than a thin scrollbar thumb someone has to notice. The two solid layers
+   scroll with the content (background-attachment: local) and mask the two
+   shadow layers, which stay fixed to the container — at either end, the
+   matching solid layer covers its shadow completely, so the fade vanishes
+   exactly where there is nothing left to scroll to. */
 .scroller--tall {
   max-height: var(--scroller-tall);
   overflow-y: auto;
+  background-repeat: no-repeat;
+  background-color: var(--color-surface);
+  background-image:
+    linear-gradient(var(--color-surface) 30%, transparent),
+    linear-gradient(transparent, var(--color-surface) 70%),
+    linear-gradient(color-mix(in oklab, var(--color-fg) 20%, transparent), transparent),
+    linear-gradient(transparent, color-mix(in oklab, var(--color-fg) 20%, transparent));
+  background-position: top, bottom, top, bottom;
+  background-size: 100% var(--space-6), 100% var(--space-6), 100% var(--space-2), 100% var(--space-2);
+  background-attachment: local, local, scroll, scroll;
 }
 
 .scroller__hint {
@@ -1347,6 +1481,12 @@ h3,
 
 .req__body .field-inline {
   margin-top: var(--space-2);
+}
+
+/* Only Tentative offers the note field, and it is required there — said
+   once, beside the label, rather than left for an empty field to imply. */
+.req__required {
+  color: var(--color-amber);
 }
 
 .req__fix {
@@ -1782,24 +1922,27 @@ body:has(.summary) #toast {
 }
 
 /*
- * SETTINGS LAYOUT — one continuous scroll, sectioned (§4.3). A side rail on
+ * RAIL LAYOUT — a long single-scroll page, sectioned (§4.3). A side rail on
  * wide viewports, so every section is one click away without hunting through
  * the scroll; a sticky bar on narrow, where there is no room for a rail
- * beside the content.
+ * beside the content. Settings drives the "current" section from its own
+ * route; Initiative and Team detail have no per-section route, so theirs is
+ * driven by scroll position instead (app.js's `syncRailNav`) — same layout
+ * and highlighting styles either way.
  *
  * --header-height approximates .shell-header's rendered height, so the
  * narrow-mode bar sticks directly under it rather than the two sticky
  * elements overlapping — CSS does not stack sequential sticky elements on
  * its own.
  */
-.settings-layout {
+.rail-layout {
   display: grid;
   grid-template-columns: 12rem minmax(0, 1fr);
   align-items: start;
   gap: var(--space-5);
 }
 
-.settings-nav {
+.rail-nav {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -1809,7 +1952,7 @@ body:has(.summary) #toast {
   top: calc(var(--header-height) + var(--space-4));
 }
 
-.settings-nav button {
+.rail-nav button {
   font: inherit;
   text-align: left;
   color: var(--color-muted);
@@ -1823,30 +1966,42 @@ body:has(.summary) #toast {
     background-color var(--motion-fast) var(--ease-standard);
 }
 
-.settings-nav button:hover {
+.rail-nav button:hover {
   color: var(--color-fg);
   background-image: var(--state-layer-hover);
 }
 
-.settings-nav button[aria-current='location'] {
+.rail-nav button[aria-current='location'] {
   color: var(--color-accent);
   border-left-color: var(--color-accent);
   background-image: var(--state-layer-hover);
 }
 
-.settings-sections {
+.rail-sections {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
   min-width: 0;
 }
 
+.settings-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.settings-section-head h2 {
+  margin: 0;
+  margin-right: auto;
+}
+
 @media (max-width: 48rem) {
-  .settings-layout {
+  .rail-layout {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .settings-nav {
+  .rail-nav {
     flex-direction: row;
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -1858,13 +2013,13 @@ body:has(.summary) #toast {
     padding: 0 var(--space-3);
   }
 
-  .settings-nav button {
+  .rail-nav button {
     border-left: none;
     border-bottom: var(--size-thick) solid transparent;
     white-space: nowrap;
   }
 
-  .settings-nav button[aria-current='location'] {
+  .rail-nav button[aria-current='location'] {
     border-left-color: transparent;
     border-bottom-color: var(--color-accent);
   }
@@ -1978,12 +2133,21 @@ body:has(.summary) #toast {
   color: var(--color-muted);
 }
 
+/* Layout only — the badge inside carries its own colour per kind (N3), so
+   this never hardcodes an alarm colour a calm state would inherit by accident. */
 .step__flag {
   display: flex;
   align-items: center;
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  color: var(--color-danger);
+  margin-top: var(--space-1);
+}
+
+/* I9's dot-progression, layered onto the calm "X of Y complete" text (N3)
+   rather than replacing it — a glyph learned once scans faster than the
+   words on every repeat, but the words are what a screen reader gets. */
+.dot-progress {
+  margin-right: var(--space-half);
+  font-size: var(--text-3xs);
+  letter-spacing: var(--tracking-loose);
 }
 
 .step--passed {
@@ -2104,6 +2268,17 @@ body:has(.summary) #toast {
   background: var(--color-surface);
   border: var(--size-border) solid var(--color-line);
   border-top: var(--size-thick) solid var(--color-line);
+}
+
+/* Full width of its own accord, so the figures/facts/actions row always
+   wraps onto a fresh line under it (U2) rather than competing for space
+   beside money figures at the same visual weight. */
+.summary__name {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-fg);
 }
 
 .summary__figures {
@@ -2239,6 +2414,21 @@ body:has(.summary) #toast {
   letter-spacing: var(--tracking-tight);
 }
 
+/* P8 — while a phase is actively being edited, its own running total steps
+   back so the allocation figures above it (the thing actually being worked
+   on) keep the weight. Full prominence returns once the phase is no longer
+   editable, and always belongs to the initiative's grand total and to
+   Portfolio, neither of which uses this modifier. */
+.results--quiet {
+  color: var(--color-muted);
+}
+
+.results--quiet strong {
+  font-size: inherit;
+  font-weight: var(--weight-regular);
+  letter-spacing: normal;
+}
+
 #wizard-grand .micro {
   display: block;
 }
@@ -2317,9 +2507,8 @@ body:has(.summary) #toast {
   background: var(--color-surface);
 }
 
-.swatch--gap {
-  background: var(--color-amber-tint);
-  border-color: var(--color-amber);
+.swatch--using-estimate {
+  background: var(--color-spare-tint);
 }
 
 .swatch--now {
@@ -2377,6 +2566,12 @@ body:has(.summary) #toast {
 
 .cap__empty {
   color: var(--color-faint);
+}
+
+.cap__provisional {
+  display: block;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
 }
 
 .row--spare th {

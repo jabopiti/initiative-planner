@@ -6,7 +6,7 @@ import * as F from '../format.js';
  * anywhere."
  */
 import * as E from '../engine.js';
-import { app, view, currentMonth } from '../app.js';
+import { app, view, currentMonth, today } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { pageHead, scroller, empty, panel } from '../render/components.js';
 
@@ -73,13 +73,13 @@ function overShareMarkup(rows) {
 
   return panel({
     id: 'panel-over-share',
-    title: "Over their team's share",
-    body: html`<p class="muted">Allocated more within one team than the share that team holds
+    title: 'Over their Team FTE',
+    body: html`<p class="muted">Allocated more within one team than the Team FTE that team holds
         of them.</p>
       ${raw(rows.length === 0
-        ? empty('No membership is over its share this month.')
-        : scroller("Memberships over their team's share", html`<table class="grid">
-            <thead><tr><th>Person</th><th>Team</th><th>Share %</th><th>Allocated %</th>
+        ? empty('No membership is over its Team FTE this month.')
+        : scroller('Memberships over their Team FTE', html`<table class="grid">
+            <thead><tr><th>Person</th><th>Team</th><th>Team FTE %</th><th>Allocated %</th>
               <th>Over by</th></tr></thead>
             <tbody>${raw(body)}</tbody></table>`))}`,
   });
@@ -87,7 +87,7 @@ function overShareMarkup(rows) {
 
 export function renderCapacity() {
   const month = selectedMonth();
-  const { overCapacity, overShare } = E.overAllocations(app, month);
+  const { overCapacity, overShare } = E.overAllocations(app, month, today());
 
   fill(
     'root',
@@ -96,6 +96,9 @@ export function renderCapacity() {
       lede: 'Over-allocation across every team and person, one month at a time. '
         + 'Both ceilings warn — neither ever blocks.',
     }))}
+      <p class="muted">Capacity % is what a person can take on in total. Allocated % is what has
+        actually been committed against it. The two panels below read that gap at two different
+        scopes — a person's whole Capacity %, then one team's own Team FTE share of it.</p>
       <div class="toolbar">${raw(monthPicker())}</div>
       <div class="panel-stack">
         ${raw(overCapacityMarkup(overCapacity))}

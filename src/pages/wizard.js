@@ -5,11 +5,22 @@ import * as E from '../engine.js';
 import * as L from '../lifecycle.js';
 import * as store from '../store.js';
 import { PROCESS } from '../process.js';
-import { app, view } from '../app.js';
+import { app, view, navigate, today, syncDraftCreate } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, empty, panel } from '../render/components.js';
 import { costedPhasePanels, grandMarkup } from '../render/phase-panel.js';
+
+/**
+ * F1's front door: "existing" whenever there is anything to copy from and
+ * the draft hasn't said otherwise, since it is the default-focused option;
+ * "scratch" is the only choice with nothing yet to start from. Shared by the
+ * render and by draft-create so the two can never resolve a bare (mode-less)
+ * draft — the state a fresh wizard starts in — two different ways.
+ */
+function resolveDraftMode(draft) {
+  return app.INITIATIVES.length === 0 ? 'scratch' : (draft.mode ?? 'existing');
+}
 
 /**
  * Two steps, resumable. Step 1 creates the initiative immediately, so step 2
@@ -40,51 +51,105 @@ function renderWizardGeneral() {
     );
   }
 
+  // F1: starting from an existing initiative — search, pick, adjust what's
+  // different — is the default-focused front door; there is nothing to
+  // start from until at least one initiative exists, in which case scratch
+  // is the only option and the chooser itself would be a dead end.
+  const candidates = app.INITIATIVES.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const mode = resolveDraftMode(draft);
+  const source = mode === 'existing' && draft.sourceId
+    ? candidates.find((i) => i.id === draft.sourceId)
+    : null;
+  const canCreate = mode === 'existing'
+    ? Boolean(source) && (draft.name ?? '').trim()
+    : Boolean((draft.name ?? '').trim());
+
   fill(
     'root',
     html`${raw(pageHead({ title: 'New initiative' }))}
       <ol class="steps"><li aria-current="step">General</li><li>Estimates</li></ol>
 
       <div class="panel">
-        <div class="fields">
-          <label class="field-row"><span>Name</span>
-            <input class="field" data-act="draft-field" data-field="name"
-              value="${draft.name ?? ''}" placeholder="What is it called?" /></label>
-          <label class="field-row"><span>Description</span>
-            <input class="field" data-act="draft-field" data-field="description"
-              value="${draft.description ?? ''}" /></label>
-          <label class="field-row"><span>Team</span>
-            <select class="field field--select" data-act="draft-select" data-field="teamId">
-              ${raw(teams.map((team) => html`<option value="${team.id}"
-                ${raw(draft.teamId === team.id ? 'selected' : '')}>${team.name}</option>`).join(''))}
-            </select></label>
-          <label class="field-row"><span>Starting phase</span>
-            <select class="field field--select" data-act="draft-select" data-field="startPhaseId">
-              ${raw(PROCESS.phases.map((phase) => html`<option value="${phase.id}"
-                ${raw(startPhaseId === phase.id ? 'selected' : '')}>${phase.label}</option>`).join(''))}
-            </select></label>
-        </div>
-
-        ${raw(skipped.length
-          ? html`<div class="issues">
-              <p class="warn">${raw(icon('skip', 'icon--lead'))}Starting at
-                ${E.phaseLabel(PROCESS, startPhaseId)} records
-                ${skipped.length} earlier gate${skipped.length === 1 ? '' : 's'} as skipped:
-                ${skipped.map((id) => E.gateForPhase(PROCESS, id).label).join(', ')}. They
-                approve nothing and freeze nothing.</p>
-              <label class="field-row"><span>Reason</span>
-                <input class="field" data-act="draft-field" data-field="skipReason"
-                  value="${draft.skipReason ?? 'Already in progress when entered into the tool'}" /></label>
+        ${raw(candidates.length
+          ? html`<div class="tabs" role="tablist">
+              <button type="button" role="tab" data-act="draft-mode" data-mode="existing"
+                aria-selected="${mode === 'existing'}">Start from an existing initiative</button>
+              <button type="button" role="tab" data-act="draft-mode" data-mode="scratch"
+                aria-selected="${mode === 'scratch'}">Start from scratch</button>
             </div>`
           : '')}
 
+        ${raw(mode === 'existing'
+          ? html`<div class="fields">
+              <label class="field-row"><span>Copy from</span>
+                <select class="field field--select" data-act="draft-source">
+                  <option value="">Choose an initiative…</option>
+                  ${raw(candidates.map((i) => html`<option value="${i.id}"
+                    ${raw(draft.sourceId === i.id ? 'selected' : '')}
+                    >${i.name} — ${app.TEAMS[i.teamId]?.name ?? ''}</option>`).join(''))}
+                </select></label>
+            </div>
+            ${raw(source
+              ? html`<p class="micro">Copies every phase's period, allocations and other costs
+                  from “${source.name}.” Its gates, checklist history and actuals do not come
+                  along — the copy starts fresh at the first phase.</p>
+                  <div class="fields">
+                    <label class="field-row"><span>Name</span>
+                      <input class="field" data-act="draft-field" data-field="name"
+                        value="${draft.name ?? ''}" placeholder="What is it called?" /></label>
+                    <label class="field-row"><span>Description</span>
+                      <input class="field" data-act="draft-field" data-field="description"
+                        value="${draft.description ?? ''}" /></label>
+                    <label class="field-row"><span>Team</span>
+                      <select class="field field--select" data-act="draft-select" data-field="teamId">
+                        ${raw(teams.map((team) => html`<option value="${team.id}"
+                          ${raw(draft.teamId === team.id ? 'selected' : '')}
+                          >${team.name}</option>`).join(''))}
+                      </select></label>
+                  </div>`
+              : '')}`
+          : html`<div class="fields">
+              <label class="field-row"><span>Name</span>
+                <input class="field" data-act="draft-field" data-field="name"
+                  value="${draft.name ?? ''}" placeholder="What is it called?" /></label>
+              <label class="field-row"><span>Description</span>
+                <input class="field" data-act="draft-field" data-field="description"
+                  value="${draft.description ?? ''}" /></label>
+              <label class="field-row"><span>Team</span>
+                <select class="field field--select" data-act="draft-select" data-field="teamId">
+                  ${raw(teams.map((team) => html`<option value="${team.id}"
+                    ${raw(draft.teamId === team.id ? 'selected' : '')}>${team.name}</option>`).join(''))}
+                </select></label>
+              <label class="field-row"><span>Starting phase</span>
+                <select class="field field--select" data-act="draft-select" data-field="startPhaseId">
+                  ${raw(PROCESS.phases.map((phase) => html`<option value="${phase.id}"
+                    ${raw(startPhaseId === phase.id ? 'selected' : '')}>${phase.label}</option>`).join(''))}
+                </select></label>
+            </div>
+
+            ${raw(skipped.length
+              ? html`<div class="issues">
+                  <p class="warn">${raw(icon('skip', 'icon--lead'))}Starting at
+                    ${E.phaseLabel(PROCESS, startPhaseId)} records
+                    ${skipped.length} earlier gate${skipped.length === 1 ? '' : 's'} as skipped:
+                    ${skipped.map((id) => E.gateForPhase(PROCESS, id).label).join(', ')}. They
+                    approve nothing and freeze nothing.</p>
+                  <label class="field-row"><span>Reason</span>
+                    <input class="field" data-act="draft-field" data-field="skipReason"
+                      value="${draft.skipReason ?? 'Already in progress when entered into the tool'}" /></label>
+                </div>`
+              : '')}`)}
+
         <div class="actions">
           <button type="button" class="btn btn--primary" data-act="draft-create"
-            ${raw((draft.name ?? '').trim() ? '' : 'disabled')}
+            ${raw(canCreate ? '' : 'disabled')}
             >${raw(icon('add'))}Create and continue</button>
           <button type="button" class="btn" data-act="draft-discard">Cancel</button>
         </div>
-        ${raw((draft.name ?? '').trim() ? '' : html`<p class="muted">A name is needed first.</p>`)}
+        <p class="muted" data-hint="draft-create" ${raw(canCreate ? 'hidden' : '')}
+          >${mode === 'existing'
+              ? 'Pick an initiative to copy from, and give the copy a name.'
+              : 'A name is needed first.'}</p>
       </div>`,
   );
 }
@@ -106,7 +171,7 @@ function renderWizardGeneral() {
  */
 function renderWizardEstimates(initiative) {
   const panels = costedPhasePanels(initiative);
-  const missing = L.unestimatedPhases(PROCESS, initiative);
+  const missing = L.unestimatedPhases(PROCESS, initiative, today());
   const discarding = view.params.confirmDiscard === true;
 
   fill(
@@ -161,3 +226,100 @@ function renderWizardEstimates(initiative) {
         registry, marked as still needing an estimate.</p>`,
   );
 }
+
+export const wizardClickActions = {
+  'wizard-start': () => navigate('wizard', {}),
+  'draft-discard': () => {
+    store.clearDraft();
+    return navigate('initiatives', {});
+  },
+  'draft-create': () => {
+    const draft = view.params.draft ?? store.loadDraft();
+    if (!(draft.name ?? '').trim()) return undefined;
+
+    let initiative;
+    if (resolveDraftMode(draft) === 'existing') {
+      // F1: built entirely on the existing duplicate() logic — the copy
+      // starts out exactly as a manual Duplicate would, then the draft's own
+      // General-step edits (whatever the person changed from the source's
+      // defaults) are applied on top of it.
+      const source = app.INITIATIVES.find((i) => i.id === draft.sourceId);
+      if (!source) return undefined;
+      initiative = L.duplicate(app, PROCESS, source);
+      L.renameInitiative(initiative, draft.name.trim());
+      L.setDescription(initiative, draft.description ?? '');
+      L.setTeam(app, initiative, draft.teamId ?? source.teamId);
+    } else {
+      initiative = L.createInitiative(app, PROCESS, {
+        name: draft.name.trim(),
+        description: draft.description ?? '',
+        teamId: draft.teamId ?? Object.keys(app.TEAMS)[0],
+        startPhaseId: draft.startPhaseId,
+        skipReason: draft.skipReason,
+      });
+    }
+    store.clearDraft();
+    store.save(app);
+    return navigate('wizard', { id: initiative.id });
+  },
+  'draft-mode': ({ trigger }) => {
+    const draft = { ...(view.params.draft ?? store.loadDraft()), mode: trigger.dataset.mode };
+    store.saveDraft(draft);
+    return navigate('wizard', { ...view.params, draft });
+  },
+  'wizard-discard-arm': () => navigate('wizard', { ...view.params, confirmDiscard: true }),
+  'wizard-discard-cancel': () => navigate('wizard', { ...view.params, confirmDiscard: false }),
+  'wizard-discard-confirm': ({ id }) => {
+    // The initiative is real from step 1, so abandoning the flow has to be
+    // able to remove it — otherwise walking away leaves a half-formed
+    // record in the registry, which is the finding this answers (§2.6).
+    L.deleteInitiative(app, id);
+    store.save(app);
+    return navigate('initiatives', {});
+  },
+};
+
+export const wizardChangeActions = {
+  'draft-select': ({ target }) => {
+    const draft = {
+      ...(view.params.draft ?? store.loadDraft()),
+      [target.dataset.field]: target.value,
+    };
+    store.saveDraft(draft);
+    return navigate('wizard', { ...view.params, draft });
+  },
+  // F1: picking the source initiative pre-fills Name/Description/Team from
+  // it, the same defaults duplicate() itself would give the copy — still
+  // freely editable afterward, since picking is "start here," not "commit
+  // to this exactly."
+  'draft-source': ({ target }) => {
+    const sourceId = target.value;
+    const source = app.INITIATIVES.find((i) => i.id === sourceId);
+    const draft = {
+      ...(view.params.draft ?? store.loadDraft()),
+      sourceId,
+      ...(source
+        ? { name: `${source.name} (copy)`, description: source.description, teamId: source.teamId }
+        : {}),
+    };
+    store.saveDraft(draft);
+    return navigate('wizard', { ...view.params, draft });
+  },
+};
+
+export const wizardInputActions = {
+  'draft-field': ({ target, field }) => {
+    // The draft lives in view params until step 1 is saved, so it survives
+    // re-renders without an initiative existing yet.
+    const draft = { ...(view.params.draft ?? store.loadDraft()), [field]: target.value };
+    view.params = { ...view.params, draft };
+    store.saveDraft(draft);
+    // Only the create button's enabled state and its hint depend on this
+    // (P4), so refresh nothing else and leave the caret alone.
+    const mode = resolveDraftMode(draft);
+    const canCreate = mode === 'existing'
+      ? Boolean(draft.sourceId) && (draft.name ?? '').trim()
+      : Boolean((draft.name ?? '').trim());
+    syncDraftCreate('draft-create', 'draft-create', canCreate);
+  },
+};

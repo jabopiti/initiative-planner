@@ -137,22 +137,23 @@ export function shareWarning(person) {
  * A person's month-by-month capacity picture: what they are allocated, and
  * what each team holds but has not allocated.
  */
-export function capacityOverTime(app, personId, months) {
+export function capacityOverTime(app, personId, months, nowIso) {
   const person = app.PEOPLE[personId];
   const teams = (person.memberships ?? [])
     .filter((m) => m.active)
     .map((m) => ({ teamId: m.teamId, name: app.TEAMS[m.teamId]?.name ?? m.teamId }));
 
   return months.map((month) => {
-    const allocated = E.allocatedPct(app, personId, month);
+    const allocated = E.allocatedPct(app, personId, month, undefined, nowIso);
     return {
       month,
       allocatedPct: allocated,
+      provisionalPct: E.provisionalPct(app, personId, month, undefined, nowIso),
       capacityPct: person.capacityPct,
       overAllocated: allocated > person.capacityPct,
       nonInitiative: teams.map((team) => ({
         ...team,
-        pct: E.nonInitiativeWorkPct(app, personId, team.teamId, month),
+        pct: E.nonInitiativeWorkPct(app, personId, team.teamId, month, nowIso),
       })),
     };
   });
@@ -231,7 +232,7 @@ export function teamRoster(app, teamId) {
  * @param {string} monthKeyStr what "cost" and "allocated" mean by — both are
  *   "right now" questions, not a whole-year total (§4.5).
  */
-export function teamSummary(app, teamId, monthKeyStr) {
+export function teamSummary(app, teamId, monthKeyStr, nowIso) {
   const roster = teamRoster(app, teamId).filter((row) => row.membership.active);
   return {
     activeMembers: roster.filter((row) => row.person.active).length,
@@ -239,9 +240,9 @@ export function teamSummary(app, teamId, monthKeyStr) {
     activeInitiatives: app.INITIATIVES.filter(
       (i) => i.teamId === teamId && i.status === 'active',
     ).length,
-    costThisMonth: E.teamRunRate(app, teamId, [monthKeyStr])[0]?.total ?? 0,
+    costThisMonth: E.teamRunRate(app, teamId, [monthKeyStr], nowIso)[0]?.total ?? 0,
     allocatedSharePct: roster.reduce(
-      (total, row) => total + E.allocatedPct(app, row.person.id, monthKeyStr, teamId),
+      (total, row) => total + E.allocatedPct(app, row.person.id, monthKeyStr, teamId, nowIso),
       0,
     ),
   };

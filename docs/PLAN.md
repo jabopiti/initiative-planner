@@ -47,10 +47,10 @@ on them.
 
 | Bundle | Items | Why grouped / sequenced here |
 |---|---|---|
-| 0 | Docs: README, SPEC §1/§2/§3/§5/§6/§7/§9 + numbering fix, DESIGN §2/§4/§6 + numbering fix (§14) | Spec-first discipline — the new vocabulary and rules land before any code that implements them. |
+| 0 | Docs: README, SPEC §1/§2/§3/§5/§6/§7/§9, DESIGN §2/§4 (§14) — numbering-fix sub-items reversed, see §14 | Spec-first discipline — the new vocabulary and rules land before any code that implements them. |
 | 1 | A1, U1, U3 | All shell-level `app.js` work (the dispatcher, undo wrapping, search) — one pass over the same file/area. |
 | 2 | A2 | Long-page nav structure, before other bundles add content to Initiative/Team detail that would need to be re-slotted into it. |
-| 3 | T1, T2, T3b, T4, T5, X1 | Mechanical renames/fixes, no interdependencies, no behavior change — safe to batch, and terminology should be settled before later bundles (esp. 12) build on the new names. |
+| 3 | T1, T2, T3b, T4, T5 | Mechanical renames/fixes, no interdependencies, no behavior change — safe to batch, and terminology should be settled before later bundles (esp. 12) build on the new names. (X1 dropped — see §8, no such typo exists in any seed/demo file.) |
 | 4 | C2, C3, C6, C1 | The automation core: Provisional/Confirmed must exist before the gate-requirement easing (C3) or the hard/provisional split in the suggestion chip (C6) can be built against it; C1 (actuals-default) resolves its own flagged open data-model question as part of this bundle. |
 | 5 | C4, C5, C7, C8, C9 | Estimation-input UX built on top of Bundle 4's data; independent of each other, same phase-panel area. |
 | 6 | G3, G2, G4, G5, G6 | Gate-checklist rework, one pass over the same panel — rename before/with the carry-forward mechanism that references the renamed states. |
@@ -69,7 +69,19 @@ Update the row below in the commit that finishes a bundle.
 
 | Bundle | Status |
 |---|---|
-| 0–12 | **Not started** |
+| 0 | **Done** |
+| 1 | **Done** |
+| 2 | **Done** |
+| 3 | **Done** |
+| 4 | **Done** |
+| 5 | **Done** |
+| 6 | **Done** |
+| 7 | **Done** |
+| 8 | **Done** |
+| 9 | **Done** |
+| 10 | **Done** |
+| 11 | **Done** |
+| 12 | **Done** |
 
 ---
 
@@ -125,7 +137,7 @@ Update the row below in the commit that finishes a bundle.
 | # | Item | Detail |
 |---|---|---|
 | S1 | Reorder sections | New order: **General → Data → Process → Roles → Countries & rates → Danger zone** (today: Roles, Countries, Process, General, Data, Danger zone). |
-| S2 | Admin password gating edits | Introduce an admin password. Data and Danger zone stay editable by any user without it. General, Process, Roles, and Countries & rates require it to *edit* (Process is read-only regardless, so this mostly affects General/Roles/Countries). **Resolved:** explicitly a soft deterrent against casual/accidental changes on a shared device, not real access control — a client-side password in an offline single-file app can't be more than that, and it is framed/documented as such rather than sold as security. The password is a **hardcoded build-time constant** (same category as `process.js`'s other fixed governance data) — not user-set, no first-run prompt, no in-app setup UI. Consequence: no forgotten-password recovery flow is needed either — changing it means rebuilding, the same as any other build-time-fixed value. |
+| S2 | Lock/unlock toggle gating edits | Data and Danger zone stay editable by any user regardless. General, Roles, and Countries & rates render read-only until a lock icon on each section's own heading is clicked (Process is read-only regardless, so this mostly affects General/Roles/Countries). **Resolved, revised:** the admin-password version of this (a hardcoded build-time constant, soft deterrent only) was replaced by a plain lock/unlock icon — there was nothing a password protected that a click doesn't equally deter, and it removed a fake-security surface for no real gain. Unlocking is session-only and resets on leaving Settings; unlocking one gated section unlocks all of them, since it's one trust level. |
 
 ## 7. Visual/UX polish
 
@@ -144,7 +156,7 @@ Update the row below in the commit that finishes a bundle.
 
 | # | Item | Detail |
 |---|---|---|
-| X1 | "AnXalyst" role typo | Seed/demo data: fix to "Analyst," add its abbreviation (the only role currently missing one). |
+| ~~X1~~ | ~~"AnXalyst" role typo~~ | Checked while executing Bundle 3: no file in the repo, at any commit, ever contains "AnXalyst" — not `masterData.js`, not `examples/exports/demo.json`. It only ever existed as a stray role typed into a live browser's `localStorage` during this session's own fresh-eyes review, mistaken there for seed data. Removed from that test browser directly; nothing to fix in source. |
 
 ## 9. Standing policies (not tasks — decisions to hold future work against)
 
@@ -291,7 +303,13 @@ keep that discipline intact.
 - **Glossary (§9):** add Provisional/Confirmed; update the checklist-item
   row to the renamed states; rename Share % → Team FTE %; retire "Spare"
   in favor of "Non-initiative work" as the sole term (§12's T2).
-- Fix the missing §4 in the section numbering.
+- ~~Fix the missing §4 in the section numbering.~~ **Reversed:** the gap
+  is deliberate, not an oversight — the commit that trimmed this document
+  (`787693c`) states surviving sections keep their numbers because ~90
+  source comments cite them (79 confirmed live today via
+  `grep -roE "SPEC §[0-9.]+|DESIGN §[0-9.]+" src/`). Renumbering would mean
+  hunting down and correcting every one of those for a purely cosmetic
+  fix. Leave the numbering exactly as it is.
 - **Explicitly untouched:** rate resolution, freeze semantics, import/
   export contract, and anything reserved for DESIGN.md — none of this
   session's findings touch them.
@@ -303,7 +321,8 @@ persistence/versioning rules, and the testing-strategy rationale are
 genuinely non-obvious "how" content that would blur SPEC's own what/why
 job if folded in. Changes:
 
-- Fix the missing §6 in the section numbering.
+- ~~Fix the missing §6 in the section numbering.~~ **Reversed** — same
+  reason as SPEC's §4 above: deliberate, not a gap, per the same commit.
 - **§2 (data model rules):** add that phase confidence (Provisional/
   Confirmed) is derived at compute time from today's date vs. the phase's
   own start — never a stored field, never a toggle, matching the pattern
@@ -337,3 +356,356 @@ took one good pattern and applied it broadly. Decided outcomes:
 - **Positive "saved" confirmation:** left silent on success, deliberately. Confirmed as consistent with the calm-technology principle already running through this plan — nothing should announce itself unless it needs attention, and only the existing failure banners qualify.
 - **App-wide bulk row-selection** (Initiatives, People): left at phase-level only, matching what's already planned for allocation tables (§2, C7) — not extended further.
 - **Mobile/tablet layout:** confirmed out of scope — a desktop-only planning tool. No testing needed; every review this session ran at 1440×960 and that's an accurate reflection of how the tool is meant to be used.
+
+## 16. Handoff to Next Session
+
+**Current Progress:**
+- **Bundle 6 (gate-checklist rework) is fully completed.** G3 (Incomplete/Tentative/Complete rename), G2 (carry-forward of still-Tentative items onto every later gate, resolved against their origin gate — `L.carriedForwardItems` in `src/lifecycle.js`), G4 (the note field appears, and is visually required, only once an item is Tentative), G5 (`buildGateRecord` now snapshots each gate's checklist substance — name/description/status/note — so "At each gate" stays readable after a later carry-forward resolution moves the live status), and G6 (a one-line "this freezes €X and opens/closes …" next to the Pass-gate button, computed live) all landed in `src/lifecycle.js` and `src/pages/initiative.js`.
+- `src/styles.css` gained the minimal styling the above needed: `.req__required`, the gate-history detail row (`.row--sub`, overriding the frozen-first-column rule since its one cell is a colspan), and `.gate-checklist`'s `<details>`/`<summary>`.
+- `docs/SPEC.md` and `docs/DESIGN.md` already described this bundle's target behavior in full (written spec-first, per a prior session) — no further SPEC changes were needed; DESIGN.md gained one paragraph explaining *why* gate records need their own checklist snapshot rather than just referencing the live one (the carry-forward mechanism is exactly what can move the live copy afterward).
+- `examples/exports/demo.json`'s checklist items used the old `"green"` literal — updated to `"complete"` so the fixture stays valid against the renamed states.
+- 12 new/updated tests in `test/lifecycle.test.mjs` (carry-forward reappearing across multiple gates until resolved, never blocking the gate it reappears on, resolving against the origin gate; gate records snapshotting checklist substance on both pass and skip, and on the createInitiative backfill path). The full suite (168 tests, including the e2e smoke test) passes, along with typecheck, lint and build.
+- Verified by hand in a real browser (demo.json loaded via localStorage, all three themes): the note field's required styling, carry-forward showing up on the next gate untagged as a blocker, the frozen "At each gate" history staying put after the live item was later marked Complete, and the consequence line's figure.
+
+- **Bundle 7 (Needs-attention & calm signaling) is fully completed.** Two new
+  `src/lifecycle.js` functions carry the shared logic: `gateProgress` (N3) —
+  one `{ complete, total, overdue }` ratio derived from `gateRequirements`,
+  with `overdue` true only once the phase behind the gate has run past its
+  own estimated end date — and `needsAttention` (G1/N1) — every open
+  initiative's current-gate state (escalated / overdue / checklist / ready),
+  ranked consequential-first, ready-last, finished initiatives excluded.
+  Both are documented in `docs/SPEC.md` §6.1 and the new §6.5 (with a
+  glossary row), since the ranking and the two distinct meanings of
+  "overdue" are decisions the code alone doesn't say.
+- **N3 + I9**: the "N BLOCKER(S)" badge — always red, in three places
+  (`src/pages/initiative.js`'s stepper, summary bar, and gate banner) — is
+  replaced everywhere by a shared `progressMark()` helper: a calm "X of Y
+  complete" badge (neutral/ok/danger by `gateProgress`'s own `overdue` flag)
+  plus a dot-progression (`●●○`, `.dot-progress` in `src/styles.css`,
+  `aria-hidden`).
+- **N1**: `src/pages/portfolio.js`'s `attentionMarkup()` renders a "Needs
+  attention" panel above the Initiatives table, reusing the `.reqs`/`.req`
+  component the gate panel already uses. Omitted entirely when
+  `needsAttention` returns nothing — no empty-state box announcing that
+  everything is fine, per the calm-technology precedent already set in §15.
+- **N2**: `render()` in `src/app.js` now computes `needsAttention` once per
+  render and puts the count on the Initiatives nav button as `.nav-badge` —
+  the same computation N1 reads, so the two can never disagree.
+- **U2**: `summaryBarMarkup` gained a `.summary__name` line (the initiative's
+  name) at the top of the sticky bar, `flex: 1 0 100%` so it always forces
+  the figures/facts/actions row onto a fresh line beneath it.
+- 3 new tests in `test/lifecycle.test.mjs` for `gateProgress` and
+  `needsAttention` (the overdue-date transition, ranking order across
+  escalated/overdue/checklist/ready, finished initiatives excluded). The
+  full suite (171 tests) passes, along with typecheck, lint and build.
+- Verified by hand in a real browser (demo.json loaded via localStorage,
+  light/dark/system): the nav badge and Portfolio strip agree on the same
+  count, the gate badge reads calm neutral gray while merely incomplete and
+  turns red once a phase's own end date was pushed into the past, and the
+  sticky bar carries the initiative's name while scrolled.
+
+- **Bundle 8 (Creation flow) is fully completed.** F1: "New initiative"'s
+  first step now opens with a chooser (`src/pages/wizard.js`) — "Start from
+  an existing initiative," the default-focused tab, or "Start from scratch."
+  Picking a source pre-fills Name/Description/Team from it (the same
+  defaults a manual Duplicate would give); Create-and-continue then calls
+  the existing `L.duplicate()` and layers the draft's own edits on top via
+  `renameInitiative`/`setDescription`/`setTeam`, so every phase's period,
+  allocations and other costs carry over exactly as a Duplicate's would,
+  landing in step 2 (Estimates) already populated to "adjust what's
+  different." The chooser itself is skipped entirely when there is nothing
+  yet to copy from (a brand-new dataset) — no dead-end tab. A `resolveDraftMode`
+  helper is shared between the render and the create action specifically so
+  a bare, mode-less draft (the state a fresh wizard starts in, since the
+  default tab needs no click to already be selected) resolves the same way
+  in both places — an early manual test caught the two disagreeing before
+  this fix.
+- **F2**: `src/render/phase-panel.js`'s allocation table now lists only
+  people already allocated; `allocationPeople()` dropped its old whole-
+  roster-while-editable branch entirely. A new `addablePeople()` computes
+  the team members not yet on the phase, rendered as click-to-add chips
+  (`addPersonChipsMarkup`) below the table — clicking one allocates
+  immediately via a new `allocation-add` action, at the best guess already
+  computed elsewhere for that exact person/phase (C4's carry-forward, then
+  C5's usual, then a plain 100% when neither exists), never a 0% row left
+  waiting to be typed over. The empty state is skipped when there is anyone
+  left to add — the chips are the whole affordance, and a "nobody yet" box
+  on top of them would be exactly the noise F2 removed the pre-listed rows
+  for. Stale D2-era code comments describing the old pre-listed-roster
+  design were corrected in the same commit (`src/render/phase-panel.js`,
+  `src/app.js`).
+- No SPEC.md/DESIGN.md changes were needed — F1/F2 are UI-flow changes over
+  already-documented lifecycle functions (`duplicate`, `setAllocation`),
+  not new persisted concepts or vocabulary.
+- The full suite (171 tests, unchanged in count — no new lifecycle behavior,
+  only new UI wiring already covered by the smoke test and the
+  every-action-has-a-handler test) passes, along with typecheck, lint and
+  build. Verified by hand in a real browser (demo.json loaded via
+  localStorage, light/dark/system): both wizard front-door tabs, a
+  duplicated initiative's phases arriving pre-filled, add-person chips on
+  both an empty and a partially-staffed phase, the chip's toast/undo, a
+  frozen phase still reading its own snapshot with no chips, and the
+  no-initiatives-yet fallback (chooser hidden, scratch-only).
+
+- **Bundle 9 (Settings) is fully completed.** S1: `SETTINGS_SECTIONS` in
+  `src/pages/settings.js` is now ordered General → Data → Process → Roles →
+  Countries & rates → Danger zone. S2: `PROCESS.adminPassword` in
+  `src/process.js` is the hardcoded build-time constant — the open call from
+  §14's DESIGN note resolved as expected, alongside `currency` and
+  `wordmark`, with a doc comment stating explicitly it's a soft deterrent,
+  never real access control. `GATED_SECTIONS` (`general`, `roles`,
+  `countries`) in `settings.js` gates those three; Data and Danger zone stay
+  open, and Process needed no gating since it already renders nothing
+  editable. A gated section renders a password prompt in place of its normal
+  content instead of the section itself disappearing, so the rail nav and
+  every other section's layout stay unaffected. Unlocking is one flag
+  (`adminUnlocked`, module state — session-only, like `app.js`'s `navOpen`)
+  shared across all three: entering the password correctly in any one of
+  them unlocks all three at once, since it's a single trust level, not
+  three independent ones. A wrong attempt is scoped to the section it was
+  tried in via `view.params.adminError` carrying that section's id, so one
+  section's "Incorrect password" doesn't bleed into another's — verified by
+  hand (typing it wrong under Roles left Countries' prompt clean, then the
+  correct password unlocked General/Roles/Countries together). Three call
+  sites that hardcoded the *old* first section (`'roles'`) as their
+  no-current-section fallback — `country-expand`, `reset-arm`, `reset-cancel`
+  in `settings.js`, and `reset-confirm` in `app.js` — were updated to the new
+  first section so a direct `#/settings` deep link still falls back sensibly.
+- No SPEC.md/DESIGN.md changes were needed — both already documented S2 in
+  full (§2 and the glossary in SPEC.md, §4 in DESIGN.md), written spec-first
+  in an earlier session per this plan's own §14 sequencing note; this bundle
+  only had to build against what was already decided there.
+- The full suite (171 tests, unchanged in count — no new lifecycle behavior,
+  pure UI/settings wiring already covered by the smoke test and the
+  every-action-has-a-handler test) passes, along with typecheck, lint and
+  build. Verified by hand in a real browser (demo.json loaded via
+  localStorage, light/dark/system): the new section order, all three gated
+  sections showing the lock prompt on a fresh load, the wrong-password error
+  scoped to one section, the correct password unlocking all three at once,
+  and the pre-existing Danger-zone arm/confirm/cancel flow still working
+  unchanged underneath the fallback-value fix.
+
+- **Bundle 10 (Visual/UX polish and remaining explainer copy) is fully
+  completed.** **P1** (whole-card/row clickable) turned out to already be
+  built — every table row and Teams card in the app already uses the
+  stretched-link pattern (`row-link`/`card-link` plus `.row--clickable`/
+  `.card--clickable` in `src/styles.css`), a pure-CSS "click anywhere,
+  destructive buttons stay their own targets via `z-index`" mechanism with
+  no JS involved. Nothing to build; confirmed by grep across every page and
+  by hand in the browser.
+- **P2**: a non-editable phase panel (`src/render/phase-panel.js`'s
+  `phasePanel()`) now reads its period as plain text ("1 Jan 2026 – 30 Apr
+  2026") instead of a pair of disabled `<input type="date">` fields that
+  still looked like something you could type into — the one part of the
+  panel that visibly "reused the live-editing shape." The People/Other
+  costs tables were already collapsing to read-only cells correctly
+  (AGENTS.md: comparison tables stay tables), so this was the only real gap.
+- **P3**: `.scroller--tall` (`src/styles.css`) gained a top/bottom scroll-
+  shadow fade — the classic four-layer `background-attachment: local`/
+  `scroll` CSS trick, colors composed from `--color-surface`/`--color-fg`
+  via `color-mix` rather than literal values, so it re-derives correctly
+  under dark mode and a rebrand. Applies automatically to both existing
+  `scroller--tall` tables (Person's "Capacity over time," Initiative's
+  "Month by month") with no markup change needed.
+- **P4**: the wizard's General step and the team/person creation drafts each
+  had a stale "X is needed first" caption that only the Create button's
+  `disabled` state actually reacted to on keystroke — the caption itself
+  needed a full re-render to update. Each caption now carries a
+  `data-hint="…-create"` id and renders with a `hidden` attribute computed
+  the same way the button's `disabled` is; the three input handlers
+  (`wizardInputActions['draft-field']`, `teamsInputActions['team-draft-field']`,
+  `personInputActions['person-draft-field']`) now toggle both together, so
+  typing a name (or, in the wizard's "existing" mode, picking a source)
+  clears the hint the moment it stops being true.
+- **P5**: `src/pages/people.js` gained an explainer paragraph above the
+  roster table stating that Allocated % and Utilisation % read alike for
+  anyone at 100% Capacity % (everyone in the seed data) and diverge once
+  someone's ceiling isn't the default.
+- **P6**: `badge()` (`src/render/components.js`) gained an optional fourth
+  `title` parameter — a native tooltip, escaped through the same `html`
+  tag every other value goes through. The Person page's "not in capacity"
+  tag (`src/pages/person.js`) is the one call site that uses it so far,
+  carrying the explanation already agreed in the very first review round
+  (past/cancelled work doesn't count toward current capacity); I6 in §13
+  still owns turning the tag into an icon later.
+- **P7**: Portfolio's Variance column (`src/pages/portfolio.js`) now reads
+  its severity against the approved baseline as a percentage rather than
+  coloring every non-zero positive figure the same — under 2% reads as
+  plain text (rounding drift), 2–10% amber (`variance--mild`), above that
+  the existing red `over` class. Coming in under budget is never colored.
+  **Found and fixed a pre-existing bug while wiring this up**: `.grid td`
+  (`src/styles.css`) sets `color: var(--color-fg)` at a *higher*
+  specificity than a bare `.over`/severity class, so every existing
+  over-capacity/over-utilisation figure in a `.grid` table (People's
+  Utilisation %, Capacity's two over-allocation tables) was silently
+  rendering in the default text color instead of red — the warning icon
+  still showed, but the color half of the signal never did. Added
+  `.grid td.over` / `.grid td.variance--mild` overrides right beside the
+  rule that was winning, which fixes both the pre-existing cells and the
+  new Variance ones in one place.
+- **P8**: a phase panel's own running total (`phaseTotalsMarkup`'s `<p
+  class="results">` line) now renders with a `results--quiet` modifier
+  while the phase is actively editable — smaller, regular-weight, muted —
+  so the allocation figures being worked on keep the visual weight instead
+  of competing with a bold total on every keystroke. A frozen/read-only
+  phase, the initiative's own grand total, and Portfolio are all untouched
+  and keep full prominence.
+- **T3**: the Team roster's existing "a Team FTE is…" explainer pattern is
+  now echoed on the Capacity page (`src/pages/capacity.js`, defining
+  Capacity % vs. Allocated % up front) and the Team page's capacity grid
+  (`src/pages/team.js`'s `capacityGridMarkup`, clarifying that each grid
+  figure is read against the member's Team FTE here, not their whole
+  Capacity %).
+- **T7**: Portfolio's Initiatives panel (`src/pages/portfolio.js`) gained
+  the agreed one-line explainer for "Approved" verbatim (reworded from
+  "this initiative's" to "each initiative's" for a table caption spanning
+  every row).
+- **T8**: the gate panel's "What this gate needs" section
+  (`src/pages/initiative.js`'s `gateBannerMarkup`) gained a one-line
+  explainer distinguishing the three requirement kinds — the estimate
+  check is automatic, a checklist item is a manual judgement call, and a
+  missing actual only ever warns.
+- No SPEC.md/DESIGN.md changes were needed — every item here is UI-layer
+  polish and copy over already-documented behavior, not a new persisted
+  concept or a changed calculation rule.
+- The full suite (171 tests, unchanged in count) passes, along with
+  typecheck, lint and build. Verified by hand in a real browser (demo.json
+  loaded via localStorage, light/dark/system): the frozen-phase read-only
+  period text, the quiet vs. prominent running total side by side on the
+  same initiative, the scroll-shadow fade's computed background layers on
+  both `scroller--tall` tables, the reactive hints on all three creation
+  forms (including the wizard's "existing" mode depending on both a typed
+  name and a picked source), the now-red over-allocation figures on People
+  and Capacity, Portfolio's Variance in danger red, and every new
+  explainer paragraph's placement and wording.
+
+- **Bundle 11 (M1, M3–M8 — message-copy audit) is fully completed.**
+  **M1**: the "starting fresh, not from what was here" banner
+  (`renderBanner()` in `src/app.js`) gained the same `data-act="export"`
+  Export now button every other severe banner already carries, instead of
+  Dismiss-only.
+  **M3**: the "Copy failed" toast (`src/app.js`'s `copy-table` click action)
+  now states the likely cause and an alternative — "Copy failed — clipboard
+  access may be blocked. Select the table and copy manually."
+  **M4**: the skip dialog (`src/pages/initiative.js`'s `skipDialogMarkup`)
+  renders its Skip button `disabled` from the start; a new `skip-reason`
+  input action toggles it (and clears the warning state) live as the reason
+  field is typed into, matching every other required-field flow's
+  pre-emptive disabling.
+  **M5**: the deactivated-team banner (`src/pages/team.js`) now states the
+  consequence explicitly — "Existing work keeps running; no one can join
+  while it stays deactivated" — and that consequence is now real, not just
+  claimed: `joinable` is forced empty while `!team.active`, so the roster's
+  inline add-row and its empty-state text both reflect that no one can be
+  added to a deactivated team.
+  **M6**: the team-can't-delete message is now visible text naming the
+  blocking initiatives in both places it appears — the team detail page's
+  own paragraph (previously nameless) and the Teams card list, where the
+  names moved from the Delete button's hover-only `title` into a `<p
+  class="micro">` under the actions row.
+  **M7**: four empty states that described an action in prose now carry the
+  actual destination as a button — Team's empty Initiatives panel links to
+  a new-initiative flow pre-seeded with this team (`teamClickActions['team-
+  new-initiative']`, which persists the pick through `store.saveDraft()`
+  rather than through `navigate()`'s params, since only `id` round-trips
+  through the hash — see the code comment for why passing it as a param
+  silently lost it on the first attempt); Person's empty Initiatives panel
+  links to the person's first active team; the phase panel's empty
+  allocation state (nobody on the team) links to that initiative's team;
+  and the month table's "nothing is costed yet" state jumps to the first
+  costed phase's panel via the existing `panel` scroll action.
+  **Found and fixed a pre-existing bug while wiring M7's two `<a
+  class="btn">` destinations**: `.btn` (`src/styles.css`) never reset
+  `text-decoration`, so an anchor styled as a button rendered with a
+  default underline — invisible until this bundle, since no anchor had
+  used the `.btn` class before. Added `text-decoration: none` to the
+  shared `.btn`/`.cell--action button`/`.card__actions button` rule.
+  **M8**: `importPreviewMarkup()` (`src/pages/settings.js`) appends "Nothing
+  was changed — this is checked before anything here is touched" to every
+  import-rejection message, regardless of which of `parseImport()`'s three
+  reasons produced it.
+  M2 (an export/duplicate escape hatch on delete/discard confirmations)
+  stays declined, as recorded in §11 — no change made.
+- No SPEC.md/DESIGN.md changes were needed — every item is copy or a small
+  behavior correction over already-documented flows, not a new concept.
+- The full suite (171 tests, unchanged in count) passes, along with
+  typecheck, lint and build. Verified by hand in a real browser (demo.json
+  loaded via localStorage, light/dark/system): the Export now button on the
+  starting-fresh banner with a corrupted-schema dataset; the Copy failed
+  toast with `navigator.clipboard` stubbed to reject; the skip dialog's
+  Skip button enabling live on keystroke; deactivating a team and
+  confirming its roster's add-row disappears; the Used-by names on both
+  the Teams cards and the team detail page; all four new "Go to …"
+  destinations, including the wizard landing on "Start from scratch" with
+  the right team preselected (which required routing the pick through
+  `store.saveDraft()` after the first attempt lost it to the hashchange
+  listener); and the import-rejection reassurance clause with a
+  deliberately invalid JSON file.
+
+- **Bundle 12 (the rest of the icon pass — I1, I2, I3, I4, I5, I6, I7, I8,
+  I10, I11) is fully completed.** `src/render/icons.js` gained 15 glyphs,
+  drawn to the file's existing rules (16-unit square, 1.5-unit stroke,
+  square caps, mitred joins): a hollow/half/filled ring for coverage, a
+  play/pause pair for Active/On hold status, a circle-slash for inactive,
+  a diamond for custom rate, a circle-with-bar for not-in-capacity, a
+  padlock for frozen, a circular arrow for Reactivate, mirrored door-arrows
+  for Leave team/Rejoin, and person/team/flag glyphs for search result
+  types. `components.js`'s `badge()` now sets `aria-label` from `title`
+  whenever `text` is empty, so an icon-only mark still has an accessible
+  name — the icon itself stays `aria-hidden` either way; a new
+  `coverageBadge()`/`coverageTitle()` pair centralizes I1's wording so the
+  five places it appears can't drift apart.
+- **I1**: the Estimate/Forecast/Actual word is gone from Portfolio,
+  Initiatives list, the band panel (`initiative.js`), the wizard's live
+  grand total (`phase-panel.js`'s `grandMarkup`), and the sticky summary
+  bar's three figures — replaced by the ring, with the exact meaning and
+  the recorded/months tally in the tooltip (`initiativeTotals()` now
+  called wherever the count wasn't already available). **I2**: Portfolio
+  and Initiatives-list rows show the LT/STD/MAJ abbreviated badge instead
+  of the spelled-out band name, full name as the tooltip. **I3**: a new
+  `STATUS_ICON` map in `app.js` rides alongside `STATUS_LABELS`/
+  `STATUS_BADGE_KIND`; Cancelled and Closed reuse the existing cross/check
+  rather than a second glyph for the same meaning. **I4**: the three
+  "inactive"/"person inactive" badges (People, Teams, Team roster) are
+  icon+tooltip now, text dropped. **I5**: "custom rate" converted at both
+  existing sites (People list, the allocation detail popover) and *added*
+  to the allocation table row itself, which had no marker at all before —
+  the diamond next to a custom-rate person's name. **I6**: person.js's
+  "not in capacity" badge keeps its existing tooltip wording, now icon-led.
+  **I7**: "out of period" and "no longer in this team" (`phase-panel.js`)
+  dropped their visible text, icon+tooltip only, recovering table width.
+  **I8**: the frozen phase panel's "approved and frozen" mark is a lock
+  icon with `aria-label="Approved and frozen"` — still read as part of the
+  panel heading's accessible name per `panel()`'s own contract, verified in
+  the DOM. **I10**: `app.js`'s `resultRowMarkup` shows a type glyph instead
+  of the "Person"/"Team"/"Initiative" word, kept for assistive tech via
+  `sr-only`. **I11**: Deactivate/Reactivate/Leave team/Rejoin buttons
+  (People, Person, Teams, Team) gained icons, text stays visible on all
+  four per the item's own reasoning about misreading a state change;
+  Deactivate reuses the `inactive` glyph — the state the click leads to.
+  Settings' role/country Deactivate buttons were left alone: a different,
+  three-state arm/confirm control the plan's item text never named.
+  I9 was already done in Bundle 7, not touched here.
+- No SPEC.md/DESIGN.md changes were needed — this bundle is a visual
+  treatment over already-documented values (coverage, band, status), not a
+  new concept.
+- The full suite (171 tests, unchanged in count) passes, along with
+  typecheck, lint and build. Verified by hand in a real browser (demo.json
+  loaded via localStorage, light/dark/system): the coverage ring on all
+  five call sites with correct per-row month tallies, the STD abbreviated
+  badge, status glyphs on Active/On hold/Closed, deactivating and
+  reactivating a person to see both the inactive badge and the
+  Deactivate/Reactivate icon swap, the not-in-capacity tooltip on Ada
+  Vance's history, the lock icon on a frozen phase panel (confirmed via the
+  DOM that its `aria-label` still reaches the panel heading's accessible
+  name), and the search popover's type glyphs for a person, a team and an
+  initiative result.
+
+**Next Steps:**
+- Bundle 12 was the plan's last remaining bundle (§0's table). Every
+  bundle 0–12 is now **Done**. Before starting anything new: check with Bo
+  whether to retire this file now, per its own stated lifecycle ("this
+  file is deleted once the last workstream lands," per the header) — SPEC.md
+  and DESIGN.md are the durable record of what shipped; PLAN.md itself was
+  only ever the sequencing scratchpad.
+

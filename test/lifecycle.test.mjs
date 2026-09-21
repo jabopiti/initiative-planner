@@ -102,15 +102,15 @@ test('a gate requiring estimates needs every costed phase, not just its own', ()
   const gateId = E.gateForPhase(process, initiative.phaseId).id;
   L.setPhasePeriod(initiative, 'shape', '2026-01-01', '2026-02-28');
   L.setAllocation(app, initiative, 'shape', people[0].id, 50);
-  setChecklist(process, initiative, gateId, 'green');
+  setChecklist(process, initiative, gateId, 'complete');
 
-  const partial = L.gatePrecondition(app, process, initiative, gateId);
+  const partial = L.gatePrecondition(app, process, initiative, gateId, '2026-01-01');
   assert.equal(partial.ok, false);
   assert.ok(partial.blockers.some((b) => /Deliver/.test(b)), 'must name the phase still ahead');
 
   L.setPhasePeriod(initiative, 'deliver', '2026-03-01', '2026-06-30');
   L.setAllocation(app, initiative, 'deliver', people[0].id, 80);
-  assert.equal(L.gatePrecondition(app, process, initiative, gateId).ok, true);
+  assert.equal(L.gatePrecondition(app, process, initiative, gateId, '2026-01-01').ok, true);
 });
 
 test('gateRequirements reports what a gate needs, met items included', () => {
@@ -130,7 +130,7 @@ test('gateRequirements reports what a gate needs, met items included', () => {
   assert.ok(checklist.every((r) => gate.checklist.some((item) => item.id === r.itemId)),
     'each names the item it is about, so a control can be bound to it');
 
-  setChecklist(process, initiative, gateId, 'green');
+  setChecklist(process, initiative, gateId, 'complete');
   const resolved = L.gateRequirements(app, process, initiative, gateId);
   assert.ok(resolved.filter((r) => r.kind === 'checklist').every((r) => r.state === 'met'),
     'a satisfied requirement is reported as met, not dropped');
@@ -139,34 +139,34 @@ test('gateRequirements reports what a gate needs, met items included', () => {
 
   // An unestimated phase names the phases to go to, not just the trouble.
   const estimates = L.gateRequirements(
-    app, process, initiative, E.gateForPhase(process, 'shape').id,
+    app, process, initiative, E.gateForPhase(process, 'shape').id, '2026-01-01',
   ).find((r) => r.kind === 'estimates');
   assert.ok(estimates, 'a gate requiring estimates carries that requirement');
   assert.equal(estimates.state, 'blocker');
   assert.deepEqual([...estimates.phaseIds].sort(), [...E.costedPhaseIds(process)].sort());
 
   estimateAll(app, process, initiative, people[0]);
-  const met = L.gateRequirements(app, process, initiative, E.gateForPhase(process, 'shape').id)
+  const met = L.gateRequirements(app, process, initiative, E.gateForPhase(process, 'shape').id, '2026-01-01')
     .find((r) => r.kind === 'estimates');
   assert.equal(met.state, 'met');
   assert.deepEqual(met.phaseIds, [], 'nothing left to go and fix');
 });
 
-test('a red checklist item blocks; amber warns but passes; items start red', () => {
+test('an Incomplete checklist item blocks; Tentative warns but passes; items start Incomplete', () => {
   const { app, process, teamId, people } = setup(RICH);
   const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
   const gateId = 'g_discover';
 
   const untouched = L.gatePrecondition(app, process, initiative, gateId);
-  assert.equal(untouched.ok, false, 'items start red, so the gate starts blocked');
+  assert.equal(untouched.ok, false, 'items start Incomplete, so the gate starts blocked');
   assert.ok(untouched.blockers.some((b) => /Problem agreed/.test(b)));
 
-  setChecklist(process, initiative, gateId, 'amber');
-  const amber = L.gatePrecondition(app, process, initiative, gateId);
-  assert.equal(amber.ok, true, 'amber lets it through');
-  assert.ok(amber.warnings.some((w) => /Problem agreed/.test(w)), 'but says so');
+  setChecklist(process, initiative, gateId, 'tentative');
+  const tentative = L.gatePrecondition(app, process, initiative, gateId);
+  assert.equal(tentative.ok, true, 'Tentative lets it through');
+  assert.ok(tentative.warnings.some((w) => /Problem agreed/.test(w)), 'but says so');
 
-  setChecklist(process, initiative, gateId, 'green');
+  setChecklist(process, initiative, gateId, 'complete');
   assert.deepEqual(
     L.gatePrecondition(app, process, initiative, gateId).warnings.filter((w) =>
       /Problem agreed/.test(w),
@@ -178,10 +178,44 @@ test('a red checklist item blocks; amber warns but passes; items start red', () 
   assert.equal(initiative.phaseId, 'shape');
 });
 
+test('a Tentative item carries forward onto every later gate until Complete', () => {
+  const { app, process, teamId, people } = setup(RICH);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+
+  setChecklist(process, initiative, 'g_discover', 'tentative');
+  L.passGate(app, process, initiative, 'g_discover', '2026-01-05');
+
+  const atShape = L.carriedForwardItems(process, initiative, 'g_shape');
+  assert.equal(atShape.length, 1, 'reappears on the very next gate');
+  assert.equal(atShape[0].id, 'i_problem');
+  assert.equal(atShape[0].originGateId, 'g_discover', 'tagged with which gate it came from');
+
+  const atEmbed = L.carriedForwardItems(process, initiative, 'g_embed');
+  assert.equal(atEmbed.length, 1, 'still unresolved, so it keeps showing up further out too');
+
+  // Never a blocker where it reappears — only the gate that defines an item
+  // blocks on it, and g_discover already passed.
+  estimateAll(app, process, initiative, people[0]);
+  setChecklist(process, initiative, 'g_shape', 'complete');
+  assert.equal(
+    L.gatePrecondition(app, process, initiative, 'g_shape', '2026-01-01').ok,
+    true,
+    'a carried Tentative item never blocks the gate it reappears on',
+  );
+
+  // Resolving it happens against its origin gate — the one record it has.
+  L.setChecklistStatus(initiative, 'g_discover', 'i_problem', 'complete');
+  assert.equal(
+    L.carriedForwardItems(process, initiative, 'g_shape').length,
+    0,
+    'resolved, so it stops carrying forward',
+  );
+});
+
 test('a gate with no cost requirement passes on an empty estimate', () => {
   const { app, process, teamId } = setup(RICH);
   const initiative = L.createInitiative(app, process, { name: 'Thing', teamId });
-  setChecklist(process, initiative, 'g_discover', 'green');
+  setChecklist(process, initiative, 'g_discover', 'complete');
 
   const record = L.passGate(app, process, initiative, 'g_discover', '2026-01-05');
   assert.equal(record.outcome, 'passed');
@@ -216,6 +250,112 @@ test('a later master-data change never moves an approved figure', () => {
   assert.equal(E.phaseEstimateTotal(initiative.phases.plan, app), record.phaseCosts.plan);
 });
 
+test('a gate record snapshots its checklist as it stood, not as it reads later', () => {
+  const { app, process, teamId } = setup(RICH);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+
+  L.setChecklistStatus(initiative, 'g_discover', 'i_problem', 'tentative');
+  L.setChecklistNote(initiative, 'g_discover', 'i_problem', 'Sponsor still reviewing.');
+  const record = L.passGate(app, process, initiative, 'g_discover', '2026-01-05');
+
+  assert.deepEqual(record.checklist, [
+    { id: 'i_problem', name: 'Problem agreed', description: 'x', status: 'tentative',
+      note: 'Sponsor still reviewing.' },
+  ]);
+
+  // Marking the carried-forward item Complete afterwards moves the live status...
+  L.setChecklistStatus(initiative, 'g_discover', 'i_problem', 'complete');
+  const gate = E.phaseForGate(process, 'g_discover').gate;
+  assert.equal(L.checklistState(initiative, gate)[0].status, 'complete');
+
+  // ...but the frozen record is what makes the gate's own history still
+  // readable without archaeology: what it actually verified when it passed.
+  assert.equal(initiative.gates.g_discover.checklist[0].status, 'tentative',
+    'gate history is a snapshot, not a live view');
+});
+
+test('gateProgress is one ratio derived from gateRequirements, plus an overdue flag', () => {
+  const { app, process, teamId, people } = setup(RICH);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+  L.skipGate(app, process, initiative, 'g_discover', 'not needed', '2026-01-05');
+  const gateId = 'g_shape';
+
+  const before = L.gateRequirements(app, process, initiative, gateId, '2026-01-01')
+    .filter((r) => r.kind !== 'state');
+  const untouched = L.gateProgress(app, process, initiative, gateId, '2026-01-01');
+  assert.equal(untouched.total, before.length, 'the same list gateRequirements itself reports');
+  assert.equal(untouched.complete, before.filter((r) => r.state === 'met').length);
+  assert.equal(untouched.overdue, false, 'no end date yet, so nothing to be overdue against');
+
+  L.setPhasePeriod(initiative, 'shape', '2026-01-01', '2026-02-28');
+  L.setAllocation(app, initiative, 'shape', people[0].id, 50);
+  setChecklist(process, initiative, gateId, 'complete');
+
+  const midway = L.gateProgress(app, process, initiative, gateId, '2026-01-15');
+  assert.equal(midway.overdue, false, 'today has not reached the phase\'s own end date yet');
+
+  const late = L.gateProgress(app, process, initiative, gateId, '2026-03-01');
+  assert.equal(late.overdue, true, 'today is past the phase\'s own estimated end date');
+});
+
+test('needsAttention surfaces a current gate\'s own unresolved checklist items, and skips finished initiatives', () => {
+  const { app, process, teamId } = setup(RICH);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+
+  const own = L.needsAttention(app, process, '2026-01-01')
+    .filter((item) => item.initiativeId === initiative.id);
+  assert.equal(own.length, 1, 'the one Incomplete item on its current gate — nothing else yet');
+  assert.equal(own[0].kind, 'checklist');
+  assert.match(own[0].text, /Problem agreed/);
+
+  L.setStatus(initiative, 'cancelled');
+  assert.deepEqual(
+    L.needsAttention(app, process, '2026-01-01').filter((item) => item.initiativeId === initiative.id),
+    [],
+    'a finished initiative is frozen; nothing about it is actionable',
+  );
+});
+
+test('needsAttention ranks escalated and overdue ahead of checklist and ready housekeeping', () => {
+  const ORDER = ['escalated', 'overdue', 'checklist', 'ready'];
+  const { app, process, teamId, people } = setup(SIMPLE);
+  const person = people[0];
+
+  // Ready: fully estimated, and far enough out that nothing has closed yet.
+  const ready = L.createInitiative(app, process, { name: 'ReadyOne', teamId });
+  L.setPhasePeriod(ready, 'plan', '2027-01-01', '2027-01-31');
+  L.setAllocation(app, ready, 'plan', person.id, 50);
+  L.setPhasePeriod(ready, 'build', '2027-02-01', '2027-02-28');
+  L.setAllocation(app, ready, 'build', person.id, 50);
+
+  // Overdue: one closed month, nothing recorded against it.
+  const overdue = L.createInitiative(app, process, { name: 'OverdueOne', teamId });
+  L.setPhasePeriod(overdue, 'plan', '2026-01-01', '2026-01-31');
+  L.setAllocation(app, overdue, 'plan', person.id, 50);
+
+  // Escalated: passed at a low total, then pushed into the next band.
+  const escalated = L.createInitiative(app, process, { name: 'EscalatedOne', teamId });
+  L.setPhasePeriod(escalated, 'plan', '2026-01-01', '2026-01-31');
+  L.setAllocation(app, escalated, 'plan', person.id, 5);
+  L.setPhasePeriod(escalated, 'build', '2026-02-01', '2026-12-31');
+  L.setAllocation(app, escalated, 'build', person.id, 5);
+  L.passGate(app, process, escalated, 'g_plan', '2026-01-31');
+  assert.equal(E.resolveBand(process.bands, E.grandTotal(escalated, app))?.id, 'b_low');
+  L.setAllocation(app, escalated, 'build', person.id, 100);
+  assert.equal(E.resolveBand(process.bands, E.grandTotal(escalated, app))?.id, 'b_high');
+
+  const items = L.needsAttention(app, process, '2026-03-01');
+  const kinds = items.map((item) => item.kind);
+  const ranks = kinds.map((kind) => ORDER.indexOf(kind));
+  for (let i = 1; i < ranks.length; i += 1) {
+    assert.ok(ranks[i - 1] <= ranks[i], `out of order: ${kinds[i - 1]} appears before ${kinds[i]}`);
+  }
+
+  assert.ok(items.some((item) => item.initiativeId === escalated.id && item.kind === 'escalated'));
+  assert.ok(items.some((item) => item.initiativeId === overdue.id && item.kind === 'overdue'));
+  assert.ok(items.some((item) => item.initiativeId === ready.id && item.kind === 'ready'));
+});
+
 /* -------------------------------------------------- skipping */
 
 test('skipping requires a reason, approves nothing, and freezes nothing', () => {
@@ -232,6 +372,24 @@ test('skipping requires a reason, approves nothing, and freezes nothing', () => 
   assert.equal(record.reason, 'No formal review needed');
   assert.equal(initiative.phases.build.frozen, null, 'a skip freezes nothing');
   assert.equal(initiative.status, 'closed', 'the final gate closes, skipped or not');
+});
+
+test('a skipped gate snapshots its checklist too, whatever state it was left in', () => {
+  const { app, process, teamId } = setup(RICH);
+  const initiative = L.createInitiative(app, process, { name: 'Replatform', teamId });
+  L.setChecklistStatus(initiative, 'g_discover', 'i_problem', 'tentative');
+
+  const record = L.skipGate(app, process, initiative, 'g_discover', 'not needed', '2026-01-05');
+  assert.equal(record.checklist[0].status, 'tentative');
+});
+
+test('gates skipped by starting an initiative later snapshot an all-Incomplete checklist', () => {
+  const { app, teamId } = setup(RICH);
+  const initiative = L.createInitiative(app, RICH, { name: 'Legacy work', teamId, startPhaseId: 'shape' });
+
+  assert.deepEqual(initiative.gates.g_discover.checklist, [
+    { id: 'i_problem', name: 'Problem agreed', description: 'x', status: 'incomplete', note: '' },
+  ], 'nobody reviewed it, so it freezes the same shape a real record carries, all unresolved');
 });
 
 test('a gate the build marks unskippable cannot be skipped', () => {
@@ -251,7 +409,7 @@ test('a skipped gate never becomes the escalation baseline', () => {
   assert.equal(L.lastPassedGate(process, initiative), null, 'a skip approves nothing');
 
   estimateAll(app, process, initiative, people[0]);
-  setChecklist(process, initiative, 'g_shape', 'green');
+  setChecklist(process, initiative, 'g_shape', 'complete');
   L.passGate(app, process, initiative, 'g_shape', '2026-03-01');
   assert.equal(L.lastPassedGate(process, initiative).outcome, 'passed');
 });
@@ -325,7 +483,7 @@ for (const process of ALL) {
 
     const gatesInOrder = E.phaseOrder(process).map((id) => E.gateForPhase(process, id).id);
     for (const gateId of gatesInOrder) {
-      setChecklist(process, initiative, gateId, 'green');
+      setChecklist(process, initiative, gateId, 'complete');
       L.passGate(app, process, initiative, gateId, '2026-06-30');
     }
 
@@ -361,7 +519,7 @@ test('closing freezes the whole initiative, not only its numbers', () => {
   assert.throws(() => L.setPhasePeriod(initiative, 'plan', '2026-01-01', '2026-01-31'), /locked/);
   assert.throws(() => L.setAllocation(app, initiative, 'plan', people[0].id, 10), /locked/);
   assert.throws(() => L.recordActual(initiative, 'plan', '2026-01', 1), /locked/);
-  assert.throws(() => L.setChecklistStatus(initiative, 'g_plan', 'x', 'green'), /closed/);
+  assert.throws(() => L.setChecklistStatus(initiative, 'g_plan', 'x', 'complete'), /closed/);
 });
 
 test('notes stay writable after close, so the reason can be recorded', () => {
@@ -547,6 +705,7 @@ const FROZEN_IMMUNE = new Set([
   'phaseOtherTotal',
   'phaseBlendedByMonth',
   'phaseBlendedTotal',
+  'actualOrEstimate',
 ]);
 
 /**
@@ -608,7 +767,7 @@ for (const process of ALL) {
     const phaseId = E.costedPhaseIds(process)[0];
     for (const id of E.phaseOrder(process)) {
       const gateId = E.gateForPhase(process, id).id;
-      setChecklist(process, initiative, gateId, 'green');
+      setChecklist(process, initiative, gateId, 'complete');
       L.passGate(app, process, initiative, gateId, '2026-06-01');
       if (id === phaseId) break;
     }

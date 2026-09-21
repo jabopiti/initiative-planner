@@ -46,7 +46,7 @@ test('an empty store seeds fresh data rather than failing', async () => {
   assert.equal(reason, 'empty');
   assert.equal(app.schemaVersion, L.SCHEMA_VERSION);
   assert.ok(Object.keys(app.PEOPLE).length > 0, 'seed data, not an empty shell');
-  assert.deepEqual(app.INITIATIVES, []);
+  assert.ok(app.INITIATIVES.length > 0, 'example initiatives, not an empty list');
 });
 
 test('a stored dataset comes back as it went in', () => {
@@ -56,7 +56,7 @@ test('a stored dataset comes back as it went in', () => {
 
   const reloaded = store.load();
   assert.equal(reloaded.reason, 'stored');
-  assert.equal(reloaded.app.INITIATIVES[0].name, 'Kept');
+  assert.ok(reloaded.app.INITIATIVES.find((i) => i.id === 'init_x')?.name === 'Kept');
 });
 
 test('a stored dataset behind the window is extended forward and the extension persists (D9)', () => {
@@ -89,6 +89,7 @@ test('an unknown schema version falls back to seed data, never a migration', () 
   assert.equal(reason, 'schema');
   assert.equal(app.schemaVersion, L.SCHEMA_VERSION);
   assert.ok(Object.keys(app.PEOPLE).length > 0);
+  assert.deepEqual(app.INITIATIVES, [], 'a fallback never dresses itself up as the example install');
 });
 
 test('unparsable storage falls back rather than throwing', () => {
@@ -102,6 +103,7 @@ test('a store that refuses to be read still boots the app', () => {
   const { app, reason } = store.load();
   assert.equal(reason, 'unreadable');
   assert.ok(app.schemaVersion);
+  assert.deepEqual(app.INITIATIVES, [], 'a read failure is never dressed up as the example install');
 });
 
 test('a full store reports failure instead of taking the app down', () => {

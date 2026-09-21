@@ -3,7 +3,7 @@ import * as F from '../format.js';
  * People: the sortable, filterable roster across every team.
  */
 import * as E from '../engine.js';
-import { app, view, currentMonth } from '../app.js';
+import { app, view, currentMonth, navigate, today } from '../app.js';
 import { html, raw, fill } from '../render/dom.js';
 import { icon } from '../render/icons.js';
 import { pageHead, scroller, empty, badge, sortHeader, sortRows } from '../render/components.js';
@@ -65,7 +65,7 @@ export function renderPeople() {
       .join(', ');
     // Computed once and reused below rather than re-derived per column: this
     // runs on every keystroke in the search box above.
-    const allocated = E.allocatedPct(app, person.id, month);
+    const allocated = E.allocatedPct(app, person.id, month, undefined, today());
     const utilisation = person.capacityPct ? (allocated / person.capacityPct) * 100 : 0;
     return {
       person,
@@ -94,8 +94,10 @@ export function renderPeople() {
     .map(
       (entry) => html`<tr class="row--clickable ${entry.person.active ? '' : 'row--inactive'}">
         <td><a class="row-link" href="#/person/${entry.person.id}">${entry.person.name}</a>
-          ${raw(entry.person.active ? '' : badge('inactive', 'quiet'))}</td>
-        <td>${entry.row[1]} ${raw(entry.person.customRole ? badge('custom rate', 'info') : '')}</td>
+          ${raw(entry.person.active ? '' : badge('', 'quiet', 'inactive', 'Inactive'))}</td>
+        <td>${entry.row[1]} ${raw(entry.person.customRole
+          ? badge('', 'info', 'custom-rate', 'Custom rate — paid at a negotiated rate, not the country/role standard.')
+          : '')}</td>
         <td>${entry.row[2]}</td>
         <td class="num">${F.money(entry.row[3])}</td>
         <td class="num">${entry.person.capacityPct}%</td>
@@ -108,6 +110,7 @@ export function renderPeople() {
         <td class="cell--action">
           <button type="button" class="btn--small" data-act="person-active"
             data-id="${entry.person.id}">
+            ${raw(icon(entry.person.active ? 'inactive' : 'reactivate'))}
             ${entry.person.active ? 'Deactivate' : 'Reactivate'}</button></td>
       </tr>`,
     )
@@ -151,6 +154,9 @@ export function renderPeople() {
           data-filter="showInactive" ${raw(filters.showInactive ? 'checked' : '')} />
           <span>Show inactive</span></label>
       </div>
+      <p class="muted">Allocated % is what's committed against a person, in total. Utilisation %
+        is that same figure measured against their own Capacity % instead — the two read alike
+        for anyone at 100% Capacity %, which is everyone here until it's changed.</p>
       ${raw(data.length
         ? scroller(`People in ${F.month(month)}`, html`<table class="grid">
             <thead><tr>${raw(sortableHeaders)}<th></th></tr></thead>
@@ -165,3 +171,10 @@ export function renderPeople() {
           : empty('Nobody matches those filters.', { icon: 'filter' }))}`,
   );
 }
+
+export const peopleClickActions = {
+  // Nothing is created yet — Cancel on the draft below leaves no record
+  // behind (D1, and the review's "a person is just created with no
+  // chance to cancel").
+  'person-add': () => navigate('person', { id: 'new' }),
+};

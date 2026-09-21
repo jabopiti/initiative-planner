@@ -24,13 +24,6 @@ npm run lint && npm run typecheck && npm test && npm run build
 Don't call something done until it is. Not "mostly", not "true once I
 circle back".
 
-This repo doesn't use an issue tracker. A future body of work large enough
-to need sequencing gets the same treatment REVAMP.md got: a temporary plan
-document scoping the work and the decisions it waits on, deleted once it
-lands. Deferred work and discovered gaps in the meantime are a conversation
-with Bo, not a ticket. Don't create GitHub issues here, and don't set up a
-board.
-
 ## Verifying UI yourself
 
 `npm test` boots the built file and checks every page renders — that is a
@@ -82,8 +75,8 @@ Pages are **overviews**, **details**, a **dashboard** (Portfolio),
 **panels** and **regions**. DESIGN §5 has the table. Don't write
 "screen", "view" or "tab".
 
-Don't conflate **capacity %** (a person's ceiling), **share %** (what one
-team holds of them) and **allocation %** (what one phase commits) — SPEC
-§4 says why. And don't conflate **phase** (where an initiative is in the
+Don't conflate **capacity %** (a person's ceiling), **Team FTE %** (what
+one team holds of them) and **allocation %** (what one phase commits) —
+SPEC §5.2 says why. And don't conflate **phase** (where an initiative is in the
 process) with **status** (Active / On Hold / Cancelled / Closed). Those
 were once "stage" and "state"; the rename exists to stop that.

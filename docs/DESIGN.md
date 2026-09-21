@@ -7,16 +7,17 @@ choices, guided by the invariants in [AGENTS.md](../AGENTS.md).
 
 ## 1. Tech stack & constraints
 
-- **Vanilla JavaScript** (ES modules), no UI framework, no CSS framework,
-  no runtime dependencies. `checkJs`/`allowJs` TypeScript (`strict:
-  false`) for lightweight type-checking without a compile step.
-- **Vite** for dev server and bundling, with a single-file plugin (e.g.
-  `vite-plugin-singlefile`) so the production build inlines all JS/CSS
-  into one `<script>`/`<style>` block in `index.html` — the shipped
-  artifact must be exactly one HTML file with no other assets.
-- Build the app into a temporary output directory, then move/rename the
-  single produced HTML file to the repo's shipped filename and remove the
-  temporary directory — never build directly over the source `index.html`.
+- **Vanilla JavaScript** (ES modules) for application and UI code — no UI
+  framework, no state-management library, no CSS framework. `checkJs`/
+  `allowJs` TypeScript (`strict: false`) for lightweight type-checking
+  without a compile step. This no longer implies zero dependencies
+  overall: a dependency taken on for storage, sync, or auth is allowed —
+  it just must not become a UI framework by another name.
+- **Vite** for dev server and bundling, producing a standard static
+  `dist/` build (multiple assets) rather than a single inlined HTML file.
+  The single-file constraint, and the build-time inlining step that
+  served it (`vite-plugin-singlefile`), are retired. `dist/` is what
+  deploys to static hosting (e.g. GitHub Pages).
 - **ESLint** (flat config) with `no-unused-vars` at minimum; **`node:test`**
   (Node's built-in test runner) for unit/integration tests — no external
   test framework needed for this project's size.
@@ -25,7 +26,9 @@ choices, guided by the invariants in [AGENTS.md](../AGENTS.md).
 
 The shape itself is in `src/` — `lifecycle.js` constructs it and
 `transfer.js` validates it. What follows is what the shape alone does not
-say.
+say. These rules hold regardless of storage backend — nothing here cares
+whether the data ultimately lives in `localStorage` or something that
+serves multiple users; only §3 changes with that.
 
 **Only costed phases have a record.** An initiative's `phases` map is keyed
 by phase id and carries an entry for each costed phase only; a non-costed
@@ -57,10 +60,36 @@ nothing.
 rather than referencing it, so escalation still resolves after the bands
 change in a later build.
 
+**Gate records also snapshot their checklist** (`id`, `name`, `description`,
+`status`, `note`, per item) rather than just referencing the live one. That
+live checklist (`initiative.checklist[gateId]`) can keep moving after this
+gate is left — a carried-forward item still Tentative is resolved under its
+*origin* gate, which is this one for the items this gate itself defines — so
+without a frozen copy, "what did this gate verify" would answer with
+whatever the item says today, not what it said when the gate actually
+passed.
+
 **Per-year records cover a rolling four-year window** — last year, this
 year, and the next two — recomputed on load. Last year is included because
 entering work retrospectively is a first-class flow, and clamping those
 months to another year's rate would misstate money already spent.
+
+**Phase confidence (Provisional/Confirmed) is derived, never stored.**
+Whether a costed phase is Provisional or Confirmed (SPEC §3) is computed at
+read time from today's date against the phase's own `estStartDate` — there
+is no field on the phase record for it, and nothing ever toggles it. This
+follows the same pattern every other derived-not-stored value in this
+section already does (coverage, capacity warnings): storing a value that a
+date comparison can produce for free is a second source of truth waiting
+to disagree with the first.
+
+**Checklist carry-forward needs no new stored field.** A checklist item's
+status and note are already stored per gate
+(`initiative.checklist[gateId]`), and that doesn't change. Carrying a still-
+Tentative item forward onto a later gate's own panel is a *query* — look
+across every gate already passed for items still Tentative — resolved at
+render time, the same way the gate-comparison table already reads across
+every passed gate rather than storing a second copy of anything.
 
 ### Process identifiers vs. display names
 
@@ -76,44 +105,35 @@ Renaming a label is free.
 
 ## 3. Persistence & schema versioning
 
-- The entire `APP` object is the unit of persistence: serialized to
-  `localStorage` under one versioned key, debounced (e.g. ~200ms after the
-  last change) rather than saved synchronously on every keystroke.
-  `localStorage` is what `load()` ever reads from — nothing below changes
-  that.
-- **A linked file (D4, §4.7)** is an optional mirror on top, Chromium only
-  (the File System Access API), feature-detected so every entry point is a
-  no-op elsewhere. Linking hands the browser a `FileSystemFileHandle`,
-  persisted in IndexedDB so it survives a reload; every successful
-  `localStorage` write then also mirrors the same JSON to that file,
-  fire-and-forget, never blocking or failing the save it rides on. A file
-  edited elsewhere (a sync folder, another device) is reconciled through
-  Import exactly like a manually-taken export always was (D5) — linking a
-  file changes nothing about how data is *read*, only how often a written
-  copy exists on disk. A revoked permission surfaces as a reconnect prompt
-  in Settings, never a failed save.
-- **Another tab is a courtesy warning, not a lock (§4.7).** A `storage`
-  event naming this app's key stops the tab that is now behind from
-  writing its stale in-memory copy over the newer one — `saveNow()` refuses
-  once this fires — and a banner says to reload. No real-time sync between
-  tabs is attempted; that would reopen SPEC §1 (D5).
-- On load: missing or unparsable storage falls back to seed data. So does
-  a stored `schemaVersion` that doesn't match this build's, and so does a
-  stored `processId` that doesn't match — a dataset written against a
-  different process would put initiatives in phases this build has never
-  heard of. `processVersion` moving forward is not by itself fatal on
-  load; a mismatched `processId` is.
-- Export produces the entire `APP` object as pretty-printed JSON, named
-  with today's date. It carries `processId` and `processVersion` so the
-  file says which process it means.
-- Import validates required top-level keys, the schema version, **and the
-  process identity** before offering a Replace-all/Merge choice. Any of
-  the three failing rejects the file outright, and the message says which
-  — "this export was taken from a different process" is a different
-  problem from "this export is too old", and telling someone the wrong
-  one wastes their time. It then shows a diff summary (added/changed/
+The storage and sync mechanism itself — what replaces `localStorage` as
+the sole source of truth once multiple users need to read and write the
+same data — is not yet decided. This section states what has to remain
+true of whatever mechanism replaces it, not the mechanism itself:
+
+- **Schema and process identity still gate on load**, whatever the
+  storage layer becomes: data written against an unrecognized
+  `schemaVersion`, or a `processId` this build doesn't recognize, must be
+  refused outright, never guessed at or migrated — a dataset whose phases
+  mean something else is worse than no dataset (SPEC §8).
+  `processVersion` moving forward is not by itself fatal; a mismatched
+  `processId` is.
+- **Export/import keeps its current contract** as a backup/portability
+  path, independent of whatever the primary multi-user mechanism turns
+  out to be: the whole `APP` object as pretty-printed JSON, named with
+  today's date, carrying `processId` and `processVersion`. Import
+  validates required top-level keys, the schema version, and the process
+  identity before offering a Replace-all/Merge choice; any of the three
+  failing rejects the file outright, and the message says which — "this
+  export was taken from a different process" is a different problem from
+  "this export is too old". It then shows a diff summary (added/changed/
   removed per entity type) plus which gate records a Merge would
   overwrite.
+- Everything else this section previously specified — one `localStorage`
+  key as the unit of persistence, the debounced save, the optional
+  linked-file mirror via the File System Access API, and the single-tab
+  `storage`-event lock — described a single-user, single-device model and
+  no longer applies. It has not been replaced yet; the replacement is
+  separate design work, still to be done.
 
 ## 4. Module boundaries & the brand-pack contract
 
@@ -137,6 +157,13 @@ on their concrete values, only on their shape:
    every call — never a shared mutable module-level constant, since
    repeated seeding (across tests, say) must not leak mutations between
    calls. It supplies `{ ROLES, COUNTRIES, PEOPLE, TEAMS, GENERAL }`.
+
+   It also exports `seedInitiatives(app, process, today)`, called only by
+   `store.js`, only the first time the app ever loads (an empty store, not
+   a read failure or a foreign dataset falling back to the bare seed). It
+   drives the real lifecycle functions rather than assembling initiatives
+   by hand (§7), and dates its examples relative to `today` so they still
+   read as current whenever the build is actually installed.
 
 3. **CSS custom properties** in `src/styles.css`'s `:root`, inside the
    block marked `brand pack: replace this block, and nothing else`. Seven

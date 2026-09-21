@@ -5,44 +5,77 @@
  * between them, not to swap content in and out.
  */
 import * as T from '../transfer.js';
+import * as E from '../engine.js';
+import * as F from '../format.js';
+import * as L from '../lifecycle.js';
 import * as store from '../store.js';
-import { app, view, pendingImport } from '../app.js';
+import {
+  app, view, pendingImport, navigate, commit, commitQuietly, restoreCaretAfter, withUndo,
+} from '../app.js';
 import { html, raw, fill, numberField } from '../render/dom.js';
 import { icon } from '../render/icons.js';
-import { pageHead, scroller } from '../render/components.js';
+import { pageHead, scroller, railNav } from '../render/components.js';
 import { processSectionMarkup } from '../render/process.js';
 
+/**
+ * `gated: true` marks a section that renders read-only until unlocked — a
+ * deterrent against casual/accidental edits on a shared device, kept on the
+ * section's own entry rather than a second list that could drift out of
+ * sync with this one. A lock icon on the section's own heading toggles it;
+ * there is nothing to know, so no password. Unlocking is session-only
+ * (module state, like `navOpen` in `app.js`): it stays unlocked while the
+ * reader moves between settings sections (§4.3's one continuous scroll),
+ * but resets to locked the moment they leave the Settings page entirely
+ * (`resetSettingsLock`, called from `app.js`'s `navigate`) or click the
+ * lock icon again. Unlocking anywhere unlocks every gated section, since
+ * it's one trust level, not three.
+ */
 const SETTINGS_SECTIONS = [
-  { id: 'roles', label: 'Roles', render: renderRoles },
-  { id: 'countries', label: 'Countries & rates', render: renderCountries },
-  { id: 'process', label: 'Process', render: processSectionMarkup },
-  { id: 'general', label: 'General', render: renderGeneral },
+  { id: 'general', label: 'General', gated: true, render: renderGeneral },
   { id: 'data', label: 'Data', render: renderData },
+  { id: 'process', label: 'Process', render: processSectionMarkup },
+  { id: 'roles', label: 'Roles', gated: true, render: renderRoles },
+  { id: 'countries', label: 'Countries & rates', gated: true, render: renderCountries },
   { id: 'danger', label: 'Danger zone', render: renderDanger },
 ];
 
+/** Where a missing/unknown `section` param falls back to. */
+export const DEFAULT_SECTION = SETTINGS_SECTIONS[0].id;
+
+let settingsUnlocked = false;
+
+/** Called from `app.js` on any navigation that leaves the Settings page. */
+export function resetSettingsLock() {
+  settingsUnlocked = false;
+}
+
+function lockToggleMarkup(locked) {
+  const label = locked ? 'Unlock to edit' : 'Lock';
+  return html`<button type="button" class="btn btn--ghost btn--icon" data-act="settings-lock-toggle"
+    aria-label="${label}" title="${label}">${raw(icon(locked ? 'lock' : 'unlock'))}</button>`;
+}
+
 export function renderSettings() {
-  const section = view.params.section ?? SETTINGS_SECTIONS[0].id;
+  const section = view.params.section ?? DEFAULT_SECTION;
 
-  const nav = SETTINGS_SECTIONS.map(
-    (item) => html`<button type="button" data-act="section" data-section="${item.id}"
-      ${raw(item.id === section ? 'aria-current="location"' : '')}>${item.label}</button>`,
-  ).join('');
-
-  const sections = SETTINGS_SECTIONS.map(
-    (item) => html`<section id="settings-section-${item.id}" class="panel"
+  const sections = SETTINGS_SECTIONS.map((item) => {
+    const locked = item.gated && !settingsUnlocked;
+    return html`<section id="settings-section-${item.id}" class="panel"
       aria-labelledby="settings-heading-${item.id}">
-      <h2 id="settings-heading-${item.id}">${item.label}</h2>
-      ${raw(item.render())}
-    </section>`,
-  ).join('');
+      <div class="settings-section-head">
+        <h2 id="settings-heading-${item.id}">${item.label}</h2>
+        ${raw(item.gated ? lockToggleMarkup(locked) : '')}
+      </div>
+      ${raw(item.render(locked))}
+    </section>`;
+  }).join('');
 
   fill(
     'root',
     html`${raw(pageHead({ title: 'Settings' }))}
-      <div class="settings-layout">
-        <nav class="settings-nav" aria-label="Settings sections">${raw(nav)}</nav>
-        <div class="settings-sections">${raw(sections)}</div>
+      <div class="rail-layout">
+        ${raw(railNav(SETTINGS_SECTIONS, { activeId: section, kind: 'section' }))}
+        <div class="rail-sections">${raw(sections)}</div>
       </div>`,
   );
 }
@@ -54,13 +87,13 @@ export function renderSettings() {
  * section the reader is already looking at.
  */
 export function scrollToSettingsSection() {
-  const section = view.params.section ?? SETTINGS_SECTIONS[0].id;
+  const section = view.params.section ?? DEFAULT_SECTION;
   document.getElementById(`settings-section-${section}`)?.scrollIntoView({ block: 'start' });
 }
 
 /* ---- roles ---- */
 
-function renderRoles() {
+function renderRoles(locked) {
   const confirming = view.params.confirmDeactivate;
   const usageByRole = new Map();
   for (const person of Object.values(app.PEOPLE)) {
@@ -73,23 +106,25 @@ function renderRoles() {
         ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}Used by
               ${usage} ${usage === 1 ? 'person' : 'people'}.</span>
             <button type="button" class="btn--small btn--danger" data-act="role-active"
-              data-id="${role.id}">Yes, deactivate</button>
+              data-id="${role.id}" ${raw(locked ? 'disabled' : '')}>Yes, deactivate</button>
             <button type="button" class="btn--small" data-act="deactivate-cancel"
-              >Cancel</button>`
+              ${raw(locked ? 'disabled' : '')}>Cancel</button>`
         : role.active && usage > 0
           ? html`<button type="button" class="btn--small" data-act="role-deactivate-arm"
-              data-id="${role.id}">Deactivate</button>`
+              data-id="${role.id}" ${raw(locked ? 'disabled' : '')}>Deactivate</button>`
           : html`<button type="button" class="btn--small" data-act="role-active"
-              data-id="${role.id}">${role.active ? 'Deactivate' : 'Reactivate'}</button>`;
+              data-id="${role.id}" ${raw(locked ? 'disabled' : '')}
+              >${role.active ? 'Deactivate' : 'Reactivate'}</button>`;
 
       return html`<tr data-id="${role.id}" class="${role.active ? '' : 'row--inactive'}">
         <td><input class="field" data-act="role-field" data-field="name" data-id="${role.id}"
-          value="${role.name}" aria-label="Role name" /></td>
+          value="${role.name}" aria-label="Role name" ${raw(locked ? 'disabled' : '')} /></td>
         <td><input class="field field--abbr" data-act="role-field" data-field="abbr"
-          data-id="${role.id}" value="${role.abbr}" aria-label="Abbreviation" /></td>
+          data-id="${role.id}" value="${role.abbr}" aria-label="Abbreviation"
+          ${raw(locked ? 'disabled' : '')} /></td>
         <td>${raw(numberField({ value: role.factor, 'data-act': 'role-field',
           'data-field': 'factor', 'data-id': role.id, 'aria-label': 'Factor',
-          extraClass: 'field--pct' }))}</td>
+          extraClass: 'field--pct', ...(locked ? { disabled: true } : {}) }))}</td>
         <td class="cell--action">${raw(action)}</td>
       </tr>`;
     })
@@ -97,12 +132,13 @@ function renderRoles() {
 
   const emptyRow = html`<tr data-id="new">
     <td><input class="field" data-act="role-field" data-field="name" data-id="new"
-      placeholder="New role…" aria-label="New role name" /></td>
+      placeholder="New role…" aria-label="New role name" ${raw(locked ? 'disabled' : '')} /></td>
     <td><input class="field field--abbr" data-act="role-field" data-field="abbr"
-      data-id="new" placeholder="Abbr" aria-label="Abbreviation" /></td>
+      data-id="new" placeholder="Abbr" aria-label="Abbreviation"
+      ${raw(locked ? 'disabled' : '')} /></td>
     <td>${raw(numberField({ 'data-act': 'role-field',
       'data-field': 'factor', 'data-id': 'new', 'aria-label': 'Factor', placeholder: '100',
-      extraClass: 'field--pct' }))}</td>
+      extraClass: 'field--pct', ...(locked ? { disabled: true } : {}) }))}</td>
     <td></td>
   </tr>`;
 
@@ -118,7 +154,7 @@ function renderRoles() {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function renderCountries() {
+function renderCountries(locked) {
   const expanded = view.params.expanded ?? null;
   const confirming = view.params.confirmDeactivate;
   const thisYear = new Date().getFullYear();
@@ -138,14 +174,15 @@ function renderCountries() {
         ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}Used by
               ${usage} ${usage === 1 ? 'person' : 'people'}.</span>
             <button type="button" class="btn--small btn--danger" data-act="country-active"
-              data-id="${country.id}">Yes, deactivate</button>
+              data-id="${country.id}" ${raw(locked ? 'disabled' : '')}>Yes, deactivate</button>
             <button type="button" class="btn--small" data-act="deactivate-cancel"
-              >Cancel</button>`
+              ${raw(locked ? 'disabled' : '')}>Cancel</button>`
         : country.active && usage > 0
           ? html`<button type="button" class="btn--small" data-act="country-deactivate-arm"
-              data-id="${country.id}">Deactivate</button>`
+              data-id="${country.id}" ${raw(locked ? 'disabled' : '')}>Deactivate</button>`
           : html`<button type="button" class="btn--small" data-act="country-active"
-              data-id="${country.id}">${country.active ? 'Deactivate' : 'Reactivate'}</button>`;
+              data-id="${country.id}" ${raw(locked ? 'disabled' : '')}
+              >${country.active ? 'Deactivate' : 'Reactivate'}</button>`;
 
       const yearBlocks = years
         .map((year) => {
@@ -161,6 +198,7 @@ function renderCountries() {
                 'data-month': index,
                 'aria-label': `${label} ${year} working days`,
                 extraClass: 'field--tiny',
+                ...(locked ? { disabled: true } : {}),
               }))}
             </td>`,
           ).join('');
@@ -174,6 +212,7 @@ function renderCountries() {
               'data-year': year,
               'aria-label': `${year} day rate`,
               extraClass: `field--money ${record.rate < 0 ? 'field--warn' : ''}`,
+              ...(locked ? { disabled: true } : {}),
             }))}
               ${raw(record.rate < 0
                 ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}A negative
@@ -188,12 +227,15 @@ function renderCountries() {
                   'aria-label': `Value to apply to every month of ${year}`,
                   placeholder: 'Value',
                   extraClass: 'field--tiny',
+                  ...(locked ? { disabled: true } : {}),
                 }))}
                 <button type="button" class="btn--small" data-act="country-apply-all"
-                  data-id="${country.id}" data-year="${year}">Apply to every month</button>
+                  data-id="${country.id}" data-year="${year}" ${raw(locked ? 'disabled' : '')}
+                  >Apply to every month</button>
                 ${raw(years.length > 1
                   ? html`<button type="button" class="btn--small" data-act="country-copy-year"
-                      data-id="${country.id}" data-year="${year}">Copy to other years</button>`
+                      data-id="${country.id}" data-year="${year}" ${raw(locked ? 'disabled' : '')}
+                      >Copy to other years</button>`
                   : '')}
               </div>
               ${raw(scroller(`Working days in ${year}`,
@@ -205,7 +247,7 @@ function renderCountries() {
       return html`<tbody data-id="${country.id}" class="${country.active ? '' : 'row--inactive'}">
         <tr>
           <td><input class="field" data-act="country-field" data-field="name" data-id="${country.id}"
-            value="${country.name}" aria-label="Country name" />
+            value="${country.name}" aria-label="Country name" ${raw(locked ? 'disabled' : '')} />
             ${raw(zeroRate
               ? html`<span class="field-message">${raw(icon('warning', 'icon--lead'))}${thisYear}
                   rate is 0 — everyone here costs nothing this year</span>`
@@ -229,7 +271,8 @@ function renderCountries() {
   const emptyRow = html`<tbody data-id="new">
     <tr>
       <td><input class="field" data-act="country-field" data-field="name" data-id="new"
-        placeholder="New country…" aria-label="New country name" /></td>
+        placeholder="New country…" aria-label="New country name"
+        ${raw(locked ? 'disabled' : '')} /></td>
       <td></td>
     </tr>
   </tbody>`;
@@ -247,12 +290,13 @@ function renderCountries() {
 
 /* ---- general ---- */
 
-function renderGeneral() {
+function renderGeneral(locked) {
   return html`<div class="fields">
     <label class="field-row">
       <span>Days before the export reminder appears</span>
       ${raw(numberField({ value: app.GENERAL.exportReminderDays, 'data-act': 'general-field',
-        'data-field': 'exportReminderDays', extraClass: 'field--pct' }))}
+        'data-field': 'exportReminderDays', extraClass: 'field--pct',
+        ...(locked ? { disabled: true } : {}) }))}
     </label>
   </div>
   <p class="muted">0 turns the reminder off entirely, rather than hiding it.</p>`;
@@ -326,7 +370,8 @@ export function importPreviewMarkup() {
   if (!pendingImport) return '';
   if (pendingImport.error) {
     return html`<div class="issues"><p class="warn">${raw(icon('warning', 'icon--lead'))}${
-      pendingImport.error}</p></div>`;
+      pendingImport.error} Nothing was changed — this is checked before anything here is
+      touched.</p></div>`;
   }
 
   const mode = pendingImport.mode;
@@ -401,3 +446,139 @@ function renderDanger() {
       : html`<button type="button" class="btn btn--danger" data-act="reset-arm">
           Reset to a fresh installation</button>`)}`;
 }
+
+/* ---- actions ---- */
+
+export const settingsClickActions = {
+  'role-active': ({ id }) => {
+    const role = app.ROLES[id];
+    withUndo(`${role.active ? 'Deactivated' : 'Reactivated'} ${role.name}`, () => {
+      role.active = !role.active;
+    });
+    return commit();
+  },
+  'role-deactivate-arm': ({ id }) => navigate('settings', { ...view.params, confirmDeactivate: id }),
+  'country-active': ({ id }) => {
+    const country = app.COUNTRIES[id];
+    withUndo(`${country.active ? 'Deactivated' : 'Reactivated'} ${country.name}`, () => {
+      country.active = !country.active;
+    });
+    return commit();
+  },
+  'country-deactivate-arm': ({ id }) =>
+    navigate('settings', { ...view.params, confirmDeactivate: id }),
+  'deactivate-cancel': () => navigate('settings', { ...view.params, confirmDeactivate: null }),
+  'country-expand': ({ id }) => navigate('settings', {
+    section: view.params.section ?? DEFAULT_SECTION,
+    expanded: view.params.expanded === id ? null : id,
+  }),
+  'country-apply-all': ({ trigger, id }) => {
+    // 48 cells per country typed one at a time is the real pain (§4.3) —
+    // this is a scratch value, not itself a data field, so it carries no
+    // data-act of its own and is read here rather than committed on input.
+    const year = trigger.dataset.year;
+    const input = document.querySelector(
+      `[data-field="bulk-workdays"][data-id="${id}"][data-year="${year}"]`,
+    );
+    if (!(input instanceof HTMLInputElement)) return undefined;
+    const value = Math.max(0, F.readNumber(input.value, 0));
+    withUndo(`Set every ${year} month to ${value} working days`, () => {
+      app.COUNTRIES[id].byYear[year].workingDays = Array(12).fill(value);
+    });
+    return commit();
+  },
+  'country-copy-year': ({ trigger, id }) => {
+    const year = trigger.dataset.year;
+    const country = app.COUNTRIES[id];
+    withUndo(`Copied ${year}'s working days to every other year`, () => {
+      const source = country.byYear[year];
+      for (const otherYear of Object.keys(country.byYear)) {
+        if (otherYear === year) continue;
+        // Working days only — each year keeps its own rate (a rate rise next
+        // year must never move this year's months, and vice versa).
+        country.byYear[otherYear].workingDays = [...source.workingDays];
+      }
+    });
+    return commit();
+  },
+  // link-file, unlink-file and reconnect-file all report through
+  // watchFileBinding (wired at boot to refreshFileStatus) on every actual
+  // state change — a cancelled file picker changes nothing, so nothing
+  // needs to redraw for it.
+  'link-file': () => { store.linkFile(app); },
+  'unlink-file': () => { store.unlinkFile(); },
+  // Must run from this click's own gesture — that's the whole reason it's a
+  // button rather than something retried automatically.
+  'reconnect-file': () => { store.reconnectFile(); },
+  'import-mode': ({ trigger }) => {
+    pendingImport.mode = trigger.dataset.mode;
+    return fill('import-preview', importPreviewMarkup());
+  },
+  'reset-arm': () =>
+    navigate('settings', { section: view.params.section ?? DEFAULT_SECTION, armed: true }),
+  'reset-cancel': () =>
+    navigate('settings', { section: view.params.section ?? DEFAULT_SECTION, armed: false }),
+  'settings-lock-toggle': () => {
+    settingsUnlocked = !settingsUnlocked;
+    return renderSettings();
+  },
+};
+
+export const settingsInputActions = {
+  'role-field': ({ target, id, field }) => {
+    if (id === 'new') {
+      const newId = L.newId('role');
+      app.ROLES[newId] = { id: newId, name: '', abbr: '', factor: 1, active: true };
+      app.ROLES[newId][field] = field === 'factor' ? F.readNumber(target.value, 1) : target.value;
+      return restoreCaretAfter(
+        target, `[data-act="role-field"][data-field="${field}"][data-id="${newId}"]`, commit,
+      );
+    }
+    const role = app.ROLES[id];
+    role[field] = field === 'factor' ? F.readNumber(target.value, role.factor) : target.value;
+    commitQuietly();
+  },
+  'country-field': ({ target, id, field }) => {
+    if (id === 'new') {
+      const newId = L.newId('country');
+      const years = Object.keys(Object.values(app.COUNTRIES)[0]?.byYear ?? {});
+      app.COUNTRIES[newId] = {
+        id: newId,
+        name: target.value,
+        active: true,
+        // Prefilled with the calendar's own weekday count for that year, so
+        // the field shows what a holiday-free month looks like rather than
+        // an unexplained zero (§4.3).
+        byYear: Object.fromEntries(
+          years.map((year) => [year, {
+            rate: 0,
+            workingDays: Array.from({ length: 12 }, (_, month) => E.weekdaysInMonth(Number(year), month)),
+          }]),
+        ),
+      };
+      return restoreCaretAfter(
+        target, `[data-act="country-field"][data-field="${field}"][data-id="${newId}"]`, commit,
+      );
+    }
+    app.COUNTRIES[id][field] = target.value;
+    commitQuietly();
+  },
+  'country-rate': ({ target, id }) => {
+    const record = app.COUNTRIES[id].byYear[target.dataset.year];
+    record.rate = F.readNumber(target.value, record.rate);
+    commitQuietly();
+  },
+  'country-workday': ({ target, id }) => {
+    const record = app.COUNTRIES[id].byYear[target.dataset.year];
+    const month = Number(target.dataset.month);
+    record.workingDays[month] = Math.max(0, F.readNumber(target.value, record.workingDays[month]));
+    commitQuietly();
+  },
+  'general-field': ({ target, field }) => {
+    // 0 is a real, meaningful value here — it turns the reminder off — so
+    // the bound is only against nonsense, not against the low end.
+    const read = F.readNumber(target.value, app.GENERAL.exportReminderDays);
+    app.GENERAL[field] = Math.min(365, Math.max(0, read));
+    commitQuietly();
+  },
+};
