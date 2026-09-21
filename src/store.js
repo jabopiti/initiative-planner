@@ -6,7 +6,7 @@
 
 import { SCHEMA_VERSION, createApp } from './lifecycle.js';
 import { PROCESS } from './process.js';
-import { createMasterData } from './masterData.js';
+import { createMasterData, seedInitiatives } from './masterData.js';
 import { recomputeWindow } from './engine.js';
 import { serialize, exportFilename, parseImport, toTsv, toHtmlTable } from './transfer.js';
 
@@ -25,6 +25,12 @@ const SAVE_DEBOUNCE_MS = 200;
  * immediately rather than waiting for the next edit, so it survives a reload
  * even if nothing else changes first.
  *
+ * Only a genuinely empty store (nothing under this key at all) also gets the
+ * example initiatives from `seedInitiatives()` — a store that failed to read,
+ * or that held data this build won't load, falls back to the bare seed
+ * instead, so a read failure or a foreign dataset is never dressed up to
+ * look like the user's own work.
+ *
  * @param {number} [now] current year, injectable for tests
  * @returns {{ app: object, reason: 'stored'|'empty'|'unreadable'|'schema'|'process' }}
  */
@@ -37,7 +43,11 @@ export function load(now = new Date().getFullYear()) {
   } catch {
     return { app: fresh(), reason: 'unreadable' };
   }
-  if (!raw) return { app: fresh(), reason: 'empty' };
+  if (!raw) {
+    const app = fresh();
+    seedInitiatives(app, PROCESS);
+    return { app, reason: 'empty' };
+  }
 
   let stored;
   try {

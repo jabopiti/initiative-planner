@@ -158,6 +158,13 @@ on their concrete values, only on their shape:
    repeated seeding (across tests, say) must not leak mutations between
    calls. It supplies `{ ROLES, COUNTRIES, PEOPLE, TEAMS, GENERAL }`.
 
+   It also exports `seedInitiatives(app, process, today)`, called only by
+   `store.js`, only the first time the app ever loads (an empty store, not
+   a read failure or a foreign dataset falling back to the bare seed). It
+   drives the real lifecycle functions rather than assembling initiatives
+   by hand (§7), and dates its examples relative to `today` so they still
+   read as current whenever the build is actually installed.
+
 3. **CSS custom properties** in `src/styles.css`'s `:root`, inside the
    block marked `brand pack: replace this block, and nothing else`. Seven
    knobs (§4.8), each with a white-label default that already reads as a

@@ -1,5 +1,5 @@
 /**
- * BRAND PACK — contract version 2
+ * BRAND PACK — contract version 3
  *
  * The only brand-specific source file in this repository (AGENTS.md). A
  * downstream brand build replaces it wholesale; nothing else should need to
@@ -11,6 +11,12 @@
  * load, not seed data a brand build owns. This file now imports
  * `trackedYears` to seed against, rather than defining it.
  *
+ * v3: added `seedInitiatives()` — a handful of example initiatives for a
+ * genuinely fresh install (SPEC §2), driven by the real lifecycle functions
+ * rather than hand-assembled (DESIGN §7). `store.js` now imports it, so a
+ * brand build replacing this file must keep exporting it, tied to whatever
+ * phase ids its own `process.js` defines.
+ *
  * Everything here is fictional placeholder content. The engine must never
  * depend on these concrete values — only on their shape.
  *
@@ -20,7 +26,8 @@
  * so the figures are realistic rather than a round test-friendly number,
  * and so they correctly differ year to year as weekday alignment shifts.
  */
-import { weekdaysInMonth, trackedYears } from './engine.js';
+import { weekdaysInMonth, trackedYears, costedPhaseIds } from './engine.js';
+import { createInitiative, setPhasePeriod, setAllocation, setStatus } from './lifecycle.js';
 
 /**
  * A rough public-holiday calendar: reduction off each month's weekdays.
@@ -163,4 +170,79 @@ export function createMasterData(now = new Date().getFullYear()) {
 
     INITIATIVES: [],
   };
+}
+
+/** ISO date for the 1st of the month `offset` months from `base`. */
+function firstOfMonth(base, offset) {
+  return new Date(Date.UTC(base.getFullYear(), base.getMonth() + offset, 1)).toISOString().slice(0, 10);
+}
+
+/** ISO date for the last day of the month `offset` months from `base`. */
+function lastOfMonth(base, offset) {
+  return new Date(Date.UTC(base.getFullYear(), base.getMonth() + offset + 1, 0)).toISOString().slice(0, 10);
+}
+
+/**
+ * A handful of example initiatives for a genuinely fresh install, so
+ * Portfolio and Initiatives are not empty the first time the app opens.
+ * Built with the real lifecycle functions rather than assembled by hand
+ * (DESIGN §7) — including the two that start mid-process, which is how
+ * pre-existing work is entered (SPEC §6.2) — so every state here is one the
+ * app can actually reach.
+ *
+ * Dates are relative to `today` rather than baked in, so a build installed
+ * next year still opens looking current instead of already overdue.
+ * Mutates `app.INITIATIVES` and returns `app`.
+ *
+ * @param {object} app a freshly created app (`lifecycle.js`'s `createApp`)
+ * @param {object} process
+ * @param {Date} [today]
+ */
+export function seedInitiatives(app, process, today = new Date()) {
+  const [phase1, phase2] = costedPhaseIds(process);
+
+  const estimate = (initiative, phaseId, startOffset, endOffset, allocations) => {
+    setPhasePeriod(initiative, phaseId, firstOfMonth(today, startOffset), lastOfMonth(today, endOffset));
+    for (const [personId, pct] of allocations) setAllocation(app, initiative, phaseId, personId, pct);
+  };
+
+  const relaunch = createInitiative(app, process, {
+    name: 'Website relaunch',
+    description: 'Rebuild the marketing site on the new design system.',
+    teamId: 'team_platform',
+  });
+  estimate(relaunch, phase1, 1, 3, [['person_bo', 50]]);
+  estimate(relaunch, phase2, 4, 9, [['person_bo', 40], ['person_di', 30]]);
+
+  // Started mid-process: gate_discovery is auto-recorded as skipped, the
+  // mechanism pre-existing work is entered through.
+  const supportDesk = createInitiative(app, process, {
+    name: 'Support desk revamp',
+    description: 'Replace the ticketing tool with something the team will actually use.',
+    teamId: 'team_growth',
+    startPhaseId: phase1,
+  });
+  estimate(supportDesk, phase1, 0, 2, [['person_cy', 60]]);
+  estimate(supportDesk, phase2, 3, 7, [['person_cy', 50], ['person_ada', 20]]);
+
+  // Further along still: both gates behind it are auto-recorded as skipped.
+  const inventorySync = createInitiative(app, process, {
+    name: 'Inventory sync',
+    description: 'Real-time stock levels between the warehouse and the storefront.',
+    teamId: 'team_platform',
+    startPhaseId: phase2,
+  });
+  estimate(inventorySync, phase1, -4, -1, [['person_di', 40]]);
+  estimate(inventorySync, phase2, 0, 5, [['person_bo', 30], ['person_di', 30]]);
+
+  const pricingRollout = createInitiative(app, process, {
+    name: 'Regional pricing rollout',
+    description: 'Localised price lists for the next three markets.',
+    teamId: 'team_growth',
+  });
+  estimate(pricingRollout, phase1, 2, 4, [['person_cy', 40]]);
+  estimate(pricingRollout, phase2, 5, 9, [['person_cy', 40], ['person_ada', 20]]);
+  setStatus(pricingRollout, 'on-hold');
+
+  return app;
 }

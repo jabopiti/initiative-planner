@@ -96,7 +96,10 @@ depends on it.
 - **A process identity** — an id and a version — so a dataset can never
   be read by a build whose process disagrees with it (§8).
 - All colours and the typeface.
-- Placeholder seed data for roles, countries, teams and people.
+- Placeholder seed data for roles, countries, teams and people, plus a
+  handful of example initiatives shown only on a genuinely fresh install
+  (never after a read failure or a foreign dataset, which fall back to the
+  bare seed instead).
 
 **Editable by the user**, in Settings:
 
