@@ -1586,6 +1586,13 @@ allows, in general, no more than 80 content-generating requests per minute and
 500 per hour, and the limits can change; this rule keeps the tool well inside
 them.
 
+Every Contents API call the client makes — read or write — must pass the data
+branch explicitly. GitHub's Contents API silently defaults an omitted `branch`
+parameter to the repository's default branch (the app branch), not to
+whatever branch was last used, so a single missing parameter would write
+dataset changes onto the app branch instead of the data branch with no error
+(confirmed against the real API; spike-findings.md). No code path may omit it.
+
 Commit messages are written by the app in plain words, for example "Payments
 API: Development period set to Apr–Sep", with the entity's id in a trailer
 line, so the history reads as a change log.

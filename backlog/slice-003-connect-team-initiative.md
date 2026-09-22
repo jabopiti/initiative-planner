@@ -43,6 +43,13 @@ initiative that appears on the Portfolio board.
   (§9.4) show one line and one primary action each.
 - Hash routes for Portfolio, Initiatives, People, Teams, Settings, and a
   specific initiative (§10.6).
+- This is the first slice that writes to the dataset — every Contents API
+  call must pass the data branch explicitly (§10.3, spike-findings.md): an
+  omitted `branch` silently defaults to the app branch instead of erroring,
+  which is exactly how slice 002's spike briefly landed test data on
+  `main`. Cover this with a test, not just review — e.g. a regression test
+  asserting every write call includes `branch`, or one that replicates the
+  incident against a mock and fails if it doesn't.
 
 **Explicitly excluded:** The People screen and any allocation, phase, or
 cost item editing — an initiative with just a name and a team is already a
