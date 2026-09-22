@@ -1,72 +1,101 @@
-# Initiative Planner (white-label core)
+# Initiative Planner
 
-A multi-user **companion** for planning the **cost** and **people
-capacity** of initiatives — not a management tool that adds oversight,
-but one that takes the manual work out of estimating, tracking and
-governing them. The goal is minutes spent in the tool, not hours, and
-passing through the process's gates should feel like a side detail of the
-work, never an event of its own. See
-[SPEC.md §1](docs/SPEC.md#1-purpose--scope) for the full case.
+A multi-user companion for planning the cost and people capacity of
+initiatives as they move through a stage-gate process — with no custom
+backend, running entirely on GitHub as its data store.
 
-Statically hosted (e.g. GitHub Pages), no custom backend. The storage and
-sync mechanism that lets multiple users read and write the same data, and
-the authentication mechanism, are not yet decided. JSON export/import
-remains available as a backup and portability path.
+![Status](https://img.shields.io/badge/status-in%20development-orange)
+![License](https://img.shields.io/badge/license-TBD-lightgrey)
 
-Initiatives run through a stage-gate process that is **fixed when the
-tool is built**, not configured by the person using it: which phases
-exist, which of them carry cost, and what each gate requires — estimates,
-a checklist, or both. People exist independently of teams, so one person
-can be split across several, and each team draws only on the share it
-holds.
+## Overview
 
-This repository was built **spec-first**: the four documents below came
-first and the implementation follows them. Where the two ever disagree,
-the implementation wins and the document is corrected.
+Organizations run their initiatives through a defined, aligned stage-gate
+process, yet the planning behind it is fragmented across spreadsheets and
+presentations, with every manager keeping an individual solution.
+Initiative Planner replaces that with one shared dataset that follows the
+same process for everyone: cost derived automatically from who does what,
+capacity tracked per team, and gate status kept visible as work
+progresses.
 
-## Status
+It's a white-label, statically hosted single-page app — each deployment is
+its own GitHub repository fork, with no server to run and no database to
+host. See [`docs/spec.md`](./docs/spec.md) for the full specification.
 
-The single-user core is complete; a multi-user, statically-hosted revamp
-is now underway. `npm install && npm run build` produces the current
-build. It was built spec-first, one phase per commit — `git log` is the
-build record.
+## Architecture at a glance
 
-## Start here
+- **No custom backend.** The app is a statically hosted single-page
+  application; a GitHub repository *is* the backend. There's no server to
+  run and no database to host.
+- **GitHub as the data store.** One branch (`main`) holds the built app
+  and the brand pack; a separate branch (`data`) holds the dataset as
+  plain JSON files — one master file per kind (roles, countries, teams,
+  people, memberships) plus one file per initiative. Every edit is a
+  single git commit.
+- **Client-side only.** Each user authenticates with their own
+  fine-grained GitHub token, kept in the browser. Reads and writes go
+  straight from the browser to GitHub's API — no server sits in between.
+- **White-label by fork.** The process (phases, gates, checklists,
+  approval tracks), branding, and seed data are all defined in one
+  TypeScript **brand pack** file. A deployment is a fork of this
+  repository with its own brand pack; core code is never edited in a
+  fork.
+- **Hosted on GitHub Pages**, built by a GitHub Actions workflow that
+  fails the build if the brand pack is invalid (bad colours, overlapping
+  approval bands, an incomplete process definition).
 
-1. [AGENTS.md](AGENTS.md) — non-negotiable constraints and the brand-pack
-   contract. Read this first; every other document assumes it. Claude
-   Code picks it up through [CLAUDE.md](CLAUDE.md), which adds the
-   phase-by-phase build workflow on top of it.
-2. [SPEC.md](docs/SPEC.md) — what the tool does and why (product/domain
-   behavior, screen by screen).
-3. [DESIGN.md](docs/DESIGN.md) — how it's built (tech stack, data model,
-   module boundaries, brand-pack contract in implementation terms).
+See [`docs/spec.md`](./docs/spec.md) §2–§3 and §10 for the full design and
+rationale.
 
-## Commands
+## Tech stack
 
-```text
+- **React + TypeScript** — the SPA itself
+- **Radix UI / React Aria** — accessible, unstyled UI primitives
+  (combobox, popover, menu, dialog, tooltip)
+- **CSS Modules** — styling, reading the brand pack's CSS variables
+  directly; no CSS-in-JS
+- **IndexedDB** — the browser-side cache of the GitHub dataset
+- **Tabler Icons** — the icon set
+- No charting library, no component kit (MUI/Mantine), no runtime
+  CSS-in-JS — kept deliberately light given the strict content security
+  policy the app runs under (§10.1, §10.9)
+
+## Getting started
+
+**Prerequisites**
+- Node.js (version pinned once the toolchain is set up in slice 001/002)
+- A GitHub account with access to this repository (or your fork of it)
+- A fine-grained GitHub personal access token, scoped to this repository
+  with Contents read/write — see [`docs/spec.md`](./docs/spec.md) §5.10
+  for how to create one
+
+**Install and run** *(placeholder — will be confirmed once the initial
+toolchain lands; update this block then)*
+
+```sh
 npm install
-npm run dev         # local dev server
-npm run build       # -> dist/ (static site)
-npm test
-npm run typecheck
-npm run lint
-npm run demo        # regenerate examples/exports/demo.json
+npm run dev
 ```
 
-Serve `dist/` with `python3 -m http.server 8899` for manual
-browser checks. [`examples/exports/demo.json`](examples/exports/demo.json)
-is a fictional dataset covering every state the UI renders — import it
-through Settings → Data rather than typing one in.
+On first run, the app shows a Connect screen asking for the token above.
 
-## Brand pack
+## Deploying your own instance
 
-`src/process.js` (the process, gates, checklists and approval tracks) and
-`src/masterData.js` (roles, countries, teams, people) ship with fictional
-placeholder content here — see AGENTS.md. A separate, private repository
-overlays a real process, branding and master data at build time; nothing
-in this repo should ever need to change to support that.
+*Coming once the core is buildable.* Initiative Planner is distributed as
+a fork: each deployment forks this repository, edits only its own brand
+pack (process, branding, seed data), and takes updates via GitHub's
+fork-sync. See [`docs/spec.md`](./docs/spec.md) §3 and §10.7 for the full
+design — this section will turn into a real walkthrough once slice 003
+onward makes that fork worth taking.
 
-The two are deliberately different in kind: the process is governance the
-end user cannot change, while the seed master data is only a starting
-point they edit freely afterwards.
+## Documentation
+
+| Doc | What it covers |
+|---|---|
+| [`docs/spec.md`](./docs/spec.md) | The full product, UI/UX and technical specification |
+| [`AGENTS.md`](./AGENTS.md) | Instructions for AI coding agents working in this repo |
+| [`backlog/slices-overview.md`](./backlog/slices-overview.md) | The build backlog, sliced into independent, valuable steps |
+| [`backlog/example-data.md`](./backlog/example-data.md) | Seed data (process, roles, countries, branding) used across slices |
+
+## License
+
+To be determined.
