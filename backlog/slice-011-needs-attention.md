@@ -69,7 +69,7 @@ slice's core aggregation behaviour.
 
 ## Acceptance criteria
 
-- [ ] Given an Active initiative whose current phase is past its end month
+- [ ] Given an Active initiative whose current phase is past its end date
       with its gate not passed, when the Portfolio loads, then it appears
       as Overrun, ranked above any Due or Ready items.
 - [ ] Given an Active initiative whose live approval track is stricter

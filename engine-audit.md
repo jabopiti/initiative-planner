@@ -10,17 +10,20 @@ because they don't touch these rules.
 Legend: **Reuse as-is** · **Reuse with changes** (name the change) ·
 **Rewrite** (name why).
 
-## The one change that ripples through everything
+## Revision note (2026-09-22)
 
-The prototype models a costed phase's period as two ISO **dates**
-(`estStartDate`/`estEndDate`). The spec's Phase data (§6) has **Start
-month** / **End month** — the `Month` type (`"YYYY-MM"`), not `Date`. This
-alone doesn't just rename a field: it's the reason the prototype prorates
-partial months (see `workingDaysForPeriod` below), which §7.1 explicitly
-forbids ("Phases run in whole months, so a month is never prorated"). Every
-function below that consumes `estStartDate`/`estEndDate` is marked "Reuse
-with changes" or "Rewrite" for this reason, cited once here rather than
-repeated in each entry.
+This audit originally found the prototype's date-based phase period
+(`estStartDate`/`estEndDate`, with partial-month proration in
+`workingDaysForPeriod`) in conflict with the spec's then-current
+Start/End **month** fields and its "a month is never prorated" rule. That
+conflict has since been resolved the other way: docs/spec.md §6 and §7.1
+were updated to adopt the prototype's date-based model — Start
+date/End date, with the period's first and last calendar months prorated
+by the share of that month's weekdays the period covers. The entries below
+reflect the current spec. Everything that was previously "Rewrite" or
+"Reuse with changes" purely because it used dates instead of months now
+reads **Reuse as-is**; the reasoning that changed is called out inline
+so the history stays legible.
 
 ## Time, years, and the tracked window (§7.2)
 
@@ -30,8 +33,8 @@ repeated in each entry.
 | `trackedYears` | Reuse with changes | Depends on the constants above; once they're fixed to current+2, the loop itself is correct. |
 | `monthKey` | Reuse as-is | Matches the Month field encoding (§6) exactly. |
 | `parseMonthKey` | Reuse as-is | |
-| `parseDate` (private) | Rewrite | Exists only to support date-range phase periods; drop once phases store Start/End month directly. |
-| `monthsInRange` | Reuse with changes | Correct month-enumeration logic, but takes ISO dates. Change the signature to take two month keys directly — phases no longer have a date range to convert from. |
+| `parseDate` (private) | Reuse as-is | Phase periods are dates (§6, revised); this is exactly the parsing step needed. |
+| `monthsInRange` | Reuse as-is | Correct month-enumeration logic over a date range, which now matches §6's Start date/End date fields directly. |
 | `yearRecord` | Reuse as-is | Matches §7.2's clamp-to-nearest-tracked-year rule exactly, including "before the earliest entry takes the earliest entry" and "beyond the window takes the last tracked year." |
 | `extendByYear` (private) | Reuse with changes | §7.2: when a year enters the window, "rates... are copied from the preceding year, and working days are prefilled with the weekdays of each month." The prototype's `clone` callback copies **both** the rate and the working-days array from the nearest year — it never prefills working days from the calendar. Change the clone step so working days come from `weekdaysInMonth`, not from the source year's record. |
 | `recomputeWindow` | Reuse with changes | Correct shape (walk countries and custom-rate people, extend, report whether anything changed); inherits the two fixes above. |
@@ -42,8 +45,8 @@ repeated in each entry.
 |---|---|---|
 | `weekdaysInMonth` | Reuse as-is | Needed by the fixed `extendByYear` prefill above. |
 | `workingDaysInMonth` | Reuse as-is | Reads the country's stored per-month figure directly, exactly as §6 describes ("The user edits only the number; no holiday calendar is kept"). |
-| `weekdaysBetween` (private) | Rewrite | Exists only to compute the proration fraction below. Drop with it. |
-| `workingDaysForPeriod` | **Rewrite** | Prorates the first and last month of a phase by "share of weekdays covered" — §7.1 says explicitly a month is never prorated. Also takes ISO dates instead of a Start/End month pair. Replace with a function that takes `(country, startMonthKey, endMonthKey)` and returns each whole month's `workingDaysInMonth` unmodified — no partial-month math at all. |
+| `weekdaysBetween` (private) | Reuse as-is | Computes the proration fraction §7.1 now calls for directly. |
+| `workingDaysForPeriod` | Reuse as-is | Prorates the first and last month of a phase by "share of weekdays covered" — this is now the spec's own rule (§7.1, revised), stated as "that month's working days × (weekdays covered ÷ total weekdays in that month)." Takes ISO dates, matching the Start date/End date fields directly. |
 
 ## Rate resolution (§7.2)
 
@@ -58,17 +61,17 @@ repeated in each entry.
 |---|---|---|
 | `sum`, `add` (private) | Reuse as-is | |
 | `ratesFor` | Reuse as-is | Matches §6 Gate record's "Frozen estimate snapshot" — reads live master data unless the phase is frozen, then reads the snapshot copies. |
-| `allocationFigures` | Reuse with changes | The formula itself — working days × Allocation % × day rate × role factor, read for the month's own year — is exactly §7.1. Only its source of "working days per month" needs to change from the prorating `workingDaysForPeriod` to the whole-month replacement above. |
-| `phaseLabourByMonth` | Reuse as-is | Correct once `allocationFigures` is fixed. |
+| `allocationFigures` | Reuse as-is | The formula — working days × Allocation % × day rate × role factor, read for the month's own year, sourced from `workingDaysForPeriod`'s (now-correct) proration — is exactly §7.1. |
+| `phaseLabourByMonth` | Reuse as-is | Sums `allocationFigures` per month across a phase's allocations; correct given the formula above. |
 | `phaseOtherByMonth` | **Rewrite** | §6: a cost item's timing is "either one month within the phase, or spread evenly over the phase." The prototype's cost item shape (`{ id, name, month, amount }`) has no spread option at all — `phaseOtherByMonth` only ever adds the full amount to one month. Needs a `timing` field (`{ type: 'month', month }` or `{ type: 'spread' }`) and logic to divide a spread item's amount evenly across the phase's months. |
 | `isFrozen` | Reuse as-is | |
 | `phaseEstimateByMonth` | Reuse as-is | Composes correctly once `phaseOtherByMonth` supports spread items. |
 | `phaseLabourTotal`, `phaseOtherTotal` | Reuse as-is | |
-| `phaseMonths` | Reuse with changes | §6's Phase data has no "actual period" field — actuals are individual per-month entries that may simply fall outside the phase's own Start/End month (called out as a warning case, not a separate date range). The prototype's inclusion of `actualStartDate`/`actualEndDate` in the month set is tracking a concept the spec doesn't have. Drop that source; keep the phase period, the recorded `actualMonths` keys, and cost-item months. |
+| `phaseMonths` | Reuse with changes | Independent of the date/month revision above: §6's Phase data has no "actual period" field — actuals are individual per-month entries that may simply fall outside the phase's own Start date/End date (called out as a warning case, not a separate date range). The prototype's inclusion of `actualStartDate`/`actualEndDate` in the month set is tracking a concept the spec doesn't have. Drop that source; keep the phase period, the recorded `actualMonths` keys, and cost-item months. |
 | `phaseBlendedByMonth`, `phaseEstimateTotal`, `phaseBlendedTotal` | Reuse as-is | §7.3: recorded actual where present, estimate otherwise — matches exactly. |
 | `actualOrEstimate` | Reuse with changes | §7.3 says a closed month with no recorded actual is "shown and computed as if it were the estimate," unconditionally. The prototype returns `undefined` (not "using the estimate") when that estimate is exactly 0. Worth a deliberate call in slice 010, not a silent behavior — either keep this as an intentional UI simplification (don't badge a $0 month) or drop the `estimate > 0` guard to match the spec literally. |
 | `phaseCoverage` | Reuse as-is | Matches §4's Estimate/Forecast/Actual definitions precisely, including that a defaulted (not recorded) month never counts as "recorded." |
-| `isPhaseConfirmed` | Reuse with changes | The current-phase-or-starts-within-a-month logic matches §4's Provisional/Confirmed definition, but it compares full dates (`threshold.setUTCMonth(...)`) which is subject to JS date-overflow edge cases (e.g. day-31 arithmetic) and reads a date field that won't exist once phases store Start month directly. Rewrite the comparison as month-key arithmetic against the phase's Start month. |
+| `isPhaseConfirmed` | Reuse with changes | The current-phase-or-starts-within-a-month logic matches §4's Provisional/Confirmed definition, and reading a date field is now correct (§6, revised). But it compares full dates via `threshold.setUTCMonth(...)`, which is subject to JS date-overflow edge cases (e.g. adding a month to Jan 31 silently lands in March). Compute the threshold as a month-key comparison — "is the start date's month the current or next calendar month" — rather than shifting the date object itself. |
 | `initiativeMonths` | Reuse as-is | |
 | `bandScale` | Reuse as-is | UI-support helper (threshold bar position), not a spec rule itself. |
 | `costedPhases`, `grandTotal`, `phaseCosts` | Reuse as-is | `grandTotal` matches §4's Grand estimate definition exactly. |
@@ -92,9 +95,9 @@ repeated in each entry.
 | `maxAvailablePct` | Reuse as-is | Suggestion helper (headroom across a phase's months); consistent with §7.2, not itself a spec rule. |
 | `nonInitiativeWorkPct`, `nonInitiativeWorkCost` | Reuse as-is | Matches §7.2's `max(0, teamFtePct - allocatedPct)` formula, costed the same way as initiative work. |
 | `initiativeCostByMonth`, `initiativeCostInMonth`, `runRate`, `teamRunRate` | Reuse as-is | |
-| `initiativePeriod` | Reuse with changes | Reads `estStartDate`/`estEndDate` — adapt to the Start/End month fields once the phase model changes. |
+| `initiativePeriod` | Reuse as-is | Reads `estStartDate`/`estEndDate`, which matches the Start date/End date fields directly (§6, revised). |
 | `capacityWarnings`, `overAllocations` | Reuse as-is | Both ceilings warn-only, never block, matching §7.2; correctly kept separate rather than merged into one list. |
-| `personInitiatives` | Reuse with changes | Reads `estStartDate`/`estEndDate` for the returned `start`/`end`; same fix as `initiativePeriod`. |
+| `personInitiatives` | Reuse as-is | Reads `estStartDate`/`estEndDate` for the returned `start`/`end`, matching §6 directly. |
 | `strandedAllocations` | Reuse as-is | Matches "an allocation that outlives its membership stays and keeps costing" (§7.2). |
 | `windowMonths`, `utilisationPct` | Reuse as-is | |
 
@@ -105,7 +108,7 @@ repeated in each entry.
 | `median` (private) | Reuse as-is | |
 | `carryForwardPct` | Reuse as-is | Process/phase-order helper, no calc rule of its own. |
 | `usualAllocationPct`, `usualStaffing` | Reuse as-is | Correctly excludes custom-role people from the template (§7.2's "individually negotiated" reasoning). |
-| `usualPhaseDuration` | Reuse with changes | Uses `new Date(phase.estStartDate)` — adapt to month keys. |
+| `usualPhaseDuration` | Reuse as-is | Uses `new Date(phase.estStartDate)`/`estEndDate`, matching the Start date/End date fields directly (§6, revised). |
 | `otherCostSuggestions` | Reuse with changes | Depends on `phaseOtherByMonth`'s cost-item rewrite above — once items carry a `timing` type instead of a bare `month`, the per-item amount this reads may need adjusting for spread items. |
 
 ## Out of scope
@@ -138,11 +141,10 @@ recorded here rather than silently missed:
 ## Data-shape mismatches against §6 (naming only, not logic)
 
 None of these change behavior; they're field-name differences to resolve
-when porting, listed once rather than in every row above:
+when porting, listed once rather than in every row above. (Phase
+`estStartDate`/`estEndDate` is no longer listed here — the spec's own Start
+date/End date fields now match it; see the Revision note above.)
 
-- Phase: `estStartDate`/`estEndDate` (Date) → **Start month**/**End month**
-  (Month). This is the mismatch behind the Rewrite/Reuse-with-changes
-  entries above.
 - Cost item: `name` → **label**; `month` (bare) → **timing** (one month, or
   spread over the phase).
 - Membership: `sharePct` → **Team FTE %**.
@@ -155,14 +157,23 @@ when porting, listed once rather than in every row above:
 ## What slice 005 can import unchanged
 
 Every function marked **Reuse as-is** above may be ported directly (adapted
-only from vanilla JS to TypeScript, per slice-001's stack-mismatch note) —
-this is the largest group and includes all of rate resolution, coverage
+only from vanilla JS to TypeScript, per slice-001's stack-mismatch note).
+After the revision, this is by far the largest group: it now includes the
+entire date-based phase period and its proration (`parseDate`,
+`monthsInRange`, `weekdaysBetween`, `workingDaysForPeriod`,
+`allocationFigures`), on top of rate resolution, coverage
 (Estimate/Forecast/Actual), approval-track band resolution and comparison,
-and every capacity ceiling. Everything marked **Reuse with changes** carries
-its fix inline above; slice 005 should apply those changes as it ports
-rather than importing first and fixing later. Everything marked
-**Rewrite** — the date-based phase period and its proration
-(`parseDate`, `monthsInRange`, `weekdaysBetween`, `workingDaysForPeriod`),
-`WINDOW_BEFORE`, and cost items' missing spread-timing (`phaseOtherByMonth`)
-— should be written fresh against §6/§7.1/§7.2 rather than adapted from the
-prototype.
+and every capacity ceiling (`initiativePeriod`, `personInitiatives`,
+`usualPhaseDuration` included).
+
+Everything marked **Reuse with changes** carries its fix inline above;
+slice 005 should apply those changes as it ports rather than importing
+first and fixing later. Two are unrelated to this revision and still stand:
+`isPhaseConfirmed`'s month-overflow date arithmetic, and `phaseMonths`'
+inclusion of the not-in-spec `actualStartDate`/`actualEndDate` range.
+
+Only two things are still a genuine **Rewrite**, against §7.2 and §6
+respectively, unaffected by this revision: `WINDOW_BEFORE` (the tracked
+window is one year too wide), and cost items' missing spread-timing
+support (`phaseOtherByMonth` only handles a single month, never "spread
+evenly over the phase").

@@ -30,7 +30,7 @@ automatically from working days, day rate, role factor, and Allocation %.
 
 ## Scope
 
-- The current phase's period as two month fields (§9.11 month input,
+- The current phase's period as two date fields (§9.11 date input,
   simplified to a working control for this slice; the popover polish can
   follow).
 - An allocation table: pick a person from the initiative's team, set
@@ -50,7 +50,7 @@ behaviour this slice proves.
 ## Execution path
 
 1. User triggers: opens an initiative's page and sets the current phase's
-   start and end month.
+   start and end date.
 2. UI: the allocation table becomes editable; user picks a team member and
    sets Allocation %.
 3. Engine: computes working days × Allocation % × country day rate × role
@@ -76,6 +76,10 @@ behaviour this slice proves.
       Allocation % is set, then the phase total updates to working days ×
       Allocation % × country day rate × role cost factor for each month of
       the period, summed.
+- [ ] Given a phase whose start or end date falls mid-month, when the total
+      is computed, then that month's working days are prorated by the share
+      of the month's weekdays the period covers (§7.1), rather than counting
+      the whole month or excluding it.
 - [ ] Given a person who is not a member of the initiative's team, when
       an attempt is made to allocate them, then it is refused with the
       reason (§7.2).

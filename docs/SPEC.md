@@ -479,9 +479,9 @@ cross-references point there.
   one month within the phase, or spread evenly over the phase (§6, §7.1).
 - **Provisional / Confirmed:** a costed phase's *confidence*, not its
   progress. A phase is **Confirmed** when it is the initiative's current
-  phase or its start month is the current or the next calendar month;
+  phase or its start date falls in the current or the next calendar month;
   otherwise it is **Provisional**. It is derived purely from today's date
-  against the phase's own start month, never stored, never a toggle. See
+  against the phase's own start date, never stored, never a toggle. See
   §7.2 for how this affects capacity accounting.
 - **Gate:** the transition out of one phase. Every phase has exactly one,
   including the last, whose gate is what **closes** the initiative. A gate
@@ -733,7 +733,7 @@ Its layout follows the design rules in §9.8.
   allocation row shows a warning when the person is over their Capacity % or
   their team's Team FTE % in any month of the phase, or is no longer a
   member of the team (§7.2). The current phase shows its **period** as two
-  month fields (§9.11), an **allocation table** (person, Allocation %, and
+  date fields (§9.11), an **allocation table** (person, Allocation %, and
   the person's cost for the phase), a **cost items table** (label, amount,
   and when: one month, or spread over the phase) beneath it, with the phase
   total in the phase header covering both, and an **actuals table** with a
@@ -919,10 +919,10 @@ today's actual date, determined the same way as Confirmed vs. Provisional in
   minimum over the months of the phase; Provisional phases and initiatives
   that do not count (§7.2) are left out. Allocation % is prefilled with the
   free capacity, so the default never causes a warning.
-- **Extend on overrun.** When the current phase is past its end month, the
+- **Extend on overrun.** When the current phase is past its end date, the
   Overrun state (§5.4, §8.5) offers **Extend <phase> by one month**. It
-  moves the phase's end month later and keeps its allocations; later phases
-  do not move.
+  moves the phase's end date a month later and keeps its allocations; later
+  phases do not move.
 - **Fix suggestions.** A capacity warning on an allocation row or in the
   capacity grid's detail (§5.4, §5.8) offers up to two fixes: reduce the
   person's Allocation % to the value that fits for every month of the phase,
@@ -989,8 +989,8 @@ same place.
 
 | Field | Type | Notes |
 |---|---|---|
-| Start month | Month | First month of the phase |
-| End month | Month | Last month of the phase |
+| Start date | Date | First day of the phase |
+| End date | Date | Last day of the phase |
 | Allocations | List | Each item has an id: person reference + Allocation % |
 | Cost items | List | Each item has an id: label, amount (in the deployment's currency) and timing, either one month within the phase or spread evenly over the phase. Items whose month lies outside the phase's period stay and keep counting; the phase shows a warning |
 | Actuals | Per month | Recorded cost per month, or absent (§7.3). Actuals outside the phase's period stay and keep counting; the phase shows a warning. Actuals remain recordable after the phase's gate is passed, and even after the initiative is Closed or Cancelled (§8.4) |
@@ -1102,7 +1102,16 @@ custom day rate for that year; the role cost factor does not apply. Amounts
 are computed unrounded and rounded only for display. A phase's monthly
 estimate adds its cost items: an item timed in one month counts in that
 month, and an item spread over the phase counts equally in each month of the
-period. Phases run in whole months, so a month is never prorated.
+period.
+
+A phase's period is a start date and an end date (§6), not whole months, so
+its first and last calendar months are usually partial. A month fully inside
+the period counts its country's full working days for that month; the
+period's first and last months are **prorated** by the share of that
+month's weekdays the period actually covers — that month's working days ×
+(weekdays between the period's edge and the month's edge, inclusive ÷ total
+weekdays in that month). A phase whose start and end fall in the same month
+prorates that one month against its own weekday span.
 
 ### 7.2 Capacity, rates, and the three percentages
 
@@ -1275,12 +1284,12 @@ opportunity last:
 
 1. **Escalated** — the live total now needs a stricter approval track than
    the one recorded at the last passed gate (§7.4).
-2. **Overrun** — the current phase is past its end month and its gate has
+2. **Overrun** — the current phase is past its end date and its gate has
    not been passed. This is the one alarm state (§8.1).
 3. **Overdue** — a **closed** month with no actual recorded against it, once
    a further calendar month has passed since it ended (§7.3). A month that
    has not yet ended is not overdue.
-4. **Due** — the current phase's end month has been reached and the gate
+4. **Due** — the current phase's end date has been reached and the gate
    still has open requirements: a costed phase without an estimate (§8.1),
    or a checklist item that is Incomplete or still Tentative (including one
    carried forward from an earlier gate).
@@ -1395,8 +1404,8 @@ laptop with a normal broadband connection:
 
 The UI is in English only. Numbers, currency amounts and dates are formatted
 according to the user's browser locale, using the deployment's currency
-symbol (§2). Calculations run on calendar months (§7.1) and do not depend on
-display format.
+symbol (§2). Calculations run on calendar months, prorated at a phase's own
+start and end date (§7.1), and do not depend on display format.
 
 ### 9.8 Visual design
 
@@ -1507,10 +1516,14 @@ initiatives by phase, then name.
 **Long text.** Long names are cut with an ellipsis and shown in full in a
 tooltip.
 
-**Month input.** Every month field (a phase's period, a cost item's month,
-the year filter's months) is one compact control: type a month such as "Sep
-2026", or open a small popover with a year stepper and the twelve months. It
-is fully operable by keyboard.
+**Month input.** Every month field (a cost item's month, the year filter's
+months) is one compact control: type a month such as "Sep 2026", or open a
+small popover with a year stepper and the twelve months. It is fully
+operable by keyboard.
+
+**Date input.** A phase's start and end date is a compact control: type a
+date such as "3 Sep 2026", or open a small calendar popover. It is fully
+operable by keyboard.
 
 **Amounts.** Cards, board headers and metrics show compact amounts (for
 example 4.2 M and 210 k) with the full amount in a tooltip; tables, editors
@@ -1685,7 +1698,7 @@ third-party scripts, and its dependencies are audited in the build (§10.1).
 |---|---|
 | Initiative | A piece of planned work (a project) that belongs to one team, has an owner and moves through the process (§4) |
 | Phase | A step of the process; costed or not (§4) |
-| Provisional / Confirmed | A costed phase's confidence, derived from today's date vs. its start month (§4) |
+| Provisional / Confirmed | A costed phase's confidence, derived from today's date vs. its start date (§4) |
 | Gate | The transition out of a phase; the last one closes the initiative |
 | Status | Active, On Hold, Cancelled or Closed — independent of phase, except that Closed is reached only through the final gate |
 | Checklist item | A named Incomplete/Tentative/Complete condition on a gate (§4, §8.1) |
@@ -1696,7 +1709,7 @@ third-party scripts, and its dependencies are audited in the build (§10.1).
 | Approval track | The budget band resolved from the grand estimate (§7.4) |
 | Severity | A band's integer oversight rank; higher is stricter (§7.4) |
 | Not yet known | A total no configured band covers (§7.4) |
-| Overrun | The current phase running past its end month with its gate not passed; the one alarm state (§8.1, §8.5) |
+| Overrun | The current phase running past its end date with its gate not passed; the one alarm state (§8.1, §8.5) |
 | Capacity % | A person's ceiling on total concurrent commitment |
 | Allocation % | The percentage of full-time capacity a person is committed at on one phase |
 | Team FTE % | How much of a person's full-time capacity one team holds (§4) |
