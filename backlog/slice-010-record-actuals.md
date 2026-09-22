@@ -35,6 +35,13 @@ month, with unrecorded closed months defaulting visibly to their estimate.
 - A month not yet closed shows "not closed yet".
 - Deviation (actual minus estimate) becomes available once at least one
   month has a recorded actual.
+- Two calls from engine-audit.md to make deliberately here, not inherit
+  silently: whether a closed month whose estimate is exactly 0 shows
+  "using the estimate" (the prototype's `actualOrEstimate` hides it; §7.3
+  reads as unconditional) — pick one and note it; and when porting
+  `phaseMonths`, source a phase's months from its period, recorded
+  `actualMonths` keys and cost-item months only — the prototype also folds
+  in an `actualStartDate`/`actualEndDate` range that §6 has no field for.
 
 **Explicitly excluded:** The Overdue item in Needs attention (slice 011)
 — recording an actual correctly is the core behaviour here; surfacing that

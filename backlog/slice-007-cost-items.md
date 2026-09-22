@@ -33,6 +33,11 @@ phase, timed in one month or spread evenly across it.
 - The phase total (header) includes cost items alongside allocation cost.
 - Items whose one-off month falls outside a later-shortened period stay
   and keep counting, with a warning (§6).
+- Per engine-audit.md, the prototype's `phaseOtherByMonth` only ever
+  handles a single-month item — write the spread-timing split fresh from
+  §7.1 rather than porting it. (When the excluded "Cost item suggestions"
+  §5.11 is picked up in a later slice, `otherCostSuggestions` needs the
+  same rework.)
 
 **Explicitly excluded:** Cost item suggestions from prior initiatives
 (§5.11) — a plain label field is sufficient for a cost item to exist and

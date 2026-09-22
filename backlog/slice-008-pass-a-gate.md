@@ -42,6 +42,12 @@ recording the grand estimate and approval track at that moment.
   (§7.4) are recorded on the gate record; the cost summary's "approved at"
   figure updates.
 - The bar shows "Passed <gate> — Reopen" briefly afterward.
+- Per §6's Gate record ("Passed gates that carried cost") and
+  engine-audit.md: the grand estimate and approval track are recorded only
+  when the exited phase is costed, and the escalation baseline (§7.4, used
+  by slice 011) must look back to the last passed gate whose phase was
+  costed — the prototype's `lastPassedGate`/`buildGateRecord` don't filter
+  for this and need that fix while porting.
 
 **Explicitly excluded:** Skipping a gate and the starting-phase mechanism
 (§8.2) — passing a gate the normal way is the core governance behaviour;

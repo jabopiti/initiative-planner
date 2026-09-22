@@ -37,6 +37,10 @@ overdue actuals, due requirements, and readiness.
   Due, Ready — computed only for Active initiatives.
 - The matching count on the Initiatives nav item (§5.1): the number of
   initiatives with at least one item.
+- Escalated relies on slice 008's gate records correctly recording an
+  approval track only for gates that carried cost (§7.4, §6, engine-audit.md)
+  — if that fix landed with slice 008, this slice just consumes it; if not,
+  it's a blocker here, not something to re-derive.
 
 **Explicitly excluded:** On Hold initiative handling beyond simple
 exclusion — On Hold initiatives are correctly left out of the strip per

@@ -37,6 +37,10 @@ prefill an Allocation % that never causes a warning by default.
   that don't count toward capacity (§7.2).
 - Allocation % is prefilled with that free-capacity figure; still fully
   editable.
+- Confirmed/Provisional (§4) comes from `isPhaseConfirmed`; per
+  engine-audit.md, port it with a month-key comparison for the
+  current-or-next-month threshold, not date-object arithmetic (the
+  prototype's `setUTCMonth` shift is subject to day-31 overflow).
 
 **Explicitly excluded:** Capacity warnings on the allocation row itself
 (that's slice 009, since it needs the fuller capacity-warning display) —

@@ -39,6 +39,10 @@ for both ceiling types.
   Team FTE %, and likewise (different icon) when the member's total across
   all teams exceeds their Capacity %.
 - Selecting a cell or row shows the contributing initiatives.
+- Only Confirmed allocations count toward either ceiling (§7.2, §4); per
+  engine-audit.md, port `isPhaseConfirmed` with a month-key comparison for
+  its current-or-next-month threshold, not date-object arithmetic (the
+  prototype's `setUTCMonth` shift is subject to day-31 overflow).
 
 **Explicitly excluded:** The two-fix capacity suggestion (§5.11) — seeing
 the warning and its cause is the core value; suggesting a specific fix is
