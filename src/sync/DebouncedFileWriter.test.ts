@@ -1,0 +1,138 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { GithubLocation } from '../brand/types';
+import { GithubClient } from '../github/client';
+import { DebouncedFileWriter, type FileConflict, type WriteStatus } from './DebouncedFileWriter';
+import { WriteQueue } from './WriteQueue';
+
+const location: GithubLocation = {
+  apiBaseUrl: 'https://api.github.com',
+  owner: 'jabopiti',
+  repo: 'initiative-planner',
+  appBranch: 'main',
+  dataBranch: 'data',
+};
+
+interface Team {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status });
+}
+
+describe('DebouncedFileWriter — §10.3 debounce + §10.5 409-retry-with-merge', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+  let github: GithubClient;
+  let statuses: WriteStatus[];
+  let conflicts: FileConflict<Team>[];
+  let committed: Team[][];
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    github = new GithubClient(location, () => 'token');
+    statuses = [];
+    conflicts = [];
+    committed = [];
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function makeWriter(initial: { content: Team[]; sha: string }) {
+    return new DebouncedFileWriter<Team>(
+      'teams.json',
+      location.dataBranch,
+      github,
+      new WriteQueue(),
+      (s) => statuses.push(s),
+      (c) => conflicts.push(c),
+      (content) => committed.push(content),
+      initial,
+    );
+  }
+
+  it('groups an edit into one commit after 1s, against the last-seen sha, on the data branch', async () => {
+    const writer = makeWriter({ content: [], sha: 's0' });
+    const team1: Team = { id: 't1', name: 'Platform', active: true };
+
+    writer.schedule([team1]);
+    expect(statuses).toEqual(['syncing']);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's1' } }));
+
+    await writer.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as { branch: string; sha: string };
+    expect(body.branch).toBe('data');
+    expect(body.sha).toBe('s0');
+
+    expect(committed).toEqual([[team1]]);
+    expect(statuses.at(-1)).toBe('synced');
+  });
+
+  it('retries after a 409 by re-fetching and merging pure additions from both sides', async () => {
+    const writer = makeWriter({ content: [], sha: 's0' });
+    const mine: Team = { id: 't1', name: 'Platform', active: true };
+    const theirs: Team = { id: 't2', name: 'Growth', active: true };
+
+    writer.schedule([mine]);
+
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ message: 'Conflict' }, 409))
+      .mockResolvedValueOnce(jsonResponse({ content: btoa(JSON.stringify([theirs])), sha: 's1' }))
+      .mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
+
+    await writer.flush();
+
+    expect(statuses.at(-1)).toBe('synced');
+    expect(conflicts).toHaveLength(0);
+    const finalCommit = committed.at(-1)!;
+    expect(finalCommit.map((t) => t.id).sort()).toEqual(['t1', 't2']);
+
+    const putCalls = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
+    expect(putCalls).toHaveLength(2);
+    const retryBody = JSON.parse((putCalls[1][1] as RequestInit).body as string) as { sha: string };
+    expect(retryBody.sha).toBe('s1');
+  });
+
+  it('surfaces a same-field conflict instead of auto-resolving, and lets "Use mine" win on retry', async () => {
+    const base: Team = { id: 't1', name: 'Original', active: true };
+    const writer = makeWriter({ content: [base], sha: 's0' });
+
+    const mine: Team = { id: 't1', name: 'My Rename', active: true };
+    const theirs: Team = { id: 't1', name: 'Their Rename', active: true };
+
+    writer.schedule([mine]);
+
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ message: 'Conflict' }, 409))
+      .mockResolvedValueOnce(jsonResponse({ content: btoa(JSON.stringify([theirs])), sha: 's1' }));
+
+    await writer.flush();
+
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].mine).toEqual(mine);
+    expect(conflicts[0].theirs).toEqual(theirs);
+    // Never auto-resolved: no third PUT fired yet.
+    const putCallsBeforeResolve = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
+    expect(putCallsBeforeResolve).toHaveLength(1);
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
+    await conflicts[0].resolve('mine');
+    expect(statuses.at(-1)).toBe('synced');
+
+    const putCalls = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
+    expect(putCalls).toHaveLength(2);
+    const resolvedBody = JSON.parse((putCalls[1][1] as RequestInit).body as string) as { content: string; sha: string };
+    const resolvedTeams = JSON.parse(atob(resolvedBody.content)) as Team[];
+    expect(resolvedTeams.find((t) => t.id === 't1')?.name).toBe('My Rename');
+    expect(resolvedBody.sha).toBe('s1');
+  });
+});

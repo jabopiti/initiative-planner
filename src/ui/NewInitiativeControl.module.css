@@ -1,0 +1,52 @@
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.nameInput,
+.teamSelect {
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-card);
+  color: var(--text-primary);
+}
+
+.nameInput {
+  width: 180px;
+}
+
+.submit {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

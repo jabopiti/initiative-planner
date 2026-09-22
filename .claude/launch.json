@@ -9,8 +9,8 @@
     },
     {
       "name": "initiative-planner-built",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8899"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "preview", "--port", "8899", "--strictPort"],
       "port": 8899
     }
   ]

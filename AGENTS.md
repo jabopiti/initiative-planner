@@ -6,18 +6,21 @@ no custom backend — a GitHub repository is the data store. `docs/spec.md`
 is authoritative; cite the section you're following (e.g. §7.1).
 
 ## Setup
-`npm install`. Not yet finalized — update once confirmed.
+`npm install`. Node 20+.
 
 ## Run
-`npm run dev`. Same caveat.
+`npm run dev` (Vite, http://localhost:5173). `npm run build && npm run
+preview` to check the production build (strict CSP included — see
+vite.config.ts's `csp-meta-tag` plugin; the CSP is dev-server-exempt
+because Vite's own HMR needs inline styles the shipped app never does).
 
 ## Test
-None yet. `npm test` once configured.
+`npm test` (Vitest) runs the suite once; `npm run test:watch` for
+iterating. `npm run typecheck` for a standalone type check.
 
 ## Code style
-Once configured, run `npm run lint` before finishing. ESLint/Prettier/
-strict TS configs are the source of truth — don't invent style beyond
-them.
+Run `npm run lint` before finishing (ESLint). No Prettier config yet —
+match surrounding style.
 
 ## Working from the backlog
 One slice at a time from `/backlog`. Read only its frontmatter

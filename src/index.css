@@ -1,0 +1,107 @@
+/**
+ * Brand pack colour tokens (§2, §9.8), light theme by default.
+ * These are hand-kept in sync with src/brand/defaultBrand.ts's `colours`
+ * object — this deployment has exactly one brand pack, so generating this
+ * file at build time from that TS module is deferred, not a functional gap.
+ */
+:root {
+  --surface-page: #f7faf9;
+  --surface-card: #ffffff;
+  --surface-subtle: #eef4f1;
+
+  --text-primary: #14201b;
+  --text-secondary: #5b6b64;
+  --text-muted: #7c8b83;
+  --text-on-accent: #ffffff;
+
+  --border-default: #dce6e1;
+  --border-strong: #b9c7c0;
+
+  --accent: #075e46;
+  --accent-tint: #e8fff2;
+  --accent-text: #075e46;
+
+  --warning: #b45309;
+  --warning-tint: #fdf0dc;
+  --warning-text: #b45309;
+
+  --alarm: #dc2626;
+  --alarm-tint: #fce4e4;
+  --alarm-text: #dc2626;
+
+  --met: #16a34a;
+  --met-tint: #e7f7ed;
+  --met-text: #16a34a;
+
+  --focus-ring: #075e46;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-page: #0e1512;
+    --surface-card: #16211c;
+    --surface-subtle: #182620;
+
+    --text-primary: #eaf3ee;
+    --text-secondary: #9fb0a8;
+    --text-muted: #6e8079;
+    --text-on-accent: #0e1512;
+
+    --border-default: #24322b;
+    --border-strong: #3a4b41;
+
+    --accent: #2fd9a6;
+    --accent-tint: #12291f;
+    --accent-text: #2fd9a6;
+
+    --warning: #fbbf24;
+    --warning-tint: #2e2410;
+    --warning-text: #fbbf24;
+
+    --alarm: #f87171;
+    --alarm-tint: #2e1616;
+    --alarm-text: #f87171;
+
+    --met: #4ade80;
+    --met-tint: #16291d;
+    --met-text: #4ade80;
+
+    --focus-ring: #2fd9a6;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent-text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

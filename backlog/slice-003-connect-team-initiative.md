@@ -11,7 +11,7 @@ supersedes: null
 change_summary: null
 recommended_model: "Claude Sonnet 5"
 model_rationale: "Standard, well-specified CRUD and routing work with a proven sync mechanism underneath (from slice 002); no financial or state-machine correctness risk yet."
-spec_sections: ["§5.1 Navigation", "§5.2 Portfolio overview (board and empty state only)", "§5.7 Teams overview", "§5.10 Connect screen", "§6 Data model (Initiative, Team)", "§9.4 Empty states", "§10.2 Data layout", "§10.6 Identifiers and links"]
+spec_sections: ["§5.1 Navigation", "§5.2 Portfolio overview (board and empty state only)", "§5.7 Teams overview", "§5.10 Connect screen", "§6 Data model (Initiative, Team)", "§9.4 Empty states", "§10.2 Data layout", "§10.3 Writing", "§10.4 Browser storage", "§10.5 Merging", "§10.6 Identifiers and links"]
 ---
 
 # Connect, create a team, and create a named initiative
@@ -85,26 +85,69 @@ anything to guide toward.
 
 ## Acceptance criteria
 
-- [ ] Given no token is stored, when the app loads, then the Connect
+- [x] Given no token is stored, when the app loads, then the Connect
       screen appears with the three-step instructions and a prefilled
       token-creation link.
-- [ ] Given a valid fine-grained token for the configured repository, when
+- [x] Given a valid fine-grained token for the configured repository, when
       it is pasted and submitted, then the Portfolio board loads.
-- [ ] Given no teams exist, when the user clicks New team and types a
+- [x] Given no teams exist, when the user clicks New team and types a
       name, then the team appears as a card on the Teams overview.
-- [ ] Given at least one team exists, when the user clicks New initiative,
+- [x] Given at least one team exists, when the user clicks New initiative,
       types a name, and presses Enter, then the initiative's page opens
       and the initiative appears on the Portfolio board.
-- [ ] Given the Portfolio has no initiatives, when it loads, then it shows
+- [x] Given the Portfolio has no initiatives, when it loads, then it shows
       one line and one primary action instead of an empty board.
+
+Verified by the automated suite (27 tests: `src/github/client.test.ts`'s
+branch-explicit regression coverage, `src/sync/DebouncedFileWriter.test.ts`
+and `Repository.test.ts` against a mocked GitHub API, `validateToken.test.ts`
+for the §5.10 outcomes table, `merge.test.ts` for §10.5) and by a full
+interactive walkthrough in a real browser against a mocked network
+(Connect → bootstrap → New team → New initiative → Portfolio placement),
+screenshotted in both themes. No real GitHub commits were made in this
+verification — that's the one remaining step; see TODO.md.
 
 ## Delivery gate
 
-- [ ] Deployed to production-equivalent environment
+- [ ] Deployed to production-equivalent environment — the GitHub Actions
+      Pages workflow (`.github/workflows/deploy.yml`) is wired up and Pages
+      is enabled (`build_type: workflow`); this checks off once it's
+      pushed to `main` and the first deploy run completes.
 - [ ] Demonstrated to at least one external stakeholder (user, customer,
-      or business owner)
+      or business owner) — needs a human; see TODO.md.
 
 ## Flags and compromises
 
-Scope was already minimal on first read — no items removed beyond what is
-listed under Explicitly excluded.
+Scope was already minimal on first read for the *product* surface — no
+product-facing items were removed beyond what's listed under Explicitly
+excluded. Building it surfaced several infrastructure/technical
+compromises worth naming:
+
+- **UI primitives**: Radix UI / React Aria (§10.1) aren't added yet — this
+  slice only needed a plain text input and a native `<select>`, which are
+  already accessible; the searchable combobox §9.11 calls for is real
+  future work when filters land.
+- **Icons**: placeholder inline SVGs stand in for the Tabler Icons outline
+  set (§9.10, not in this slice's spec_sections).
+- **Theming**: light/dark follow `prefers-color-scheme` automatically;
+  the manual theme control (§9.1, not in this slice's spec_sections) isn't
+  built.
+- **Search**: the top bar's search icon (§5.1) renders but is inert — the
+  grouped Initiatives/People/Teams search overlay isn't built; no
+  acceptance criterion needed it.
+- **Sync (§10.2)**: initial pull-on-load and a pull-before-every-write are
+  implemented; the periodic 5-minute/on-focus poll and the conditional-GET
+  "only fetch what changed" optimization aren't — nothing in this slice's
+  flows is multi-user-concurrent, so there was nothing to prove either way.
+- **Approval track badge**: hardcoded to "Not yet known" rather than
+  computed via the §7.4 engine, since no initiative has cost data yet in
+  this slice (that engine is slice 005+ per engine-audit.md).
+- **Token-creation link** and the **pending-approval outcome** are
+  best-effort against GitHub's real behaviour — see TODO.md for what to
+  verify live.
+- **Found and fixed in passing, not part of this slice's own scope**: all
+  of docs/, README.md, AGENTS.md and engine-audit.md linked
+  `docs/spec.md` (lowercase) while the file was `docs/SPEC.md` — a broken
+  link on GitHub's case-sensitive filesystem even though it worked
+  locally on macOS. Renamed the file to match every reference rather than
+  the other way around, since that's what everything already assumed.

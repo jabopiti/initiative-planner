@@ -62,14 +62,13 @@ rationale.
 ## Getting started
 
 **Prerequisites**
-- Node.js (version pinned once the toolchain is set up in slice 001/002)
+- Node.js 20+
 - A GitHub account with access to this repository (or your fork of it)
 - A fine-grained GitHub personal access token, scoped to this repository
   with Contents read/write — see [`docs/spec.md`](./docs/spec.md) §5.10
   for how to create one
 
-**Install and run** *(placeholder — will be confirmed once the initial
-toolchain lands; update this block then)*
+**Install and run**
 
 ```sh
 npm install
@@ -80,12 +79,15 @@ On first run, the app shows a Connect screen asking for the token above.
 
 ## Deploying your own instance
 
-*Coming once the core is buildable.* Initiative Planner is distributed as
-a fork: each deployment forks this repository, edits only its own brand
-pack (process, branding, seed data), and takes updates via GitHub's
-fork-sync. See [`docs/spec.md`](./docs/spec.md) §3 and §10.7 for the full
-design — this section will turn into a real walkthrough once slice 003
-onward makes that fork worth taking.
+Initiative Planner is distributed as a fork: each deployment forks this
+repository, edits only its own brand pack (process, branding, seed data —
+currently `src/brand/defaultBrand.ts`, a single default pack; splitting
+that into a swappable per-fork file is follow-up work, not yet needed with
+one deployment), and takes updates via GitHub's fork-sync. This
+repository's own deployment (`main` branch, GitHub Actions →
+GitHub Pages) is the reference: push to `main` builds and deploys via
+[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml). See
+[`docs/spec.md`](./docs/spec.md) §3 and §10.7 for the full design.
 
 ## Documentation
 
