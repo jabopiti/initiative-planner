@@ -109,10 +109,11 @@ verification — that's the one remaining step; see TODO.md.
 
 ## Delivery gate
 
-- [ ] Deployed to production-equivalent environment — the GitHub Actions
-      Pages workflow (`.github/workflows/deploy.yml`) is wired up and Pages
-      is enabled (`build_type: workflow`); this checks off once it's
-      pushed to `main` and the first deploy run completes.
+- [x] Deployed to production-equivalent environment — live at
+      https://jabopiti.github.io/initiative-planner/ via the GitHub
+      Actions → Pages workflow (`.github/workflows/deploy.yml`),
+      confirmed working (Connect screen, correct CSP, no console errors)
+      after the first deploy run.
 - [ ] Demonstrated to at least one external stakeholder (user, customer,
       or business owner) — needs a human; see TODO.md.
 
