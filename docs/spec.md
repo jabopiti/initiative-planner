@@ -310,13 +310,22 @@ access** to the fork. Every user with write access is a full
 participant. To keep the process fixed (§1), the app branch should be
 protected so that only the people who maintain the build can change it.
 
+Deploy the app on **its own origin** — a custom domain, or an account or
+organisation that hosts no other Pages sites. Browser storage is scoped to
+the origin, not the URL path, so any other site served from the same origin
+(for example another repository under the same `github.io` account) could
+read a remembered token.
+
 **Authentication.** With no backend, each user connects with a GitHub
 personal access token, created in their own GitHub settings and pasted once
 into the tool (§5.10). The tool asks for a fine-grained token limited to the
 repository (contents read and write); a classic token is accepted but
 triggers a warning, because it reaches all of the user's repositories. The
 token stays in the browser, is never written to the dataset, and is used
-only to talk to GitHub. When it expires or is revoked, the tool shows the
+only to talk to GitHub. By default it is kept for the current tab only
+(session storage) and is gone when the tab closes; only when the user ticks
+"Remember me on this device" on the Connect screen is it also kept in the
+browser's IndexedDB until removed. When it expires or is revoked, the tool shows the
 access state (Sync failures) and asks for a new one. Commits are made under
 the user's own identity, so every change is committed under the name of the
 person who made it.
@@ -869,29 +878,35 @@ Lock/unlock behaviour is defined in §2.
 Shown on first load and whenever no working token is stored (§3,
 Authentication); in read-only mode with the cause "Access denied", the
 banner's action opens it. It is one screen: a **token field** at the top
-with a Connect button, because pasting is the fastest path, and a numbered
-**How to create the token on GitHub** list of four steps below for users who
-have no token yet, followed by a short **How your token is handled** note. Every
-link uses the GitHub host, owner and repository of the brand pack (§2).
+with a Connect button and a **Remember me on this device** checkbox (off by
+default), because pasting is the fastest path; below it, a numbered list of four
+steps for users who have no token yet, then a short note on how the token is
+handled. Every link uses the GitHub host, owner and repository of the brand
+pack (§2).
+
+The guide is headed **No token yet? Create one in 4 steps**:
 
 1. **Open GitHub token settings.** A button opens GitHub's token page in a
    new tab, with the name, description and resource owner prefilled where
    GitHub supports it.
-2. **Set an expiry of one year.**
-3. **Choose the repository.** Under repository access, choose "Only select
+2. **Set the expiry to 1 year.**
+3. **Choose the repository.** Under Repository access, choose "Only select
    repositories" and pick the repository, whose name is shown with a copy
-   button. Every other permission stays at No access.
-4. **Set Contents to Read and write.**
+   button.
+4. **Set Contents to Read and write.** Everything else stays at No access.
 
-A closing line tells the user to select Generate token, copy it and paste it
-into the field above.
+A closing line says to select Generate token, copy it and paste it above.
 
-The handling note states, accurately, that the token is stored only in this
-browser and never written to the repository, dataset or a commit; is sent only
-to the GitHub API host, which the content security policy enforces (§10.1);
-is limited to the one repository with Contents access; is kept unencrypted in
-browser storage, so only trusted devices should connect; and can be revoked in
-GitHub's token settings at any time.
+The note, headed **How we handle your token**, says in plain words that the
+token is kept in this tab only unless the user ticks Remember me; is sent only
+to the GitHub API host (enforced by the content security policy, §10.1) and
+never saved to the repository; works for the one repository only; is not
+encrypted in the browser, so only trusted devices should connect; and can be
+revoked in GitHub at any time.
+
+The screen meets §9.5: one `h1`, a heading per section, every control labelled,
+results announced (`status` for success, `alert` for errors), a new-tab link
+announced as such, and the copy button confirming in text.
 
 A pasted token is checked immediately, and the result is specific:
 
