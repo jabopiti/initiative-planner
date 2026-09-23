@@ -9,9 +9,18 @@ import type { GithubLocation } from '../brand/types';
  * so those two of the three still need a manual click even with this link
  * (see TODO.md: worth reconfirming against the live page).
  */
+/** GitHub rejects a token name of 40 characters or more. */
+const MAX_TOKEN_NAME_LENGTH = 39;
+
+function tokenName(location: GithubLocation, productName: string): string {
+  const withRepo = `${productName} (${location.repo})`;
+  const name = withRepo.length <= MAX_TOKEN_NAME_LENGTH ? withRepo : productName;
+  return name.slice(0, MAX_TOKEN_NAME_LENGTH);
+}
+
 export function tokenCreationUrl(location: GithubLocation, productName: string): string {
   const params = new URLSearchParams({
-    name: `${productName} (${location.owner}/${location.repo})`,
+    name: tokenName(location, productName),
     description: `Read/write access to ${location.owner}/${location.repo} for ${productName}.`,
     target_name: location.owner,
   });
