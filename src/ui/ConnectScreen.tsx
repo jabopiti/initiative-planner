@@ -2,7 +2,18 @@ import { useState } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { checkToken, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
 import { tokenCreationUrl } from '../auth/tokenCreationUrl';
-import styles from './ConnectScreen.module.css';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+const MESSAGE_STYLES: Record<TokenCheckResult['outcome'], string> = {
+  works: 'bg-met-tint text-met-text',
+  'classic-warning': 'bg-warning-tint text-warning-text',
+  'cannot-see-repo': 'bg-alarm-tint text-alarm-text',
+  'read-only': 'bg-alarm-tint text-alarm-text',
+  'pending-approval': 'bg-alarm-tint text-alarm-text',
+  invalid: 'bg-alarm-tint text-alarm-text',
+};
 
 export function ConnectScreen({ onConnected }: { onConnected: (token: string) => void }) {
   const [token, setToken] = useState('');
@@ -33,45 +44,34 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string) =>
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.card}>
-        <h1 className={styles.title}>Connect to {brand.productName}</h1>
-        <p className={styles.subtitle}>
+    <div className="flex min-h-full items-start justify-center px-4 py-16">
+      <div className="w-full max-w-[560px] rounded-xl border border-border-default bg-surface-card p-8">
+        <h1 className="m-0 mb-2 text-[22px]">Connect to {brand.productName}</h1>
+        <p className="m-0 mb-6 text-text-secondary">
           Paste a GitHub personal access token to get started, or follow the steps below to create one.
         </p>
 
-        <form className={styles.tokenForm} onSubmit={handleConnect}>
-          <label className={styles.label} htmlFor="token-field">
-            GitHub token
-          </label>
-          <div className={styles.tokenRow}>
-            <input
+        <form className="mb-2 flex flex-col gap-1.5" onSubmit={handleConnect}>
+          <Label htmlFor="token-field">GitHub token</Label>
+          <div className="flex gap-2">
+            <Input
               id="token-field"
-              className={styles.tokenInput}
               type="password"
               autoComplete="off"
               spellCheck={false}
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="github_pat_..."
+              className="flex-1"
             />
-            <button className={styles.connectButton} type="submit" disabled={checking || !token.trim()}>
+            <Button type="submit" disabled={checking || !token.trim()}>
               {checking ? 'Checking…' : 'Connect'}
-            </button>
+            </Button>
           </div>
         </form>
 
         {result && (
-          <div
-            className={
-              result.outcome === 'works'
-                ? styles.messageOk
-                : result.outcome === 'classic-warning'
-                  ? styles.messageWarning
-                  : styles.messageError
-            }
-            role="status"
-          >
+          <div className={`my-3 rounded-lg px-3 py-2.5 text-sm ${MESSAGE_STYLES[result.outcome]}`} role="status">
             {TOKEN_CHECK_MESSAGES[result.outcome]('login' in result ? result.login : undefined)}
             {result.outcome === 'classic-warning' && (
               <>
@@ -86,12 +86,12 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string) =>
           </div>
         )}
 
-        <ol className={styles.steps}>
+        <ol className="m-0 mt-6 flex flex-col gap-4 pl-5">
           <li>
-            <h2>Create the token on GitHub</h2>
-            <p>
+            <h2 className="m-0 mb-1 text-sm">Create the token on GitHub</h2>
+            <p className="m-0 text-text-secondary">
               <a
-                className={styles.stepButton}
+                className="inline-block rounded-lg bg-brand-accent-tint px-3 py-1.5 font-semibold text-brand-accent-text no-underline"
                 href={tokenCreationUrl(brand.github, brand.productName)}
                 target="_blank"
                 rel="noreferrer"
@@ -102,19 +102,19 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string) =>
             </p>
           </li>
           <li>
-            <h2>Choose the repository</h2>
-            <p>
+            <h2 className="m-0 mb-1 text-sm">Choose the repository</h2>
+            <p className="m-0 text-text-secondary">
               Under repository access, choose &ldquo;Only select repositories&rdquo; and pick{' '}
-              <code className={styles.repoName}>{repoLabel}</code>{' '}
-              <button type="button" className={styles.copyButton} onClick={copyRepoName}>
+              <code className="rounded bg-surface-subtle px-1.5 py-0.5">{repoLabel}</code>{' '}
+              <Button type="button" variant="outline" size="xs" onClick={copyRepoName}>
                 Copy
-              </button>
+              </Button>
               . Every other permission stays at No access.
             </p>
           </li>
           <li>
-            <h2>Generate, copy and paste</h2>
-            <p>Select Generate token, copy it, and paste it into the field above.</p>
+            <h2 className="m-0 mb-1 text-sm">Generate, copy and paste</h2>
+            <p className="m-0 text-text-secondary">Select Generate token, copy it, and paste it into the field above.</p>
           </li>
         </ol>
       </div>
