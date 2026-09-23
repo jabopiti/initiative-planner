@@ -37,6 +37,22 @@ done; verify each before marking complete. The `next-slice` and
 dependency-satisfied slice, and pulling just the cited spec sections
 instead of the whole document.
 
+Spec lookups: `.claude/skills/spec-section/scripts/extract.sh <§>`,
+or `--toc` / `--find <term>` to locate a section. Don't `sed` line
+ranges out of `docs/spec.md`.
+
+## Session hygiene (token cost)
+Every call re-reads the whole context, so long sessions get expensive.
+- One task per session. When a task is done and the next is unrelated,
+  `/clear` (AGENTS.md and memory reload). Above ~80K context, finish
+  the current step, then `/clear` or `/compact` instead of continuing.
+- Bug reports: reproduce first (one `curl`, test, or console check) and
+  name the failing call before editing. Don't ship a guess and wait for
+  the user to re-report.
+- Keep bulky reference material (design-tool guides, long docs) out of
+  the main context: use a subagent, or a text comparison for A/B
+  choices instead of a rendered mockup.
+
 ## Do not touch
 - Core app code from within a deployment fork — a fork edits only its
   brand-pack folder (§2, §10.7). This repo is the core; this rule is for

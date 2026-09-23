@@ -6,6 +6,8 @@
 # Usage: extract.sh <section-number> [spec-file]
 #   extract.sh 5.6
 #   extract.sh 7.2
+#   extract.sh --toc            all headings (numbered, ~80 lines)
+#   extract.sh --find <term>    sections whose body mentions <term>
 set -euo pipefail
 
 if [ $# -lt 1 ]; then
@@ -13,8 +15,24 @@ if [ $# -lt 1 ]; then
   exit 1
 fi
 
-section="$1"
 root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+
+case "$1" in
+  --toc)
+    grep -nE '^#{1,4} ' "${2:-$root/docs/spec.md}"
+    exit 0
+    ;;
+  --find)
+    [ $# -ge 2 ] || { echo "usage: extract.sh --find <term>" >&2; exit 1; }
+    awk -v term="$2" '
+      /^#+ / { h = $0; hl = NR }
+      tolower($0) ~ tolower(term) && h != last { print hl ": " h; last = h }
+    ' "${3:-$root/docs/spec.md}"
+    exit 0
+    ;;
+esac
+
+section="$1"
 spec="${2:-$root/docs/spec.md}"
 
 if [ ! -f "$spec" ]; then

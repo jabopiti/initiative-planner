@@ -27,3 +27,15 @@ section rather than reading the file directly — each call is cheap.
 If the script reports no matching heading (exit 1), the frontmatter's
 section number may not match current spec numbering — fall back to
 `grep -n "^#" docs/spec.md` to find the right heading.
+
+## Finding the right section
+
+When you don't know the section number, don't `sed` line ranges out of
+the spec:
+
+```bash
+.claude/skills/spec-section/scripts/extract.sh --toc          # all headings
+.claude/skills/spec-section/scripts/extract.sh --find "token"  # sections mentioning a term
+```
+
+Then extract the section(s) you found.
