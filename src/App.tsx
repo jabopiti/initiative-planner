@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { tokenCache } from './cache/db';
+import { tokenStore } from './auth/tokenStore';
 import { defaultBrandPack } from './brand/defaultBrand';
 import { BrandProvider } from './state/BrandContext';
 import { RepositoryProvider } from './state/DataContext';
@@ -43,7 +43,7 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    void tokenCache.get().then((stored) => {
+    void tokenStore.load().then((stored) => {
       if (!cancelled) setToken(stored);
     });
     return () => {
@@ -59,8 +59,8 @@ export function App() {
         <MainApp token={token} />
       ) : (
         <ConnectScreen
-          onConnected={(newToken) => {
-            void tokenCache.set(newToken);
+          onConnected={(newToken, remember) => {
+            void tokenStore.save(newToken, remember);
             setToken(newToken);
           }}
         />

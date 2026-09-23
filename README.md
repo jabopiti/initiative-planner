@@ -32,7 +32,8 @@ host. See [`docs/spec.md`](./docs/spec.md) for the full specification.
   people, memberships) plus one file per initiative. Every edit is a
   single git commit.
 - **Client-side only.** Each user authenticates with their own
-  fine-grained GitHub token, kept in the browser. Reads and writes go
+  fine-grained GitHub token, kept in the browser (this tab only unless
+  "Remember me on this device" is ticked). Reads and writes go
   straight from the browser to GitHub's API — no server sits in between.
 - **White-label by fork.** The process (phases, gates, checklists,
   approval tracks), branding, and seed data are all defined in one
