@@ -18,6 +18,39 @@
       "Bash(git branch:*)",
       "Bash(git switch:*)",
       "Bash(git restore:*)"
+    ],
+    "deny": [
+      "Read(dist/**)",
+      "Read(coverage/**)",
+      "Read(*.tsbuildinfo)"
     ]
-  }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/block-github-token.sh",
+            "statusMessage": "Checking for GitHub token leaks..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/lint-fix.sh",
+            "statusMessage": "Linting..."
+          }
+        ]
+      }
+    ]
+  },
+  "respectGitignore": true,
+  "autoCompactWindow": 0.4
 }

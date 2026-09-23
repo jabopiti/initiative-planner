@@ -9,14 +9,16 @@ is authoritative; cite the section you're following (e.g. §7.1).
 `npm install`. Node 20+.
 
 ## Run
-`npm run dev` (Vite, http://localhost:5173). `npm run build && npm run
-preview` to check the production build (strict CSP included — see
+`npm run dev` (Vite, http://localhost:5173). `npm run build:quiet && npm
+run preview` to check the production build (strict CSP included — see
 vite.config.ts's `csp-meta-tag` plugin; the CSP is dev-server-exempt
 because Vite's own HMR needs inline styles the shipped app never does).
 
 ## Test
-`npm test` (Vitest) runs the suite once; `npm run test:watch` for
-iterating. `npm run typecheck` for a standalone type check.
+`npm run test:quiet` (Vitest, `--reporter=dot`) runs the suite once with
+minimal passing-test noise — failures still print full detail. `npm run
+test:watch` for iterating. `npm run typecheck` for a standalone type
+check.
 
 ## Code style
 Run `npm run lint` before finishing (ESLint). No Prettier config yet —
@@ -30,7 +32,10 @@ outside the `@theme` token definitions themselves.
 ## Working from the backlog
 One slice at a time from `/backlog`. Read only its frontmatter
 `spec_sections`, not the whole spec. Acceptance criteria = definition of
-done; verify each before marking complete.
+done; verify each before marking complete. The `next-slice` and
+`spec-section` Claude Code skills automate this: picking the next
+dependency-satisfied slice, and pulling just the cited spec sections
+instead of the whole document.
 
 ## Do not touch
 - Core app code from within a deployment fork — a fork edits only its
@@ -43,7 +48,9 @@ done; verify each before marking complete.
 
 ## Security
 - Never log, print, or commit a GitHub token or anything matching
-  `github_pat_` / `ghp_`.
+  `github_pat_` / `ghp_`. A Claude Code PreToolUse hook
+  (`.claude/hooks/block-github-token.sh`) blocks any Write/Edit whose
+  content matches this pattern — a backstop, not a substitute for care.
 - Token lives only in browser storage (§3, §10.1) — never write it to a
   file, the dataset, or a commit.
 - Outbound requests: only the configured GitHub API host.
