@@ -4,7 +4,7 @@ title: "Add a person and assign them to a team"
 type: "capability"
 status: "valid"
 criteria_failures: []
-depends_on: ["003"]
+depends_on: ["003b"]
 verification_status: null
 superseded_by: null
 supersedes: null

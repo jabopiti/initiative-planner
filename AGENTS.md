@@ -20,7 +20,12 @@ iterating. `npm run typecheck` for a standalone type check.
 
 ## Code style
 Run `npm run lint` before finishing (ESLint). No Prettier config yet —
-match surrounding style.
+match surrounding style. This project uses Tailwind CSS v4: no
+`tailwind.config.js` — tokens live in CSS via `@theme`/`@theme inline`.
+Add UI components with `npx shadcn@latest add <component>`, not by
+hand-writing them or installing a component kit. Style with Tailwind
+utility classes; don't hand-write custom CSS rules or `.css` files
+outside the `@theme` token definitions themselves.
 
 ## Working from the backlog
 One slice at a time from `/backlog`. Read only its frontmatter

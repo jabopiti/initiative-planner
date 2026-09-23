@@ -93,17 +93,20 @@ theme only shown here; dark-theme values are still open and should be
 derived when building §9.8's token set, following the same role
 separation.
 
-| Role | Hex | Use |
-|---|---|---|
-| Accent | #075E46 (Forest) | Current phase, selection, links, primary buttons |
-| Accent tint | #E8FFF2 (Mint Fog) | Selected nav item, current-phase highlight background |
-| Met | #16A34A | Complete checklist items, Ready — a distinct brighter green from Accent, so the two don't blend |
-| Warning | #B45309 | Escalated, overdue actuals, capacity warnings, Tentative items |
-| Alarm | #DC2626 | Overrun only — the one alarm state (§8.1, §8.5) |
-| Text primary | #14201B | Body text |
-| Text secondary | #5B6B64 | Supporting text |
-| Surface (page) | #F7FAF9 | Page background |
-| Surface (card) | #FFFFFF | Cards, panels |
+The OKLCH values below are what the brand pack actually stores (§10.1);
+hex remains for human reference only.
+
+| Role | Hex | OKLCH (stored) | Use |
+|---|---|---|---|
+| Accent | #075E46 (Forest) | oklch(0.429 0.085 167.5) | Current phase, selection, links, primary buttons |
+| Accent tint | #E8FFF2 (Mint Fog) | oklch(0.98 0.029 161.1) | Selected nav item, current-phase highlight background |
+| Met | #16A34A | oklch(0.627 0.17 149.2) | Complete checklist items, Ready — a distinct brighter green from Accent, so the two don't blend |
+| Warning | #B45309 | oklch(0.555 0.146 49.0) | Escalated, overdue actuals, capacity warnings, Tentative items |
+| Alarm | #DC2626 | oklch(0.577 0.215 27.3) | Overrun only — the one alarm state (§8.1, §8.5) |
+| Text primary | #14201B | oklch(0.23 0.02 167.0) | Body text |
+| Text secondary | #5B6B64 | oklch(0.512 0.022 167.2) | Supporting text |
+| Surface (page) | #F7FAF9 | oklch(0.983 0.003 174.5) | Page background |
+| Surface (card) | #FFFFFF | oklch(1.0 0.0 89.9) | Cards, panels |
 
 **Dark theme** — derived from the light values above, same role separation
 kept (Accent lightened to stay legible on a dark page; Met kept distinct
@@ -112,17 +115,17 @@ Proposed, not independently contrast-verified by hand; the build's
 automated contrast check (§9.5, §10.7) is the actual gate before these
 ship.
 
-| Role | Hex | Note |
-|---|---|---|
-| Accent | #2FD9A6 | Forest lightened for legibility on a dark page |
-| Accent tint | #12291F | Dark, desaturated green wash for selected/highlighted backgrounds |
-| Met | #4ADE80 | Leaf-green, kept distinct in hue from Accent's teal-green |
-| Warning | #FBBF24 | Lightened amber |
-| Alarm | #F87171 | Lightened red |
-| Text primary | #EAF3EE | Body text |
-| Text secondary | #9FB0A8 | Supporting text |
-| Surface (page) | #0E1512 | Page background |
-| Surface (card) | #16211C | Cards, panels |
+| Role | Hex | OKLCH (stored) | Note |
+|---|---|---|---|
+| Accent | #2FD9A6 | oklch(0.79 0.152 167.0) | Forest lightened for legibility on a dark page |
+| Accent tint | #12291F | oklch(0.258 0.035 163.9) | Dark, desaturated green wash for selected/highlighted backgrounds |
+| Met | #4ADE80 | oklch(0.8 0.182 151.7) | Leaf-green, kept distinct in hue from Accent's teal-green |
+| Warning | #FBBF24 | oklch(0.837 0.164 84.4) | Lightened amber |
+| Alarm | #F87171 | oklch(0.711 0.166 22.2) | Lightened red |
+| Text primary | #EAF3EE | oklch(0.956 0.012 162.0) | Body text |
+| Text secondary | #9FB0A8 | oklch(0.742 0.022 165.9) | Supporting text |
+| Surface (page) | #0E1512 | oklch(0.187 0.012 167.0) | Page background |
+| Surface (card) | #16211C | oklch(0.235 0.018 165.2) | Cards, panels |
 
 ## Repository configuration
 

@@ -48,25 +48,26 @@ rationale.
 
 ## Tech stack
 
-- **React + TypeScript** — the SPA itself
-- **Radix UI / React Aria** — accessible, unstyled UI primitives
-  (combobox, popover, menu, dialog, tooltip)
-- **CSS Modules** — styling, reading the brand pack's CSS variables
-  directly; no CSS-in-JS
+- **React + TypeScript + Vite** — the SPA itself and its build tool
+- **Tailwind CSS v4** — styling, CSS-first configured, reading the
+  brand pack's colour roles as CSS variables; no CSS-in-JS
+- **shadcn/ui** (on **Radix UI** primitives) — generated into the
+  codebase and owned as regular source, not an installed component kit;
+  covers combobox, popover, menu, dialog, tooltip and similar
 - **IndexedDB** — the browser-side cache of the GitHub dataset
-- **Tabler Icons** — the icon set
-- No charting library, no component kit (MUI/Mantine), no runtime
-  CSS-in-JS — kept deliberately light given the strict content security
-  policy the app runs under (§10.1, §10.9)
+- **Lucide** — the icon set (shadcn/ui's default)
+- No charting library, no runtime CSS-in-JS — kept deliberately light
+  given the strict content security policy the app runs under (§10.1,
+  §10.9)
 
 ## Getting started
 
 **Prerequisites**
-- Node.js 20+
+- Node.js (LTS)
 - A GitHub account with access to this repository (or your fork of it)
-- A fine-grained GitHub personal access token, scoped to this repository
-  with Contents read/write — see [`docs/spec.md`](./docs/spec.md) §5.10
-  for how to create one
+- A fine-grained GitHub personal access token, scoped to this
+  repository with Contents read/write — see [`docs/spec.md`](./docs/spec.md)
+  §5.10 for how to create one
 
 **Install and run**
 

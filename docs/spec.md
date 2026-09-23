@@ -247,9 +247,9 @@ fixes:
   is never read by a build whose process structure disagrees with it (§3,
   Versioning and migration).
 - **Branding**: product name, logo, favicon and page title, the typeface,
-  and the **colour roles** below, each defined for both the light and the
-  dark theme (§9.1). The UI vocabulary (initiative, team, person, gate) is
-  fixed.
+  and the **colour roles** below, each defined as OKLCH triplets (§10.1)
+  for both the light and the dark theme (§9.1). The UI vocabulary
+  (initiative, team, person, gate) is fixed.
   - Surfaces: page, card, and a subtle fill for chips and columns.
   - Text: primary, secondary and muted, and text on accent.
   - Borders: default and strong.
@@ -1305,11 +1305,12 @@ computed, so the strip never invents a separate colour scale.
 
 ### 9.1 Theming
 
-System (follows the OS), Light or Dark, cycled by one control and remembered
-across reloads in the browser (never synced). Every page repaints under all
-three without a reload — every CSS rule reads a token, never a colour. The
-brand pack defines the colour tokens for both the light and the dark theme
-(§2).
+System (follows the OS), Light or Dark, cycled by one control and
+remembered across reloads in the browser (never synced). The resolved
+theme is applied as a single `.dark` class on the document root; every
+page repaints under all three without a reload, because every CSS rule
+reads a token, never a colour. The brand pack defines the colour tokens
+for both the light and the dark theme (§2).
 
 ### 9.2 Copy
 
@@ -1497,7 +1498,7 @@ The core icons cover: initiative, team, owner and person, cost, cost item;
 escalated, overrun, overdue actual, gate due, ready and complete, on hold,
 cancelled, frozen and locked, over Team FTE %, and over Capacity %. Overrun
 and the two capacity warnings each have a distinct icon. The glyphs come
-from the Tabler Icons outline set (§10.1).
+from the Lucide icon set (§10.1), shadcn/ui's default.
 
 ### 9.11 Lists, filters, inputs and amounts
 
@@ -1539,25 +1540,35 @@ do not change them.
 
 ### 10.1 Framework and UI foundations
 
-The SPA is written in React with TypeScript. UI primitives — combobox,
-popover, menu, dialog, tooltip and focus handling — come from an unstyled,
-accessible library (Radix UI or React Aria); this covers the searchable
-filter dropdowns (§9.11), the month input (§9.11) and the keyboard and
-screen-reader behaviour required by §9.5. All visual styling is plain CSS
-(CSS Modules) reading the brand pack's CSS variables (§9.8) directly, with
-no runtime CSS-in-JS, since that needs inline styles the content security
-policy below forbids. No charting library is included; the board, metrics
-and capacity grid (§5.2, §5.8) are plain HTML and CSS.
+The SPA is written in React with TypeScript, built with **Vite** (the
+official `@tailwindcss/vite` plugin drives the CSS build). Styling is
+**Tailwind CSS v4**, CSS-first configured (no `tailwind.config.js`;
+tokens are declared in CSS via `@theme`), reading the brand pack's
+colour roles as CSS variables (§9.8) — this is a static, build-time
+stylesheet, never runtime CSS-in-JS, since that would need inline
+styles the content security policy below forbids.
 
-Dependencies are kept few and pinned with a lockfile. A strict content
-security policy limits scripts to the app's own origin and connections to
-the configured GitHub API host, and forbids `eval`, `new Function` and
-inline scripts, because the token lives in the browser (§3). It is
-delivered as a `<meta>` tag, because GitHub Pages supports no custom
-response headers; this means `frame-ancestors` cannot be enforced by the
-policy itself, so the app additionally refuses to render when it detects it
-is running inside a frame (`window.self !== window.top`). Icons come from
-the Tabler Icons outline set (§9.10).
+UI components — button, combobox, popover, menu, dialog, tooltip and
+similar — are generated into the codebase with the **shadcn/ui** CLI,
+built on **Radix UI** primitives underneath for the accessible
+behaviour and keyboard/screen-reader handling required by §9.5.
+Generated components are owned and reviewed like any other code in the
+repository, not imported as an opaque dependency; each one that's added
+pulls in its specific Radix package plus small shared utilities
+(`class-variance-authority`, `clsx`, `tailwind-merge`). No charting
+library is included; the board, metrics and capacity grid (§5.2, §5.8)
+are Tailwind-styled HTML.
+
+Dependencies are still kept as few as the above allows, and pinned with
+a lockfile. A strict content security policy limits scripts to the
+app's own origin and connections to the configured GitHub API host, and
+forbids `eval`, `new Function` and inline scripts, because the token
+lives in the browser (§3). It is delivered as a `<meta>` tag, because
+GitHub Pages supports no custom response headers; this means
+`frame-ancestors` cannot be enforced by the policy itself, so the app
+additionally refuses to render when it detects it is running inside a
+frame (`window.self !== window.top`). Icons come from the Lucide icon
+set (§9.10), shadcn/ui's default.
 
 ### 10.2 Data layout
 

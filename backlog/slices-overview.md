@@ -1,7 +1,7 @@
 ---
 generated_from: "Initiative Planner (white-label core) spec, v1 — 22 September 2026"
-total_slices: 11
-valid_slices: 11
+total_slices: 12
+valid_slices: 12
 flagged_slices: 0
 ---
 
@@ -63,7 +63,8 @@ for the AI-agent-driven build the team asked for:
 | 001 | Audit prototype engine code for reuse | ✅ valid | — |
 | 002 | GitHub round-trip technical spike | ✅ valid | — |
 | 003 | Connect, create a team, and create a named initiative | ✅ valid | 002 |
-| 004 | Add a person and assign them to a team | ✅ valid | 003 |
+| 003b | Migrate to Vite, Tailwind CSS v4, shadcn/ui and Lucide | ✅ valid | 003 |
+| 004 | Add a person and assign them to a team | ✅ valid | 003b |
 | 005 | Plan a costed phase and see its cost calculated | ✅ valid | 001, 004 |
 | 006 | Availability suggestion in the person picker | ✅ valid | 005 |
 | 007 | Add cost items to a phase | ✅ valid | 005 |
@@ -83,8 +84,12 @@ for the AI-agent-driven build the team asked for:
 - Slice 003 "Connect, create a team, and create a named initiative":
   depends on 002 — every write in this slice goes through the sync
   mechanism 002 proves works.
-- Slice 004 "Add a person and assign them to a team": depends on 003 — a
-  membership requires a team to exist.
+- Slice 003b "Migrate to Vite, Tailwind CSS v4, shadcn/ui and Lucide":
+  depends on 003 — it migrates that slice's already-shipped screens to the
+  new stack.
+- Slice 004 "Add a person and assign them to a team": depends on 003b — a
+  membership requires a team to exist, and 004 onward builds on the
+  migrated stack.
 - Slice 005 "Plan a costed phase and see its cost calculated": depends on
   001 (the audited engine logic it wires in) and 004 (a team member to
   allocate).
@@ -156,6 +161,19 @@ Initial run entries:
   throughout to name exact thresholds (e.g. "409", "top three", "one
   action") rather than descriptive behaviour, so each is verifiable by a
   reviewer without asking the author.
+
+## Mid-flight changes
+
+- **After slice 003 shipped**, the delivery team requested a tech-stack
+  change: Vite + Tailwind CSS v4 + shadcn/ui (still Radix UI-based
+  underneath) + Lucide icons, replacing the originally-specified Radix
+  UI/React Aria + CSS Modules + Tabler Icons combination, across the
+  whole app. `docs/spec.md` §2, §9.1, §9.10 and §10.1 were updated
+  accordingly, and slice 003b was added to migrate slice 003's
+  already-built screens before slice 004 continues on the new stack. No
+  other slice needed a content change, since none of them named the old
+  stack directly — they only reference spec sections, which now
+  describe the new one.
 
 ## Backlog tail (not yet fully sliced)
 
