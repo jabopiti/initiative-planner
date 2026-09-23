@@ -25,3 +25,14 @@ export function classifyStatus(status: number): GithubFailureCause {
   if (status === 429) return 'rate-limited';
   return 'unknown';
 }
+
+export interface ReadOnlyState {
+  cause: GithubFailureCause;
+  message: string;
+}
+
+/** The read-only state (§3 Sync failures) a failed request should show: the API's own cause/message, or a fallback for a non-API failure. */
+export function toReadOnlyState(error: unknown, fallbackMessage: string): ReadOnlyState {
+  if (error instanceof GithubApiError) return { cause: error.cause_, message: error.message };
+  return { cause: 'unknown', message: fallbackMessage };
+}

@@ -1,4 +1,4 @@
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { useBrand } from '../state/BrandContext';
 import { NewInitiativeControl } from './NewInitiativeControl';
 import { SyncIndicator } from './SyncIndicator';
 import { LogoMark, SearchIcon } from './icons';
@@ -14,11 +14,12 @@ const NAV_ITEMS: { label: string; path: string }[] = [
 
 /** The top navigation bar (§5.1). */
 export function TopBar({ route }: { route: string }) {
+  const brand = useBrand();
   return (
     <header className={styles.bar}>
       <a className={styles.brand} href="#/portfolio">
         <LogoMark />
-        {defaultBrandPack.productName}
+        {brand.productName}
       </a>
 
       <nav className={styles.nav} aria-label="Primary">

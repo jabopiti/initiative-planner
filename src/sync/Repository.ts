@@ -11,15 +11,12 @@ import {
   type Role,
   type Team,
 } from '../data/types';
-import { GithubApiError, type GithubFailureCause } from '../github/errors';
-import { GithubClient } from '../github/client';
+import { toReadOnlyState, type GithubFailureCause, type ReadOnlyState } from '../github/errors';
+import { GithubClient, parseJsonFile } from '../github/client';
 import { DebouncedFileWriter, type FileConflict } from './DebouncedFileWriter';
 import { WriteQueue } from './WriteQueue';
 
-export interface ReadOnlyState {
-  cause: GithubFailureCause;
-  message: string;
-}
+export type { ReadOnlyState } from '../github/errors';
 
 export interface RepositoryState {
   status: 'loading' | 'ready';
@@ -121,20 +118,25 @@ export class Repository {
       return;
     }
 
-    const [rolesFile, countriesFile, teamsFile] = await Promise.all([
-      this.github.getFile({ path: FILE_PATHS.roles, branch }),
-      this.github.getFile({ path: FILE_PATHS.countries, branch }),
-      this.github.getFile({ path: FILE_PATHS.teams, branch }),
+    // Master files and initiative files don't depend on each other — pull both concurrently.
+    const [[rolesFile, countriesFile, teamsFile], initiatives] = await Promise.all([
+      Promise.all([
+        this.github.getFile({ path: FILE_PATHS.roles, branch }),
+        this.github.getFile({ path: FILE_PATHS.countries, branch }),
+        this.github.getFile({ path: FILE_PATHS.teams, branch }),
+      ]),
+      this.pullInitiatives(branch),
     ]);
 
-    const roles = rolesFile ? (JSON.parse(rolesFile.content) as Role[]) : [];
-    const countries = countriesFile ? (JSON.parse(countriesFile.content) as Country[]) : [];
-    const teams = teamsFile ? (JSON.parse(teamsFile.content) as Team[]) : [];
+    const roles = parseJsonFile(rolesFile, [] as Role[]);
+    const countries = parseJsonFile(countriesFile, [] as Country[]);
+    const teams = parseJsonFile(teamsFile, [] as Team[]);
     const teamsSha = teamsFile?.sha ?? '';
 
-    await fileCache.set(FILE_PATHS.teams, { content: JSON.stringify(teams), sha: teamsSha });
-
-    const initiatives = await this.pullInitiatives(branch);
+    // Fire-and-forget: nothing downstream reads from the cache before "ready" (DebouncedFileWriter
+    // takes `initial` directly), so there's no reason to block the ready transition on this write.
+    // The cache is a local convenience, not the source of truth, so a failure here is silently fine.
+    void fileCache.set(FILE_PATHS.teams, { content: JSON.stringify(teams), sha: teamsSha }).catch(() => {});
 
     this.teamsWriter = new DebouncedFileWriter<Team>(
       FILE_PATHS.teams,
@@ -192,11 +194,7 @@ export class Repository {
   }
 
   private handleReadFailure(error: unknown): void {
-    if (error instanceof GithubApiError) {
-      this.goReadOnly(error.cause_, error.message);
-    } else {
-      this.goReadOnly('unknown', 'Something went wrong loading the dataset.');
-    }
+    this.setState({ readOnly: toReadOnlyState(error, 'Something went wrong loading the dataset.') });
   }
 
   /** New team (§5.7): created from a name only. */
@@ -224,11 +222,7 @@ export class Repository {
       );
       this.setState({ syncing: false, readOnly: null });
     } catch (error) {
-      if (error instanceof GithubApiError) {
-        this.setState({ syncing: false, readOnly: { cause: error.cause_, message: error.message } });
-      } else {
-        this.setState({ syncing: false, readOnly: { cause: 'unknown', message: 'Could not create the initiative.' } });
-      }
+      this.setState({ syncing: false, readOnly: toReadOnlyState(error, 'Could not create the initiative.') });
     }
 
     return initiative;

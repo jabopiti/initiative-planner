@@ -35,6 +35,11 @@ export interface PutFileResult {
   sha: string;
 }
 
+/** Parse a fetched file's JSON content, or `fallback` when the file doesn't exist (§10.2: a missing master file means "empty"). */
+export function parseJsonFile<T>(file: GetFileResult | null, fallback: T): T {
+  return file ? (JSON.parse(file.content) as T) : fallback;
+}
+
 /** Encode each path segment, but keep `/` separators — encodeURIComponent alone would mangle e.g. `initiatives/<id>.json`. */
 function encodePath(path: string): string {
   return path.split('/').map(encodeURIComponent).join('/');
@@ -47,6 +52,12 @@ function assertBranch(branch: string): void {
       'unknown',
     );
   }
+}
+
+/** Throw a labelled GithubApiError unless the response is ok (or its status is explicitly allowed). */
+function assertOk(response: Response, label: string, extraOkStatuses: number[] = []): void {
+  if (response.ok || extraOkStatuses.includes(response.status)) return;
+  throw new GithubApiError(`${label} failed (${response.status})`, classifyStatus(response.status), response.status);
 }
 
 export class GithubClient {
@@ -82,9 +93,7 @@ export class GithubClient {
     const response = await this.request(url, { method: 'GET' });
 
     if (response.status === 404) return null;
-    if (!response.ok) {
-      throw new GithubApiError(`GET ${args.path} failed (${response.status})`, classifyStatus(response.status), response.status);
-    }
+    assertOk(response, `GET ${args.path}`);
 
     const body = (await response.json()) as { content: string; sha: string };
     return { content: decodeBase64Utf8(body.content), sha: body.sha };
@@ -108,9 +117,7 @@ export class GithubClient {
     if (response.status === 409) {
       throw new GithubApiError('Stale version — the file changed since it was last read.', 'conflict', 409);
     }
-    if (!response.ok) {
-      throw new GithubApiError(`PUT ${args.path} failed (${response.status})`, classifyStatus(response.status), response.status);
-    }
+    assertOk(response, `PUT ${args.path}`);
 
     const body = (await response.json()) as { content: { sha: string } };
     return { sha: body.content.sha };
@@ -123,9 +130,7 @@ export class GithubClient {
     const response = await this.request(url, { method: 'GET' });
 
     if (response.status === 404) return [];
-    if (!response.ok) {
-      throw new GithubApiError(`GET ${args.path} failed (${response.status})`, classifyStatus(response.status), response.status);
-    }
+    assertOk(response, `GET ${args.path}`);
 
     const body = (await response.json()) as unknown;
     if (!Array.isArray(body)) return [];
@@ -134,7 +139,7 @@ export class GithubClient {
 
   /** Checked-token validation (§5.10): who this token is, and whether it can write to the configured repo. */
   async checkToken(): Promise<{ login: string; scopesClassic: boolean }> {
-    const userResponse = await this.request('https://api.github.com/user', { method: 'GET' });
+    const userResponse = await this.request(`${this.location.apiBaseUrl}/user`, { method: 'GET' });
     if (!userResponse.ok) {
       throw new GithubApiError('GitHub doesn\'t accept this token.', classifyStatus(userResponse.status), userResponse.status);
     }
@@ -176,6 +181,25 @@ export class GithubClient {
   }): Promise<{ commitSha: string }> {
     assertBranch(args.branch);
 
+    // Blob content doesn't depend on the branch/ref lookup below, so start both concurrently.
+    const blobsPromise = Promise.all(
+      args.files.map(async (file) => {
+        const blobResponse = await this.request(this.repoUrl('git/blobs'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: encodeBase64Utf8(file.content), encoding: 'base64' }),
+        });
+        assertOk(blobResponse, 'Blob create');
+        const blob = (await blobResponse.json()) as { sha: string };
+        return { path: file.path, sha: blob.sha };
+      }),
+    );
+    // If the ref/commit lookup below throws first, this function returns without ever
+    // reaching `await blobsPromise` — if a blob upload then fails on its own, nothing would
+    // be listening for that rejection. This no-op catch just keeps that from ever being
+    // unhandled; the real rejection is still seen wherever `blobsPromise` is awaited below.
+    blobsPromise.catch(() => {});
+
     const refUrl = this.repoUrl(`git/ref/heads/${encodeURIComponent(args.branch)}`);
     const refResponse = await this.request(refUrl, { method: 'GET' });
 
@@ -184,33 +208,16 @@ export class GithubClient {
     const branchExists = refResponse.status !== 404;
 
     if (branchExists) {
-      if (!refResponse.ok) {
-        throw new GithubApiError(`GET ref failed (${refResponse.status})`, classifyStatus(refResponse.status), refResponse.status);
-      }
+      assertOk(refResponse, 'GET ref');
       const ref = (await refResponse.json()) as { object: { sha: string } };
       parentCommitSha = ref.object.sha;
       const commitResponse = await this.request(this.repoUrl(`git/commits/${parentCommitSha}`), { method: 'GET' });
-      if (!commitResponse.ok) {
-        throw new GithubApiError(`GET commit failed (${commitResponse.status})`, classifyStatus(commitResponse.status), commitResponse.status);
-      }
+      assertOk(commitResponse, 'GET commit');
       const commit = (await commitResponse.json()) as { tree: { sha: string } };
       baseTreeSha = commit.tree.sha;
     }
 
-    const blobs = await Promise.all(
-      args.files.map(async (file) => {
-        const blobResponse = await this.request(this.repoUrl('git/blobs'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: encodeBase64Utf8(file.content), encoding: 'base64' }),
-        });
-        if (!blobResponse.ok) {
-          throw new GithubApiError(`Blob create failed (${blobResponse.status})`, classifyStatus(blobResponse.status), blobResponse.status);
-        }
-        const blob = (await blobResponse.json()) as { sha: string };
-        return { path: file.path, sha: blob.sha };
-      }),
-    );
+    const blobs = await blobsPromise;
 
     const treeResponse = await this.request(this.repoUrl('git/trees'), {
       method: 'POST',
@@ -220,9 +227,7 @@ export class GithubClient {
         tree: blobs.map((b) => ({ path: b.path, mode: '100644', type: 'blob', sha: b.sha })),
       }),
     });
-    if (!treeResponse.ok) {
-      throw new GithubApiError(`Tree create failed (${treeResponse.status})`, classifyStatus(treeResponse.status), treeResponse.status);
-    }
+    assertOk(treeResponse, 'Tree create');
     const tree = (await treeResponse.json()) as { sha: string };
 
     const commitResponse = await this.request(this.repoUrl('git/commits'), {
@@ -234,9 +239,7 @@ export class GithubClient {
         ...(parentCommitSha ? { parents: [parentCommitSha] } : { parents: [] }),
       }),
     });
-    if (!commitResponse.ok) {
-      throw new GithubApiError(`Commit create failed (${commitResponse.status})`, classifyStatus(commitResponse.status), commitResponse.status);
-    }
+    assertOk(commitResponse, 'Commit create');
     const newCommit = (await commitResponse.json()) as { sha: string };
 
     if (branchExists) {
@@ -245,30 +248,26 @@ export class GithubClient {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sha: newCommit.sha }),
       });
-      if (!updateRefResponse.ok) {
-        throw new GithubApiError(
-          `Ref update failed (${updateRefResponse.status})`,
-          classifyStatus(updateRefResponse.status),
-          updateRefResponse.status,
-        );
-      }
-    } else {
-      const createRefResponse = await this.request(this.repoUrl('git/refs'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ref: `refs/heads/${args.branch}`, sha: newCommit.sha }),
-      });
-      if (!createRefResponse.ok && createRefResponse.status !== 422) {
-        // 422 "Reference already exists" — another client won the bootstrap race (§3 "System writes":
-        // concurrent attempts converge, no duplicates). Treat as success rather than surfacing an error.
-        throw new GithubApiError(
-          `Ref create failed (${createRefResponse.status})`,
-          classifyStatus(createRefResponse.status),
-          createRefResponse.status,
-        );
-      }
+      assertOk(updateRefResponse, 'Ref update');
+      return { commitSha: newCommit.sha };
     }
 
+    const createRefResponse = await this.request(this.repoUrl('git/refs'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ref: `refs/heads/${args.branch}`, sha: newCommit.sha }),
+    });
+    // 422 "Reference already exists" — another client won the bootstrap race (§3 "System writes":
+    // concurrent attempts converge, no duplicates). Our own commit never got attached to the
+    // branch in that case, so `newCommit.sha` would be a dangling sha — return the ref's actual
+    // (winning) commit instead of our own, so a future caller never trusts an unreachable sha.
+    if (createRefResponse.status === 422) {
+      const wonRefResponse = await this.request(refUrl, { method: 'GET' });
+      assertOk(wonRefResponse, 'GET ref');
+      const wonRef = (await wonRefResponse.json()) as { object: { sha: string } };
+      return { commitSha: wonRef.object.sha };
+    }
+    assertOk(createRefResponse, 'Ref create');
     return { commitSha: newCommit.sha };
   }
 }

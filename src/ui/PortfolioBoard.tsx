@@ -1,7 +1,9 @@
+import { useMemo } from 'react';
 import { useRepositoryState } from '../state/DataContext';
 import { useNewInitiativeUI } from '../state/NewInitiativeUIContext';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { useBrand } from '../state/BrandContext';
 import { currentPhaseId } from '../data/processState';
+import type { Initiative } from '../data/types';
 import { navigate } from '../router/useHashRoute';
 import { EmptyState } from './EmptyState';
 import styles from './PortfolioBoard.module.css';
@@ -13,8 +15,20 @@ import styles from './PortfolioBoard.module.css';
  * data slice 003 doesn't create yet).
  */
 export function PortfolioBoard() {
+  const brand = useBrand();
   const { teams, initiatives } = useRepositoryState();
   const { setOpen } = useNewInitiativeUI();
+
+  const initiativesByPhase = useMemo(() => {
+    const byPhase = new Map<string, Initiative[]>(brand.process.map((phase) => [phase.id, []]));
+    for (const initiative of initiatives) {
+      if (initiative.status !== 'Active') continue;
+      byPhase.get(currentPhaseId(initiative, brand.process))?.push(initiative);
+    }
+    return byPhase;
+  }, [brand.process, initiatives]);
+
+  const teamsById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
 
   if (teams.length === 0) {
     return (
@@ -32,15 +46,11 @@ export function PortfolioBoard() {
     );
   }
 
-  const teamsById = new Map(teams.map((t) => [t.id, t]));
-
   return (
     <div className={styles.page}>
       <div className={styles.board}>
-        {defaultBrandPack.process.map((phase) => {
-          const phaseInitiatives = initiatives.filter(
-            (i) => i.status === 'Active' && currentPhaseId(i, defaultBrandPack.process) === phase.id,
-          );
+        {brand.process.map((phase) => {
+          const phaseInitiatives = initiativesByPhase.get(phase.id) ?? [];
           return (
             <div key={phase.id} className={styles.column}>
               <div className={styles.columnHeader}>

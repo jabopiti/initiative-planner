@@ -1,11 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { useBrand } from './BrandContext';
 import { Repository, type RepositoryState } from '../sync/Repository';
 
 const RepositoryContext = createContext<Repository | null>(null);
 
 export function RepositoryProvider({ token, children }: { token: string; children: ReactNode }) {
-  const repository = useMemo(() => new Repository(defaultBrandPack, token), [token]);
+  const brand = useBrand();
+  const repository = useMemo(() => new Repository(brand, token), [brand, token]);
 
   useEffect(() => {
     void repository.initialize();

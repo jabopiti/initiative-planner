@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { useBrand } from '../state/BrandContext';
 import { checkToken, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
 import { tokenCreationUrl } from '../auth/tokenCreationUrl';
 import styles from './ConnectScreen.module.css';
@@ -8,7 +8,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string) =>
   const [token, setToken] = useState('');
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<TokenCheckResult | null>(null);
-  const brand = defaultBrandPack;
+  const brand = useBrand();
   const repoLabel = `${brand.github.owner}/${brand.github.repo}`;
 
   async function handleConnect(event: React.FormEvent) {

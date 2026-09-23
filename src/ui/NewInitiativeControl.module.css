@@ -1,20 +1,11 @@
 .trigger {
+  composes: primaryButton from './shared.module.css';
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 7px 14px;
-  border: none;
   border-radius: 8px;
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-weight: 600;
-  cursor: pointer;
   white-space: nowrap;
-}
-
-.trigger:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .form {
@@ -37,16 +28,7 @@
 }
 
 .submit {
+  composes: primaryButton from './shared.module.css';
   padding: 6px 12px;
-  border: none;
   border-radius: 6px;
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.submit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }

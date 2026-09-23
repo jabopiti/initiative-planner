@@ -1,5 +1,5 @@
-import type { GithubClient } from '../github/client';
-import { GithubApiError, type GithubFailureCause } from '../github/errors';
+import { parseJsonFile, type GithubClient } from '../github/client';
+import { GithubApiError, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { fileCache } from '../cache/db';
 import { mergeListField, type Identified } from './merge';
 import type { WriteQueue } from './WriteQueue';
@@ -22,7 +22,7 @@ export interface SyncedFile<T extends Identified> {
   sha: string;
 }
 
-export type WriteStatus = 'synced' | 'syncing' | { readOnly: { cause: GithubFailureCause; message: string } };
+export type WriteStatus = 'synced' | 'syncing' | { readOnly: ReadOnlyState };
 
 /**
  * Writes one array-shaped master data file (§10.2), applying §10.3's
@@ -80,22 +80,25 @@ export class DebouncedFileWriter<T extends Identified> {
         }),
       );
       this.synced = { content: mine, sha: result.sha };
-      await fileCache.set(this.path, { content: JSON.stringify(mine), sha: result.sha });
       this.onCommitted(mine);
       this.onStatusChange('synced');
+      // The cache is a local convenience, not the source of truth — GitHub already has this
+      // write. A failure here (storage full, private browsing) must not be reported as a
+      // failed save, since the save already succeeded.
+      try {
+        await fileCache.set(this.path, { content: JSON.stringify(mine), sha: result.sha });
+      } catch {
+        // Losing the cache entry just means the next load re-fetches from GitHub instead of
+        // the cache — survivable, unlike misreporting a write that actually succeeded.
+      }
     } catch (error) {
       await this.handleWriteFailure(error, mine);
     }
   }
 
   private async handleWriteFailure(error: unknown, mine: T[]): Promise<void> {
-    if (!(error instanceof GithubApiError)) {
-      this.onStatusChange({ readOnly: { cause: 'unknown', message: 'Something went wrong saving this change.' } });
-      return;
-    }
-
-    if (error.cause_ !== 'conflict') {
-      this.onStatusChange({ readOnly: { cause: error.cause_, message: error.message } });
+    if (!(error instanceof GithubApiError) || error.cause_ !== 'conflict') {
+      this.onStatusChange({ readOnly: toReadOnlyState(error, 'Something went wrong saving this change.') });
       return;
     }
 
@@ -107,32 +110,47 @@ export class DebouncedFileWriter<T extends Identified> {
     }
     this.retriesRemaining -= 1;
 
+    // Wrapped: a failure anywhere in the retry itself (the re-fetch, or a recursive write)
+    // must still resolve to a reported readOnly state rather than an unhandled rejection —
+    // every caller of flush()/schedule() discards this promise without a catch of its own.
+    try {
+      await this.retryAfterConflict(mine);
+    } catch (retryError) {
+      this.onStatusChange({ readOnly: toReadOnlyState(retryError, 'Could not save this change after a conflict.') });
+    }
+  }
+
+  private async retryAfterConflict(mine: T[]): Promise<void> {
     const theirsFile = await this.github.getFile({ path: this.path, branch: this.branch });
-    const theirs = theirsFile ? (JSON.parse(theirsFile.content) as T[]) : [];
+    const theirs = parseJsonFile(theirsFile, [] as T[]);
     const theirsSha = theirsFile?.sha ?? '';
 
     const { merged, conflicts } = mergeListField(this.synced.content, mine, theirs);
 
     if (conflicts.length > 0) {
+      // this.synced.content becomes `merged`, not raw `theirs`: it must carry every
+      // conflict's default (theirs-side) value and any mine-only addition, because each
+      // conflict's resolve() below reads this.synced fresh at call time — resolving one
+      // conflict writes and advances this.synced, so a second resolve() started afterwards
+      // must build on that write's result, not on a stale snapshot from before either ran.
+      this.synced = { content: merged, sha: theirsSha };
+
       for (const conflict of conflicts) {
-        const itemId = (conflict.field as unknown as string[])[0];
         this.onConflict({
           path: this.path,
-          itemId,
+          itemId: conflict.itemId,
           base: conflict.base,
-          mine: conflict.mine as T,
-          theirs: conflict.theirs as T,
+          mine: conflict.mine,
+          theirs: conflict.theirs,
           resolve: (choice) => {
-            const chosen = choice === 'mine' ? (conflict.mine as T) : (conflict.theirs as T);
-            const resolved = merged.map((item) => (item.id === itemId ? chosen : item));
-            this.synced = { content: theirs, sha: theirsSha };
-            return this.attemptWrite(resolved, theirsSha);
+            const chosen = choice === 'mine' ? conflict.mine : conflict.theirs;
+            const resolved = this.synced.content.map((item) => (item.id === conflict.itemId ? chosen : item));
+            return this.attemptWrite(resolved, this.synced.sha);
           },
         });
       }
       // Keep the non-conflicting part of the merge visible locally, but don't
       // write until every conflict on this file is resolved.
-      this.synced = { content: theirs, sha: theirsSha };
       this.onCommitted(merged);
       this.onStatusChange('synced');
       return;

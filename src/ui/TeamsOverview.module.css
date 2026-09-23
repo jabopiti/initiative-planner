@@ -15,16 +15,12 @@
 }
 
 .newTeamButton {
+  composes: primaryButton from './shared.module.css';
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 7px 14px;
-  border: none;
   border-radius: 8px;
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-weight: 600;
-  cursor: pointer;
 }
 
 .newTeamForm {
@@ -40,18 +36,9 @@
 }
 
 .newTeamSubmit {
+  composes: primaryButton from './shared.module.css';
   padding: 6px 12px;
-  border: none;
   border-radius: 6px;
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.newTeamSubmit:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 .grid {
@@ -90,9 +77,8 @@
 }
 
 .phaseChip {
+  composes: pill from './shared.module.css';
   font-size: 12px;
   padding: 3px 8px;
-  border-radius: 999px;
-  background: var(--surface-subtle);
   color: var(--text-secondary);
 }

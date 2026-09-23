@@ -100,4 +100,28 @@ describe('mergeListField (§10.5 step 4)', () => {
     expect(merged).toHaveLength(1);
     expect(conflicts).toHaveLength(1);
   });
+
+  it('keeps a locally-edited item instead of silently honouring its remote deletion', () => {
+    const base: Allocation[] = [{ id: 'a1', personId: 'p1', allocationPct: 50 }];
+    const mine: Allocation[] = [{ id: 'a1', personId: 'p1', allocationPct: 60 }]; // edited locally
+    const theirs: Allocation[] = []; // deleted remotely
+    const { merged } = mergeListField(base, mine, theirs);
+    expect(merged).toEqual(mine);
+  });
+
+  it('keeps a remotely-edited item instead of silently honouring its local deletion', () => {
+    const base: Allocation[] = [{ id: 'a1', personId: 'p1', allocationPct: 50 }];
+    const mine: Allocation[] = []; // deleted locally
+    const theirs: Allocation[] = [{ id: 'a1', personId: 'p1', allocationPct: 70 }]; // edited remotely
+    const { merged } = mergeListField(base, mine, theirs);
+    expect(merged).toEqual(theirs);
+  });
+
+  it('still removes an item deleted on one side and genuinely unchanged on the other', () => {
+    const base: Allocation[] = [{ id: 'a1', personId: 'p1', allocationPct: 50 }];
+    const mine: Allocation[] = []; // deleted locally
+    const theirs: Allocation[] = [{ id: 'a1', personId: 'p1', allocationPct: 50 }]; // unchanged remotely
+    const { merged } = mergeListField(base, mine, theirs);
+    expect(merged).toHaveLength(0);
+  });
 });

@@ -14,11 +14,7 @@
 }
 
 .action {
+  composes: primaryButton from './shared.module.css';
   padding: 8px 16px;
-  border: none;
   border-radius: 8px;
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-weight: 600;
-  cursor: pointer;
 }

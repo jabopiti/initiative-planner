@@ -17,9 +17,8 @@
 }
 
 .statusBadge {
+  composes: pill from './shared.module.css';
   padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--surface-subtle);
   font-size: 12px;
 }
 

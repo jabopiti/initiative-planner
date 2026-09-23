@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
+import { fileCache } from '../cache/db';
 import { GithubClient } from '../github/client';
 import { DebouncedFileWriter, type FileConflict, type WriteStatus } from './DebouncedFileWriter';
 import { WriteQueue } from './WriteQueue';
@@ -134,5 +135,77 @@ describe('DebouncedFileWriter — §10.3 debounce + §10.5 409-retry-with-merge'
     const resolvedTeams = JSON.parse(atob(resolvedBody.content)) as Team[];
     expect(resolvedTeams.find((t) => t.id === 't1')?.name).toBe('My Rename');
     expect(resolvedBody.sha).toBe('s1');
+  });
+
+  it('resolving one of several conflicts does not revert an already-resolved sibling', async () => {
+    const baseA: Team = { id: 'tA', name: 'Original A', active: true };
+    const baseB: Team = { id: 'tB', name: 'Original B', active: true };
+    const writer = makeWriter({ content: [baseA, baseB], sha: 's0' });
+
+    const mine: Team[] = [
+      { id: 'tA', name: 'My A', active: true },
+      { id: 'tB', name: 'My B', active: true },
+    ];
+    const theirs: Team[] = [
+      { id: 'tA', name: 'Their A', active: true },
+      { id: 'tB', name: 'Their B', active: true },
+    ];
+
+    writer.schedule(mine);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ message: 'Conflict' }, 409))
+      .mockResolvedValueOnce(jsonResponse({ content: btoa(JSON.stringify(theirs)), sha: 's1' }));
+    await writer.flush();
+
+    expect(conflicts).toHaveLength(2);
+    const conflictA = conflicts.find((c) => c.itemId === 'tA')!;
+    const conflictB = conflicts.find((c) => c.itemId === 'tB')!;
+
+    // Resolve A ("use mine"), then B ("keep theirs") — each against whatever is current when it runs.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
+    await conflictA.resolve('mine');
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's3' } }));
+    await conflictB.resolve('theirs');
+
+    const putCalls = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
+    expect(putCalls).toHaveLength(3); // initial (409'd) + A's resolve + B's resolve
+
+    // B's resolve must have written against the sha A's resolve produced, not the stale pre-conflict sha.
+    const bResolveBody = JSON.parse((putCalls[2][1] as RequestInit).body as string) as { sha: string; content: string };
+    expect(bResolveBody.sha).toBe('s2');
+
+    const finalTeams = JSON.parse(atob(bResolveBody.content)) as Team[];
+    expect(finalTeams.find((t) => t.id === 'tA')?.name).toBe('My A'); // A's resolution preserved
+    expect(finalTeams.find((t) => t.id === 'tB')?.name).toBe('Their B'); // B's own resolution applied
+  });
+
+  it('reports a synced status even when the local IndexedDB cache write fails, since the GitHub write already succeeded', async () => {
+    const writer = makeWriter({ content: [], sha: 's0' });
+    const team1: Team = { id: 't1', name: 'Platform', active: true };
+
+    vi.spyOn(fileCache, 'set').mockRejectedValueOnce(new Error('IndexedDB quota exceeded'));
+    fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's1' } }));
+
+    writer.schedule([team1]);
+    await writer.flush();
+
+    expect(statuses.at(-1)).toBe('synced');
+    expect(committed).toEqual([[team1]]);
+  });
+
+  it('reports a readOnly status instead of throwing when the conflict retry itself fails', async () => {
+    const writer = makeWriter({ content: [], sha: 's0' });
+    const team1: Team = { id: 't1', name: 'Platform', active: true };
+
+    writer.schedule([team1]);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ message: 'Conflict' }, 409))
+      .mockRejectedValueOnce(new Error('network dropped mid-retry'));
+
+    await expect(writer.flush()).resolves.toBeUndefined(); // never throws/rejects out to the caller
+
+    const last = statuses.at(-1);
+    expect(typeof last === 'object' && last !== null && 'readOnly' in last).toBe(true);
   });
 });

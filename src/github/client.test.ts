@@ -86,4 +86,68 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
     expect(body.branch).toBe('data');
     expect(body.branch).not.toBe('main');
   });
+
+  it('calls the configured API host for checkToken, not a hardcoded github.com', async () => {
+    const enterpriseLocation: GithubLocation = { ...location, apiBaseUrl: 'https://github.example.com/api/v3' };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ login: 'bo' }), { status: 200 }));
+
+    const client = new GithubClient(enterpriseLocation, () => 'token');
+    await client.checkToken();
+
+    const [calledUrl] = fetchMock.mock.calls[0] as [string];
+    expect(calledUrl).toBe('https://github.example.com/api/v3/user');
+  });
+
+  it("does not produce an unhandled rejection when the ref GET fails while a blob upload is also failing", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url);
+      if (u.includes('/git/ref/heads/')) return new Response(JSON.stringify({ message: 'Server Error' }), { status: 500 });
+      if (u.endsWith('/git/blobs')) return new Response(JSON.stringify({ message: 'Forbidden' }), { status: 403 });
+      throw new Error(`unexpected call: ${u}`);
+    });
+
+    const client = new GithubClient(location, () => 'token');
+    await expect(
+      client.createFilesCommit({
+        branch: location.dataBranch,
+        files: [{ path: 'dataset.json', content: '{}' }],
+        message: 'init',
+      }),
+    ).rejects.toThrow(GithubApiError);
+    // If the blob-upload promise's rejection were left unobserved, it would surface as an
+    // unhandled rejection — vitest reports that as a failure of this test.
+  });
+
+  it('returns the winning commit sha, not its own dangling one, when it loses the bootstrap race', async () => {
+    // GET .../git/ref/heads/data is called twice: once (404, branch doesn't exist yet) before
+    // the ref-create race, and once more (200, the actual winner) after losing that race — a
+    // call counter distinguishes the two responses.
+    let refCallCount = 0;
+    fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      const u = String(url);
+      const method = init.method ?? 'GET';
+      if (method === 'GET' && u.includes('/git/ref/heads/data')) {
+        refCallCount += 1;
+        if (refCallCount === 1) return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+        return new Response(JSON.stringify({ object: { sha: 'the-actual-winning-sha' } }), { status: 200 });
+      }
+      if (method === 'POST' && u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob-1' }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'tree-1' }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/commits')) return new Response(JSON.stringify({ sha: 'my-dangling-sha' }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/refs')) {
+        return new Response(JSON.stringify({ message: 'Reference already exists' }), { status: 422 });
+      }
+      throw new Error(`unexpected call: ${method} ${u}`);
+    });
+
+    const client = new GithubClient(location, () => 'token');
+    const result = await client.createFilesCommit({
+      branch: location.dataBranch,
+      files: [{ path: 'dataset.json', content: '{}' }],
+      message: 'init',
+    });
+
+    expect(result.commitSha).toBe('the-actual-winning-sha');
+    expect(result.commitSha).not.toBe('my-dangling-sha');
+  });
 });

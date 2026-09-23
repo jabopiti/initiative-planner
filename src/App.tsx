@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { tokenCache } from './cache/db';
+import { defaultBrandPack } from './brand/defaultBrand';
+import { BrandProvider } from './state/BrandContext';
 import { RepositoryProvider } from './state/DataContext';
 import { NewInitiativeUIProvider } from './state/NewInitiativeUIContext';
 import { ConnectScreen } from './ui/ConnectScreen';
@@ -51,16 +53,18 @@ export function App() {
 
   if (token === undefined) return null; // loading the cached token
 
-  if (!token) {
-    return (
-      <ConnectScreen
-        onConnected={(newToken) => {
-          void tokenCache.set(newToken);
-          setToken(newToken);
-        }}
-      />
-    );
-  }
-
-  return <MainApp token={token} />;
+  return (
+    <BrandProvider brand={defaultBrandPack}>
+      {token ? (
+        <MainApp token={token} />
+      ) : (
+        <ConnectScreen
+          onConnected={(newToken) => {
+            void tokenCache.set(newToken);
+            setToken(newToken);
+          }}
+        />
+      )}
+    </BrandProvider>
+  );
 }

@@ -1,0 +1,25 @@
+/**
+ * Small style bases shared across components via CSS Modules' `composes`.
+ * Only properties that are genuinely identical everywhere live here —
+ * padding, border-radius and colour vary per caller and stay local, since
+ * `composes` concatenates class names rather than merging declarations, and
+ * relying on cascade order to override a shared property is fragile.
+ */
+
+.primaryButton {
+  border: none;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pill {
+  border-radius: 999px;
+  background: var(--surface-subtle);
+}
