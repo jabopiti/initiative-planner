@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { checkToken, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
 import { tokenCreationUrl, tokenManagementUrl } from '../auth/tokenCreationUrl';
-import { KeyRound, ShieldCheck } from 'lucide-react';
+import { ChevronDown, KeyRound, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -134,7 +134,6 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
             >
               Open GitHub token settings{newTab}
             </a>
-            <span className="mt-1 block text-sm">We fill in the token name for you.</span>
           </li>
           <li>Set the expiry to 1 year.</li>
           <li>
@@ -159,12 +158,16 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
         </p>
       </section>
 
-      <section className="rounded-xl bg-met-tint p-6" aria-labelledby="privacy-heading">
-        <h2 id="privacy-heading" className="m-0 mb-3 flex items-center gap-2 text-base">
+      <details className="group rounded-xl bg-met-tint">
+        <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl p-6 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent [&::-webkit-details-marker]:hidden">
           <ShieldCheck className="size-5 shrink-0 text-met-text" aria-hidden="true" />
-          How we protect your token
-        </h2>
-        <ul className="m-0 flex list-disc flex-col gap-2 pl-5 text-sm text-text-primary marker:text-text-secondary">
+          <span className="flex-1">How we protect your token</span>
+          <ChevronDown
+            className="size-5 shrink-0 text-text-secondary transition-transform group-open:rotate-180"
+            aria-hidden="true"
+          />
+        </summary>
+        <ul className="m-0 flex list-disc flex-col gap-2 px-6 pb-6 pl-11 text-sm text-text-primary marker:text-text-secondary">
           <li>
             <strong className="font-semibold">Stays in your browser.</strong> Kept in this tab only and cleared when you
             close it, unless you tick &ldquo;Remember me&rdquo;. There is no server in between.
@@ -191,7 +194,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
             &ldquo;Remember me&rdquo; only on a device you trust.
           </li>
         </ul>
-      </section>
+      </details>
     </main>
   );
 }

@@ -902,8 +902,10 @@ A closing line says to select Generate token, copy it and paste it above, and a
 tip says to save the token in a password manager, because GitHub shows it only
 once.
 
-The protection card, headed **How we protect your token**, states each measure
-with a bold lead-in, all of which the build actually does: the token stays in
+The protection card is collapsed by default: a shield icon and **How we
+protect your token** with a chevron, which opens the details on click or
+keyboard (a native disclosure, so it works without scripts). Opened, it states
+each measure with a bold lead-in, all of which the build actually does: the token stays in
 the browser, in this tab only unless Remember me is ticked, with no server in
 between; it goes only to the GitHub API host, enforced by the content security
 policy, which also blocks inline scripts and `eval`, and the app refuses to
