@@ -15,9 +15,17 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
+- run: npm audit signatures
       - run: npm run typecheck
-      - run: npm test
+      - run: npm run test:coverage
+      - name: Coverage summary
+        if: always()
+        run: |
+          echo '### Coverage' >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.total | to_entries[] | "- \(.key): \(.value.pct)%"' coverage/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
       - run: npm run lint
       - run: npm audit --audit-level=high
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
