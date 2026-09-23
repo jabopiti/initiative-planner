@@ -129,6 +129,33 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
     // unhandled rejection — vitest reports that as a failure of this test.
   });
 
+  it('updates an existing branch through PATCH git/refs/heads/{branch} (plural), not the singular read URL, which 404s', async () => {
+    const calls: string[] = [];
+    fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      const u = String(url);
+      const method = init.method ?? 'GET';
+      calls.push(`${method} ${u}`);
+      if (method === 'GET' && u.endsWith('/git/ref/heads/data')) return new Response(JSON.stringify({ object: { sha: 'parent-sha' } }), { status: 200 });
+      if (method === 'GET' && u.endsWith('/git/commits/parent-sha')) return new Response(JSON.stringify({ tree: { sha: 'base-tree' } }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob-1' }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'tree-1' }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/commits')) return new Response(JSON.stringify({ sha: 'new-sha' }), { status: 200 });
+      // GitHub answers a PATCH to the singular `git/ref/...` URL with a 404.
+      if (method === 'PATCH' && u.endsWith('/git/refs/heads/data')) return new Response(JSON.stringify({ object: { sha: 'new-sha' } }), { status: 200 });
+      return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+    });
+
+    const client = new GithubClient(location, () => 'token');
+    const result = await client.createFilesCommit({
+      branch: location.dataBranch,
+      files: [{ path: 'dataset.json', content: '{}' }],
+      message: 'init',
+    });
+
+    expect(result.commitSha).toBe('new-sha');
+    expect(calls).toContain('PATCH https://api.github.com/repos/jabopiti/initiative-planner/git/refs/heads/data');
+  });
+
   it('returns the winning commit sha, not its own dangling one, when it loses the bootstrap race', async () => {
     // GET .../git/ref/heads/data is called twice: once (404, branch doesn't exist yet) before
     // the ref-create race, and once more (200, the actual winner) after losing that race — a

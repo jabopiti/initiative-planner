@@ -244,7 +244,8 @@ export class GithubClient {
     const newCommit = (await commitResponse.json()) as { sha: string };
 
     if (branchExists) {
-      const updateRefResponse = await this.request(refUrl, {
+      // Updating a ref is PATCH .../git/refs/heads/{branch} (plural); only the GET is `git/ref/...` (singular) — PATCHing the singular URL is a 404.
+      const updateRefResponse = await this.request(this.repoUrl(`git/refs/heads/${encodeURIComponent(args.branch)}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sha: newCommit.sha }),
