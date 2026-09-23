@@ -153,7 +153,8 @@ export class GithubClient {
 
   /** GET .../repos/{owner}/{repo} — used to distinguish "can't see the repo" from "read-only" (§5.10). */
   async checkRepoAccess(): Promise<{ visible: boolean; canWrite: boolean }> {
-    const response = await this.request(this.repoUrl(''), { method: 'GET' });
+    // No trailing slash: GitHub answers `/repos/{owner}/{repo}/` with a 404 even for a visible repo.
+    const response = await this.request(this.repoUrl('').replace(/\/$/, ''), { method: 'GET' });
     if (response.status === 404) return { visible: false, canWrite: false };
     if (!response.ok) {
       // Surface GitHub's own message (e.g. a fine-grained token pending organisation

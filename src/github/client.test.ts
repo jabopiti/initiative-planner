@@ -87,6 +87,17 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
     expect(body.branch).not.toBe('main');
   });
 
+  it('checks repo access at /repos/{owner}/{repo} without a trailing slash, which GitHub answers with a 404', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ permissions: { push: true } }), { status: 200 }));
+
+    const client = new GithubClient(location, () => 'token');
+    const access = await client.checkRepoAccess();
+
+    const [calledUrl] = fetchMock.mock.calls[0] as [string];
+    expect(calledUrl).toBe('https://api.github.com/repos/jabopiti/initiative-planner');
+    expect(access).toEqual({ visible: true, canWrite: true });
+  });
+
   it('calls the configured API host for checkToken, not a hardcoded github.com', async () => {
     const enterpriseLocation: GithubLocation = { ...location, apiBaseUrl: 'https://github.example.com/api/v3' };
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ login: 'bo' }), { status: 200 }));
