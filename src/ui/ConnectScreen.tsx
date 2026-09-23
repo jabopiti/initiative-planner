@@ -88,15 +88,9 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
-              aria-describedby="remember-hint"
               className="mt-0.5 size-4 accent-brand-accent"
             />
-            <div className="flex flex-col">
-              <Label htmlFor="remember-field">Remember me on this device</Label>
-              <span id="remember-hint" className="text-sm text-text-secondary">
-                Off: you sign in again when you close this tab.
-              </span>
-            </div>
+            <Label htmlFor="remember-field">Remember me on this device</Label>
           </div>
         </form>
 
