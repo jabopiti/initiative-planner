@@ -65,10 +65,7 @@ Every call re-reads the whole context, so long sessions get expensive.
    Testing Library, jsdom is set up; put tests beside the component).
    Use the browser only for what tests can't show (visual polish): text
    tools (`read_page`, `find`) first, at most one screenshot at the end.
-6. Before pushing, review the diff for correctness and security (e.g.
-   `/code-review`, `/security-review`), so findings land before the
-   push, not after.
-7. Commit per logical change, then `/clear` before an unrelated task.
+6. Commit per logical change, then `/clear` before an unrelated task.
 
 ## Do not touch
 - Core app code from within a deployment fork — a fork edits only its
