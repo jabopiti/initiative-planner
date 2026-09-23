@@ -869,19 +869,29 @@ Lock/unlock behaviour is defined in §2.
 Shown on first load and whenever no working token is stored (§3,
 Authentication); in read-only mode with the cause "Access denied", the
 banner's action opens it. It is one screen: a **token field** at the top
-with a Connect button, because pasting is the fastest path, and **three
-steps** below for users who have no token yet. Every link uses the GitHub
-host, owner and repository of the brand pack (§2).
+with a Connect button, because pasting is the fastest path, and a numbered
+**How to create the token on GitHub** list of four steps below for users who
+have no token yet, followed by a short **How your token is handled** note. Every
+link uses the GitHub host, owner and repository of the brand pack (§2).
 
-1. **Create the token on GitHub.** A button opens GitHub's token page in a
-   new tab, with the name, description, resource owner, an expiry of one
-   year and Contents set to Read and write prefilled where GitHub supports
-   it.
-2. **Choose the repository.** Under repository access, choose "Only select
+1. **Open GitHub token settings.** A button opens GitHub's token page in a
+   new tab, with the name, description and resource owner prefilled where
+   GitHub supports it.
+2. **Set an expiry of one year.**
+3. **Choose the repository.** Under repository access, choose "Only select
    repositories" and pick the repository, whose name is shown with a copy
    button. Every other permission stays at No access.
-3. **Generate, copy and paste.** Select Generate token, copy it and paste it
-   into the field above.
+4. **Set Contents to Read and write.**
+
+A closing line tells the user to select Generate token, copy it and paste it
+into the field above.
+
+The handling note states, accurately, that the token is stored only in this
+browser and never written to the repository, dataset or a commit; is sent only
+to the GitHub API host, which the content security policy enforces (§10.1);
+is limited to the one repository with Contents access; is kept unencrypted in
+browser storage, so only trusted devices should connect; and can be revoked in
+GitHub's token settings at any time.
 
 A pasted token is checked immediately, and the result is specific:
 

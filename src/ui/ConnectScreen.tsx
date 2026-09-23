@@ -86,10 +86,10 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string) =>
           </div>
         )}
 
-        <ol className="m-0 mt-6 flex flex-col gap-4 pl-5">
-          <li>
-            <h2 className="m-0 mb-1 text-sm">Create the token on GitHub</h2>
-            <p className="m-0 text-text-secondary">
+        <section className="mt-6">
+          <h2 className="m-0 mb-3 text-base">How to create the token on GitHub</h2>
+          <ol className="m-0 flex list-decimal flex-col gap-3 pl-5 text-text-secondary marker:font-semibold marker:text-text-primary">
+            <li>
               <a
                 className="inline-block rounded-lg bg-brand-accent-tint px-3 py-1.5 font-semibold text-brand-accent-text no-underline"
                 href={tokenCreationUrl(brand.github, brand.productName)}
@@ -98,25 +98,32 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string) =>
               >
                 Open GitHub token settings
               </a>
-              . Set an expiry of one year and Contents to Read and write.
-            </p>
-          </li>
-          <li>
-            <h2 className="m-0 mb-1 text-sm">Choose the repository</h2>
-            <p className="m-0 text-text-secondary">
+            </li>
+            <li>Set an expiry of one year.</li>
+            <li>
               Under repository access, choose &ldquo;Only select repositories&rdquo; and pick{' '}
               <code className="rounded bg-surface-subtle px-1.5 py-0.5">{repoLabel}</code>{' '}
               <Button type="button" variant="outline" size="xs" onClick={copyRepoName}>
                 Copy
               </Button>
               . Every other permission stays at No access.
-            </p>
-          </li>
-          <li>
-            <h2 className="m-0 mb-1 text-sm">Generate, copy and paste</h2>
-            <p className="m-0 text-text-secondary">Select Generate token, copy it, and paste it into the field above.</p>
-          </li>
-        </ol>
+            </li>
+            <li>Under permissions, set Contents to Read and write.</li>
+          </ol>
+          <p className="m-0 mt-3 text-text-secondary">
+            Then select Generate token, copy it and paste it into the field above.
+          </p>
+        </section>
+
+        <section className="mt-6 rounded-lg bg-surface-subtle px-4 py-3">
+          <h2 className="m-0 mb-2 text-sm">How your token is handled</h2>
+          <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-sm text-text-secondary">
+            <li>It is stored only in this browser. It is never written to the repository, the dataset or a commit.</li>
+            <li>It is sent only to GitHub ({new URL(brand.github.apiBaseUrl).host}). The app&rsquo;s content security policy blocks connections to anywhere else.</li>
+            <li>Limited to {repoLabel} with Contents access, it can&rsquo;t reach your other repositories.</li>
+            <li>It is kept unencrypted in browser storage, so only connect on a device you trust. You can revoke it any time in your GitHub token settings.</li>
+          </ul>
+        </section>
       </div>
     </div>
   );
