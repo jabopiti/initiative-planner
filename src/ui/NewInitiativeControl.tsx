@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { useNewInitiativeUI } from '../state/NewInitiativeUIContext';
 import { navigate } from '../router/useHashRoute';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PlusIcon } from './icons';
-import styles from './NewInitiativeControl.module.css';
 
 const LAST_TEAM_KEY = 'initiative-planner/last-used-team';
 
@@ -54,44 +56,43 @@ export function NewInitiativeControl() {
 
   if (!open) {
     return (
-      <button
-        type="button"
-        data-new-initiative
-        className={styles.trigger}
-        onClick={() => setOpen(true)}
-        disabled={activeTeams.length === 0}
-      >
+      <Button type="button" data-new-initiative onClick={() => setOpen(true)} disabled={activeTeams.length === 0}>
         <PlusIcon />
         New initiative
-      </button>
+      </Button>
     );
   }
 
   return (
     <form
-      className={styles.form}
+      className="flex items-center gap-1.5"
       onSubmit={handleSubmit}
       onKeyDown={(e) => {
         if (e.key === 'Escape') close();
       }}
     >
-      <input
+      <Input
         ref={inputRef}
-        className={styles.nameInput}
+        className="w-45"
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Initiative name"
       />
-      <select className={styles.teamSelect} value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-        {activeTeams.map((team) => (
-          <option key={team.id} value={team.id}>
-            {team.name}
-          </option>
-        ))}
-      </select>
-      <button type="submit" className={styles.submit} disabled={!name.trim() || !teamId}>
+      <Select value={teamId} onValueChange={setTeamId}>
+        <SelectTrigger>
+          <SelectValue placeholder="Team" />
+        </SelectTrigger>
+        <SelectContent>
+          {activeTeams.map((team) => (
+            <SelectItem key={team.id} value={team.id}>
+              {team.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button type="submit" disabled={!name.trim() || !teamId}>
         Create
-      </button>
+      </Button>
     </form>
   );
 }
