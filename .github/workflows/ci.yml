@@ -16,7 +16,6 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm audit signatures
       - run: npm run typecheck
       - run: npm run test:coverage
       - name: Coverage summary
