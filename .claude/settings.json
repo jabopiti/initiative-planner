@@ -10,6 +10,7 @@
       "Bash(node --test:*)",
       "Bash(npx tsc:*)",
       "Bash(npx eslint:*)",
+      "Bash(npx shadcn@latest add:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",

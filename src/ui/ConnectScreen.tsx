@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { checkToken, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
-import { tokenCreationUrl } from '../auth/tokenCreationUrl';
+import { tokenCreationUrl, tokenManagementUrl } from '../auth/tokenCreationUrl';
+import { KeyRound, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -48,13 +49,19 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
   }
 
   const tokenSettingsUrl = tokenCreationUrl(brand.github, brand.productName);
+  const tokenManagementLink = tokenManagementUrl(brand.github);
+  const apiHost = new URL(brand.github.apiBaseUrl).host;
   const isError = result !== null && result.outcome !== 'works' && result.outcome !== 'classic-warning';
+  const cardClass = 'rounded-xl border border-border-default bg-surface-card p-6';
+  const newTab = <span className="sr-only"> (opens in a new tab)</span>;
 
   return (
-    <div className="flex min-h-full items-start justify-center px-4 py-16">
-      <main className="w-full max-w-[560px] rounded-xl border border-border-default bg-surface-card p-8">
-        <h1 className="m-0 mb-2 text-[22px]">Connect to {brand.productName}</h1>
-        <p className="m-0 mb-6 text-text-secondary">Paste your GitHub token to continue.</p>
+    <main className="mx-auto flex w-full max-w-[560px] flex-col gap-4 px-4 py-12">
+      <section className={`${cardClass} border-2 border-brand-accent`} aria-labelledby="connect-heading">
+        <h1 id="connect-heading" className="m-0 mb-1 text-[22px]">
+          Connect to {brand.productName}
+        </h1>
+        <p className="m-0 mb-5 text-text-secondary">Paste your GitHub token to continue.</p>
 
         <form className="flex flex-col gap-3" onSubmit={handleConnect}>
           <div className="flex flex-col gap-1.5">
@@ -104,57 +111,87 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
                 {' '}
                 — a classic token reaches all your repositories.{' '}
                 <a href={tokenSettingsUrl} target="_blank" rel="noreferrer" className="underline">
-                  Create a fine-grained one<span className="sr-only"> (opens in a new tab)</span>
+                  Create a fine-grained one{newTab}
                 </a>
                 .
               </>
             )}
           </div>
         )}
+      </section>
 
-        <section className="mt-8" aria-labelledby="guide-heading">
-          <h2 id="guide-heading" className="m-0 mb-3 text-base">
-            No token yet? Create one in 4 steps
-          </h2>
-          <ol className="m-0 flex list-decimal flex-col gap-3 pl-5 text-text-secondary marker:font-semibold marker:text-text-primary">
-            <li>
-              <a
-                className="inline-block rounded-lg bg-brand-accent-tint px-3 py-1.5 font-semibold text-brand-accent-text no-underline"
-                href={tokenSettingsUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open GitHub token settings<span className="sr-only"> (opens in a new tab)</span>
-              </a>
-            </li>
-            <li>Set the expiry to 1 year.</li>
-            <li>
-              Under Repository access, choose &ldquo;Only select repositories&rdquo; and pick{' '}
-              <code className="rounded bg-surface-subtle px-1.5 py-0.5">{repoLabel}</code>{' '}
-              <Button type="button" variant="outline" size="xs" onClick={copyRepoName} aria-label={`Copy ${repoLabel}`}>
-                {copied ? 'Copied' : 'Copy'}
-              </Button>
-              <span className="sr-only" aria-live="polite">
-                {copied ? 'Copied to clipboard' : ''}
-              </span>
-            </li>
-            <li>Under Permissions, set Contents to Read and write. Leave everything else at No access.</li>
-          </ol>
-          <p className="m-0 mt-3 text-text-secondary">Then select Generate token, copy it and paste it above.</p>
-        </section>
+      <section className={cardClass} aria-labelledby="guide-heading">
+        <h2 id="guide-heading" className="m-0 mb-3 text-base">
+          No token yet? Create one in 4 steps
+        </h2>
+        <ol className="m-0 flex list-decimal flex-col gap-3 pl-5 text-text-secondary marker:font-semibold marker:text-text-primary">
+          <li>
+            <a
+              className="inline-block rounded-lg bg-brand-accent-tint px-3 py-1.5 font-semibold text-brand-accent-text no-underline"
+              href={tokenSettingsUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open GitHub token settings{newTab}
+            </a>
+            <span className="mt-1 block text-sm">We fill in the token name for you.</span>
+          </li>
+          <li>Set the expiry to 1 year.</li>
+          <li>
+            Under Repository access, choose &ldquo;Only select repositories&rdquo; and pick{' '}
+            <code className="rounded bg-surface-subtle px-1.5 py-0.5">{repoLabel}</code>{' '}
+            <Button type="button" variant="outline" size="xs" onClick={copyRepoName} aria-label={`Copy ${repoLabel}`}>
+              {copied ? 'Copied' : 'Copy'}
+            </Button>
+            <span className="sr-only" aria-live="polite">
+              {copied ? 'Copied to clipboard' : ''}
+            </span>
+          </li>
+          <li>Under Permissions, add Contents and set it to Read and write. Leave everything else at No access.</li>
+        </ol>
+        <p className="m-0 mt-3 text-text-secondary">Then select Generate token, copy it and paste it above.</p>
+        <p className="m-0 mt-4 flex items-start gap-2 rounded-lg bg-surface-subtle px-3 py-2.5 text-sm text-text-primary">
+          <KeyRound className="mt-0.5 size-4 shrink-0 text-text-secondary" aria-hidden="true" />
+          <span>
+            <strong className="font-semibold">Tip:</strong> GitHub shows the token only once. Save it in your password
+            manager so you can paste it again later.
+          </span>
+        </p>
+      </section>
 
-        <section className="mt-8 rounded-lg bg-surface-subtle px-4 py-3" aria-labelledby="privacy-heading">
-          <h2 id="privacy-heading" className="m-0 mb-2 text-sm">
-            How we handle your token
-          </h2>
-          <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-sm text-text-secondary">
-            <li>Kept in this tab only, unless you tick &ldquo;Remember me on this device&rdquo;.</li>
-            <li>Sent only to {new URL(brand.github.apiBaseUrl).host}. Never saved to the repository.</li>
-            <li>Works for {repoLabel} only.</li>
-            <li>Not encrypted in your browser, so use a device you trust. Revoke it any time in GitHub.</li>
-          </ul>
-        </section>
-      </main>
-    </div>
+      <section className="rounded-xl bg-met-tint p-6" aria-labelledby="privacy-heading">
+        <h2 id="privacy-heading" className="m-0 mb-3 flex items-center gap-2 text-base">
+          <ShieldCheck className="size-5 shrink-0 text-met-text" aria-hidden="true" />
+          How we protect your token
+        </h2>
+        <ul className="m-0 flex list-disc flex-col gap-2 pl-5 text-sm text-text-primary marker:text-text-secondary">
+          <li>
+            <strong className="font-semibold">Stays in your browser.</strong> Kept in this tab only and cleared when you
+            close it, unless you tick &ldquo;Remember me&rdquo;. There is no server in between.
+          </li>
+          <li>
+            <strong className="font-semibold">Goes only to GitHub.</strong> Sent to {apiHost} and nowhere else. A strict
+            content security policy blocks other connections, inline scripts and <code>eval</code>, and the app refuses to
+            load inside another page.
+          </li>
+          <li>
+            <strong className="font-semibold">Never stored with your data.</strong> It is not written to the repository,
+            the dataset or any commit.
+          </li>
+          <li>
+            <strong className="font-semibold">Limited by design.</strong> A fine-grained token reaches {repoLabel} only,
+            with Contents access, and expires after a year.{' '}
+            <a href={tokenManagementLink} target="_blank" rel="noreferrer" className="underline">
+              Revoke it in GitHub any time{newTab}
+            </a>
+            .
+          </li>
+          <li>
+            <strong className="font-semibold">One thing to know.</strong> The browser keeps it unencrypted, so tick
+            &ldquo;Remember me&rdquo; only on a device you trust.
+          </li>
+        </ul>
+      </section>
+    </main>
   );
 }

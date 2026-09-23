@@ -879,9 +879,11 @@ Shown on first load and whenever no working token is stored (§3,
 Authentication); in read-only mode with the cause "Access denied", the
 banner's action opens it. It is one screen: a **token field** at the top
 with a Connect button and a **Remember me on this device** checkbox (off by
-default), because pasting is the fastest path; below it, a numbered list of four
-steps for users who have no token yet, then a short note on how the token is
-handled. Every link uses the GitHub host, owner and repository of the brand
+default), because pasting is the fastest path. It is three stacked cards, so
+the one required action stands apart from the help: the **input card**
+(headed "Connect to <product>", with the line "Paste your GitHub token to
+continue.", and an accent border), the **guide card**, and the **protection
+card**. Every link uses the GitHub host, owner and repository of the brand
 pack (§2).
 
 The guide is headed **No token yet? Create one in 4 steps**:
@@ -893,19 +895,27 @@ The guide is headed **No token yet? Create one in 4 steps**:
 3. **Choose the repository.** Under Repository access, choose "Only select
    repositories" and pick the repository, whose name is shown with a copy
    button.
-4. **Set Contents to Read and write.** Everything else stays at No access.
+4. **Add the permission.** Under Permissions, add Contents and set it to Read
+   and write. Everything else stays at No access.
 
-A closing line says to select Generate token, copy it and paste it above.
+A closing line says to select Generate token, copy it and paste it above, and a
+tip says to save the token in a password manager, because GitHub shows it only
+once.
 
-The note, headed **How we handle your token**, says in plain words that the
-token is kept in this tab only unless the user ticks Remember me; is sent only
-to the GitHub API host (enforced by the content security policy, §10.1) and
-never saved to the repository; works for the one repository only; is not
-encrypted in the browser, so only trusted devices should connect; and can be
-revoked in GitHub at any time.
+The protection card, headed **How we protect your token**, states each measure
+with a bold lead-in, all of which the build actually does: the token stays in
+the browser, in this tab only unless Remember me is ticked, with no server in
+between; it goes only to the GitHub API host, enforced by the content security
+policy, which also blocks inline scripts and `eval`, and the app refuses to
+load inside a frame (§10.1); it is never written to the repository, the dataset
+or a commit; it is limited to the one repository with Contents access and
+expires after a year, with a link to revoke it in GitHub; and, plainly, the
+browser keeps it unencrypted, so Remember me is for trusted devices only. The
+card's text uses the primary text colour on its tint, not the tint's own text
+colour, to keep contrast at AA.
 
-The screen meets §9.5: one `h1`, a heading per section, every control labelled,
-results announced (`status` for success, `alert` for errors), a new-tab link
+The screen meets §9.5: one `h1`, a heading per card, every control labelled,
+results announced (`status` for success, `alert` for errors), new-tab links
 announced as such, and the copy button confirming in text.
 
 A pasted token is checked immediately, and the result is specific:

@@ -24,8 +24,16 @@ export function tokenCreationUrl(location: GithubLocation, productName: string):
     description: `Read/write access to ${location.owner}/${location.repo} for ${productName}.`,
     target_name: location.owner,
   });
-  const host = location.apiBaseUrl.includes('api.github.com')
+  return `${githubWebHost(location)}/settings/personal-access-tokens/new?${params.toString()}`;
+}
+
+/** Where the user lists, edits and revokes their fine-grained tokens. */
+export function tokenManagementUrl(location: GithubLocation): string {
+  return `${githubWebHost(location)}/settings/personal-access-tokens`;
+}
+
+function githubWebHost(location: GithubLocation): string {
+  return location.apiBaseUrl.includes('api.github.com')
     ? 'https://github.com'
     : location.apiBaseUrl.replace(/\/api\/v3\/?$/, '').replace('api.', '');
-  return `${host}/settings/personal-access-tokens/new?${params.toString()}`;
 }
