@@ -6,7 +6,6 @@ import { currentPhaseId } from '../data/processState';
 import type { Initiative } from '../data/types';
 import { navigate } from '../router/useHashRoute';
 import { EmptyState } from './EmptyState';
-import styles from './PortfolioBoard.module.css';
 
 /**
  * Portfolio overview (§5.2), scoped to slice 003: the board and its two
@@ -32,7 +31,7 @@ export function PortfolioBoard() {
 
   if (teams.length === 0) {
     return (
-      <div className={styles.page}>
+      <div className="px-8 py-6">
         <EmptyState line="No initiatives yet" actionLabel="Create a team" onAction={() => navigate('/teams')} />
       </div>
     );
@@ -40,30 +39,34 @@ export function PortfolioBoard() {
 
   if (initiatives.length === 0) {
     return (
-      <div className={styles.page}>
+      <div className="px-8 py-6">
         <EmptyState line="No initiatives yet" actionLabel="Create your first initiative" onAction={() => setOpen(true)} />
       </div>
     );
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.board}>
+    <div className="px-8 py-6">
+      <div className="flex items-start gap-4 overflow-x-auto">
         {brand.process.map((phase) => {
           const phaseInitiatives = initiativesByPhase.get(phase.id) ?? [];
           return (
-            <div key={phase.id} className={styles.column}>
-              <div className={styles.columnHeader}>
+            <div key={phase.id} className="min-w-55 flex-[1_0_220px] rounded-[10px] bg-surface-subtle p-3">
+              <div className="mb-2.5 flex items-center justify-between px-0.5 text-sm font-semibold">
                 <span>{phase.label}</span>
-                <span className={styles.columnCount}>{phaseInitiatives.length}</span>
+                <span className="font-medium text-text-secondary">{phaseInitiatives.length}</span>
               </div>
-              <div className={styles.columnBody}>
+              <div className="flex flex-col gap-2">
                 {phaseInitiatives.map((initiative) => (
-                  <a key={initiative.id} className={styles.card} href={`#/initiatives/${initiative.id}`}>
-                    <div className={styles.cardName}>{initiative.name}</div>
-                    <div className={styles.cardMeta}>
+                  <a
+                    key={initiative.id}
+                    className="block rounded-lg border border-border-default bg-surface-card px-3 py-2.5 text-inherit no-underline"
+                    href={`#/initiatives/${initiative.id}`}
+                  >
+                    <div className="mb-1 text-sm font-semibold">{initiative.name}</div>
+                    <div className="flex items-center justify-between text-xs text-text-secondary">
                       <span>{teamsById.get(initiative.teamId)?.name ?? 'Unknown team'}</span>
-                      <span className={styles.badge}>Not yet known</span>
+                      <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-[11px]">Not yet known</span>
                     </div>
                   </a>
                 ))}

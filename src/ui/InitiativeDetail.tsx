@@ -1,5 +1,4 @@
 import { useRepositoryState } from '../state/DataContext';
-import styles from './InitiativeDetail.module.css';
 
 /**
  * A minimal initiative page: enough for "the initiative's page opens"
@@ -16,20 +15,20 @@ export function InitiativeDetail({ id }: { id: string }) {
 
   if (!initiative) {
     return (
-      <div className={styles.page}>
+      <div className="max-w-[720px] p-8">
         <p>This initiative couldn&apos;t be found.</p>
       </div>
     );
   }
 
   return (
-    <div className={styles.page}>
-      <h1 className={styles.name}>{initiative.name}</h1>
-      <div className={styles.meta}>
+    <div className="max-w-[720px] p-8">
+      <h1 className="m-0 mb-2 text-2xl">{initiative.name}</h1>
+      <div className="mb-6 flex items-center gap-3 text-text-secondary">
         <span>{team?.name ?? 'Unknown team'}</span>
-        <span className={styles.statusBadge}>{initiative.status}</span>
+        <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs">{initiative.status}</span>
       </div>
-      <p className={styles.placeholder}>
+      <p className="text-sm text-text-muted">
         Planning (phases, allocations, cost, gates) isn&apos;t built yet — that starts with slice 005.
       </p>
     </div>

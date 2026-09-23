@@ -4,7 +4,8 @@ import { useBrand } from '../state/BrandContext';
 import { currentPhaseId } from '../data/processState';
 import { EmptyState } from './EmptyState';
 import { PlusIcon } from './icons';
-import styles from './TeamsOverview.module.css';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 /** Teams overview (§5.7), scoped to slice 003: name, size, per-phase initiative counts, and New team. */
 export function TeamsOverview() {
@@ -43,44 +44,38 @@ export function TeamsOverview() {
 
   if (teams.length === 0 && !creating) {
     return (
-      <div className={styles.page}>
+      <div className="px-8 py-6">
         <EmptyState line="No teams yet" actionLabel="Create a team" onAction={startCreating} />
       </div>
     );
   }
 
   return (
-    <div className={styles.page}>
-      <div className={styles.header}>
-        <h1>Teams</h1>
+    <div className="px-8 py-6">
+      <div className="mb-5 flex items-center justify-between">
+        <h1 className="m-0 text-xl">Teams</h1>
         {creating ? (
           <form
-            className={styles.newTeamForm}
+            className="flex gap-1.5"
             onSubmit={handleSubmit}
             onKeyDown={(e) => {
               if (e.key === 'Escape') setCreating(false);
             }}
           >
-            <input
-              ref={inputRef}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Team name"
-              className={styles.newTeamInput}
-            />
-            <button type="submit" className={styles.newTeamSubmit} disabled={!name.trim()}>
+            <Input ref={inputRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Team name" />
+            <Button type="submit" disabled={!name.trim()}>
               Create
-            </button>
+            </Button>
           </form>
         ) : (
-          <button type="button" className={styles.newTeamButton} onClick={startCreating}>
+          <Button type="button" onClick={startCreating}>
             <PlusIcon />
             New team
-          </button>
+          </Button>
         )}
       </div>
 
-      <div className={styles.grid}>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
         {teams.map((team) => {
           const teamPhaseCounts = phaseCountsByTeam.get(team.id);
           const phaseCounts = brand.process.map((phase) => ({
@@ -88,12 +83,18 @@ export function TeamsOverview() {
             count: teamPhaseCounts?.get(phase.id) ?? 0,
           }));
           return (
-            <div key={team.id} className={team.active ? styles.card : styles.cardInactive}>
-              <h2 className={styles.cardName}>{team.name}</h2>
-              <p className={styles.cardMeta}>0 members</p>
-              <div className={styles.phaseChips}>
+            <div
+              key={team.id}
+              className={`rounded-[10px] border border-border-default bg-surface-card p-4 ${team.active ? '' : 'opacity-55'}`}
+            >
+              <h2 className="m-0 mb-1 text-base">{team.name}</h2>
+              <p className="m-0 mb-3 text-sm text-text-secondary">0 members</p>
+              <div className="flex flex-wrap gap-1.5">
                 {phaseCounts.map(({ phase, count }) => (
-                  <span key={phase.id} className={styles.phaseChip}>
+                  <span
+                    key={phase.id}
+                    className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary"
+                  >
                     {phase.label}: {count}
                   </span>
                 ))}
