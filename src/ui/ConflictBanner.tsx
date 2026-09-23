@@ -1,5 +1,5 @@
 import { useRepository, useRepositoryState } from '../state/DataContext';
-import styles from './ConflictBanner.module.css';
+import { Button } from '@/components/ui/button';
 
 /**
  * A same-field conflict (§3 "Conflict edge cases", §10.5): never
@@ -14,20 +14,33 @@ export function ConflictBanner() {
   if (conflicts.length === 0) return null;
 
   return (
-    <div className={styles.wrap} role="alert">
+    <div
+      className="flex flex-col gap-2 border-b border-border-default bg-warning-tint px-4 py-2 text-sm text-warning-text"
+      role="alert"
+    >
       {conflicts.map((conflict, index) => (
-        <div key={`${conflict.itemId}-${index}`} className={styles.row}>
+        <div key={`${conflict.itemId}-${index}`} className="flex items-center justify-between gap-3">
           <span>
             Someone else changed this at the same time. Yours: <strong>{JSON.stringify(conflict.mine)}</strong>. Theirs:{' '}
             <strong>{JSON.stringify(conflict.theirs)}</strong>.
           </span>
-          <div className={styles.actions}>
-            <button type="button" onClick={() => void repository.resolveConflict(conflict, 'theirs')}>
+          <div className="flex shrink-0 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void repository.resolveConflict(conflict, 'theirs')}
+            >
               Keep theirs
-            </button>
-            <button type="button" onClick={() => void repository.resolveConflict(conflict, 'mine')}>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void repository.resolveConflict(conflict, 'mine')}
+            >
               Use mine
-            </button>
+            </Button>
           </div>
         </div>
       ))}
