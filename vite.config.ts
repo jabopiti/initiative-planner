@@ -1,6 +1,8 @@
 /// <reference types="vitest/config" />
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; " +
@@ -25,8 +27,13 @@ function cspMetaTag(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), cspMetaTag()],
+  plugins: [react(), tailwindcss(), cspMetaTag()],
   base: './',
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

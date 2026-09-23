@@ -1,107 +1,178 @@
+@import 'tailwindcss';
+
 /**
- * Brand pack colour tokens (§2, §9.8), light theme by default.
- * These are hand-kept in sync with src/brand/defaultBrand.ts's `colours`
- * object — this deployment has exactly one brand pack, so generating this
- * file at build time from that TS module is deferred, not a functional gap.
+ * Brand pack colour tokens (§2, §9.8), stored as OKLCH triplets (§10.1).
+ * Hand-kept in sync with src/brand/defaultBrand.ts's `colours` object —
+ * this deployment has exactly one brand pack, so generating this file at
+ * build time from that TS module is deferred, not a functional gap.
+ *
+ * The resolved theme (§9.1) is applied as a single `.dark` class on the
+ * document root, so dark-mode tokens live under `.dark` rather than an
+ * `prefers-color-scheme` media query.
  */
+@custom-variant dark (&:is(.dark *));
+
 :root {
-  --surface-page: #f7faf9;
-  --surface-card: #ffffff;
-  --surface-subtle: #eef4f1;
+  --surface-page: oklch(0.983 0.003 174.5);
+  --surface-card: oklch(1 0 89.9);
+  --surface-subtle: oklch(0.962 0.007 164.9);
 
-  --text-primary: #14201b;
-  --text-secondary: #5b6b64;
-  --text-muted: #7c8b83;
-  --text-on-accent: #ffffff;
+  --text-primary: oklch(0.23 0.02 167.0);
+  --text-secondary: oklch(0.512 0.022 167.2);
+  --text-muted: oklch(0.622 0.021 162.6);
+  --text-on-accent: oklch(1 0 89.9);
 
-  --border-default: #dce6e1;
-  --border-strong: #b9c7c0;
+  --border-default: oklch(0.916 0.013 164.8);
+  --border-strong: oklch(0.817 0.018 164.5);
 
-  --accent: #075e46;
-  --accent-tint: #e8fff2;
-  --accent-text: #075e46;
+  --accent: oklch(0.429 0.085 167.5);
+  --accent-tint: oklch(0.98 0.029 161.1);
+  --accent-text: oklch(0.429 0.085 167.5);
 
-  --warning: #b45309;
-  --warning-tint: #fdf0dc;
-  --warning-text: #b45309;
+  --warning: oklch(0.555 0.146 49.0);
+  --warning-tint: oklch(0.960 0.030 78.8);
+  --warning-text: oklch(0.555 0.146 49.0);
 
-  --alarm: #dc2626;
-  --alarm-tint: #fce4e4;
-  --alarm-text: #dc2626;
+  --alarm: oklch(0.577 0.215 27.3);
+  --alarm-tint: oklch(0.938 0.026 17.6);
+  --alarm-text: oklch(0.577 0.215 27.3);
 
-  --met: #16a34a;
-  --met-tint: #e7f7ed;
-  --met-text: #16a34a;
+  --met: oklch(0.627 0.17 149.2);
+  --met-tint: oklch(0.962 0.021 158.6);
+  --met-text: oklch(0.627 0.17 149.2);
 
-  --focus-ring: #075e46;
+  --focus-ring: oklch(0.429 0.085 167.5);
 
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --radius: 0.5rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --surface-page: #0e1512;
-    --surface-card: #16211c;
-    --surface-subtle: #182620;
+.dark {
+  --surface-page: oklch(0.187 0.012 167.0);
+  --surface-card: oklch(0.235 0.018 165.2);
+  --surface-subtle: oklch(0.254 0.022 166.2);
 
-    --text-primary: #eaf3ee;
-    --text-secondary: #9fb0a8;
-    --text-muted: #6e8079;
-    --text-on-accent: #0e1512;
+  --text-primary: oklch(0.956 0.012 162.0);
+  --text-secondary: oklch(0.742 0.022 165.9);
+  --text-muted: oklch(0.583 0.024 170.1);
+  --text-on-accent: oklch(0.187 0.012 167.0);
 
-    --border-default: #24322b;
-    --border-strong: #3a4b41;
+  --border-default: oklch(0.302 0.023 163.0);
+  --border-strong: oklch(0.395 0.027 159.1);
 
-    --accent: #2fd9a6;
-    --accent-tint: #12291f;
-    --accent-text: #2fd9a6;
+  --accent: oklch(0.79 0.152 167.0);
+  --accent-tint: oklch(0.258 0.035 163.9);
+  --accent-text: oklch(0.79 0.152 167.0);
 
-    --warning: #fbbf24;
-    --warning-tint: #2e2410;
-    --warning-text: #fbbf24;
+  --warning: oklch(0.837 0.164 84.4);
+  --warning-tint: oklch(0.267 0.036 83.4);
+  --warning-text: oklch(0.837 0.164 84.4);
 
-    --alarm: #f87171;
-    --alarm-tint: #2e1616;
-    --alarm-text: #f87171;
+  --alarm: oklch(0.711 0.166 22.2);
+  --alarm-tint: oklch(0.234 0.039 20.5);
+  --alarm-text: oklch(0.711 0.166 22.2);
 
-    --met: #4ade80;
-    --met-tint: #16291d;
-    --met-text: #4ade80;
+  --met: oklch(0.8 0.182 151.7);
+  --met-tint: oklch(0.260 0.034 155.5);
+  --met-text: oklch(0.8 0.182 151.7);
 
-    --focus-ring: #2fd9a6;
+  --focus-ring: oklch(0.79 0.152 167.0);
+}
+
+@theme inline {
+  --color-surface-page: var(--surface-page);
+  --color-surface-card: var(--surface-card);
+  --color-surface-subtle: var(--surface-subtle);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-on-accent: var(--text-on-accent);
+
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+
+  --color-brand-accent: var(--accent);
+  --color-brand-accent-tint: var(--accent-tint);
+  --color-brand-accent-text: var(--accent-text);
+
+  --color-warning: var(--warning);
+  --color-warning-tint: var(--warning-tint);
+  --color-warning-text: var(--warning-text);
+
+  --color-alarm: var(--alarm);
+  --color-alarm-tint: var(--alarm-tint);
+  --color-alarm-text: var(--alarm-text);
+
+  --color-met: var(--met);
+  --color-met-tint: var(--met-tint);
+  --color-met-text: var(--met-text);
+
+  --color-focus-ring: var(--focus-ring);
+
+  --font-sans: var(--font-sans);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* shadcn/ui's colour contract, aliased onto the brand-pack roles above (§9.8) —
+     kept distinct from --color-brand-accent since shadcn's own "accent" role
+     (a subtle hover/highlight background) is a different concept from the
+     brand's accent (its primary call-to-action colour), even though both
+     read from tokens the brand pack defines. */
+  --color-background: var(--surface-page);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--surface-card);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--surface-card);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--text-on-accent);
+  --color-secondary: var(--surface-subtle);
+  --color-secondary-foreground: var(--text-primary);
+  --color-muted: var(--surface-subtle);
+  --color-muted-foreground: var(--text-muted);
+  --color-accent: var(--accent-tint);
+  --color-accent-foreground: var(--accent-text);
+  --color-destructive: var(--alarm);
+  --color-destructive-foreground: var(--text-on-accent);
+  --color-border: var(--border-default);
+  --color-input: var(--border-default);
+  --color-ring: var(--focus-ring);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
   }
-}
 
-* {
-  box-sizing: border-box;
-}
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
 
-html,
-body,
-#root {
-  height: 100%;
-}
+  body {
+    margin: 0;
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+  }
 
-body {
-  margin: 0;
-  background: var(--surface-page);
-  color: var(--text-primary);
-  font-family: var(--font-sans);
-  font-size: 14px;
-  line-height: 1.5;
-}
+  button,
+  input {
+    font: inherit;
+    color: inherit;
+  }
 
-button,
-input {
-  font: inherit;
-  color: inherit;
-}
+  a {
+    color: var(--accent-text);
+  }
 
-a {
-  color: var(--accent-text);
-}
-
-:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
 }

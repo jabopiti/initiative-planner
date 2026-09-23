@@ -12,17 +12,25 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:quiet": "vitest run --reporter=dot",
+    "build:quiet": "tsc -b && vite build --logLevel error",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "cn": "^0.4.0",
+    "lucide-react": "^1.47.0",
+    "radix-ui": "^1.6.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.1",
     "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^26.6.2",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^8.8.1",
@@ -33,6 +41,7 @@
     "eslint-plugin-react-refresh": "^0.4.12",
     "fake-indexeddb": "^6.0.0",
     "jsdom": "^25.0.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.6.3",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"

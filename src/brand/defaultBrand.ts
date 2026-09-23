@@ -157,34 +157,34 @@ export const defaultBrandPack: BrandPack = {
   },
 
   colours: {
-    surfacePage: { light: '#F7FAF9', dark: '#0E1512' },
-    surfaceCard: { light: '#FFFFFF', dark: '#16211C' },
-    surfaceSubtle: { light: '#EEF4F1', dark: '#182620' },
+    surfacePage: { light: 'oklch(0.983 0.003 174.5)', dark: 'oklch(0.187 0.012 167.0)' },
+    surfaceCard: { light: 'oklch(1 0 89.9)', dark: 'oklch(0.235 0.018 165.2)' },
+    surfaceSubtle: { light: 'oklch(0.962 0.007 164.9)', dark: 'oklch(0.254 0.022 166.2)' },
 
-    textPrimary: { light: '#14201B', dark: '#EAF3EE' },
-    textSecondary: { light: '#5B6B64', dark: '#9FB0A8' },
-    textMuted: { light: '#7C8B83', dark: '#6E8079' },
-    textOnAccent: { light: '#FFFFFF', dark: '#0E1512' },
+    textPrimary: { light: 'oklch(0.23 0.02 167.0)', dark: 'oklch(0.956 0.012 162.0)' },
+    textSecondary: { light: 'oklch(0.512 0.022 167.2)', dark: 'oklch(0.742 0.022 165.9)' },
+    textMuted: { light: 'oklch(0.622 0.021 162.6)', dark: 'oklch(0.583 0.024 170.1)' },
+    textOnAccent: { light: 'oklch(1 0 89.9)', dark: 'oklch(0.187 0.012 167.0)' },
 
-    borderDefault: { light: '#DCE6E1', dark: '#24322B' },
-    borderStrong: { light: '#B9C7C0', dark: '#3A4B41' },
+    borderDefault: { light: 'oklch(0.916 0.013 164.8)', dark: 'oklch(0.302 0.023 163.0)' },
+    borderStrong: { light: 'oklch(0.817 0.018 164.5)', dark: 'oklch(0.395 0.027 159.1)' },
 
-    accent: { light: '#075E46', dark: '#2FD9A6' },
-    accentTint: { light: '#E8FFF2', dark: '#12291F' },
-    accentText: { light: '#075E46', dark: '#2FD9A6' },
+    accent: { light: 'oklch(0.429 0.085 167.5)', dark: 'oklch(0.79 0.152 167.0)' },
+    accentTint: { light: 'oklch(0.98 0.029 161.1)', dark: 'oklch(0.258 0.035 163.9)' },
+    accentText: { light: 'oklch(0.429 0.085 167.5)', dark: 'oklch(0.79 0.152 167.0)' },
 
-    warning: { light: '#B45309', dark: '#FBBF24' },
-    warningTint: { light: '#FDF0DC', dark: '#2E2410' },
-    warningText: { light: '#B45309', dark: '#FBBF24' },
+    warning: { light: 'oklch(0.555 0.146 49.0)', dark: 'oklch(0.837 0.164 84.4)' },
+    warningTint: { light: 'oklch(0.960 0.030 78.8)', dark: 'oklch(0.267 0.036 83.4)' },
+    warningText: { light: 'oklch(0.555 0.146 49.0)', dark: 'oklch(0.837 0.164 84.4)' },
 
-    alarm: { light: '#DC2626', dark: '#F87171' },
-    alarmTint: { light: '#FCE4E4', dark: '#2E1616' },
-    alarmText: { light: '#DC2626', dark: '#F87171' },
+    alarm: { light: 'oklch(0.577 0.215 27.3)', dark: 'oklch(0.711 0.166 22.2)' },
+    alarmTint: { light: 'oklch(0.938 0.026 17.6)', dark: 'oklch(0.234 0.039 20.5)' },
+    alarmText: { light: 'oklch(0.577 0.215 27.3)', dark: 'oklch(0.711 0.166 22.2)' },
 
-    met: { light: '#16A34A', dark: '#4ADE80' },
-    metTint: { light: '#E7F7ED', dark: '#16291D' },
-    metText: { light: '#16A34A', dark: '#4ADE80' },
+    met: { light: 'oklch(0.627 0.17 149.2)', dark: 'oklch(0.8 0.182 151.7)' },
+    metTint: { light: 'oklch(0.962 0.021 158.6)', dark: 'oklch(0.260 0.034 155.5)' },
+    metText: { light: 'oklch(0.627 0.17 149.2)', dark: 'oklch(0.8 0.182 151.7)' },
 
-    focusRing: { light: '#075E46', dark: '#2FD9A6' },
+    focusRing: { light: 'oklch(0.429 0.085 167.5)', dark: 'oklch(0.79 0.152 167.0)' },
   },
 };
