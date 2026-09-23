@@ -53,6 +53,23 @@ Every call re-reads the whole context, so long sessions get expensive.
   the main context: use a subagent, or a text comparison for A/B
   choices instead of a rendered mockup.
 
+## Order of work
+1. Bug: reproduce first (failing test, `curl`, console). Feature: write
+   the test for the behaviour first where it's cheap.
+2. UI copy or layout choices: agree them in chat (text comparison)
+   before implementing; implement once.
+3. Implement with targeted edits.
+4. `npm run test:quiet`, `npm run typecheck`, `npm run lint` — in that
+   order, fix before moving on.
+5. UI: assert text, roles and labels in component tests (Vitest +
+   Testing Library, jsdom is set up; put tests beside the component).
+   Use the browser only for what tests can't show (visual polish): text
+   tools (`read_page`, `find`) first, at most one screenshot at the end.
+6. Before pushing, review the diff for correctness and security (e.g.
+   `/code-review`, `/security-review`), so findings land before the
+   push, not after.
+7. Commit per logical change, then `/clear` before an unrelated task.
+
 ## Do not touch
 - Core app code from within a deployment fork — a fork edits only its
   brand-pack folder (§2, §10.7). This repo is the core; this rule is for
