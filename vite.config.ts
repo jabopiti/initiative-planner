@@ -47,5 +47,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // Tests must never pick up a developer's real token from .env.local.
+    env: { VITE_DEV_TOKEN: '' },
   },
 });

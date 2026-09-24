@@ -207,3 +207,47 @@ describe('Repository — slice 004 people and memberships', () => {
     expect(repo.getState().people).toHaveLength(1);
   });
 });
+
+describe('Repository — commit messages name the entity (§10.3)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function messagesFor(mock: ReturnType<typeof routingFetchMock>, file: string): string[] {
+    return mock.mock.calls
+      .filter(([url, init]) => (init as RequestInit)?.method === 'PUT' && (url as string).endsWith(`/contents/${file}`))
+      .map(([, init]) => (JSON.parse((init as RequestInit).body as string) as { message: string }).message);
+  }
+
+  it('says who was added, changed and added to which team', async () => {
+    const mock = routingFetchMock();
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const team = repo.createTeam('Payments');
+    await repo.flushPending();
+    const ada = repo.createPerson({ name: 'Ada Lovelace', countryId: 'c1', roleId: 'r1' });
+    await repo.flushPending();
+    repo.updatePerson(ada.id, { capacityPct: 80 });
+    repo.updatePerson(ada.id, { active: false });
+    await repo.flushPending();
+    const membership = repo.addMembership(ada.id, team.id)!;
+    await repo.flushPending();
+    repo.updateMembership(membership.id, { teamFtePct: 60 }, true);
+    await repo.flushPending();
+    repo.removeMembership(membership.id);
+    await repo.flushPending();
+
+    expect(messagesFor(mock, 'teams.json')).toEqual(['Payments: team created']);
+    expect(messagesFor(mock, 'people.json')).toEqual([
+      'Ada Lovelace: person added',
+      'Ada Lovelace: capacity set to 80%; Ada Lovelace: deactivated',
+    ]);
+    expect(messagesFor(mock, 'memberships.json')).toEqual([
+      'Ada Lovelace: added to Payments at 80%',
+      'Ada Lovelace: Team FTE % on Payments set to 60%',
+      'Ada Lovelace: removed from Payments',
+    ]);
+  });
+});
+

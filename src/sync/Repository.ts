@@ -244,7 +244,7 @@ export class Repository {
     const team: Team = { id: newId(), name, active: true };
     const next = [...this.state.teams, team];
     this.setState({ teams: next });
-    this.teamsWriter?.schedule(next);
+    this.teamsWriter?.schedule(next, { key: team.id, text: `${name}: team created` });
     return team;
   }
 
@@ -258,13 +258,33 @@ export class Repository {
       capacityPct: 100,
       active: true,
     };
-    this.commitPeople([...this.state.people, person]);
+    this.commitPeople([...this.state.people, person], { key: person.id, text: `${person.name}: person added` });
     return person;
   }
 
   /** In-place edit from the person panel (§5.6): no save button, so every change commits. */
   updatePerson(id: string, patch: Partial<Omit<Person, 'id'>>): void {
-    this.commitPeople(this.state.people.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    const current = this.state.people.find((p) => p.id === id);
+    if (!current) return;
+    const next = { ...current, ...patch };
+    this.commitPeople(
+      this.state.people.map((p) => (p.id === id ? next : p)),
+      { key: `${id}:${Object.keys(patch).sort().join(',')}`, text: `${next.name}: ${this.describePersonChange(current, patch)}` },
+    );
+  }
+
+  private describePersonChange(current: Person, patch: Partial<Omit<Person, 'id'>>): string {
+    const parts: string[] = [];
+    if (patch.name !== undefined) parts.push(`renamed from ${current.name}`);
+    if (patch.countryId !== undefined) {
+      parts.push(`country set to ${this.state.countries.find((c) => c.id === patch.countryId)?.name ?? 'unknown'}`);
+    }
+    if (patch.roleId !== undefined) {
+      parts.push(`role set to ${this.state.roles.find((r) => r.id === patch.roleId)?.name ?? 'unknown'}`);
+    }
+    if (patch.capacityPct !== undefined) parts.push(`capacity set to ${patch.capacityPct}%`);
+    if (patch.active !== undefined) parts.push(patch.active ? 'reactivated' : 'deactivated');
+    return parts.join(', ') || 'updated';
   }
 
   /**
@@ -280,7 +300,10 @@ export class Repository {
     const unclaimed = unclaimedCapacityPct(person, this.state.memberships);
     const teamFtePct = requestedPct === undefined ? unclaimed : allowOver ? requestedPct : Math.min(requestedPct, unclaimed);
     const membership: Membership = { id: newId(), personId, teamId, teamFtePct, active: true };
-    this.commitMemberships([...this.state.memberships, membership]);
+    this.commitMemberships([...this.state.memberships, membership], {
+      key: membership.id,
+      text: `${person.name}: added to ${this.teamName(teamId)} at ${teamFtePct}%`,
+    });
     return membership;
   }
 
@@ -296,22 +319,43 @@ export class Repository {
         next.teamFtePct = Math.min(patch.teamFtePct, cap);
       }
     }
-    this.commitMemberships(this.state.memberships.map((m) => (m.id === id ? next : m)));
+    const who = this.personName(current.personId);
+    const where = this.teamName(current.teamId);
+    const what =
+      patch.active !== undefined && patch.teamFtePct === undefined
+        ? `${patch.active ? 'reactivated' : 'deactivated'} on ${where}`
+        : `Team FTE % on ${where} set to ${next.teamFtePct}%`;
+    this.commitMemberships(
+      this.state.memberships.map((m) => (m.id === id ? next : m)),
+      { key: `${id}:${patch.active !== undefined && patch.teamFtePct === undefined ? 'active' : 'pct'}`, text: `${who}: ${what}` },
+    );
+  }
+
+  private personName(id: string): string {
+    return this.state.people.find((p) => p.id === id)?.name ?? 'Unknown person';
+  }
+
+  private teamName(id: string): string {
+    return this.state.teams.find((t) => t.id === id)?.name ?? 'unknown team';
   }
 
   /** Memberships are removable (§9.3); nothing points at them. */
   removeMembership(id: string): void {
-    this.commitMemberships(this.state.memberships.filter((m) => m.id !== id));
+    const removed = this.state.memberships.find((m) => m.id === id);
+    this.commitMemberships(
+      this.state.memberships.filter((m) => m.id !== id),
+      removed && { key: id, text: `${this.personName(removed.personId)}: removed from ${this.teamName(removed.teamId)}` },
+    );
   }
 
-  private commitPeople(next: Person[]): void {
+  private commitPeople(next: Person[], note?: { key: string; text: string }): void {
     this.setState({ people: next });
-    this.peopleWriter?.schedule(next);
+    this.peopleWriter?.schedule(next, note);
   }
 
-  private commitMemberships(next: Membership[]): void {
+  private commitMemberships(next: Membership[], note?: { key: string; text: string }): void {
     this.setState({ memberships: next });
-    this.membershipsWriter?.schedule(next);
+    this.membershipsWriter?.schedule(next, note);
   }
 
   /** New initiative (§5.1, §6): name + team required; written as its own file. */
