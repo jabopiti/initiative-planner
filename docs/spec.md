@@ -560,14 +560,17 @@ icon, the sync indicator (§3) and the theme control (§9.1):
 - **Settings**
 
 The **New initiative** button opens a **draft page**, laid out like the
-initiative's header (§5.4): the name field is focused, with the team
-selector and a "Draft" chip beside it. The team defaults to the one last
-used, or to the only active team; with neither, the selector reads "Choose
-team". Nothing is saved while the draft has no name or no team. Once it has
-both, Enter, leaving the name field, or choosing the team creates the
-initiative and its detail page replaces the draft, so Back skips the draft.
-Esc discards the draft and returns to the Portfolio. The Portfolio's empty
-state (§9.4) opens the same draft page. The **sync indicator** is a small check icon while everything is
+initiative's header (§5.4): the name field is the title and is focused, with
+the team selector beside it and a "Draft" chip. The team selector always
+starts on "Select team", with the last-used team listed first and marked;
+the tool never chooses a team for the user. The next thing to fill in is
+highlighted: the name, then the team, then, once both are filled, the
+**Create initiative** button. No phases appear on the draft. Nothing is
+saved until Create initiative is chosen (Enter in the name field does the
+same once a team is selected); leaving a field saves nothing. Creating the
+initiative saves it and its detail page replaces the draft, so Back skips the
+draft. Esc discards the draft, without asking, and returns to the Portfolio.
+The Portfolio's empty state (§9.4) opens the same draft page. The **sync indicator** is a small check icon while everything is
 synced; its label appears while syncing and stays visible in read-only mode
 with the cause (§3).
 
@@ -726,8 +729,9 @@ Its layout follows the design rules in §9.8.
 - **Header**: initiative name (editable), description (editable, plain text,
   1–2 lines), owner (selected from People list), team, status badge,
   approval track badge, and the Actions menu. Changing the team while
-  allocations exist shows an inline notice: how many allocations belong to
-  people who are not on the new team (§7.2).
+  allocations exist asks for an inline confirmation first, naming the people
+  who are not on the new team and will be removed from the phases that are
+  still open (§7.2); it is not possible on a Closed or Cancelled initiative.
 - **Cost summary**: the grand estimate (§4), what the initiative was last
   approved at (the figure of the last passed gate that carried cost, with
   the gate's name), the difference between the two, and the deviation (§4)
@@ -1018,7 +1022,7 @@ presentation concern (§9.7, §9.11), never part of the stored value.
 | Name | Text | Yes | Required at creation, together with the team |
 | Description | Plain text | No | Short, 1–2 lines |
 | Owner | Person reference | No | Selected from the People list |
-| Team | Team reference | Yes | Exactly one team; required at creation. Only its members can be allocated (§7.2); changing the team keeps existing allocations and flags non-members (§7.2) |
+| Team | Team reference | Yes | Exactly one team; required at creation. Only its members can be allocated (§7.2); changing the team removes the allocations of people who are not on the new team from every phase that is not frozen, after a confirmation (§7.2) |
 | Status | Enum | Auto | Active, On Hold, Cancelled, Closed. Defaults to Active |
 | Current phase | Derived | — | Position in the process |
 | Approval track | Derived | — | From the grand estimate (§7.4) |
@@ -1184,6 +1188,15 @@ warning, shown on the team detail (§5.8).
 Only a team's members may be allocated to that team's initiatives. An
 allocation that outlives its membership **stays and keeps costing** and is
 surfaced as a warning rather than dropped.
+
+**Changing an initiative's team** is the one act that does remove such
+allocations, because the person is not a member of the new team. It removes
+the allocations of people who are not active members of the new team from
+every phase that is not frozen by a passed gate (§8.1); people who are on
+both teams stay. Frozen phases, their snapshots and all recorded actuals are
+never touched. The change is confirmed first, in place, with the affected
+people named, and is undoable for 10 seconds (§5.11). A Closed or Cancelled
+initiative keeps its team.
 
 **Rates and working days.** A **custom rate is absolute**: it replaces the
 country rate and bypasses the role factor. Working days still come from the
