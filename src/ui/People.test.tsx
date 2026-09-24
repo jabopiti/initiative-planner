@@ -139,5 +139,6 @@ describe('People overview and team members (slice 004)', () => {
 
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Margaret Hamilton' })).toHaveFocus());
   });
 });

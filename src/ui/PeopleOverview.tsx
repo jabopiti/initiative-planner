@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
 import { PersonPanel } from './PersonPanel';
@@ -20,6 +20,13 @@ export function PeopleOverview() {
   const [countryId, setCountryId] = useState(() => defaultCountryId(countries));
   const [roleId, setRoleId] = useState(() => defaultRoleId(roles));
 
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+
+  function focusRow(id: string) {
+    requestAnimationFrame(() => rowRefs.current.get(id)?.focus());
+  }
+
   const effectiveCountry = countries.some((c) => c.id === countryId && c.active) ? countryId : defaultCountryId(countries);
   const effectiveRole = roles.some((r) => r.id === roleId && r.active) ? roleId : defaultRoleId(roles);
 
@@ -35,13 +42,13 @@ export function PeopleOverview() {
     repository.createPerson({ name: name.trim(), countryId: effectiveCountry, roleId: effectiveRole });
     rememberPersonDefaults(effectiveCountry, effectiveRole);
     setName('');
-    document.getElementById('quick-add-name')?.focus();
+    nameInputRef.current?.focus();
   }
 
   function closePanel() {
     const id = selectedId;
     setSelectedId(null);
-    if (id) requestAnimationFrame(() => document.getElementById(`person-row-${id}`)?.focus());
+    if (id) focusRow(id);
   }
 
   // Esc closes the panel wherever focus is (§5.6), including back on the row that opened it.
@@ -50,7 +57,7 @@ export function PeopleOverview() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       setSelectedId(null);
-      requestAnimationFrame(() => document.getElementById(`person-row-${selectedId}`)?.focus());
+      focusRow(selectedId);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -78,7 +85,7 @@ export function PeopleOverview() {
         aria-label="Add a person"
       >
         <Input
-          id="quick-add-name"
+          ref={nameInputRef}
           className="w-56"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -161,7 +168,10 @@ export function PeopleOverview() {
                     >
                       <td className="px-3 py-2">
                         <button
-                          id={`person-row-${p.id}`}
+                          ref={(el) => {
+                            if (el) rowRefs.current.set(p.id, el);
+                            else rowRefs.current.delete(p.id);
+                          }}
                           type="button"
                           className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-inherit"
                           onClick={() => setSelectedId(p.id)}
