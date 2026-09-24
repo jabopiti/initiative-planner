@@ -422,7 +422,6 @@ export class Repository {
     this.membershipsWriter?.schedule(next, note);
   }
 
-  /** New initiative (§5.1, §6): name + team required; written as its own file. */
   /** Create an initiative with its default plan (§5.11), chained from `today` (injectable for tests). */
   async createInitiative(name: string, teamId: string, today: string = localToday()): Promise<Initiative> {
     const phases = buildDefaultPlan(this.brand.process, today);
@@ -446,6 +445,18 @@ export class Repository {
     }
 
     return initiative;
+  }
+
+  /** Rename an initiative in place (§5.4). An empty name is refused (returns false) and the old one stays. */
+  renameInitiative(initiativeId: string, name: string): boolean {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    const trimmed = name.trim();
+    if (!initiative || !trimmed) return false;
+    if (trimmed === initiative.name) return true;
+    const next: Initiative = { ...initiative, name: trimmed };
+    this.replaceInitiative(next);
+    this.initiativeWriters.get(initiativeId)?.schedule(next, { key: 'name', text: `${initiative.name}: renamed to ${trimmed}` });
+    return true;
   }
 
   private phaseLabel(phaseId: string): string {

@@ -366,3 +366,30 @@ describe('Default plan (§5.11)', () => {
     expect(screen.queryByText(/^Suggested dates/)).not.toBeInTheDocument();
   });
 });
+
+describe('Initiative name: edited in place (§5.4)', () => {
+  it('saves a new name on Enter with a commit naming the old and new name', async () => {
+    const user = userEvent.setup();
+    initiative = { ...initiative, phases: { validation: { startDate: '2026-09-24', endDate: '2026-12-23', allocations: [] } } };
+    renderPage();
+    const field = await screen.findByRole('textbox', { name: 'Initiative name' });
+    expect(field).toHaveValue('Payments API');
+    await user.clear(field);
+    await user.type(field, 'Payments API v2{Enter}');
+    // Find it among the puts: an earlier test's debounced commit can land in this test's list.
+    const renamed = () => puts.find((p) => p.message.includes('renamed'));
+    await vi.waitFor(() => expect(renamed()).toBeDefined(), { timeout: 3000 });
+    expect(renamed()!.message).toBe('Payments API: renamed to Payments API v2');
+    expect(renamed()!.content.name).toBe('Payments API v2');
+  });
+
+  it('refuses an empty name and puts the previous one back', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const field = await screen.findByRole('textbox', { name: 'Initiative name' });
+    await user.clear(field);
+    await user.tab();
+    expect(field).toHaveValue('Payments API');
+    expect(puts.some((p) => p.message.includes('renamed'))).toBe(false);
+  });
+});

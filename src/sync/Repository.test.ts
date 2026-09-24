@@ -368,6 +368,20 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     });
   });
 
+  it('renames an initiative in place with a commit naming the old and new name, and refuses an empty name', async () => {
+    const { repo, initiative } = await repoWithInitiative();
+    expect(repo.renameInitiative(initiative.id, '   ')).toBe(false);
+    expect(repo.getState().initiatives[0].name).toBe('Payments API');
+
+    expect(repo.renameInitiative(initiative.id, ' Payments API 2 ')).toBe(true);
+    await repo.flushPending();
+
+    expect(repo.getState().initiatives[0].name).toBe('Payments API 2');
+    expect(commits).toHaveLength(1);
+    expect(commits[0].message).toBe('Payments API: renamed to Payments API 2');
+    expect(commits[0].content.name).toBe('Payments API 2');
+  });
+
   it('puts an undone removal back in its place', async () => {
     const { repo, initiative, member } = await repoWithInitiative();
     const added = repo.addAllocation(initiative.id, 'validation', member.id);
