@@ -49,7 +49,7 @@ export default defineConfig({
     css: false,
     // Tests must never pick up a developer's real token from .env.local.
     env: { VITE_DEV_TOKEN: '' },
-    exclude: ['**/node_modules/**', 'e2e/**'],
+    exclude: ['**/node_modules/**', 'e2e/**', '.claude/worktrees/**'],
     coverage: { provider: 'v8', include: ['src/**'], reporter: ['text-summary', 'json-summary'] },
   },
 });
