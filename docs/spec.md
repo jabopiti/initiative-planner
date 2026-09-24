@@ -1727,8 +1727,9 @@ When an edit is made against a stale file version:
    values and resolved by their choice, not merged automatically.
 4. For each list field (allocations, cost items, checklist items,
    memberships): union the items by id. An item added on one side is kept.
-   An item removed on one side and unchanged on the other is removed. An
-   item present on both sides is itself merged field by field per step 3.
+   An item removed on one side and unchanged on the other is removed; one
+   removed on one side and changed on the other is a conflict, as in step 3.
+   An item present on both sides is itself merged field by field per step 3.
 5. Write the merged result as the new commit, against the version just
    fetched in step 1.
 

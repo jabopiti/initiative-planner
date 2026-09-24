@@ -19,13 +19,13 @@ import { allocationRefusal } from '../data/cost';
 import { formatDate } from '../data/dates';
 import { localToday } from '../data/dates';
 import { buildDefaultPlan } from '../data/defaultPlan';
+import { frozenPaths } from '../data/frozen';
 import { toReadOnlyState, type GithubFailureCause, type ReadOnlyState } from '../github/errors';
 import { GithubClient, parseJsonFile } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
-import { mergeListDocument } from './documentMerge';
 import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
-import { mergeInitiative } from './mergeInitiative';
+import { mergeDocument } from './merge';
 import { WriteQueue } from './WriteQueue';
 
 export type { ReadOnlyState } from '../github/errors';
@@ -240,7 +240,7 @@ export class Repository {
       branch,
       github: this.github,
       queue: this.queue,
-      merge: mergeListDocument,
+      merge: mergeDocument,
       whenMissing: [],
       initial,
       onStatus: this.statusOf(path),
@@ -269,7 +269,7 @@ export class Repository {
       branch: this.brand.github.dataBranch,
       github: this.github,
       queue: this.queue,
-      merge: mergeInitiative,
+      merge: (base, mine, theirs) => mergeDocument(base, mine, theirs, { frozen: (doc) => frozenPaths(doc) }),
       whenMissing: null,
       initial: sha === null ? null : { content: initiative, sha },
       creationFailure: 'Could not create the initiative.',
