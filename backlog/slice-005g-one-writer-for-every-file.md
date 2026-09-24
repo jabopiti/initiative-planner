@@ -113,3 +113,21 @@ dropping the write and leaving the edited value on screen, differs from §3
 ("the dataset stays unchanged", the field stays in edit with a Retry). It is
 not fixed here; it is a separate slice in the backlog tail, because it needs
 the read-only banner first.
+
+## Decided in chat (build notes)
+
+- **Read-only wins over syncing** in the top bar when both hold (AC 3), as today.
+- **Baseline bootstrap stays outside the writer.** "No path that puts a file without it" means no
+  single-file `putFile`; the multi-file system write (§3, §10.3) is not one.
+- **Creation retries without merging.** A 409 on the first save re-puts the same content (a
+  concurrent commit to the branch, not a stale file). The draft keeps its id across retries, so a
+  failed creation is the same file when tried again and its failure clears when that save lands;
+  a "file already exists" answer is adopted as the base. Leaving the draft (Esc) clears the failure.
+- **Keep theirs with nothing else to write makes no commit** and clears the banner; the first
+  resolution in a file still writes the clean part of the user's edit.
+- **A resolution commit says the outcome:** "<original message> (conflict: used mine)" or "(conflict: kept theirs)".
+- **A failed resolution stays in the banner** with "Your choice was not saved: <cause>. Choose again to retry."
+- **Found by the interleaving tests:** a second save queued behind an in-flight one was built on the
+  old document, so after a 409 the merge removed the other writer's change. A save now starts only
+  after the one before it, on the latest document.
+- **Left out** (§10.3): the short backoff between retries and the entity-id trailer on commit messages.
