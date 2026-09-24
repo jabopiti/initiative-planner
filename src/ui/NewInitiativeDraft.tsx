@@ -3,7 +3,7 @@ import { useRepository, useRepositoryState } from '../state/DataContext';
 import { navigate } from '../router/useHashRoute';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { TeamSelect } from './TeamSelect';
 
 const HIGHLIGHT = 'border-brand-accent bg-brand-accent-tint';
 const GUIDANCE_ID = 'new-initiative-guidance';
@@ -22,7 +22,6 @@ export function NewInitiativeDraft() {
   const creating = useRef(false); // set on the first create, so a double click or Enter makes one commit
   const teamTrigger = useRef<HTMLButtonElement>(null);
 
-  const activeTeams = teams.filter((t) => t.active);
   const hasName = name.trim() !== '';
   const nextStep = !hasName ? 'name' : !teamId ? 'team' : 'create';
   const guidance = {
@@ -64,24 +63,14 @@ export function NewInitiativeDraft() {
             else if (hasName) teamTrigger.current?.focus();
           }}
         />
-        <Select value={teamId} onValueChange={setTeamId}>
-          <SelectTrigger
-            ref={teamTrigger}
-            size="sm"
-            aria-label="Team"
-            aria-describedby={GUIDANCE_ID}
-            className={nextStep === 'team' ? HIGHLIGHT : ''}
-          >
-            <SelectValue placeholder="Select team" />
-          </SelectTrigger>
-          <SelectContent>
-            {activeTeams.map((team) => (
-              <SelectItem key={team.id} value={team.id}>
-                {team.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <TeamSelect
+          ref={teamTrigger}
+          teams={teams}
+          value={teamId}
+          onValueChange={setTeamId}
+          aria-describedby={GUIDANCE_ID}
+          className={nextStep === 'team' ? HIGHLIGHT : ''}
+        />
         <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary">Draft</span>
         <Button
           type="button"
