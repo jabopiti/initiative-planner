@@ -1,7 +1,7 @@
 ---
 generated_from: "Initiative Planner (white-label core) spec, v1 — 22 September 2026"
-total_slices: 13
-valid_slices: 13
+total_slices: 14
+valid_slices: 14
 flagged_slices: 0
 ---
 
@@ -69,6 +69,7 @@ for the AI-agent-driven build the team asked for:
 | 004c | Sort and copy the Teams and People tables | ✅ valid | 004 |
 | 005 | Plan a costed phase and see its cost calculated | ✅ valid | 001, 004 |
 | 005b | Give a person a custom role and day rate | ✅ valid | 004, 005 |
+| 005c | A new initiative starts with a default plan | ✅ valid | 003, 005 |
 | 006 | Availability suggestion in the person picker | ✅ valid | 005 |
 | 007 | Add cost items to a phase | ✅ valid | 005 |
 | 008 | Pass a gate with its checklist | ✅ valid | 005, 007 |
@@ -100,6 +101,9 @@ for the AI-agent-driven build the team asked for:
   (the person panel it extends) and 005 (the custom-rate cost rule it feeds).
   Inserted while planning 005, which ships the data shape and engine but no
   screen that sets a custom role.
+- Slice 005c "A new initiative starts with a default plan": depends on 003
+  (initiative creation, where the plan is built) and 005 (the phase period it
+  fills in). Promoted from the backlog tail.
 - Slice 006 "Availability suggestion in the person picker": depends on
   005 — it enhances the picker that slice introduces.
 - Slice 007 "Add cost items to a phase": depends on 005 — it adds to a
@@ -198,8 +202,7 @@ team is approaching them.
   final-gate-closes-initiative behaviour.
 - **Copy allocations from the previous phase** (§5.11) — depends on 005,
   needs two phases to exist.
-- **Default plan on initiative creation** (§5.11) — depends on 003; needs
-  brand-pack default phase durations.
+- **Default plan on initiative creation** (§5.11) — now slice 005c.
 - **Duplicate an initiative** (§5.11) — depends on 005, 007.
 - **Fix suggestions for capacity warnings** (§5.11) — depends on 009.
 - **Cost item suggestions** (§5.11) — depends on 007, needs multiple
