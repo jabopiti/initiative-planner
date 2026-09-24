@@ -26,8 +26,8 @@ export type WriteStatus = 'synced' | 'syncing' | { readOnly: ReadOnlyState };
 
 /**
  * Writes one array-shaped master data file (§10.2), applying §10.3's
- * debounce-then-commit and 409-retry-with-merge (§10.5) rules. Not used for
- * per-initiative files, which are created once and never merged in slice 003.
+ * debounce-then-commit and 409-retry-with-merge (§10.5) rules. Per-initiative
+ * files use InitiativeFileWriter, which merges them field by field.
  */
 export class DebouncedFileWriter<T extends Identified> {
   private synced: SyncedFile<T>;

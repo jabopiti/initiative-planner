@@ -1,17 +1,10 @@
 import type { PhaseDef } from '../brand/types';
+import { iso, parseIso } from './dates';
 import type { PhasePlan } from './types';
-
-const pad = (n: number) => String(n).padStart(2, '0');
-const iso = (y: number, m: number, d: number) => `${y}-${pad(m)}-${pad(d)}`;
-
-/** Today's calendar date in the user's local time (§7.1, §5.11), as `YYYY-MM-DD`. */
-export function localToday(now: Date = new Date()): string {
-  return iso(now.getFullYear(), now.getMonth() + 1, now.getDate());
-}
 
 /** The same day of the month, `months` later; a day the target month lacks becomes its last day. */
 function addMonths(isoDate: string, months: number): string {
-  const [y, m, d] = isoDate.split('-').map(Number);
+  const [y, m, d] = parseIso(isoDate);
   const index = y * 12 + (m - 1) + months;
   const year = Math.floor(index / 12);
   const month = (index % 12) + 1;
@@ -20,7 +13,7 @@ function addMonths(isoDate: string, months: number): string {
 }
 
 function addDays(isoDate: string, days: number): string {
-  const [y, m, d] = isoDate.split('-').map(Number);
+  const [y, m, d] = parseIso(isoDate);
   const date = new Date(Date.UTC(y, m - 1, d + days));
   return iso(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());
 }

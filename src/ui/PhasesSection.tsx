@@ -10,6 +10,7 @@ import type { Initiative, Team } from '../data/types';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
+import { InlineWarning } from './InlineWarning';
 import { PercentInput } from './PercentInput';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -18,7 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 export function PhasesSection({ initiative, team }: { initiative: Initiative; team: Team | undefined }) {
   const { process } = useBrand();
   // The first costed phase opens by default; the others are one line until clicked.
-  const [open, setOpen] = useState<Set<string>>(() => new Set(process.filter((p) => p.costed).slice(0, 1).map((p) => p.id)));
+  const costedPhases = process.filter((p) => p.costed);
+  const [open, setOpen] = useState<Set<string>>(() => new Set(costedPhases.slice(0, 1).map((p) => p.id)));
   const toggle = (id: string) =>
     setOpen((current) => {
       const next = new Set(current);
@@ -27,7 +29,6 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
     });
 
   // One next step at a time: the first costed phase still missing its period or its people.
-  const costedPhases = process.filter((p) => p.costed);
   const isPlanned = (phase: PhaseDef) => {
     const plan = initiative.phases?.[phase.id];
     return Boolean(plan?.startDate && plan.endDate) && plan!.allocations.length > 0;
@@ -208,16 +209,10 @@ function CostedPhase({
             </div>
           </div>
           {overlap && (
-            <p className="m-0 flex items-center gap-1 rounded-md bg-warning-tint px-2 py-1 text-xs text-warning-text" role="status">
-              <WarningIcon width={14} height={14} />
-              {overlap}
-            </p>
+            <InlineWarning>{overlap}</InlineWarning>
           )}
           {inverted && (
-            <p className="m-0 flex items-center gap-1 rounded-md bg-warning-tint px-2 py-1 text-xs text-warning-text" role="status">
-              <WarningIcon width={14} height={14} />
-              The end date is before the start date, so this phase isn&apos;t costed yet.
-            </p>
+            <InlineWarning>The end date is before the start date, so this phase isn&apos;t costed yet.</InlineWarning>
           )}
 
           {plan.allocations.length === 0 ? (

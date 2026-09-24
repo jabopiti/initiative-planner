@@ -17,7 +17,8 @@ import {
 } from '../data/types';
 import { allocationRefusal } from '../data/cost';
 import { formatDate } from '../data/dates';
-import { buildDefaultPlan, localToday } from '../data/defaultPlan';
+import { localToday } from '../data/dates';
+import { buildDefaultPlan } from '../data/defaultPlan';
 import { toReadOnlyState, type GithubFailureCause, type ReadOnlyState } from '../github/errors';
 import { GithubClient, parseJsonFile } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
@@ -57,8 +58,8 @@ type Listener = () => void;
 
 /**
  * The single source of truth for dataset state and GitHub sync (§3, §10.2,
- * §10.3). Owns the debounced-write pipeline for master list files and the
- * one-shot create path for per-initiative files.
+ * §10.3). Owns the debounced-write pipeline for master list files and for
+ * per-initiative files; a new initiative file is created in one put first.
  */
 export class Repository {
   private state: RepositoryState = {
@@ -90,14 +91,13 @@ export class Repository {
     this.github = new GithubClient(brand.github, () => token);
   }
 
-  getState(): RepositoryState {
-    return this.state;
-  }
+  // Arrow properties, so React's useSyncExternalStore gets the same functions on every render and never resubscribes.
+  readonly getState = (): RepositoryState => this.state;
 
-  subscribe(listener: Listener): () => void {
+  readonly subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
-  }
+  };
 
   private setState(patch: Partial<RepositoryState>): void {
     this.state = { ...this.state, ...patch };
@@ -108,7 +108,14 @@ export class Repository {
     this.setState({ readOnly: { cause, message } });
   }
 
-  async initialize(): Promise<void> {
+  private initialising: Promise<void> | null = null;
+
+  /** Loads the dataset once; a second call (React StrictMode runs the effect twice in dev) shares the first. */
+  initialize(): Promise<void> {
+    return (this.initialising ??= this.load());
+  }
+
+  private async load(): Promise<void> {
     const branch = this.brand.github.dataBranch;
 
     let datasetFile;
@@ -197,6 +204,16 @@ export class Repository {
   }
 
   /** One debounced writer per master file (§10.3); each reports through the same sync/conflict state. */
+  /** What every file writer reports: the top bar's syncing and read-only state, and any conflict to resolve. */
+  private readonly onWriteStatus = (status: WriteStatus): void => {
+    if (status === 'synced') this.setState({ syncing: false, readOnly: null });
+    else if (status === 'syncing') this.setState({ syncing: true });
+    else this.setState({ syncing: false, readOnly: status.readOnly });
+  };
+
+  private readonly onConflict = (conflict: FileConflict<unknown>): void =>
+    this.setState({ conflicts: [...this.state.conflicts, conflict] });
+
   private createWriter<T extends MasterRecord>(
     path: string,
     branch: string,
@@ -208,12 +225,8 @@ export class Repository {
       branch,
       this.github,
       this.queue,
-      (status) => {
-        if (status === 'synced') this.setState({ syncing: false, readOnly: null });
-        else if (status === 'syncing') this.setState({ syncing: true });
-        else this.setState({ syncing: false, readOnly: status.readOnly });
-      },
-      (conflict) => this.setState({ conflicts: [...this.state.conflicts, conflict as FileConflict<unknown>] }),
+      this.onWriteStatus,
+      this.onConflict,
       (content) => this.setState({ [key]: content } as Partial<RepositoryState>),
       initial,
     );
@@ -239,12 +252,8 @@ export class Repository {
         this.brand.github.dataBranch,
         this.github,
         this.queue,
-        (status: WriteStatus) => {
-          if (status === 'synced') this.setState({ syncing: false, readOnly: null });
-          else if (status === 'syncing') this.setState({ syncing: true });
-          else this.setState({ syncing: false, readOnly: status.readOnly });
-        },
-        (conflict) => this.setState({ conflicts: [...this.state.conflicts, conflict] }),
+        this.onWriteStatus,
+        this.onConflict,
         (merged) => this.replaceInitiative(merged),
         { content: initiative, sha },
       ),
@@ -281,9 +290,7 @@ export class Repository {
   /** New team (§5.7): created from a name only. */
   createTeam(name: string): Team {
     const team: Team = { id: newId(), name, active: true };
-    const next = [...this.state.teams, team];
-    this.setState({ teams: next });
-    this.teamsWriter?.schedule(next, { key: team.id, text: `${name}: team created` });
+    this.commitTeams([...this.state.teams, team], { key: team.id, text: `${name}: team created` });
     return team;
   }
 
@@ -385,13 +392,13 @@ export class Repository {
     }
     const who = this.personName(current.personId);
     const where = this.teamName(current.teamId);
-    const what =
-      patch.active !== undefined && patch.teamFtePct === undefined
-        ? `${patch.active ? 'reactivated' : 'deactivated'} on ${where}`
-        : `Team FTE % on ${where} set to ${next.teamFtePct}%`;
+    const activeOnly = patch.active !== undefined && patch.teamFtePct === undefined;
+    const what = activeOnly
+      ? `${patch.active ? 'reactivated' : 'deactivated'} on ${where}`
+      : `Team FTE % on ${where} set to ${next.teamFtePct}%`;
     this.commitMemberships(
       this.state.memberships.map((m) => (m.id === id ? next : m)),
-      { key: `${id}:${patch.active !== undefined && patch.teamFtePct === undefined ? 'active' : 'pct'}`, text: `${who}: ${what}` },
+      { key: `${id}:${activeOnly ? 'active' : 'pct'}`, text: `${who}: ${what}` },
     );
   }
 
@@ -410,6 +417,11 @@ export class Repository {
       this.state.memberships.filter((m) => m.id !== id),
       removed && { key: id, text: `${this.personName(removed.personId)}: removed from ${this.teamName(removed.teamId)}` },
     );
+  }
+
+  private commitTeams(next: Team[], note?: { key: string; text: string }): void {
+    this.setState({ teams: next });
+    this.teamsWriter?.schedule(next, note);
   }
 
   private commitPeople(next: Person[], note?: { key: string; text: string }): void {

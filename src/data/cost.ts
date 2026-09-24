@@ -1,3 +1,4 @@
+import { parseIso } from './dates';
 import type { Country, Membership, PhasePlan, Person, Role, Team } from './types';
 
 /**
@@ -23,8 +24,8 @@ function monthKey(year: number, month: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}`;
 }
 
-function parseDate(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number);
+function parseDate(isoDate: string): Date {
+  const [y, m, d] = parseIso(isoDate);
   return new Date(Date.UTC(y, m - 1, d));
 }
 

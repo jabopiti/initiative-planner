@@ -4,7 +4,7 @@ import { useBrand } from '../state/BrandContext';
 import { useRepository } from '../state/DataContext';
 import { Label } from '@/components/ui/label';
 import { CommitInput } from './CommitInput';
-import { WarningIcon } from './icons';
+import { InlineWarning } from './InlineWarning';
 
 /** The parse every number field here shares: blank or not a non-negative number is rejected. */
 function parseAmount(text: string): number | null {
@@ -97,10 +97,7 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
       </fieldset>
 
       {customRole.dayRatesByYear.length === 0 && (
-        <p className="m-0 flex items-center gap-1 rounded-md bg-warning-tint px-2 py-1 text-xs text-warning-text" role="status">
-          <WarningIcon width={14} height={14} />
-          No rate yet. Costed at 0.
-        </p>
+        <InlineWarning>No rate yet. Costed at 0.</InlineWarning>
       )}
       <p className="m-0 text-xs text-text-secondary">Replaces the country rate. Cost is day rate × cost factor.</p>
     </div>

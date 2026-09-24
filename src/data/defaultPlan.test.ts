@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import { buildDefaultPlan, chainPeriods, localToday } from './defaultPlan';
+import { localToday } from './dates';
+import { buildDefaultPlan, chainPeriods } from './defaultPlan';
 
 describe('chainPeriods (§5.11 default plan)', () => {
   it('starts on the given day and ends the day before the same day N months later', () => {

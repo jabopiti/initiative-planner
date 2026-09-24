@@ -35,3 +35,5 @@ export function useTableSort(defaultKey: string) {
   }
   return { ...sort, toggle };
 }
+
+export type TableSort = ReturnType<typeof useTableSort>;

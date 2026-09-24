@@ -42,9 +42,8 @@ export function TopBar({ route }: { route: string }) {
 
       <div className="flex items-center gap-3">
         <NewInitiativeControl />
-        {/* Search overlay isn't in slice 003's scope (§5.1's grouped search over cached data is separate,
-            unverified-by-acceptance work) — the icon is present so the bar's layout matches §5.1, but it's
-            inert for now. */}
+        {/* Search (§5.1's grouped search over cached data) isn't built yet — the icon is present so the
+            bar's layout matches §5.1, but it's inert for now. */}
         <button
           type="button"
           className="inline-flex size-8 items-center justify-center rounded-lg text-text-secondary disabled:cursor-not-allowed disabled:opacity-40"

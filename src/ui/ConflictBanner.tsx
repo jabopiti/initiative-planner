@@ -3,9 +3,7 @@ import { Button } from '@/components/ui/button';
 
 /**
  * A same-field conflict (§3 "Conflict edge cases", §10.5): never
- * auto-resolved. Not reachable through slice 003's own screens today (no
- * flow edits an existing shared entity's field concurrently) — wired up as
- * real, tested infrastructure ahead of the slice that first needs it.
+ * auto-resolved. Master list files and initiative files both report them here.
  */
 export function ConflictBanner() {
   const repository = useRepository();

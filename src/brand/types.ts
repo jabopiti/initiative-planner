@@ -1,5 +1,5 @@
 /**
- * Brand pack shape (spec §2). Only the fields slice 003 actually reads are
+ * Brand pack shape (spec §2). Only the fields the built slices read are
  * modelled here — checklist requirement flags, skip rules and the example
  * dataset belong to later slices and can be added when something reads them.
  */
