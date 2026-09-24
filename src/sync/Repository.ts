@@ -318,6 +318,16 @@ export class Repository {
     return person;
   }
 
+  /** Deactivate or reactivate a team (§5.8, §9.3): teams are never deleted, so the record stays. */
+  updateTeam(id: string, patch: Pick<Team, 'active'>): void {
+    const current = this.state.teams.find((t) => t.id === id);
+    if (!current || current.active === patch.active) return;
+    this.commitTeams(
+      this.state.teams.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+      { key: `${id}:active`, text: `${current.name}: team ${patch.active ? 'reactivated' : 'deactivated'}` },
+    );
+  }
+
   /** In-place edit from the person panel (§5.6): no save button, so every change commits. */
   updatePerson(id: string, patch: Partial<Omit<Person, 'id'>>): void {
     const current = this.state.people.find((p) => p.id === id);

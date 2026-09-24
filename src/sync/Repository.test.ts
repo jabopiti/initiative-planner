@@ -318,6 +318,26 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     ]);
   });
 
+  it('says which team was deactivated and reactivated (§9.3)', async () => {
+    const mock = routingFetchMock();
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const team = repo.createTeam('Payments');
+    await repo.flushPending();
+    repo.updateTeam(team.id, { active: false });
+    await repo.flushPending();
+    repo.updateTeam(team.id, { active: true });
+    await repo.flushPending();
+
+    expect(repo.getState().teams[0].active).toBe(true);
+    expect(messagesFor(mock, 'teams.json')).toEqual([
+      'Payments: team created',
+      'Payments: team deactivated',
+      'Payments: team reactivated',
+    ]);
+  });
+
   it('says what changed about a custom role, one edit at a time (§5.6)', async () => {
     const mock = routingFetchMock();
     vi.stubGlobal('fetch', mock);
