@@ -164,6 +164,28 @@ describe('the capacity grid on the team detail (§5.8)', () => {
     expect(cell(g, 'Bo Lind', 'Sep 2026')).toHaveFocus();
   });
 
+  it('leaves an inactive team\'s initiatives out of the Capacity %, and out of the detail', async () => {
+    const user = setupUser();
+    fixture.teams[1].active = false; // Platform, whose Data lake adds 40% in Oct
+    renderView(<TeamDetail id="t1" />);
+    const g = await grid();
+    const oct = cell(g, 'Ana Ruiz', 'Oct 2026');
+    expect(oct).toHaveAccessibleName(/over Team FTE %/);
+    expect(oct).not.toHaveAccessibleName(/over Capacity %/);
+    await user.click(oct);
+    const detail = within(screen.getByRole('region', { name: 'Capacity detail' }));
+    expect(detail.queryByRole('link', { name: 'Data lake' })).not.toBeInTheDocument();
+    expect(detail.queryByText(/Over Capacity %/)).not.toBeInTheDocument();
+  });
+
+  it('replaces the grid of an inactive team with a note that its initiatives are not counted', async () => {
+    fixture.teams[1].active = false;
+    renderView(<TeamDetail id="t2" />);
+    expect(await screen.findByText("This team is inactive, so its initiatives are not counted toward anyone's capacity. Reactivate the team to see its capacity.")).toBeInTheDocument();
+    const region = within(screen.getByRole('region', { name: 'Capacity' }));
+    expect(region.queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('closes the detail', async () => {
     const user = setupUser();
     renderView(<TeamDetail id="t1" />);

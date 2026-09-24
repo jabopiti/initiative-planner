@@ -3,7 +3,7 @@ import { monthsInRange } from './cost';
 import { monthOf, nextMonth } from './dates';
 import { currentPhaseId } from './processState';
 import { activeMembers, activeMembership } from './teamMembers';
-import type { Initiative, Membership, Person } from './types';
+import type { Initiative, Membership, Person, Team } from './types';
 
 /** Total Team FTE % a person's active memberships claim (§4). */
 export function claimedFtePct(personId: string, memberships: Membership[], excludeMembershipId?: string): number {
@@ -54,6 +54,7 @@ export interface Load {
 
 export interface CapacityData {
   initiatives: Initiative[];
+  teams: Team[];
   people: Person[];
   memberships: Membership[];
   process: PhaseDef[];
@@ -61,11 +62,14 @@ export interface CapacityData {
   today: string;
 }
 
-/** Every allocation of every Active initiative on a costed phase with a valid period (§7.2: only Active count). Compute once, share across callers. */
-export function activeLoads({ initiatives, process, today }: Pick<CapacityData, 'initiatives' | 'process' | 'today'>): Load[] {
+/** An initiative counts toward capacity when it is Active and its team is active (§7.2, §9.3); a team that is not in the list does not count. */
+const counts = (initiative: Initiative, teams: Team[]) => initiative.status === 'Active' && teams.some((t) => t.id === initiative.teamId && t.active);
+
+/** Every allocation of every counted initiative on a costed phase with a valid period (§7.2). Compute once, share across callers. */
+export function activeLoads({ initiatives, teams, process, today }: Pick<CapacityData, 'initiatives' | 'teams' | 'process' | 'today'>): Load[] {
   const loads: Load[] = [];
   for (const initiative of initiatives) {
-    if (initiative.status !== 'Active') continue;
+    if (!counts(initiative, teams)) continue;
     for (const phase of process) {
       const plan = initiative.phases?.[phase.id];
       if (!phase.costed || !plan?.startDate || !plan.endDate) continue;
@@ -209,8 +213,8 @@ export interface AllocationWarnings {
 
 /**
  * The warnings on one allocation row of the initiative page (§5.4). The ceilings look at the phase's own
- * months and stay silent on a Provisional phase or an initiative that is not Active, whose allocation is not
- * counted; the membership warning shows regardless, because such an allocation keeps costing.
+ * months and stay silent on a Provisional phase or an initiative that is not counted (not Active, or of an
+ * inactive team), whose allocation is not counted; the membership warning shows regardless, because such an allocation keeps costing.
  */
 export function allocationWarnings(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): AllocationWarnings {
   const person = data.people.find((p) => p.id === personId);
@@ -219,7 +223,7 @@ export function allocationWarnings(initiative: Initiative, phaseId: string, pers
   // A dangling person is shown as "Unknown person" on the row already; that is not a membership matter.
   const none: AllocationWarnings = { notMember: person !== undefined && !membership, overTeamFteMonths: [], overCapacityMonths: [] };
   const plan = initiative.phases?.[phaseId];
-  if (!person || initiative.status !== 'Active' || !plan?.startDate || !plan.endDate) return none;
+  if (!person || !counts(initiative, data.teams) || !plan?.startDate || !plan.endDate) return none;
   if (!isPhaseConfirmed(initiative, phaseId, data.process, data.today)) return none;
 
   const loads = allLoads.filter((l) => l.confirmed && l.personId === personId);

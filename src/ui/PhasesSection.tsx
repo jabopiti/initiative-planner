@@ -20,10 +20,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 /** The initiative page's Phases section (§5.4): every phase in order, costed ones expandable. */
 export function PhasesSection({ initiative, team }: { initiative: Initiative; team: Team | undefined }) {
   const { process } = useBrand();
-  const { initiatives } = useRepositoryState();
+  const { initiatives, teams } = useRepositoryState();
   // One portfolio-wide pass for every allocation row of every phase (§5.4 warnings).
   const today = localToday();
-  const loads = useMemo(() => activeLoads({ initiatives, process, today }), [initiatives, process, today]);
+  const loads = useMemo(() => activeLoads({ initiatives, teams, process, today }), [initiatives, teams, process, today]);
   // The first costed phase opens by default; the others are one line until clicked.
   const costedPhases = process.filter((p) => p.costed);
   const [open, setOpen] = useState<Set<string>>(() => new Set(costedPhases.slice(0, 1).map((p) => p.id)));
@@ -109,7 +109,7 @@ function CostedPhase({
 }) {
   const repository = useRepository();
   const { currencySymbol, process } = useBrand();
-  const { people, roles, countries, memberships, initiatives } = useRepositoryState();
+  const { people, roles, countries, memberships, initiatives, teams } = useRepositoryState();
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const plan = initiative.phases?.[phase.id] ?? { allocations: [] };
@@ -253,7 +253,7 @@ function CostedPhase({
                   const person = people.find((p) => p.id === allocation.personId);
                   const figures = person ? allocationFigures(plan, person, allocation.allocationPct, rateData) : null;
                   const name = person?.name ?? 'Unknown person';
-                  const warnings = allocationWarnings(initiative, phase.id, allocation.personId, { initiatives, people, memberships, process, today }, loads);
+                  const warnings = allocationWarnings(initiative, phase.id, allocation.personId, { initiatives, teams, people, memberships, process, today }, loads);
                   return (
                     <tr key={allocation.id} className="border-t border-border-default">
                       <td className="py-1.5 pr-2">

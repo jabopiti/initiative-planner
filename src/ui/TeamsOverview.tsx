@@ -40,7 +40,7 @@ export function TeamsOverview() {
 
   const today = localToday();
   const rows = useMemo(() => {
-    const data = { initiatives, people, memberships, process: brand.process, today };
+    const data = { initiatives, teams, people, memberships, process: brand.process, today };
     const loads = activeLoads(data);
     return teams.map((team) => ({
       team,

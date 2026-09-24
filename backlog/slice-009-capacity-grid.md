@@ -70,6 +70,14 @@ for both ceiling types.
   - Empty states: no members, "No members yet. Add members to see their
     capacity."; no allocations, "Nothing allocated yet. Allocate members to
     an initiative's phase and their months appear here."
+  - Only initiatives of **active teams** count (§7.2, §9.3): deactivating a
+    team lifts its initiatives' load from every member's Capacity % and from
+    other teams' grids, and the deactivated team's own capacity view shows a
+    note instead of a grid. Slice 003c's open question on whether an inactive
+    team's Active initiatives count is settled this way; whether they show a
+    marker or block edits is still open.
+  - Selecting a cell or name moves focus to the detail heading; Close details
+    returns it to the opener.
   - Until slice 008 the current phase is always the process's first phase
     (`currentPhaseId`), which is Discovery and not costed, so a costed phase
     counts as Confirmed only by its start date (this or next month).

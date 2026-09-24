@@ -49,12 +49,12 @@ interface Selection {
 /** The team detail's Capacity view (§5.8, §7.2): a month-by-month grid of each member's allocation against their two ceilings. */
 export function CapacityGrid({ team }: { team: Team }) {
   const { process } = useBrand();
-  const { initiatives, people, memberships } = useRepositoryState();
+  const { initiatives, teams, people, memberships } = useRepositoryState();
   const [selection, setSelection] = useState<Selection | null>(null);
   /** The cell or name that opened the detail, so closing it puts focus back there. */
   const opener = useRef<HTMLElement | null>(null);
   const today = localToday();
-  const capacity = useMemo(() => teamCapacity(team.id, { initiatives, people, memberships, process, today }), [team.id, initiatives, people, memberships, process, today]);
+  const capacity = useMemo(() => teamCapacity(team.id, { initiatives, teams, people, memberships, process, today }), [team.id, initiatives, teams, people, memberships, process, today]);
 
   function copyData() {
     return {
@@ -85,10 +85,12 @@ export function CapacityGrid({ team }: { team: Team }) {
     <section aria-label="Capacity" className="mt-8">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="m-0 text-base">Capacity</h2>
-        {capacity.months.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} label="Copy capacity" />}
+        {team.active && capacity.months.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} label="Copy capacity" />}
       </div>
 
-      {capacity.rows.length === 0 ? (
+      {!team.active ? (
+        <p className="m-0 py-6 text-[15px] text-text-secondary">This team is inactive, so its initiatives are not counted toward anyone&apos;s capacity. Reactivate the team to see its capacity.</p>
+      ) : capacity.rows.length === 0 ? (
         <p className="m-0 py-6 text-[15px] text-text-secondary">No members yet. Add members to see their capacity.</p>
       ) : capacity.months.length === 0 ? (
         <>
@@ -164,7 +166,7 @@ export function CapacityGrid({ team }: { team: Team }) {
         </>
       )}
 
-      {selection && selectedRow && <Detail row={selectedRow} month={selection.month} team={team} capacity={capacity} onClose={close} />}
+      {team.active && selection && selectedRow && <Detail row={selectedRow} month={selection.month} team={team} capacity={capacity} onClose={close} />}
     </section>
   );
 }

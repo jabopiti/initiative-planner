@@ -70,7 +70,15 @@ const plan = (startDate: string, endDate: string, ...allocations: [string, numbe
 const ana: Person = { ...person, id: 'ana', name: 'Ana', capacityPct: 100 };
 const bo: Person = { ...person, id: 'bo', name: 'Bo', capacityPct: 100 };
 const mem = (personId: string, teamId: string, teamFtePct: number, active = true): Membership => ({ id: `m-${personId}-${teamId}`, personId, teamId, teamFtePct, active });
-const data = (initiatives: Initiative[], memberships: Membership[], people: Person[] = [ana, bo]) => ({ initiatives, people, memberships, process, today });
+/** Every team the initiatives name is active, except the ids listed. */
+const data = (initiatives: Initiative[], memberships: Membership[], people: Person[] = [ana, bo], inactiveTeamIds: string[] = []) => ({
+  initiatives,
+  people,
+  memberships,
+  teams: [...new Set(initiatives.map((i) => i.teamId))].map((id) => ({ id, name: id, active: !inactiveTeamIds.includes(id) })),
+  process,
+  today,
+});
 
 describe('isPhaseConfirmed (§4)', () => {
   const at = (start: string) => initiative('i', 't1', { validation: plan(start, '2027-12-31', ['ana', 10]) });
@@ -264,5 +272,42 @@ describe('review fixes', () => {
     const cap = teamCapacity('t1', data(inits, [mem('ana', 't1', 60)]));
     expect(cap.rows.map((r) => r.person.name)).toEqual(['Ana']);
     expect(teamHasCapacityWarning(cap)).toBe(false);
+  });
+});
+
+describe('an inactive team\'s initiatives are not counted (§7.2, §9.3)', () => {
+  const inits = [
+    initiative('i1', 't1', { validation: plan('2026-10-01', '2026-10-31', ['ana', 60]) }),
+    initiative('i2', 't2', { validation: plan('2026-10-01', '2026-10-31', ['ana', 70]) }),
+  ];
+  const mems = [mem('ana', 't1', 60), mem('ana', 't2', 40)];
+
+  it('counts them while the team is active: 130% is over the Capacity %', () => {
+    const oct = teamCapacity('t1', data(inits, mems)).rows[0].cells.find((c) => c.month === '2026-10');
+    expect([oct?.totalPct, oct?.overCapacity]).toEqual([130, true]);
+  });
+
+  it('leaves them out of another team\'s Capacity % once the team is deactivated', () => {
+    const cap = teamCapacity('t1', data(inits, mems, [ana, bo], ['t2']));
+    const oct = cap.rows[0].cells.find((c) => c.month === '2026-10');
+    expect([oct?.totalPct, oct?.overCapacity]).toEqual([60, false]);
+    expect(cap.loads.map((l) => l.initiativeId)).toEqual(['i1']);
+    expect(teamHasCapacityWarning(cap)).toBe(false);
+  });
+
+  it('gives the inactive team\'s own capacity no months', () => {
+    const cap = teamCapacity('t2', data(inits, mems, [ana, bo], ['t2']));
+    expect(cap.months).toEqual([]);
+  });
+
+  it('silences the ceilings on the inactive team\'s allocation rows, but not the membership warning', () => {
+    const d = data(inits, [mem('ana', 't1', 60)], [ana, bo], ['t2']);
+    expect(allocationWarnings(inits[1], 'validation', 'ana', d)).toEqual({ notMember: true, overTeamFteMonths: [], overCapacityMonths: [] });
+    expect(allocationWarnings(inits[0], 'validation', 'ana', d)).toEqual({ notMember: false, overTeamFteMonths: [], overCapacityMonths: [] });
+  });
+
+  it('treats a team that does not exist as not counting', () => {
+    const d = { ...data(inits, mems), teams: [{ id: 't1', name: 'T1', active: true }] };
+    expect(teamCapacity('t1', d).rows[0].cells.find((c) => c.month === '2026-10')?.totalPct).toBe(60);
   });
 });
