@@ -64,7 +64,7 @@ export function PortfolioBoard() {
                     <div className="mb-1 text-sm font-semibold">{initiative.name}</div>
                     <div className="flex items-center justify-between text-xs text-text-secondary">
                       <span>{teamsById.get(initiative.teamId)?.name ?? 'Unknown team'}</span>
-                      <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-[11px]">Not yet known</span>
+                      <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-[11px]">No approval track</span>
                     </div>
                   </a>
                 ))}
