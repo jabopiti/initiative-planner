@@ -7,6 +7,7 @@ import {
   resolveRate,
   weekdaysInMonth,
   workingDaysForPeriod,
+  trackedYears,
   yearRecord,
 } from './cost';
 import type { Country, Membership, Person, Role, Team } from './types';
@@ -32,7 +33,7 @@ const cto: Person = {
   ...ana,
   id: 'cto',
   name: 'Cai Wu',
-  customRole: { label: 'Fractional CTO', dayRatesByYear: [{ year: 2026, dayRate: 900 }] },
+  customRole: { active: true, label: 'Fractional CTO', costFactor: 1, dayRatesByYear: [{ year: 2026, dayRate: 900 }] },
 };
 
 describe('working days and proration (§7.1)', () => {
@@ -77,14 +78,39 @@ describe('year records clamp to the nearest tracked year (§7.2)', () => {
   it('has nothing to answer with when no year is tracked', () => {
     expect(yearRecord([], 2026)).toBeUndefined();
   });
+  it('takes the nearest earlier entered year for a gap, never a later one', () => {
+    const gappy = [{ year: 2026 }, { year: 2028 }];
+    expect(yearRecord(gappy, 2027)).toBe(gappy[0]);
+    expect(yearRecord(gappy, 2029)).toBe(gappy[1]);
+  });
+});
+
+describe('the tracked window (§7.2)', () => {
+  it('is the current calendar year and the next two', () => {
+    expect(trackedYears(new Date(2026, 8, 24))).toEqual([2026, 2027, 2028]);
+  });
 });
 
 describe('rate resolution (§7.2)', () => {
   it('uses the country rate for the year and the role factor', () => {
     expect(resolveRate(ana, data, 2027)).toEqual({ dayRate: 600, factor: 0.8 });
   });
-  it('uses a custom rate absolutely: no role factor', () => {
+  it("uses a custom role's own rate and its own cost factor, not the standard role's", () => {
     expect(resolveRate(cto, data, 2026)).toEqual({ dayRate: 900, factor: 1 });
+    const scaled = { ...cto, customRole: { ...cto.customRole!, costFactor: 1.2 } };
+    expect(resolveRate(scaled, data, 2026)).toEqual({ dayRate: 900, factor: 1.2 });
+  });
+  it('costs a person with the standard role while their custom role is switched off, keeping its entries', () => {
+    const switchedOff = { ...cto, customRole: { ...cto.customRole!, active: false } };
+    expect(resolveRate(switchedOff, data, 2026)).toEqual({ dayRate: 500, factor: 0.8 });
+    expect(switchedOff.customRole.dayRatesByYear).toEqual([{ year: 2026, dayRate: 900 }]);
+  });
+  it('is unresolvable for a custom role with no rate entered, which costs as zero', () => {
+    const empty = { ...cto, customRole: { ...cto.customRole!, dayRatesByYear: [] } };
+    expect(resolveRate(empty, data, 2026)).toBeNull();
+  });
+  it('takes the nearest earlier entered year for a later year', () => {
+    expect(resolveRate(cto, data, 2028)).toEqual({ dayRate: 900, factor: 1 });
   });
   it('is unresolvable for an unknown country or role', () => {
     expect(resolveRate({ ...ana, countryId: 'zz' }, data, 2026)).toBeNull();
@@ -112,8 +138,10 @@ describe('cost of an allocation (§7.1)', () => {
     expect(figures.cost).toBeCloseTo(20 * 0.5 * 500 * 0.8 + 20 * 0.5 * 600 * 0.8); // 8,800
   });
 
-  it('uses the custom day rate and no role factor for a custom-role person', () => {
+  it("uses the custom day rate × the custom cost factor, not the standard role's, for a custom-role person", () => {
     expect(allocationFigures(period, cto, 50, data).cost).toBeCloseTo(40 * 0.5 * 900); // 18,000
+    const scaled = { ...cto, customRole: { ...cto.customRole!, costFactor: 1.5 } };
+    expect(allocationFigures(period, scaled, 50, data).cost).toBeCloseTo(40 * 0.5 * 900 * 1.5); // 27,000
   });
 
   it('is zero, not an error, without a complete period or a resolvable rate', () => {

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
+import { roleLabel } from '../data/roleLabel';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
 import { PersonPanel } from './PersonPanel';
 import { EmptyState } from './EmptyState';
@@ -41,7 +42,7 @@ export function PeopleOverview() {
       .filter((p) => filter === 'all' || (filter === 'active' ? p.active : !p.active))
       .map((p) => ({
         person: p,
-        roleName: roles.find((r) => r.id === p.roleId)?.name ?? '—',
+        roleName: roleLabel(p, roles),
         countryName: countries.find((c) => c.id === p.countryId)?.name ?? '—',
         teamNames: teamNamesOf(p.id),
       }));

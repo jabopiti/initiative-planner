@@ -51,15 +51,23 @@ export function monthsInRange(startIso: string, endIso: string): string[] {
 }
 
 /**
- * The record for `year`, or, outside the tracked years, the nearest one: before the earliest
- * takes the earliest, beyond the latest takes the latest (§7.2), never a fallback to zero.
+ * The record for `year`, or, for a year with none, the nearest earlier one (the copy-from-preceding-year
+ * rule of §7.2; so beyond the latest takes the latest). Before the earliest takes the earliest. Never a
+ * fallback to zero.
  */
 export function yearRecord<T extends { year: number }>(records: T[], year: number): T | undefined {
   if (records.length === 0) return undefined;
   const direct = records.find((r) => r.year === year);
   if (direct) return direct;
   const sorted = [...records].sort((a, b) => a.year - b.year);
-  return year < sorted[0].year ? sorted[0] : sorted[sorted.length - 1];
+  const earlier = sorted.filter((r) => r.year < year);
+  return earlier.length > 0 ? earlier[earlier.length - 1] : sorted[0];
+}
+
+/** The tracked window (§7.2): the current calendar year and the next two. */
+export function trackedYears(today: Date = new Date()): number[] {
+  const year = today.getFullYear();
+  return [year, year + 1, year + 2];
 }
 
 /** Weekdays (Monday to Friday) in a calendar month. `month` is 0-based. */
@@ -108,14 +116,14 @@ export function workingDaysForPeriod(country: Country, startIso?: string, endIso
 }
 
 /**
- * The single place a person's rate and factor are derived (§7.2). A custom rate is absolute: it
- * replaces the country rate and bypasses the role factor. Null when the rate can't be resolved
+ * The single place a person's rate and factor are derived (§7.2). A custom role brings its own day
+ * rate and cost factor, replacing the country rate and the standard role's factor. Null when the rate can't be resolved
  * (a country or role that no longer exists), so a caller costs it as zero instead of throwing.
  */
 export function resolveRate(person: Person, data: RateData, year: number): { dayRate: number; factor: number } | null {
-  if (person.customRole) {
+  if (person.customRole?.active) {
     const record = yearRecord(person.customRole.dayRatesByYear, year);
-    return record ? { dayRate: record.dayRate, factor: 1 } : null;
+    return record ? { dayRate: record.dayRate, factor: person.customRole.costFactor } : null;
   }
   const country = data.countries.find((c) => c.id === person.countryId);
   const role = data.roles.find((r) => r.id === person.roleId);

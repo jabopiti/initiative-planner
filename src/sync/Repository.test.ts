@@ -272,6 +272,34 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
       'Ada Lovelace: removed from Payments',
     ]);
   });
+
+  it('says what changed about a custom role, one edit at a time (§5.6)', async () => {
+    const mock = routingFetchMock();
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const cai = repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
+    await repo.flushPending();
+
+    const custom = { active: true, label: 'Fractional CTO', costFactor: 1, dayRatesByYear: [{ year: 2026, dayRate: 900 }] };
+    repo.updatePerson(cai.id, { customRole: custom });
+    await repo.flushPending();
+    repo.updatePerson(cai.id, { customRole: { ...custom, costFactor: 1.2 } });
+    await repo.flushPending();
+    repo.updatePerson(cai.id, { customRole: { ...custom, costFactor: 1.2, dayRatesByYear: [] } });
+    await repo.flushPending();
+    repo.updatePerson(cai.id, { customRole: { ...custom, costFactor: 1.2, dayRatesByYear: [], active: false } });
+    await repo.flushPending();
+
+    expect(messagesFor(mock, 'people.json').slice(1)).toEqual([
+      'Cai Wu: custom role set to Fractional CTO, 2026 custom day rate set to 900',
+      'Cai Wu: custom role cost factor set to 1.2',
+      'Cai Wu: 2026 custom day rate cleared',
+      expect.stringMatching(/^Cai Wu: back to standard role /),
+    ]);
+    // Switching back keeps the custom entries for later (§6).
+    expect(repo.getState().people[0].customRole?.label).toBe('Fractional CTO');
+  });
 });
 
 
