@@ -5,18 +5,23 @@ import { newId } from '../data/ids';
 import {
   FILE_PATHS,
   SCHEMA_VERSION,
+  type Allocation,
   type Country,
   type DatasetFlags,
   type Initiative,
   type Membership,
+  type PhasePlan,
   type Person,
   type Role,
   type Team,
 } from '../data/types';
+import { allocationRefusal } from '../data/cost';
+import { formatDate } from '../data/dates';
 import { toReadOnlyState, type GithubFailureCause, type ReadOnlyState } from '../github/errors';
 import { GithubClient, parseJsonFile } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
-import { DebouncedFileWriter, type FileConflict } from './DebouncedFileWriter';
+import { DebouncedFileWriter, type FileConflict, type WriteStatus } from './DebouncedFileWriter';
+import { InitiativeFileWriter } from './InitiativeFileWriter';
 import { WriteQueue } from './WriteQueue';
 
 export type { ReadOnlyState } from '../github/errors';
@@ -32,7 +37,7 @@ export interface RepositoryState {
   people: Person[];
   memberships: Membership[];
   initiatives: Initiative[];
-  conflicts: FileConflict<MasterRecord>[];
+  conflicts: FileConflict<unknown>[];
 }
 
 export type MasterRecord = Team | Person | Membership;
@@ -43,6 +48,9 @@ export interface NewPersonInput {
   countryId: string;
   roleId: string;
 }
+
+/** Why an allocation wasn't added (§7.2), in words the page can show as is. */
+export type AddAllocationResult = { ok: true; allocation: Allocation } | { ok: false; reason: string };
 
 type Listener = () => void;
 
@@ -72,6 +80,7 @@ export class Repository {
   private teamsWriter: DebouncedFileWriter<Team> | null = null;
   private peopleWriter: DebouncedFileWriter<Person> | null = null;
   private membershipsWriter: DebouncedFileWriter<Membership> | null = null;
+  private readonly initiativeWriters = new Map<string, InitiativeFileWriter>();
 
   constructor(
     private readonly brand: BrandPack,
@@ -137,7 +146,7 @@ export class Repository {
     }
 
     // Master files and initiative files don't depend on each other — pull both concurrently.
-    const [[rolesFile, countriesFile, teamsFile, peopleFile, membershipsFile], initiatives] = await Promise.all([
+    const [[rolesFile, countriesFile, teamsFile, peopleFile, membershipsFile], initiativeFiles] = await Promise.all([
       Promise.all([
         this.github.getFile({ path: FILE_PATHS.roles, branch }),
         this.github.getFile({ path: FILE_PATHS.countries, branch }),
@@ -147,6 +156,9 @@ export class Repository {
       ]),
       this.pullInitiatives(branch),
     ]);
+
+    const initiatives = initiativeFiles.map((f) => f.initiative);
+    for (const f of initiativeFiles) this.createInitiativeWriter(f.initiative, f.sha);
 
     const roles = parseJsonFile(rolesFile, [] as Role[]);
     const countries = parseJsonFile(countriesFile, [] as Country[]);
@@ -200,20 +212,46 @@ export class Repository {
         else if (status === 'syncing') this.setState({ syncing: true });
         else this.setState({ syncing: false, readOnly: status.readOnly });
       },
-      (conflict) => this.setState({ conflicts: [...this.state.conflicts, conflict as FileConflict<MasterRecord>] }),
+      (conflict) => this.setState({ conflicts: [...this.state.conflicts, conflict as FileConflict<unknown>] }),
       (content) => this.setState({ [key]: content } as Partial<RepositoryState>),
       initial,
     );
   }
 
-  private async pullInitiatives(branch: string): Promise<Initiative[]> {
+  private async pullInitiatives(branch: string): Promise<{ initiative: Initiative; sha: string }[]> {
     const entries = await this.github.listDirectory({ path: 'initiatives', branch });
     const files = await Promise.all(
       entries
         .filter((entry) => entry.name.endsWith('.json'))
         .map((entry) => this.github.getFile({ path: entry.path, branch })),
     );
-    return files.filter((f): f is NonNullable<typeof f> => f !== null).map((f) => JSON.parse(f.content) as Initiative);
+    return files
+      .filter((f): f is NonNullable<typeof f> => f !== null)
+      .map((f) => ({ initiative: JSON.parse(f.content) as Initiative, sha: f.sha }));
+  }
+
+  private createInitiativeWriter(initiative: Initiative, sha: string): void {
+    this.initiativeWriters.set(
+      initiative.id,
+      new InitiativeFileWriter(
+        FILE_PATHS.initiative(initiative.id),
+        this.brand.github.dataBranch,
+        this.github,
+        this.queue,
+        (status: WriteStatus) => {
+          if (status === 'synced') this.setState({ syncing: false, readOnly: null });
+          else if (status === 'syncing') this.setState({ syncing: true });
+          else this.setState({ syncing: false, readOnly: status.readOnly });
+        },
+        (conflict) => this.setState({ conflicts: [...this.state.conflicts, conflict] }),
+        (merged) => this.replaceInitiative(merged),
+        { content: initiative, sha },
+      ),
+    );
+  }
+
+  private replaceInitiative(next: Initiative): void {
+    this.setState({ initiatives: this.state.initiatives.map((i) => (i.id === next.id ? next : i)) });
   }
 
   /** First-write-capable-client baseline bootstrap (§2, §3 "System writes"): one commit, idempotent. */
@@ -364,7 +402,7 @@ export class Repository {
     this.setState({ initiatives: [...this.state.initiatives, initiative], syncing: true });
 
     try {
-      await this.queue.run(() =>
+      const { sha } = await this.queue.run(() =>
         this.github.putFile({
           path: FILE_PATHS.initiative(initiative.id),
           branch: this.brand.github.dataBranch,
@@ -372,6 +410,7 @@ export class Repository {
           message: `${name}: created`,
         }),
       );
+      this.createInitiativeWriter(initiative, sha);
       this.setState({ syncing: false, readOnly: null });
     } catch (error) {
       this.setState({ syncing: false, readOnly: toReadOnlyState(error, 'Could not create the initiative.') });
@@ -380,14 +419,136 @@ export class Repository {
     return initiative;
   }
 
+  private phaseLabel(phaseId: string): string {
+    return this.brand.process.find((p) => p.id === phaseId)?.label ?? phaseId;
+  }
+
+  /** Apply one edit to a phase's plan (§5.4: edited in place) and schedule its commit under `note`. */
+  private editPhase(
+    initiativeId: string,
+    phaseId: string,
+    change: (plan: PhasePlan) => PhasePlan,
+    note: { key: string; text: (initiativeName: string, phase: string) => string },
+  ): boolean {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    if (!initiative) return false;
+    const plan = initiative.phases?.[phaseId] ?? { allocations: [] };
+    const next: Initiative = { ...initiative, phases: { ...initiative.phases, [phaseId]: change(plan) } };
+    this.replaceInitiative(next);
+    this.initiativeWriters.get(initiativeId)?.schedule(next, {
+      key: `${phaseId}:${note.key}`,
+      text: note.text(initiative.name, this.phaseLabel(phaseId)),
+    });
+    return true;
+  }
+
+  /** Set or clear (`undefined`) one end of a phase's period. Any dates are accepted: an inverted period only warns (§7.2). */
+  setPhaseDate(initiativeId: string, phaseId: string, which: 'startDate' | 'endDate', value: string | undefined): void {
+    const word = which === 'startDate' ? 'start date' : 'end date';
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => {
+        const next = { ...plan };
+        if (value === undefined) delete next[which];
+        else next[which] = value;
+        return next;
+      },
+      {
+        key: which,
+        text: (name, phase) => `${name}: ${phase} ${word} ${value === undefined ? 'cleared' : `set to ${formatDate(value)}`}`,
+      },
+    );
+  }
+
+  /**
+   * Allocate a person to a phase (§5.4). Only the initiative team's members can be allocated
+   * (§7.2), and a refusal says why. Allocation % defaults to the person's Team FTE % on the team.
+   */
+  addAllocation(initiativeId: string, phaseId: string, personId: string, allocationPct?: number): AddAllocationResult {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    const person = this.state.people.find((p) => p.id === personId);
+    const team = initiative && this.state.teams.find((t) => t.id === initiative.teamId);
+    if (!initiative || !person || !team) return { ok: false, reason: 'That person or initiative could not be found.' };
+
+    const reason = allocationRefusal(person, team, this.state.memberships);
+    if (reason) return { ok: false, reason };
+    if (initiative.phases?.[phaseId]?.allocations.some((a) => a.personId === personId)) {
+      return { ok: false, reason: `${person.name} is already allocated to this phase.` };
+    }
+
+    const membership = this.state.memberships.find((m) => m.personId === personId && m.teamId === team.id && m.active);
+    const allocation: Allocation = { id: newId(), personId, allocationPct: allocationPct ?? membership?.teamFtePct ?? 0 };
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, allocations: [...plan.allocations, allocation] }),
+      {
+        key: allocation.id,
+        text: (name, phase) => `${name}: ${phase} allocation added (${person.name}, ${allocation.allocationPct}%)`,
+      },
+    );
+    return { ok: true, allocation };
+  }
+
+  updateAllocation(initiativeId: string, phaseId: string, allocationId: string, allocationPct: number): void {
+    const allocation = this.state.initiatives
+      .find((i) => i.id === initiativeId)
+      ?.phases?.[phaseId]?.allocations.find((a) => a.id === allocationId);
+    if (!allocation) return;
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, allocations: plan.allocations.map((a) => (a.id === allocationId ? { ...a, allocationPct } : a)) }),
+      {
+        key: allocationId,
+        text: (name, phase) => `${name}: ${phase} allocation of ${this.personName(allocation.personId)} set to ${allocationPct}%`,
+      },
+    );
+  }
+
+  /** Remove an allocation; the position comes back so an Undo can put it where it was (§5.11). */
+  removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
+    const allocations = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.allocations ?? [];
+    const index = allocations.findIndex((a) => a.id === allocationId);
+    if (index < 0) return null;
+    const allocation = allocations[index];
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, allocations: plan.allocations.filter((a) => a.id !== allocationId) }),
+      { key: allocationId, text: (name, phase) => `${name}: ${phase} allocation removed (${this.personName(allocation.personId)})` },
+    );
+    return { allocation, index };
+  }
+
+  /** Undo of {@link removeAllocation}: the same allocation, same id, back in its place, as a normal edit. */
+  restoreAllocation(initiativeId: string, phaseId: string, allocation: Allocation, index: number): void {
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => {
+        const allocations = [...plan.allocations];
+        allocations.splice(Math.min(index, allocations.length), 0, allocation);
+        return { ...plan, allocations };
+      },
+      { key: allocation.id, text: (name, phase) => `${name}: ${phase} allocation restored (${this.personName(allocation.personId)})` },
+    );
+  }
+
   /** Resolve a surfaced conflict (§10.5, "Keep theirs" / "Use mine") and clear it from state. */
-  async resolveConflict(conflict: FileConflict<MasterRecord>, choice: 'mine' | 'theirs'): Promise<void> {
+  async resolveConflict(conflict: FileConflict<unknown>, choice: 'mine' | 'theirs'): Promise<void> {
     await conflict.resolve(choice);
     this.setState({ conflicts: this.state.conflicts.filter((c) => c !== conflict) });
   }
 
   /** Flush any pending debounced write immediately (page unload). */
   async flushPending(): Promise<void> {
-    await Promise.all([this.teamsWriter?.flush(), this.peopleWriter?.flush(), this.membershipsWriter?.flush()]);
+    await Promise.all([
+      this.teamsWriter?.flush(),
+      this.peopleWriter?.flush(),
+      this.membershipsWriter?.flush(),
+      ...[...this.initiativeWriters.values()].map((w) => w.flush()),
+    ]);
   }
 }

@@ -1,6 +1,6 @@
 /**
- * Dataset shapes (spec §6), scoped to the fields slices 003–004 read or write.
- * Phase/cost/gate data belongs to slice 005+; custom roles to a later slice.
+ * Dataset shapes (spec §6), scoped to the fields the built slices read or write.
+ * Cost items, actuals and gate records arrive with their own slices.
  */
 
 export type InitiativeStatus = 'Active' | 'On Hold' | 'Cancelled' | 'Closed';
@@ -17,11 +17,25 @@ export interface Team {
   active: boolean;
 }
 
+/** A custom role's absolute day rate for one calendar year (§6, §7.2). */
+export interface CustomRoleYearRate {
+  year: number;
+  dayRate: number;
+}
+
+/** A per-person role label with its own day rate; replaces country rate × role factor (§6). */
+export interface CustomRole {
+  label: string;
+  dayRatesByYear: CustomRoleYearRate[];
+}
+
 export interface Person {
   id: string;
   name: string;
   countryId: string;
   roleId: string;
+  /** When set, the person's cost uses this rate and the role cost factor does not apply (§7.1). */
+  customRole?: CustomRole;
   /** Ceiling on total concurrent commitment across all teams (§4). */
   capacityPct: number;
   active: boolean;
@@ -36,6 +50,20 @@ export interface Membership {
   active: boolean;
 }
 
+/** One person's share of a phase (§6): Allocation % is a plain number, unrounded. */
+export interface Allocation {
+  id: string;
+  personId: string;
+  allocationPct: number;
+}
+
+/** A costed phase's plan (§6 "Phase data"). Dates are ISO `YYYY-MM-DD`; either may be unset while planning. */
+export interface PhasePlan {
+  startDate?: string;
+  endDate?: string;
+  allocations: Allocation[];
+}
+
 export interface Initiative {
   id: string;
   name: string;
@@ -43,6 +71,8 @@ export interface Initiative {
   ownerId?: string;
   teamId: string;
   status: InitiativeStatus;
+  /** Per costed phase, keyed by the process's phase id. Absent until the phase is first planned. */
+  phases?: Record<string, PhasePlan>;
 }
 
 export interface Role {
