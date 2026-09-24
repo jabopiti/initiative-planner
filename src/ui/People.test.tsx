@@ -6,6 +6,7 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { PeopleOverview } from './PeopleOverview';
 import { TeamDetail } from './TeamDetail';
 
@@ -51,9 +52,11 @@ function Harness() {
 async function renderApp() {
   render(
     <BrandProvider brand={defaultBrandPack}>
-      <RepositoryProvider token="token">
-        <Harness />
-      </RepositoryProvider>
+      <TooltipProvider>
+        <RepositoryProvider token="token">
+          <Harness />
+        </RepositoryProvider>
+      </TooltipProvider>
     </BrandProvider>,
   );
   await screen.findByPlaceholderText('Add a person by name');
@@ -119,15 +122,16 @@ describe('People overview and team members (slice 004)', () => {
 
     // Person panel: the second membership can't be raised past 40%.
     goTo('people');
+    await screen.findByRole('heading', { name: 'People' });
     await user.click(await screen.findByRole('button', { name: 'Linus Torvalds' }));
-    const panel = screen.getByRole('complementary', { name: 'Linus Torvalds details' });
+    const panel = await screen.findByRole('dialog', { name: 'Linus Torvalds' });
     expect(within(panel).getByText('100% of 100% claimed')).toBeInTheDocument();
     const second = within(panel).getByRole('spinbutton', { name: 'Team FTE % for Platform' });
     await user.clear(second);
     await user.type(second, '90');
     expect(within(panel).getByText('Max 40%. Other teams hold the rest.')).toBeInTheDocument();
     expect(within(panel).getByText('No capacity left to add to another team.')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole('row', { name: /Linus Torvalds/ })).toHaveTextContent('Payments, Platform'));
+    await waitFor(() => expect(screen.getByRole('row', { name: /Linus Torvalds/, hidden: true })).toHaveTextContent('Payments, Platform'));
   });
 
   it('closes the panel with Escape', async () => {
@@ -135,10 +139,10 @@ describe('People overview and team members (slice 004)', () => {
     await renderApp();
     await addPerson(user, 'Margaret Hamilton');
     await user.click(screen.getByRole('button', { name: 'Margaret Hamilton' }));
-    expect(screen.getByRole('complementary', { name: 'Margaret Hamilton details' })).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Margaret Hamilton' })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Margaret Hamilton' })).toHaveFocus());
   });
 });

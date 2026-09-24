@@ -559,10 +559,15 @@ icon, the sync indicator (§3) and the theme control (§9.1):
 - **Teams**
 - **Settings**
 
-The **New initiative** button opens a name field with a team selector in
-place. The team defaults to the one last used, or to the only active team.
-Enter creates the initiative and opens its detail page (§5.4); Esc closes
-the field. The **sync indicator** is a small check icon while everything is
+The **New initiative** button opens a **draft page**, laid out like the
+initiative's header (§5.4): the name field is focused, with the team
+selector and a "Draft" chip beside it. The team defaults to the one last
+used, or to the only active team; with neither, the selector reads "Choose
+team". Nothing is saved while the draft has no name or no team. Once it has
+both, Enter, leaving the name field, or choosing the team creates the
+initiative and its detail page replaces the draft, so Back skips the draft.
+Esc discards the draft and returns to the Portfolio. The Portfolio's empty
+state (§9.4) opens the same draft page. The **sync indicator** is a small check icon while everything is
 synced; its label appears while syncing and stays visible in read-only mode
 with the cause (§3).
 
@@ -622,7 +627,7 @@ Contents, top to bottom:
   visible, so the process is always shown in full. Each column header shows
   the number of initiatives and the sum of their grand estimates. Each
   initiative is a compact **card**: its name, team and owner, its grand
-  estimate, the approval track badge (including "Not yet known", §7.4) and
+  estimate, the approval track badge (including "No approval track", §7.4) and
   an attention marker in the item's own state colour (§8.5). Status shows
   only when it is not Active. The whole card opens the initiative page.
   Cards are not draggable: an initiative moves between phases only by
@@ -1212,8 +1217,8 @@ it — is a single act; there is no separate confirmation step.
 
 The **grand estimate** (§4) is compared with the approval tracks. Bounds are
 lower-inclusive and upper-exclusive. A total that no band covers — a gap
-between two, or below the lowest — resolves to **Not yet known**, and is
-never rounded to the nearest band. "Not yet known" is a statement about band
+between two, or below the lowest — resolves to **No approval track**, and is
+never rounded to the nearest band. "No approval track" is a statement about band
 configuration, never about how complete an estimate is. A brand pack whose
 bands overlap does not build.
 
@@ -1221,7 +1226,7 @@ bands overlap does not build.
 recorded approval track of the last passed gate that carried cost (§6, Gate
 record), so it survives the bands changing in a later build. Only a
 **passed** gate sets that baseline; a skipped gate records nothing. With no
-baseline yet, or when the live total is Not yet known, there is no
+baseline yet, or when no band covers the live total, there is no
 escalation.
 
 ---
@@ -1763,7 +1768,7 @@ third-party scripts, and its dependencies are audited in the build (§10.1).
 | Deviation | Recorded actuals minus their estimates; positive is overspend, negative is underspend (§4, §7.3) |
 | Approval track | The budget band resolved from the grand estimate (§7.4) |
 | Severity | A band's integer oversight rank; higher is stricter (§7.4) |
-| Not yet known | A total no configured band covers (§7.4) |
+| No approval track | A total no configured band covers (§7.4) |
 | Overrun | The current phase running past its end date with its gate not passed; the one alarm state (§8.1, §8.5) |
 | Capacity % | A person's ceiling on total concurrent commitment |
 | Allocation % | The percentage of full-time capacity a person is committed at on one phase |
