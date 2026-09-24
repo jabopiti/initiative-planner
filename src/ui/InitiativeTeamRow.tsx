@@ -65,7 +65,6 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   };
 
   const choose = (teamId: string) => {
-    if (teamId === initiative.teamId) return setPendingTeamId(null);
     if (planFor(teamId).removed.length === 0) return apply(teamId);
     setPendingTeamId(teamId);
   };
@@ -77,11 +76,8 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
           <TeamSelect
             ref={triggerRef}
             teams={teams}
-            // While a change waits for confirmation the list has no selection, so choosing the current team is a
-            // change the dropdown reports (it never reports a re-pick), and closes the confirmation. The trigger
-            // still reads as the current team.
-            value={confirming ? '' : initiative.teamId}
-            placeholder={currentTeam?.name}
+            value={initiative.teamId}
+            onReselect={() => setPendingTeamId(null)}
             onValueChange={choose}
             // The list closing would put focus back on the trigger; with a confirmation open it belongs on its first action.
             onCloseAutoFocus={(event) => {
@@ -89,7 +85,7 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
               event.preventDefault();
               applyRef.current?.focus();
             }}
-            className="border-transparent bg-transparent text-text-secondary shadow-none hover:border-border-default data-[placeholder]:text-text-secondary"
+            className="border-transparent bg-transparent text-text-secondary shadow-none hover:border-border-default"
           />
         ) : (
           <span className="px-3">{currentTeam?.name ?? 'Unknown team'}</span>

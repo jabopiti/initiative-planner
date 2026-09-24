@@ -191,11 +191,27 @@ describe('Change an initiative’s team (§5.4, §7.2)', () => {
       await chooseTeam(user, 'Growth');
       await screen.findByRole('alertdialog');
       expect(await teamControl()).toHaveTextContent('Payments');
-      await chooseTeam(user, 'Payments');
+      await user.click(await teamControl());
+      // The current team stays the selected one in the list.
+      expect(await screen.findByRole('option', { name: 'Payments' })).toHaveAttribute('aria-selected', 'true');
+      await user.click(screen.getByRole('option', { name: 'Payments' }));
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
       expect(await teamControl()).toHaveTextContent('Payments');
       expect(await teamControl()).toHaveFocus();
       expect(screen.getAllByRole('row', { name: /Ruiz|Wu|Rao/ })).toHaveLength(3);
+    });
+
+    it('choosing the current team with the keyboard closes it too', async () => {
+      const user = userEvent.setup();
+      renderPage();
+      await chooseTeam(user, 'Growth');
+      await screen.findByRole('alertdialog');
+      (await teamControl()).focus();
+      await user.keyboard('{Enter}'); // opens the list with the current team highlighted
+      await screen.findByRole('option', { name: 'Payments' });
+      await user.keyboard('{Enter}');
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(await teamControl()).toHaveTextContent('Payments');
     });
 
     it('Change team applies it in one commit that names both teams and the count, and Undo brings everything back', async () => {
