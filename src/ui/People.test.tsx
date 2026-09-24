@@ -133,8 +133,65 @@ describe('People overview and team members (slice 004)', () => {
     expect(within(panel).getByText('Max 40%. Other teams hold the rest.')).toBeInTheDocument();
     await user.tab();
     expect(second).toHaveValue(40);
+    // The cap is deliberate, so its message stays after the save, until the field is edited again.
+    expect(within(panel).getByText('Set to 40%, the most left. Other teams hold the rest.')).toBeInTheDocument();
+    expect(second).not.toBeInvalid();
+    await user.type(second, '5');
+    expect(within(panel).queryByText(/Set to 40%/)).not.toBeInTheDocument();
+    await user.clear(second);
+    await user.type(second, '40');
+    await user.tab();
     expect(within(panel).getByText('No capacity left to add to another team.')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('row', { name: /Linus Torvalds/, hidden: true })).toHaveTextContent('Payments, Platform'));
+  });
+
+  it('lets the team detail raise Team FTE % past the unclaimed capacity and warns, as before', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await addPerson(user, 'Linus Torvalds');
+    goTo('t1');
+    await user.type(await screen.findByRole('combobox', { name: 'Add member' }), 'Linus');
+    await user.click(screen.getByRole('button', { name: /Linus Torvalds/ }));
+    const first = await screen.findByRole('spinbutton', { name: 'Team FTE % for Linus Torvalds' });
+    await user.clear(first);
+    await user.type(first, '60');
+    await user.tab();
+    goTo('t2');
+    await user.type(await screen.findByRole('combobox', { name: 'Add member' }), 'Linus');
+    await user.click(screen.getByRole('button', { name: /Linus Torvalds/ }));
+
+    goTo('t1');
+    await screen.findByRole('heading', { name: 'Payments' });
+    const raised = screen.getByRole('spinbutton', { name: 'Team FTE % for Linus Torvalds' });
+    expect(raised).toHaveValue(60);
+    await user.clear(raised);
+    await user.type(raised, '90');
+    await user.tab();
+    expect(raised).toHaveValue(90);
+    expect(raised).not.toBeInvalid();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /Team FTE % add up to more than their 100% capacity/ })).toBeInTheDocument();
+  });
+
+  it('refuses a Capacity % outside 0 to 100 in the person panel and saves one inside it', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await addPerson(user, 'Linus Torvalds');
+    await user.click(screen.getByRole('button', { name: 'Linus Torvalds' }));
+    const panel = await screen.findByRole('dialog', { name: 'Linus Torvalds' });
+    const capacity = within(panel).getByRole('spinbutton', { name: 'Capacity %' });
+
+    await user.clear(capacity);
+    await user.type(capacity, '101');
+    await user.tab();
+    expect(within(panel).getByRole('alert')).toHaveTextContent('Enter a percentage from 0 to 100.');
+    expect(capacity).toBeInvalid();
+
+    await user.clear(capacity);
+    await user.type(capacity, '80');
+    await user.tab();
+    expect(within(panel).queryByRole('alert')).not.toBeInTheDocument();
+    expect(capacity).toHaveValue(80);
   });
 
   it('closes the panel with Escape', async () => {

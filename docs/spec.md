@@ -813,8 +813,10 @@ focus to the row (§9.5). It shows and allows editing of all person details:
 - Team memberships with Team FTE %s, capped at the person's unclaimed
   capacity (Capacity % minus the Team FTE %s already held) and defaulting
   to it, so a membership can never be created or edited here into an
-  over-Capacity % state (§7.2). Raising it further is done from the team
-  detail (§5.8), where the warning is visible.
+  over-Capacity % state (§7.2). A value above the cap is set to the cap and
+  the field says so beside it ("Set to 40%, the most left. Other teams hold
+  the rest.") until it is edited again. Raising it further is done from the
+  team detail (§5.8), where the warning is visible.
 - Actions: Deactivate / Reactivate (§9.3).
 
 The panel carries no warnings and no allocation list. Who is committed to

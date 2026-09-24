@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { CommitInput } from './CommitInput';
 import { InlineWarning } from './InlineWarning';
 
-/** Bare number field, edited in place (§5.6): commits on blur or Enter, with a live warning while the typed value is over its limit. */
+const REFUSAL = 'Enter a percentage from 0 to 100.';
+
+/**
+ * Bare number field, edited in place (§5.6): commits on blur or Enter. Anything but 0 to 100 (or, with `max`, a
+ * value over it) is handled per §9.9: text, an empty field and negatives are refused inline; a value over
+ * `max` is a deliberate cap, so it is set to `max` and the note saying so stays until the field is edited again.
+ */
 export function PercentInput({
   value,
   max,
@@ -19,37 +25,51 @@ export function PercentInput({
   flat?: boolean;
   onChange: (value: number) => void;
 }) {
-  const [capped, setCapped] = useState(false);
+  const [over, setOver] = useState(false);
+  const [cappedAt, setCappedAt] = useState<number | null>(null);
   const limit = max ?? 100;
   const parse = (text: string) => (text.trim() === '' ? NaN : Number(text));
+  const messageClass = 'mt-1 order-last w-full';
 
   return (
-    <div className={flat ? 'contents' : undefined}>
-      <div className="flex items-center gap-1">
-        <CommitInput
-          type="number"
-          inputMode="numeric"
-          min={0}
-          max={limit}
-          className="w-16"
-          aria-label={label}
-          disabled={disabled}
-          value={String(value)}
-          onDraftChange={(text) => setCapped(parse(text) > limit)}
-          onCommit={(text) => {
-            setCapped(false);
-            const parsed = parse(text);
-            if (Number.isNaN(parsed) || parsed < 0) return false;
-            const next = Math.min(parsed, limit);
-            if (next === value) return false;
-            onChange(next);
-          }}
-        />
-        <span className="text-sm text-text-secondary">%</span>
-      </div>
-      {capped && max !== undefined && (
-        <InlineWarning className={`mt-1 ${flat ? 'order-last w-full' : ''}`}>Max {max}%. Other teams hold the rest.</InlineWarning>
+    <div className={flat ? 'contents' : 'flex flex-wrap items-center gap-x-1'}>
+      <CommitInput
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={limit}
+        className="w-16"
+        errorClassName={messageClass}
+        aria-label={label}
+        disabled={disabled}
+        value={String(value)}
+        onDraftChange={(text) => {
+          setCappedAt(null);
+          setOver(parse(text) > limit);
+        }}
+        onCommit={(text) => {
+          setOver(false);
+          const parsed = parse(text);
+          if (Number.isNaN(parsed) || parsed < 0) return REFUSAL;
+          if (parsed > limit) return max === undefined ? REFUSAL : capTo(max);
+          if (parsed === value) return false;
+          onChange(parsed);
+        }}
+      />
+      <span className={`text-sm text-text-secondary ${flat ? '-ml-1' : ''}`}>%</span>
+      {max !== undefined && cappedAt !== null && (
+        <InlineWarning className={messageClass}>Set to {cappedAt}%, the most left. Other teams hold the rest.</InlineWarning>
+      )}
+      {max !== undefined && cappedAt === null && over && (
+        <InlineWarning className={messageClass}>Max {max}%. Other teams hold the rest.</InlineWarning>
       )}
     </div>
   );
+
+  /** Applies the cap; returns `false` so the field shows the capped number even when it did not change. */
+  function capTo(cap: number) {
+    setCappedAt(cap);
+    if (cap !== value) onChange(cap);
+    return cap === value ? false : undefined;
+  }
 }
