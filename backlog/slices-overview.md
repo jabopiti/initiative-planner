@@ -1,7 +1,7 @@
 ---
 generated_from: "Initiative Planner (white-label core) spec, v1 — 22 September 2026"
-total_slices: 16
-valid_slices: 16
+total_slices: 22
+valid_slices: 22
 flagged_slices: 0
 ---
 
@@ -64,14 +64,20 @@ for the AI-agent-driven build the team asked for:
 | 002 | GitHub round-trip technical spike | ✅ valid | — |
 | 003 | Connect, create a team, and create a named initiative | ✅ valid | 002 |
 | 003b | Migrate to Vite, Tailwind CSS v4, shadcn/ui and Lucide | ✅ valid | 003 |
+| 003c | Portfolio empty state names active and inactive teams | ✅ valid | 003 |
 | 004 | Add a person and assign them to a team | ✅ valid | 003b |
 | 004b | Upgrade to React 19 | ✅ valid | 004 |
 | 004c | Sort and copy the Teams and People tables | ✅ valid | 004 |
+| 004d | Team size counts only active people | ✅ valid | 004 |
 | 005 | Plan a costed phase and see its cost calculated | ✅ valid | 001, 004 |
 | 005b | Give a person a custom role and day rate | ✅ valid | 004, 005 |
 | 005c | A new initiative starts with a default plan | ✅ valid | 003, 005 |
 | 005d | Create an initiative on a guided skeleton page | ✅ valid | 003, 005 |
 | 005e | Change an initiative's team | ✅ valid | 005 |
+| 005f | Percent fields refuse out-of-range values inline | ✅ valid | 004, 005 |
+| 005g | One writer for every file | ✅ valid | 005 |
+| 005h | Merge initiative files by path | ✅ valid | 005g |
+| 005i | Open from the cache and pull others' changes | ✅ valid | 005g |
 | 006 | Availability suggestion in the person picker | ✅ valid | 005 |
 | 007 | Add cost items to a phase | ✅ valid | 005 |
 | 008 | Pass a gate with its checklist | ✅ valid | 005, 007 |
@@ -93,9 +99,15 @@ for the AI-agent-driven build the team asked for:
 - Slice 003b "Migrate to Vite, Tailwind CSS v4, shadcn/ui and Lucide":
   depends on 003 — it migrates that slice's already-shipped screens to the
   new stack.
+- Slice 003c "Portfolio empty state names active and inactive teams":
+  depends on 003 (the Portfolio and its empty states). Inserted after the
+  review of slices 003 to 005d found the empty state and the New initiative
+  button disagreeing when every team is inactive.
 - Slice 004 "Add a person and assign them to a team": depends on 003b — a
   membership requires a team to exist, and 004 onward builds on the
   migrated stack.
+- Slice 004d "Team size counts only active people": depends on 004 (the
+  memberships whose count it defines). Inserted after the same review.
 - Slice 005 "Plan a costed phase and see its cost calculated": depends on
   001 (the audited engine logic it wires in) and 004 (a team member to
   allocate).
@@ -112,6 +124,15 @@ for the AI-agent-driven build the team asked for:
   page's old behaviour.
 - Slice 005e "Change an initiative's team": depends on 005 (allocations to
   remove). Its locked-phase rule is a predicate that slice 008 makes real.
+- Slice 005f "Percent fields refuse out-of-range values inline": depends on
+  004 (Capacity % and Team FTE %) and 005 (Allocation %); §9.9 already
+  requires the refusal, the build silently capped instead.
+- Slice 005g "One writer for every file": depends on 005 (the initiative
+  files that gave sync its second writer). Refactor from the same review.
+- Slice 005h "Merge initiative files by path": depends on 005g (it plugs into
+  the one writer as its merge).
+- Slice 005i "Open from the cache and pull others' changes": depends on 005g
+  (pulled changes go through the writer's merge and the per-file status).
 - Slice 006 "Availability suggestion in the person picker": depends on
   005 — it enhances the picker that slice introduces.
 - Slice 007 "Add cost items to a phase": depends on 005 — it adds to a
@@ -194,6 +215,15 @@ Initial run entries:
   stack directly — they only reference spec sections, which now
   describe the new one.
 
+- **After slices 003 to 005d shipped**, a simplify pass and a code review
+  covered all of them. Bugs were fixed in place (edits lost while a save was
+  in flight, conflict resolution discarding clean fields, status hidden
+  between files, a failed create leaving an initiative that never saved).
+  What needed a decision or was too large for a fix became slices 003c, 004d,
+  005f, 005g, 005h and 005i. No existing slice changed content, except that
+  slice 003's ticked criteria about the old draft page were marked
+  superseded by 005d.
+
 ## Backlog tail (not yet fully sliced)
 
 One line each; dependencies noted loosely. Detail these in full when the
@@ -230,3 +260,24 @@ team is approaching them.
   not modelled as a standalone slice; treated as an acceptance-criterion
   attached to every UI-bearing slice above, since it fails the
   Desirable/Valuable test as a standalone capability.
+- **Read-only banner with Retry, automatic recovery, and a failed edit that
+  stays in edit** (§3 Sync failures, §9.9) — depends on 005g; today a failed
+  push drops the write and leaves the edited value on screen, and no Retry
+  exists.
+- **Same-field conflict shown inline under the field** (§9.9) — depends on
+  005h; the banner is the first step.
+- **Accessibility fixes from the review** — the add-member list has no
+  keyboard support (§9.5), the person panel cannot rejoin a team whose
+  membership was deactivated, the sync indicator's cause is hover-only (§5.1
+  says it stays visible), and the sync check icon has no accessible name.
+- **Domain rules out of components** — the people who can be allocated, a
+  phase's figures and the over-capacity rule are worked out inside
+  components; they belong in the data layer beside the cost engine (004d
+  starts this with the team's active members).
+- **GitHub client edge cases** — a branch name with `/` breaks the ref
+  lookup, files over 1 MB come back without content, and the token check
+  reports a network failure or a 5xx as an invalid token.
+- **Copy table cells that begin with `=`, `+`, `-` or `@`** (§9.11) — spreadsheets read them as formulas.
+- **Commit-message notes** — several edits to one allocation inside the
+  debounce window keep only the last note ("added" is lost); a double rename
+  reads as one.
