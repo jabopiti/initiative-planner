@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
@@ -8,14 +8,18 @@ import { formatDate, formatPeriod, localToday } from '../data/dates';
 import { freeCapacityByPerson } from '../data/personLoad';
 import { roleLabel } from '../data/roleLabel';
 import { activeMembers } from '../data/teamMembers';
-import type { Initiative, Team } from '../data/types';
+import type { Initiative, PhasePlan, Team } from '../data/types';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
+import { sortRows } from './tableSort';
 import { PercentInput } from './PercentInput';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+/** A phase nobody has planned yet. One shared object, so the picker's memo isn't invalidated on every render. */
+const UNPLANNED: PhasePlan = { allocations: [] };
 
 /** The initiative page's Phases section (§5.4): every phase in order, costed ones expandable. */
 export function PhasesSection({ initiative, team }: { initiative: Initiative; team: Team | undefined }) {
@@ -101,7 +105,7 @@ function CostedPhase({
   const { people, roles, countries, memberships, initiatives } = useRepositoryState();
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  const plan = initiative.phases?.[phase.id] ?? { allocations: [] };
+  const plan = initiative.phases?.[phase.id] ?? UNPLANNED;
   const rateData = { roles, countries };
   const hasPeriod = Boolean(plan.startDate && plan.endDate);
   const inverted = hasPeriod && plan.endDate! < plan.startDate!;
@@ -113,15 +117,19 @@ function CostedPhase({
   const overlap = previous && previousEnd && plan.startDate && plan.startDate <= previousEnd ? `Starts before ${previous.label} ends (${formatDate(previousEnd)}). The two phases overlap.` : null;
   const total = phaseTotal(plan, people, rateData);
 
-  const teamMembers = team ? activeMembers(team.id, memberships, people) : [];
-  const notYetAllocated = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
-  // Free capacity for the phase's months (§5.11); only the open phase's picker shows it. Undefined without a
-  // period, when the list is by name.
-  const free =
-    expanded && team
-      ? freeCapacityByPerson({ people: notYetAllocated, teamId: team.id, memberships, period: plan, initiatives, process, today: localToday() })
-      : undefined;
-  const addable = notYetAllocated.sort((a, b) => (free?.get(b.id) ?? 0) - (free?.get(a.id) ?? 0) || a.name.localeCompare(b.name));
+  // Who can still be added, and what each has free for the phase's months (§5.11), most free first. Free capacity
+  // is undefined without a valid period (the list is then by name) and while the phase is closed: only the open
+  // phase's picker shows it. It rescans every initiative, so it is kept across renders that don't change its inputs.
+  const { teamMembers, addable, free } = useMemo(() => {
+    const teamMembers = team ? activeMembers(team.id, memberships, people) : [];
+    const notYetAllocated = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
+    const free =
+      expanded && team
+        ? freeCapacityByPerson({ people: notYetAllocated, teamId: team.id, memberships, period: plan, initiatives, process, today: localToday() })
+        : undefined;
+    const addable = sortRows(notYetAllocated, { free: (p) => free?.get(p.id) ?? 0, name: (p) => p.name }, 'free', 'desc', 'name');
+    return { teamMembers, addable, free };
+  }, [expanded, team, memberships, people, plan, initiatives, process]);
 
   const picker =
     team && teamMembers.length === 0 ? (
@@ -146,7 +154,7 @@ function CostedPhase({
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              {!free && <SelectLabel>Set the period to see who has room.</SelectLabel>}
+              {!free && <SelectLabel>{inverted ? 'Fix the period to see who has room.' : 'Set the period to see who has room.'}</SelectLabel>}
               {addable.map((p) => {
                 const pct = free?.get(p.id);
                 return (

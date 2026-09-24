@@ -107,7 +107,7 @@ async function typeDate(user: ReturnType<typeof userEvent.setup>, label: string,
 async function addPerson(user: ReturnType<typeof userEvent.setup>, optionName: string) {
   await user.click(await screen.findByRole('combobox', { name: 'Add person to Validation' }));
   // With a period set the option also carries "N% free" after the name.
-  await user.click(await screen.findByRole('option', { name: new RegExp(`^${optionName}`) }));
+  await user.click(await screen.findByRole('option', { name: (name) => name.startsWith(optionName) }));
 }
 
 const validationRow = () => screen.getByRole('button', { name: /^Validation/ });
@@ -529,6 +529,23 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
     await user.clear(pct);
     await user.type(pct, '45{Enter}');
     expect(pct).toHaveValue(45);
+  });
+
+  it('leaves out a Provisional phase: one that starts more than a month ahead', async () => {
+    others = [elsewhere('ana', 90, '2026-11-01', '2026-11-30')];
+    const user = userEvent.setup();
+    renderPage();
+    await openPicker(user);
+    expect(optionTexts()[0]).toBe('Ana Ruiz · Developer60% free');
+  });
+
+  it('asks for a fixed period when the end date is before the start date', async () => {
+    initiative = { ...initiative, phases: { [validationId]: { startDate: '2026-11-30', endDate: '2026-10-01', allocations: [] } } };
+    const user = userEvent.setup();
+    renderPage();
+    await openPicker(user);
+    expect(screen.getByText('Fix the period to see who has room.')).toBeInTheDocument();
+    expect(optionTexts()).toEqual(['Ana Ruiz · Developer', 'Cai Wu · Fractional CTO']);
   });
 
   it('asks for the period, and lists members by name with no figures, when there is none', async () => {

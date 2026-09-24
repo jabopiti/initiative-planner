@@ -10,6 +10,11 @@ function isRealDate(year: number, month: number, day: number): boolean {
 /** The ISO `YYYY-MM-DD` date for a year, month (1-12) and day. */
 export const iso = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
+/** `YYYY-MM` (§6 Month encoding). `month` is 0-based. */
+export function monthKey(year: number, month: number): string {
+  return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
 /** An ISO `YYYY-MM-DD` date's year, month (1-12) and day. */
 export const parseIso = (isoDate: string): [number, number, number] => {
   const [y, m, d] = isoDate.split('-').map(Number);

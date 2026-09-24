@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeMembers, isActiveMember } from './teamMembers';
+import { activeMembers, activeMembership, isActiveMember } from './teamMembers';
 import type { Membership, Person } from './types';
 
 const person = (id: string, active = true): Person => ({
@@ -46,5 +46,14 @@ describe('a team’s active members (§4, §5.7)', () => {
     expect(isActiveMember(people[2], 't1', memberships)).toBe(false);
     expect(isActiveMember(people[3], 't1', memberships)).toBe(false);
     expect(isActiveMember(people[3], 't2', memberships)).toBe(true);
+  });
+});
+
+describe('activeMembership', () => {
+  it("finds the person's active membership of the team, and nothing else", () => {
+    const active = membership('ana');
+    expect(activeMembership('ana', 't1', [membership('bo'), membership('ana', 't2'), active])).toBe(active);
+    expect(activeMembership('ana', 't1', [membership('ana', 't1', false)])).toBeUndefined();
+    expect(activeMembership('ana', 't1', [])).toBeUndefined();
   });
 });
