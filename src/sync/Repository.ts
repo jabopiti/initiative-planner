@@ -22,6 +22,7 @@ import { buildDefaultPlan } from '../data/defaultPlan';
 import { toReadOnlyState, type GithubFailureCause, type ReadOnlyState } from '../github/errors';
 import { GithubClient, parseJsonFile } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
+import { activeMembership } from '../data/teamMembers';
 import { mergeListDocument } from './documentMerge';
 import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
 import { mergeInitiative } from './mergeInitiative';
@@ -553,7 +554,8 @@ export class Repository {
 
   /**
    * Allocate a person to a phase (§5.4). Only the initiative team's members can be allocated
-   * (§7.2), and a refusal says why. Allocation % defaults to the person's Team FTE % on the team.
+   * (§7.2), and a refusal says why. Allocation % is `allocationPct` when the caller has worked out what fits (the
+   * phase picker passes the person's free capacity, §5.11), else the person's Team FTE % on the team.
    */
   addAllocation(initiativeId: string, phaseId: string, personId: string, allocationPct?: number): AddAllocationResult {
     const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
@@ -567,7 +569,7 @@ export class Repository {
       return { ok: false, reason: `${person.name} is already allocated to this phase.` };
     }
 
-    const membership = this.state.memberships.find((m) => m.personId === personId && m.teamId === team.id && m.active);
+    const membership = activeMembership(personId, team.id, this.state.memberships);
     const allocation: Allocation = { id: newId(), personId, allocationPct: allocationPct ?? membership?.teamFtePct ?? 0 };
     this.editPhase(
       initiativeId,

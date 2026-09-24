@@ -1,4 +1,4 @@
-import { parseIso } from './dates';
+import { monthKey, parseIso } from './dates';
 import { isActiveMember } from './teamMembers';
 import type { Country, Membership, PhasePlan, Person, Role, Team } from './types';
 
@@ -18,11 +18,6 @@ export interface RateData {
 export interface Period {
   startDate?: string;
   endDate?: string;
-}
-
-/** `YYYY-MM` (§6 Month encoding). `month` is 0-based. */
-function monthKey(year: number, month: number): string {
-  return `${year}-${String(month + 1).padStart(2, '0')}`;
 }
 
 function parseDate(isoDate: string): Date {

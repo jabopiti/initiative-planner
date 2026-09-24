@@ -1,5 +1,10 @@
 import type { Membership, Person } from './types';
 
+/** A person's active membership of a team, if any: it holds their Team FTE % there (§4). */
+export function activeMembership(personId: string, teamId: string, memberships: Membership[]): Membership | undefined {
+  return memberships.find((m) => m.personId === personId && m.teamId === teamId && m.active);
+}
+
 /**
  * Whether a person is an active member of a team: an active membership held
  * by an active person (§4). A deactivated person is a member of no team,
