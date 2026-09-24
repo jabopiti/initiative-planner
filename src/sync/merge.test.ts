@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { frozenPaths } from '../data/frozen';
-import type { Allocation, Initiative, PhasePlan } from '../data/types';
+import type { Allocation, Initiative, PhasePlan, Team } from '../data/types';
 import { getAtPath, mergeDocument, pathKey, setAtPath, type MergeConflict } from './merge';
-
-interface Team {
-  id: string;
-  name: string;
-  active: boolean;
-}
 
 const keys = (conflicts: MergeConflict[]) => conflicts.map((c) => pathKey(c.path));
 

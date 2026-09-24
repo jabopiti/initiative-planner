@@ -104,11 +104,12 @@ export function setAtPath<D>(doc: D, path: Path, value: unknown): D {
 export function mergeDocument<D>(base: D, mine: D, theirs: D, options: MergeOptions<D> = {}): MergeOutcome<D> {
   const frozenKeys = (doc: D) => new Set((options.frozen?.(doc) ?? []).map(pathKey));
   const frozen = { base: frozenKeys(base), mine: frozenKeys(mine), theirs: frozenKeys(theirs) };
-  const anyFrozen = [...frozen.base, ...frozen.mine, ...frozen.theirs];
+  const anyFrozen = [...new Set([...frozen.base, ...frozen.mine, ...frozen.theirs])];
   const conflicts: MergeConflict[] = [];
 
   /** Whether a frozen path lies under this one, so a whole-subtree shortcut would skip it. */
-  const frozenBelow = (key: string) => anyFrozen.some((f) => key === '' || f.startsWith(`${key}.`) || f.startsWith(`${key}[`));
+  const frozenBelow = (key: string) =>
+    key === '' ? anyFrozen.length > 0 : anyFrozen.some((f) => f.startsWith(`${key}.`) || f.startsWith(`${key}[`));
 
   function oneSided(b: unknown, m: unknown, t: unknown): { value: unknown } | null {
     if (sameValue(m, t)) return { value: m };
@@ -124,13 +125,11 @@ export function mergeDocument<D>(base: D, mine: D, theirs: D, options: MergeOpti
     if (frozen.theirs.has(key)) return frozen.base.has(key) ? b : t;
     if (frozen.mine.has(key)) return frozen.base.has(key) ? t : m;
 
-    if (!frozenBelow(key)) {
-      const settled = oneSided(b, m, t);
-      if (settled) return settled.value;
-    }
+    // A whole subtree changed on one side only is taken as is, unless a frozen path lies inside it.
+    const settled = oneSided(b, m, t);
+    if (settled && !frozenBelow(key)) return settled.value;
     if (isRecord(m) && isRecord(t) && (b === undefined || isRecord(b))) return mergeRecord(path, b ?? {}, m, t);
     if (isIdList(m) && isIdList(t) && (b === undefined || isIdList(b))) return mergeList(path, b ?? [], m, t);
-    const settled = oneSided(b, m, t);
     if (settled) return settled.value;
 
     conflicts.push({ path, base: b, mine: m, theirs: t });

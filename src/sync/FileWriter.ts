@@ -1,7 +1,7 @@
 import { fileCache } from '../cache/db';
 import type { GithubClient } from '../github/client';
 import { GithubApiError, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { pathKey, setAtPath, type DocumentMerge, type MergeConflict } from './merge';
+import { pathKey, sameValue, setAtPath, type DocumentMerge, type MergeConflict } from './merge';
 import type { WriteQueue } from './WriteQueue';
 
 const COMMIT_DEBOUNCE_MS = 1000;
@@ -42,8 +42,6 @@ export interface FileWriterOptions<D> {
   /** The document on screen should now be this one: a save landed, or a merge brought in the other writer's changes. */
   onDocument: (doc: D) => void;
 }
-
-const sameDocument = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 /**
  * The one writer behind every file in the data branch (§10.2): debounce, save, merge on conflict,
@@ -247,7 +245,7 @@ export class FileWriter<D> {
       const doc = setAtPath(this.screen as D, conflict.path, choice === 'mine' ? conflict.mine : conflict.theirs);
       this.screen = doc;
       this.options.onDocument(doc);
-      if (idle && this.synced && sameDocument(doc, this.synced.content)) {
+      if (idle && this.synced && sameValue(doc, this.synced.content)) {
         this.failed = false; // Keep theirs, with nothing else to write: the repository already holds it.
         this.reportIdle();
         return 'saved';

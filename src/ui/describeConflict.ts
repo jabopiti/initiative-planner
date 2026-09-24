@@ -1,6 +1,6 @@
 import type { PhaseDef } from '../brand/types';
 import { formatDateField } from '../data/dates';
-import type { Country, CustomRoleYearRate, Initiative, Membership, Person, Role, Team } from '../data/types';
+import { FILE_PATHS, type Country, type Allocation, type CustomRoleYearRate, type Initiative, type Membership, type Person, type Role, type Team } from '../data/types';
 import { getAtPath, type MergeConflict, type Path } from '../sync/merge';
 import { formatAmount } from './formatAmount';
 
@@ -39,6 +39,18 @@ const status = (value: unknown) => (value ? 'Active' : 'Inactive');
 const nameIn = (list: { id: string; name: string }[]) => (id: unknown) => list.find((x) => x.id === id)?.name ?? String(id);
 const date = (value: unknown) => formatDateField(String(value));
 
+const nameField: Field = { label: 'Name', format: text };
+const statusField: Field = { label: 'Status', format: status };
+
+/**
+ * The list item a conflict is about, as the screen has it. When the conflict is the item itself and one
+ * side removed it, whichever side still has it.
+ */
+function itemAt(doc: unknown, conflict: MergeConflict, depth: number): unknown {
+  const onScreen = getAtPath(doc, conflict.path.slice(0, depth));
+  return onScreen ?? (conflict.path.length === depth ? (conflict.mine ?? conflict.theirs) : undefined);
+}
+
 /** Anything a label does not cover: plain values as they are, never raw JSON. */
 function fallbackValue(value: unknown): string {
   if (Array.isArray(value)) return `${value.length} ${value.length === 1 ? 'item' : 'items'}`;
@@ -50,7 +62,7 @@ function initiativeField(rest: Path, doc: Initiative | undefined, conflict: Merg
   const [head, phaseId, part, item, leaf] = rest;
   switch (head) {
     case 'name':
-      return { label: 'Name', format: text };
+      return nameField;
     case 'description':
       return { label: 'Description', format: text };
     case 'ownerId':
@@ -68,8 +80,7 @@ function initiativeField(rest: Path, doc: Initiative | undefined, conflict: Merg
   if (rest.length === 3 && part === 'endDate') return { label: `${phase} end date`, format: date };
   if (part !== 'allocations' || typeof item !== 'object' || rest.length > 5) return null;
 
-  // The item on screen, or, when one side removed it, whichever side still has it.
-  const allocation = (getAtPath(doc, rest.slice(0, 4)) ?? conflict.mine ?? conflict.theirs) as { personId?: string } | undefined;
+  const allocation = itemAt(doc, conflict, 4) as Allocation | undefined;
   const who = `${phase} · ${nameIn(ctx.people)(allocation?.personId)} allocation`;
   if (rest.length === 4) return { label: who, format: (a) => percent((a as { allocationPct: number }).allocationPct), unset: 'removed' };
   if (leaf === 'allocationPct') return { label: who, format: percent };
@@ -77,66 +88,59 @@ function initiativeField(rest: Path, doc: Initiative | undefined, conflict: Merg
   return null;
 }
 
-function personField(rest: Path, ctx: ConflictContext, currencySymbol: string): Field | null {
-  const key = rest.join('.');
-  switch (key) {
-    case '':
-      return { label: 'Person', format: (p) => (p as Person).name, unset: 'removed' };
-    case 'name':
-      return { label: 'Name', format: text };
-    case 'countryId':
-      return { label: 'Country', format: nameIn(ctx.countries) };
-    case 'roleId':
-      return { label: 'Role', format: nameIn(ctx.roles) };
-    case 'capacityPct':
-      return { label: 'Capacity %', format: percent };
-    case 'active':
-      return { label: 'Status', format: status };
-    case 'customRole':
-      return { label: 'Custom role', format: (r) => (r as { label: string }).label || 'Custom role' };
-    case 'customRole.active':
-      return { label: 'Role', format: (on) => (on ? 'Custom role' : 'Standard role') };
-    case 'customRole.label':
-      return { label: 'Custom role label', format: text };
-    case 'customRole.costFactor':
-      return { label: 'Cost factor', format: text };
-    case 'customRole.dayRatesByYear':
-      return {
+/** The master files (§10.2): a list of records, each conflict path starting at the item's id. */
+interface MasterFile {
+  list: (ctx: ConflictContext) => { id: string }[];
+  entity: (item: unknown, ctx: ConflictContext) => string;
+  fields: (ctx: ConflictContext) => Record<string, Field>;
+}
+
+const masterFiles: Record<string, MasterFile> = {
+  [FILE_PATHS.people]: {
+    list: (ctx) => ctx.people,
+    entity: (person) => (person as Person | undefined)?.name ?? 'A person',
+    fields: (ctx) => ({
+      '': { label: 'Person', format: (p) => (p as Person).name, unset: 'removed' },
+      name: nameField,
+      countryId: { label: 'Country', format: nameIn(ctx.countries) },
+      roleId: { label: 'Role', format: nameIn(ctx.roles) },
+      capacityPct: { label: 'Capacity %', format: percent },
+      active: statusField,
+      customRole: { label: 'Custom role', format: (r) => (r as { label: string }).label.trim() || 'Custom role' },
+      'customRole.active': { label: 'Role', format: (on) => (on ? 'Custom role' : 'Standard role') },
+      'customRole.label': { label: 'Custom role label', format: text },
+      'customRole.costFactor': { label: 'Cost factor', format: text },
+      'customRole.dayRatesByYear': {
         label: 'Day rate per year',
         format: (rates) =>
-          (rates as CustomRoleYearRate[]).map((r) => `${r.year}: ${formatAmount(r.dayRate, currencySymbol)}`).join(', ') || 'none',
-      };
-  }
-  return null;
-}
-
-function teamField(rest: Path): Field | null {
-  switch (rest.join('.')) {
-    case '':
-      return { label: 'Team', format: (t) => (t as Team).name, unset: 'removed' };
-    case 'name':
-      return { label: 'Name', format: text };
-    case 'active':
-      return { label: 'Status', format: status };
-  }
-  return null;
-}
-
-function membershipField(rest: Path, ctx: ConflictContext): Field | null {
-  switch (rest.join('.')) {
-    case '':
-      return { label: 'Membership', format: (m) => percent((m as Membership).teamFtePct), unset: 'removed' };
-    case 'teamFtePct':
-      return { label: 'Team FTE %', format: percent };
-    case 'active':
-      return { label: 'Status', format: status };
-    case 'personId':
-      return { label: 'Person', format: nameIn(ctx.people) };
-    case 'teamId':
-      return { label: 'Team', format: nameIn(ctx.teams) };
-  }
-  return null;
-}
+          (rates as CustomRoleYearRate[]).map((r) => `${r.year}: ${formatAmount(r.dayRate, ctx.currencySymbol)}`).join(', ') || 'none',
+      },
+    }),
+  },
+  [FILE_PATHS.teams]: {
+    list: (ctx) => ctx.teams,
+    entity: (team) => (team as Team | undefined)?.name ?? 'A team',
+    fields: () => ({
+      '': { label: 'Team', format: (t) => (t as Team).name, unset: 'removed' },
+      name: nameField,
+      active: statusField,
+    }),
+  },
+  [FILE_PATHS.memberships]: {
+    list: (ctx) => ctx.memberships,
+    entity: (membership, ctx) => {
+      const m = membership as Membership | undefined;
+      return `${nameIn(ctx.people)(m?.personId)} in ${nameIn(ctx.teams)(m?.teamId)}`;
+    },
+    fields: (ctx) => ({
+      '': { label: 'Membership', format: (m) => percent((m as Membership).teamFtePct), unset: 'removed' },
+      teamFtePct: { label: 'Team FTE %', format: percent },
+      active: statusField,
+      personId: { label: 'Person', format: nameIn(ctx.people) },
+      teamId: { label: 'Team', format: nameIn(ctx.teams) },
+    }),
+  },
+};
 
 /** The raw keys, for a field no label covers yet: phase ids read as their labels, item ids are left out. */
 function fallbackLabel(rest: Path, ctx: ConflictContext, initiative: boolean): string {
@@ -151,47 +155,31 @@ function fallbackLabel(rest: Path, ctx: ConflictContext, initiative: boolean): s
 
 /** Name the entity and the field in words, and both values as the screen shows them (§3, §9.9). */
 export function describeConflict(conflict: MergeConflict & { file: string }, ctx: ConflictContext): ConflictDescription {
-  const initiativeId = /^initiatives\/(.+)\.json$/.exec(conflict.file)?.[1];
-  const [first, ...afterItem] = conflict.path;
-  const itemId = typeof first === 'object' ? first.id : undefined;
+  const initiative = ctx.initiatives.find((i) => FILE_PATHS.initiative(i.id) === conflict.file);
+  const master = masterFiles[conflict.file];
 
   let entity: string;
   let rest: Path;
   let field: Field | null;
-  if (initiativeId !== undefined) {
-    const doc = ctx.initiatives.find((i) => i.id === initiativeId);
-    entity = doc?.name ?? 'An initiative';
+  if (initiative) {
+    entity = initiative.name;
     rest = conflict.path;
-    field = initiativeField(rest, doc, conflict, ctx);
+    field = initiativeField(rest, initiative, conflict, ctx);
+  } else if (master) {
+    rest = conflict.path.slice(1);
+    entity = master.entity(itemAt(master.list(ctx), conflict, 1), ctx);
+    field = master.fields(ctx)[rest.join('.')] ?? null;
   } else {
-    rest = afterItem;
-    const person = ctx.people.find((p) => p.id === itemId);
-    const team = ctx.teams.find((t) => t.id === itemId);
-    const membership = ctx.memberships.find((m) => m.id === itemId) ?? ((conflict.mine ?? conflict.theirs) as Membership | undefined);
-    switch (conflict.file) {
-      case 'people.json':
-        entity = person?.name ?? 'A person';
-        field = personField(rest, ctx, ctx.currencySymbol);
-        break;
-      case 'teams.json':
-        entity = team?.name ?? 'A team';
-        field = teamField(rest);
-        break;
-      case 'memberships.json':
-        entity = `${nameIn(ctx.people)(membership?.personId)} in ${nameIn(ctx.teams)(membership?.teamId)}`;
-        field = membershipField(rest, ctx);
-        break;
-      default:
-        entity = conflict.file;
-        field = null;
-    }
+    entity = conflict.file;
+    rest = conflict.path;
+    field = null;
   }
 
   const unset = field?.unset ?? 'not set';
   const show = (value: unknown) => (value === undefined ? unset : (field?.format ?? fallbackValue)(value));
   return {
     entity,
-    field: field?.label ?? fallbackLabel(rest, ctx, initiativeId !== undefined),
+    field: field?.label ?? fallbackLabel(rest, ctx, initiative !== undefined),
     mine: show(conflict.mine),
     theirs: show(conflict.theirs),
     labelled: field !== null,

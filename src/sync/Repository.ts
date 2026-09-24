@@ -269,7 +269,7 @@ export class Repository {
       branch: this.brand.github.dataBranch,
       github: this.github,
       queue: this.queue,
-      merge: (base, mine, theirs) => mergeDocument(base, mine, theirs, { frozen: (doc) => frozenPaths(doc) }),
+      merge: (base, mine, theirs) => mergeDocument(base, mine, theirs, { frozen: frozenPaths }),
       whenMissing: null,
       initial: sha === null ? null : { content: initiative, sha },
       creationFailure: 'Could not create the initiative.',
