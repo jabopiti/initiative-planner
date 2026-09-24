@@ -1,7 +1,7 @@
 ---
 generated_from: "Initiative Planner (white-label core) spec, v1 — 22 September 2026"
-total_slices: 14
-valid_slices: 14
+total_slices: 16
+valid_slices: 16
 flagged_slices: 0
 ---
 
@@ -70,6 +70,8 @@ for the AI-agent-driven build the team asked for:
 | 005 | Plan a costed phase and see its cost calculated | ✅ valid | 001, 004 |
 | 005b | Give a person a custom role and day rate | ✅ valid | 004, 005 |
 | 005c | A new initiative starts with a default plan | ✅ valid | 003, 005 |
+| 005d | Create an initiative on a guided skeleton page | ✅ valid | 003, 005 |
+| 005e | Change an initiative's team | ✅ valid | 005 |
 | 006 | Availability suggestion in the person picker | ✅ valid | 005 |
 | 007 | Add cost items to a phase | ✅ valid | 005 |
 | 008 | Pass a gate with its checklist | ✅ valid | 005, 007 |
@@ -104,6 +106,12 @@ for the AI-agent-driven build the team asked for:
 - Slice 005c "A new initiative starts with a default plan": depends on 003
   (initiative creation, where the plan is built) and 005 (the phase period it
   fills in). Promoted from the backlog tail.
+- Slice 005d "Create an initiative on a guided skeleton page": depends on
+  003 (the creation flow it reworks) and 005 (the next-step highlight it
+  reuses). It supersedes slice 003's acceptance criteria about the draft
+  page's old behaviour.
+- Slice 005e "Change an initiative's team": depends on 005 (allocations to
+  remove). Its locked-phase rule is a predicate that slice 008 makes real.
 - Slice 006 "Availability suggestion in the person picker": depends on
   005 — it enhances the picker that slice introduces.
 - Slice 007 "Add cost items to a phase": depends on 005 — it adds to a

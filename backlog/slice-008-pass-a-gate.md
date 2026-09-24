@@ -102,4 +102,7 @@ historical work, built next once passing works.
 
 ## Flags and compromises
 
-None.
+Slice 005e (change an initiative's team) skips locked phases through one
+`isPhaseLocked` predicate that returns false until this slice. Passing a gate
+must make it true for the phase that gate froze, and reopening the gate must
+make it false again.
