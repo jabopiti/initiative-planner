@@ -33,7 +33,14 @@ export function tokenManagementUrl(location: GithubLocation): string {
 }
 
 function githubWebHost(location: GithubLocation): string {
-  return location.apiBaseUrl.includes('api.github.com')
-    ? 'https://github.com'
-    : location.apiBaseUrl.replace(/\/api\/v3\/?$/, '').replace('api.', '');
+  try {
+    const parsed = new URL(location.apiBaseUrl);
+    if (parsed.hostname === 'api.github.com') {
+      return 'https://github.com';
+    }
+  } catch {
+    // Fall back to existing behavior for malformed or unexpected values.
+  }
+
+  return location.apiBaseUrl.replace(/\/api\/v3\/?$/, '').replace('api.', '');
 }
