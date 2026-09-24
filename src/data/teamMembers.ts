@@ -12,7 +12,7 @@ export function activeMembership(personId: string, teamId: string, memberships: 
  * reactivating them restores it (§5.6).
  */
 export function isActiveMember(person: Person, teamId: string, memberships: Membership[]): boolean {
-  return person.active && memberships.some((m) => m.personId === person.id && m.teamId === teamId && m.active);
+  return person.active && activeMembership(person.id, teamId, memberships) !== undefined;
 }
 
 /** A team's active members, each once. Team size (§5.7) and who can be allocated (§7.2) both use this. */

@@ -65,7 +65,7 @@ beforeAll(() => {
       }
       if (url.includes('/contents/roles.json')) return file(roles, 'r');
       if (url.includes('/contents/countries.json')) return file(countries, 'c');
-      if (url.includes('/contents/teams.json')) return file([{ id: 't1', name: 'Payments', active: true }], 't');
+      if (url.includes('/contents/teams.json')) return file([{ id: 't1', name: 'Payments', active: true }, { id: 't2', name: 'Platform', active: true }], 't');
       if (url.includes('/contents/people.json')) return file([ana, cai, outsider], 'p');
       if (url.includes('/contents/memberships.json')) return file(members, 'm');
       const otherFile = others.find((o) => url.includes(`/contents/initiatives/${o.id}.json`));

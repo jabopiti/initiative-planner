@@ -3,15 +3,16 @@ import { toast } from 'sonner';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
+import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
 import { allocationFigures, phaseTotal } from '../data/cost';
-import { formatDate, formatPeriod, localToday } from '../data/dates';
+import { formatDate, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { freeCapacityByPerson } from '../data/personLoad';
 import { roleLabel } from '../data/roleLabel';
 import { activeMembers } from '../data/teamMembers';
 import type { Initiative, PhasePlan, Team } from '../data/types';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
-import { ChevronDownIcon, ChevronRightIcon, InfoIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
+import { ChevronDownIcon, ChevronRightIcon, InfoIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
 import { sortRows } from './tableSort';
 import { PercentInput } from './PercentInput';
@@ -24,6 +25,10 @@ const UNPLANNED: PhasePlan = { allocations: [] };
 /** The initiative page's Phases section (§5.4): every phase in order, costed ones expandable. */
 export function PhasesSection({ initiative, team }: { initiative: Initiative; team: Team | undefined }) {
   const { process } = useBrand();
+  const { initiatives, teams } = useRepositoryState();
+  // One portfolio-wide pass for every allocation row of every phase (§5.4 warnings).
+  const today = localToday();
+  const loads = useMemo(() => activeLoads({ initiatives, teams, process, today }), [initiatives, teams, process, today]);
   // The first costed phase opens by default; the others are one line until clicked.
   const costedPhases = process.filter((p) => p.costed);
   const [open, setOpen] = useState<Set<string>>(() => new Set(costedPhases.slice(0, 1).map((p) => p.id)));
@@ -65,6 +70,8 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
                 isNextStep={phase.id === nextStepId}
                 initiative={initiative}
                 team={team}
+                loads={loads}
+                today={today}
                 expanded={open.has(phase.id)}
                 onToggle={() => toggle(phase.id)}
               />
@@ -87,6 +94,8 @@ function CostedPhase({
   isNextStep,
   initiative,
   team,
+  loads,
+  today,
   expanded,
   onToggle,
 }: {
@@ -97,12 +106,15 @@ function CostedPhase({
   isNextStep: boolean;
   initiative: Initiative;
   team: Team | undefined;
+  /** Every Active allocation of the portfolio, for the capacity warnings on the rows. */
+  loads: Load[];
+  today: string;
   expanded: boolean;
   onToggle: () => void;
 }) {
   const repository = useRepository();
   const { currencySymbol, process } = useBrand();
-  const { people, roles, countries, memberships, initiatives } = useRepositoryState();
+  const { people, roles, countries, memberships, initiatives, teams } = useRepositoryState();
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const plan = initiative.phases?.[phase.id] ?? UNPLANNED;
@@ -125,7 +137,7 @@ function CostedPhase({
     const notYetAllocated = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
     const free =
       expanded && team
-        ? freeCapacityByPerson({ people: notYetAllocated, teamId: team.id, memberships, period: plan, initiatives, process, today: localToday() })
+        ? freeCapacityByPerson({ people: notYetAllocated, teamId: team.id, teams, memberships, period: plan, initiatives, process, today: localToday() })
         : undefined;
     const addable = sortRows(notYetAllocated, { free: (p) => free?.get(p.id) ?? 0, name: (p) => p.name }, 'free', 'desc', 'name');
     return { teamMembers, addable, free };
@@ -266,11 +278,23 @@ function CostedPhase({
                   const person = people.find((p) => p.id === allocation.personId);
                   const figures = person ? allocationFigures(plan, person, allocation.allocationPct, rateData) : null;
                   const name = person?.name ?? 'Unknown person';
+                  const warnings = allocationWarnings(initiative, phase.id, allocation.personId, { initiatives, teams, people, memberships, process, today }, loads);
                   return (
                     <tr key={allocation.id} className="border-t border-border-default">
                       <td className="py-1.5 pr-2">
                         <div>{name}</div>
                         {person && <div className="text-xs text-text-muted">{roleLabel(person, roles)}</div>}
+                        {warnings.notMember && <InlineWarning className="mt-1">No longer a member of {team?.name ?? 'the team'}</InlineWarning>}
+                        {warnings.overTeamFteMonths.length > 0 && (
+                          <InlineWarning icon={OverTeamFteIcon} className="mt-1">
+                            Over Team FTE % in {formatMonthRanges(warnings.overTeamFteMonths)}
+                          </InlineWarning>
+                        )}
+                        {warnings.overCapacityMonths.length > 0 && (
+                          <InlineWarning icon={OverCapacityIcon} className="mt-1">
+                            Over Capacity % in {formatMonthRanges(warnings.overCapacityMonths)}
+                          </InlineWarning>
+                        )}
                       </td>
                       <td className="py-1.5 pr-2">
                         <PercentInput

@@ -22,8 +22,12 @@ function initiative(id: string, teamId: string, phaseId: string, pct: number, st
 }
 
 /** Ana's free capacity for a phase of `t1`, or undefined when the phase has no months. */
+const teams = [
+  { id: 't1', name: 'T1', active: true },
+  { id: 't2', name: 'T2', active: true },
+];
 const free = (initiatives: Initiative[], period: { startDate?: string; endDate?: string } = { startDate: '2026-10-01', endDate: '2026-11-30' }, teamFtePct = 60) =>
-  freeCapacityByPerson({ people: [person], teamId: 't1', memberships: [membership(teamFtePct)], period, initiatives, process, today: TODAY })?.get('ana');
+  freeCapacityByPerson({ people: [person], teamId: 't1', teams, memberships: [membership(teamFtePct)], period, initiatives, process, today: TODAY })?.get('ana');
 
 describe('freeCapacityByPerson (§5.11, §7.2)', () => {
   it('is the Team FTE % when the person has no other commitments', () => {
@@ -77,6 +81,13 @@ describe('freeCapacityByPerson (§5.11, §7.2)', () => {
     expect(free([initiative('x', 't2', later, 66.6, '2026-10-01', '2026-10-31')], undefined, 100)).toBe(33);
   });
 
+  it('ignores the initiatives of an inactive team (§7.2)', () => {
+    const other = initiative('other', 't2', later, 70, '2026-10-01', '2026-10-31');
+    const inactive = [teams[0], { ...teams[1], active: false }];
+    const result = freeCapacityByPerson({ people: [person], teamId: 't1', teams: inactive, memberships: [membership(60)], period: { startDate: '2026-10-01', endDate: '2026-10-31' }, initiatives: [other], process, today: TODAY });
+    expect(result?.get('ana')).toBe(60);
+  });
+
   it('is undefined when the phase has no months to check', () => {
     expect(free([], { endDate: '2026-11-30' })).toBeUndefined();
     expect(free([], { startDate: '2026-11-30', endDate: '2026-10-01' })).toBeUndefined();
@@ -87,6 +98,7 @@ describe('freeCapacityByPerson (§5.11, §7.2)', () => {
     const result = freeCapacityByPerson({
       people: [person, bo],
       teamId: 't1',
+      teams,
       memberships: [membership(60), { id: 'm2', personId: 'bo', teamId: 't1', teamFtePct: 50, active: true }],
       period: { startDate: '2026-10-01', endDate: '2026-10-31' },
       initiatives: [initiative('other', 't2', later, 40, '2026-10-01', '2026-10-31')],

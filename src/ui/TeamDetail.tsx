@@ -6,6 +6,7 @@ import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './perso
 import { PercentInput } from './PercentInput';
 import { CopyButton } from './CopyButton';
 import { SortableHeader } from './SortableHeader';
+import { CapacityGrid } from './CapacityGrid';
 import { PersonPanel } from './PersonPanel';
 import { TruncatedText } from './TruncatedText';
 import { sortRows, useTableSort } from './tableSort';
@@ -13,7 +14,7 @@ import { DeactivateIcon, DeactivateTeamIcon, ReactivateIcon, ReactivateTeamIcon,
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-/** Team detail (§5.8), scoped to slice 004: the Members list only. */
+/** Team detail (§5.8): the Members list and the Capacity view. */
 export function TeamDetail({ id }: { id: string }) {
   const repository = useRepository();
   const { teams, people, memberships, roles, countries } = useRepositoryState();
@@ -250,6 +251,7 @@ export function TeamDetail({ id }: { id: string }) {
           </table>
         )}
       </section>
+      <CapacityGrid team={team} />
       <PersonPanel person={people.find((p) => p.id === personId) ?? null} onClose={() => setPersonId(null)} />
     </div>
   );
