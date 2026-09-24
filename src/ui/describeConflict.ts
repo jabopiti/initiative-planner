@@ -130,7 +130,7 @@ const masterFiles: Record<string, MasterFile> = {
     list: (ctx) => ctx.memberships,
     entity: (membership, ctx) => {
       const m = membership as Membership | undefined;
-      return `${nameIn(ctx.people)(m?.personId)} in ${nameIn(ctx.teams)(m?.teamId)}`;
+      return m ? `${nameIn(ctx.people)(m.personId)} in ${nameIn(ctx.teams)(m.teamId)}` : 'A membership';
     },
     fields: (ctx) => ({
       '': { label: 'Membership', format: (m) => percent((m as Membership).teamFtePct), unset: 'removed' },

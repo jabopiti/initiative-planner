@@ -87,6 +87,7 @@ describe('conflict rows name every field in words (§3, §9.9)', () => {
   it('names a person, and a membership by person and team', () => {
     expect(row('people.json', [{ id: 'ana' }, 'capacityPct'], 80, 100)).toMatchObject({ entity: 'Ana Silva', field: 'Capacity %', mine: '80%', theirs: '100%' });
     expect(row('memberships.json', [{ id: 'm1' }, 'teamFtePct'], 50, 70)).toMatchObject({ entity: 'Ana Silva in Platform', field: 'Team FTE %' });
+    expect(row('memberships.json', [{ id: 'gone' }, 'teamFtePct'], 50, 70).entity).toBe('A membership');
     expect(row('teams.json', [{ id: 't1' }, 'active'], false, true)).toMatchObject({ entity: 'Platform', field: 'Status', mine: 'Inactive', theirs: 'Active' });
   });
 

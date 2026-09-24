@@ -1709,8 +1709,8 @@ most half the storage quota) is checked by an automated test.
 
 ### 10.5 Merging
 
-No merge library is used: the shape is narrow enough — flat fields on typed
-records, plus lists identified by id — that a small, purpose-built
+No merge library is used: the shape is narrow enough — records merged key
+by key, plus lists identified by id — that a small, purpose-built
 function is more auditable than an external dependency, and it can enforce
 the one rule a generic library wouldn't: a same-field conflict is always
 surfaced to the user, never auto-resolved (§3).
@@ -1720,7 +1720,9 @@ When an edit is made against a stale file version:
 1. Fetch the current file from the repository.
 2. Compare it against the **last-synced version** the client held before
    the user's edit (the three-way base), field by field.
-3. For each top-level field: if only the user changed it, keep the user's
+3. For each field, at every level (a record inside the file, such as a
+   phase, is merged key by key down to its values, so a field no code knows
+   about merges too): if only the user changed it, keep the user's
    value. If only the repository's version changed it, keep that value. If
    both changed it to the same value, keep it. If both changed it to
    different values, it is a **conflict** (§3): shown to the user with both
@@ -1730,6 +1732,9 @@ When an edit is made against a stale file version:
    An item removed on one side and unchanged on the other is removed; one
    removed on one side and changed on the other is a conflict, as in step 3.
    An item present on both sides is itself merged field by field per step 3.
+   A phase frozen by a passed gate (§8.1) is not merged: its period,
+   allocations and cost items keep their snapshot, and its actuals merge as
+   above.
 5. Write the merged result as the new commit, against the version just
    fetched in step 1.
 
