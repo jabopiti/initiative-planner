@@ -72,21 +72,21 @@ behaviour this slice proves.
 
 ## Acceptance criteria
 
-- [ ] Given a phase with a set period and one allocation, when the
+- [x] Given a phase with a set period and one allocation, when the
       Allocation % is set, then the phase total updates to working days ×
       Allocation % × country day rate × role cost factor for each month of
       the period, summed.
-- [ ] Given a phase whose start or end date falls mid-month, when the total
+- [x] Given a phase whose start or end date falls mid-month, when the total
       is computed, then that month's working days are prorated by the share
       of the month's weekdays the period covers (§7.1), rather than counting
       the whole month or excluding it.
-- [ ] Given a person who is not a member of the initiative's team, when
+- [x] Given a person who is not a member of the initiative's team, when
       an attempt is made to allocate them, then it is refused with the
       reason (§7.2).
-- [ ] Given a person with a custom role, when they are allocated, then
+- [x] Given a person with a custom role, when they are allocated, then
       their cost uses their custom day rate and the role cost factor does
       not apply.
-- [ ] Given the phase's allocations are saved, when the page is reloaded,
+- [x] Given the phase's allocations are saved, when the page is reloaded,
       then the same period, allocations and total appear.
 
 ## Delivery gate
@@ -95,4 +95,6 @@ behaviour this slice proves.
 
 ## Flags and compromises
 
-None.
+A custom role can be stored and costs correctly, but no screen sets one
+yet: slice 005b adds that. The date fields are the full §9.11 control (typed
+date plus calendar popover), not the simplified control this slice allowed.

@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
 import type { Person } from '../data/types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DeactivateIcon, PlusIcon, ReactivateIcon, RemoveIcon, TeamsIcon } from './icons';
+import { CommitInput } from './CommitInput';
+import { CustomRoleFields } from './CustomRoleFields';
 import { PercentInput } from './PercentInput';
 import { teamColorClass } from './teamColors';
 
@@ -36,8 +38,15 @@ export function PersonPanel({ person, onClose }: { person: Person | null; onClos
 function PersonDetails({ person }: { person: Person }) {
   const repository = useRepository();
   const { roles, countries, teams, memberships } = useRepositoryState();
-  const [name, setName] = useState(person.name);
-  useEffect(() => setName(person.name), [person.name]);
+  const customRole = person.customRole;
+  const customActive = customRole?.active === true;
+  const setMode = (mode: string) => {
+    if (mode === 'custom' && !customActive) {
+      repository.updatePerson(person.id, { customRole: { label: '', costFactor: 1, dayRatesByYear: [], ...customRole, active: true } });
+    } else if (mode === 'standard' && customRole && customActive) {
+      repository.updatePerson(person.id, { customRole: { ...customRole, active: false } });
+    }
+  };
 
   const mine = memberships.filter((m) => m.personId === person.id && m.active);
   const teamIds = teams.map((t) => t.id);
@@ -57,14 +66,14 @@ function PersonDetails({ person }: { person: Person }) {
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <Label htmlFor="person-name">Name</Label>
-          <Input
+          <CommitInput
             id="person-name"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (e.target.value.trim()) repository.updatePerson(person.id, { name: e.target.value.trim() });
+            value={person.name}
+            onCommit={(text) => {
+              const trimmed = text.trim();
+              if (!trimmed || trimmed === person.name) return false;
+              repository.updatePerson(person.id, { name: trimmed });
             }}
-            onBlur={() => setName(person.name)}
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -84,22 +93,40 @@ function PersonDetails({ person }: { person: Person }) {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex flex-col gap-1">
-          <Label htmlFor="person-role">Role</Label>
-          <Select value={person.roleId} onValueChange={(roleId) => repository.updatePerson(person.id, { roleId })}>
-            <SelectTrigger id="person-role" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {roles
-                .filter((r) => r.active || r.id === person.roleId)
-                .map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.name}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor={customActive ? undefined : 'person-role'}>Role</Label>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            aria-label="Role type"
+            value={customActive ? 'custom' : 'standard'}
+            onValueChange={(mode) => mode && setMode(mode)}
+          >
+            <ToggleGroupItem value="standard" className="data-[state=on]:border-brand-accent data-[state=on]:bg-brand-accent-tint">
+              Standard role
+            </ToggleGroupItem>
+            <ToggleGroupItem value="custom" className="data-[state=on]:border-brand-accent data-[state=on]:bg-brand-accent-tint">
+              Custom role
+            </ToggleGroupItem>
+          </ToggleGroup>
+          {customActive && customRole ? (
+            <CustomRoleFields person={person} customRole={customRole} />
+          ) : (
+            <Select value={person.roleId} onValueChange={(roleId) => repository.updatePerson(person.id, { roleId })}>
+              <SelectTrigger id="person-role" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {roles
+                  .filter((r) => r.active || r.id === person.roleId)
+                  .map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <div className="flex flex-col gap-1">
           <Label htmlFor="person-capacity">Capacity</Label>

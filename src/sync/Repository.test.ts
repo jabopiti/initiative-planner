@@ -249,5 +249,118 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
       'Ada Lovelace: removed from Payments',
     ]);
   });
+
+  it('says what changed about a custom role, one edit at a time (§5.6)', async () => {
+    const mock = routingFetchMock();
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const cai = repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
+    await repo.flushPending();
+
+    const custom = { active: true, label: 'Fractional CTO', costFactor: 1, dayRatesByYear: [{ year: 2026, dayRate: 900 }] };
+    repo.updatePerson(cai.id, { customRole: custom });
+    await repo.flushPending();
+    repo.updatePerson(cai.id, { customRole: { ...custom, costFactor: 1.2 } });
+    await repo.flushPending();
+    repo.updatePerson(cai.id, { customRole: { ...custom, costFactor: 1.2, dayRatesByYear: [] } });
+    await repo.flushPending();
+    repo.updatePerson(cai.id, { customRole: { ...custom, costFactor: 1.2, dayRatesByYear: [], active: false } });
+    await repo.flushPending();
+
+    expect(messagesFor(mock, 'people.json').slice(1)).toEqual([
+      'Cai Wu: custom role set to Fractional CTO, 2026 custom day rate set to 900',
+      'Cai Wu: custom role cost factor set to 1.2',
+      'Cai Wu: 2026 custom day rate cleared',
+      expect.stringMatching(/^Cai Wu: back to standard role /),
+    ]);
+    // Switching back keeps the custom entries for later (§6).
+    expect(repo.getState().people[0].customRole?.label).toBe('Fractional CTO');
+  });
 });
 
+
+describe('Repository — slice 005 phase periods and allocations', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const commits: { message: string; content: { phases?: Record<string, unknown> } }[] = [];
+
+  async function repoWithInitiative() {
+    commits.length = 0;
+    vi.stubGlobal(
+      'fetch',
+      routingFetchMock({
+        'PUT /repos/jabopiti/initiative-planner/contents/initiatives': (_url, init) => {
+          const body = JSON.parse(init!.body as string) as { message: string; content: string };
+          commits.push({ message: body.message, content: JSON.parse(atob(body.content)) });
+          return jsonResponse({ content: { sha: `sha-${commits.length}` } });
+        },
+      }),
+    );
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const team = repo.createTeam('Payments');
+    const member = repo.createPerson({ name: 'Ana Ruiz', countryId: 'c1', roleId: 'r1' });
+    const outsider = repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
+    const membership = repo.addMembership(member.id, team.id)!;
+    repo.updateMembership(membership.id, { teamFtePct: 60 });
+    const initiative = await repo.createInitiative('Payments API', team.id);
+    commits.length = 0; // the creation commit isn't under test
+    return { repo, initiative, member, outsider };
+  }
+
+  it('refuses a non-member with the reason and changes nothing', async () => {
+    const { repo, initiative, outsider } = await repoWithInitiative();
+    const result = repo.addAllocation(initiative.id, 'validation', outsider.id);
+    expect(result).toEqual({ ok: false, reason: "Cai Wu isn't a member of Payments. Only team members can be allocated." });
+    expect(repo.getState().initiatives[0].phases).toBeUndefined();
+  });
+
+  it("prefills a new allocation with the member's Team FTE % and refuses a second row for the same person", async () => {
+    const { repo, initiative, member } = await repoWithInitiative();
+    const result = repo.addAllocation(initiative.id, 'validation', member.id);
+    expect(result.ok && result.allocation.allocationPct).toBe(60);
+    expect(repo.addAllocation(initiative.id, 'validation', member.id)).toMatchObject({ ok: false });
+  });
+
+  it("commits the period and allocations to the initiative's file with plain-words messages, once edits settle", async () => {
+    const { repo, initiative, member } = await repoWithInitiative();
+    repo.setPhaseDate(initiative.id, 'validation', 'startDate', '2026-10-01');
+    repo.setPhaseDate(initiative.id, 'validation', 'endDate', '2026-11-30');
+    const added = repo.addAllocation(initiative.id, 'validation', member.id);
+    if (!added.ok) throw new Error('expected the allocation to be added');
+    repo.updateAllocation(initiative.id, 'validation', added.allocation.id, 80);
+    await repo.flushPending();
+
+    expect(commits).toHaveLength(1);
+    expect(commits[0].message).toContain('Payments API: Validation start date set to 1 Oct 2026');
+    expect(commits[0].message).toContain('Payments API: Validation end date set to 30 Nov 2026');
+    expect(commits[0].message).toContain('Payments API: Validation allocation of Ana Ruiz set to 80%');
+    expect(commits[0].content.phases).toEqual({
+      validation: {
+        startDate: '2026-10-01',
+        endDate: '2026-11-30',
+        allocations: [{ id: added.allocation.id, personId: member.id, allocationPct: 80 }],
+      },
+    });
+  });
+
+  it('puts an undone removal back in its place', async () => {
+    const { repo, initiative, member } = await repoWithInitiative();
+    const added = repo.addAllocation(initiative.id, 'validation', member.id);
+    if (!added.ok) throw new Error('expected the allocation to be added');
+    const removed = repo.removeAllocation(initiative.id, 'validation', added.allocation.id)!;
+    expect(repo.getState().initiatives[0].phases!.validation.allocations).toEqual([]);
+    repo.restoreAllocation(initiative.id, 'validation', removed.allocation, removed.index);
+    expect(repo.getState().initiatives[0].phases!.validation.allocations).toEqual([added.allocation]);
+  });
+
+  it('clears a date', async () => {
+    const { repo, initiative } = await repoWithInitiative();
+    repo.setPhaseDate(initiative.id, 'validation', 'endDate', '2026-11-30');
+    repo.setPhaseDate(initiative.id, 'validation', 'endDate', undefined);
+    expect(repo.getState().initiatives[0].phases!.validation).toEqual({ allocations: [] });
+  });
+});

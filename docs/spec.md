@@ -529,9 +529,10 @@ cross-references point there.
   FTE %**. A person may hold several memberships. Membership governs
   allocation: only a team's members may be allocated to that team's
   initiatives.
-- **Custom role:** a free-text role label with an absolute day rate per
-  year, configured on one person rather than in shared master data. Used for
-  contractors and anyone whose rate is individually negotiated.
+- **Custom role:** a free-text role label with its own day rate per year and
+  its own cost factor, configured on one person rather than in shared master
+  data. Used for contractors and anyone whose rate is individually
+  negotiated.
 - **Capacity %:** a person's ceiling on total concurrent commitment across
   all teams.
 - **Team FTE %:** how much of a person's full-time capacity one team holds,
@@ -560,14 +561,17 @@ icon, the sync indicator (§3) and the theme control (§9.1):
 - **Settings**
 
 The **New initiative** button opens a **draft page**, laid out like the
-initiative's header (§5.4): the name field is focused, with the team
-selector and a "Draft" chip beside it. The team defaults to the one last
-used, or to the only active team; with neither, the selector reads "Choose
-team". Nothing is saved while the draft has no name or no team. Once it has
-both, Enter, leaving the name field, or choosing the team creates the
-initiative and its detail page replaces the draft, so Back skips the draft.
-Esc discards the draft and returns to the Portfolio. The Portfolio's empty
-state (§9.4) opens the same draft page. The **sync indicator** is a small check icon while everything is
+initiative's header (§5.4): the name field is the title and is focused, with
+the team selector beside it and a "Draft" chip. The team selector always
+starts on "Select team", with the last-used team listed first and marked;
+the tool never chooses a team for the user. The next thing to fill in is
+highlighted: the name, then the team, then, once both are filled, the
+**Create initiative** button. No phases appear on the draft. Nothing is
+saved until Create initiative is chosen (Enter in the name field does the
+same once a team is selected); leaving a field saves nothing. Creating the
+initiative saves it and its detail page replaces the draft, so Back skips the
+draft. Esc discards the draft, without asking, and returns to the Portfolio.
+The Portfolio's empty state (§9.4) opens the same draft page. The **sync indicator** is a small check icon while everything is
 synced; its label appears while syncing and stays visible in read-only mode
 with the cause (§3).
 
@@ -726,8 +730,9 @@ Its layout follows the design rules in §9.8.
 - **Header**: initiative name (editable), description (editable, plain text,
   1–2 lines), owner (selected from People list), team, status badge,
   approval track badge, and the Actions menu. Changing the team while
-  allocations exist shows an inline notice: how many allocations belong to
-  people who are not on the new team (§7.2).
+  allocations exist asks for an inline confirmation first, naming the people
+  who are not on the new team and will be removed from the phases that are
+  still open (§7.2); it is not possible on a Closed or Cancelled initiative.
 - **Cost summary**: the grand estimate (§4), what the initiative was last
   approved at (the figure of the last passed gate that carried cost, with
   the gate's name), the difference between the two, and the deviation (§4)
@@ -788,7 +793,10 @@ Opened as a **side panel** from the People overview. Edits happen in place,
 with no save button, and Esc or the close icon closes the panel and returns
 focus to the row (§9.5). It shows and allows editing of all person details:
 
-- Name, country, role (standard or custom), capacity %.
+- Name, country, role (standard or custom), capacity %. A custom role shows
+  a label, a cost factor and a day rate for each year of the tracked window
+  (§7.2), saying which years take another year's rate; earlier years are
+  shown read-only.
 - Team memberships with Team FTE %s, capped at the person's unclaimed
   capacity (Capacity % minus the Team FTE %s already held) and defaulting
   to it, so a membership can never be created or edited here into an
@@ -1018,7 +1026,7 @@ presentation concern (§9.7, §9.11), never part of the stored value.
 | Name | Text | Yes | Required at creation, together with the team |
 | Description | Plain text | No | Short, 1–2 lines |
 | Owner | Person reference | No | Selected from the People list |
-| Team | Team reference | Yes | Exactly one team; required at creation. Only its members can be allocated (§7.2); changing the team keeps existing allocations and flags non-members (§7.2) |
+| Team | Team reference | Yes | Exactly one team; required at creation. Only its members can be allocated (§7.2); changing the team removes the allocations of people who are not on the new team from every phase that is not frozen, after a confirmation (§7.2) |
 | Status | Enum | Auto | Active, On Hold, Cancelled, Closed. Defaults to Active |
 | Current phase | Derived | — | Position in the process |
 | Approval track | Derived | — | From the grand estimate (§7.4) |
@@ -1071,7 +1079,7 @@ Created when a gate is passed or skipped; cleared when it is reopened
 | Id | UUID | Auto | Assigned when the person is created (§6) |
 | Name | Text | Yes | |
 | Country | Country reference | Yes | Determines working days and day rate |
-| Role | Role reference | Yes | A standard role, or a custom role instead (see below) |
+| Role | Role reference | Yes | The standard role. Kept while the person has a custom role, so switching back restores it; the custom role, when in use, is costed and shown instead (see below) |
 | Capacity % | Percentage | Yes | Ceiling on total concurrent commitment |
 | Active | Boolean | Auto | See §9.3 for deactivation rules |
 
@@ -1079,8 +1087,10 @@ Created when a gate is passed or skipped; cleared when it is reopened
 
 | Field | Type | Notes |
 |---|---|---|
+| Active | Boolean | Whether the person is costed and shown with the custom role. Switching back to the standard role clears it and keeps the rest, so the custom entries are still there when the custom role is chosen again |
 | Label | Text | Free-text role name |
-| Day rate | Currency, per year | Absolute rate for the given year; replaces country rate × role factor. Same tracked window and yearly copy rule as country rates (§7.2) |
+| Cost factor | Number | Multiplied against the day rate, like a standard role's cost factor. Defaults to 1 |
+| Day rate | Currency, per year | Replaces the country day rate for the given year; the cost factor still applies. A year with no entry takes the nearest entered year's rate. Same tracked window and yearly copy rule as country rates (§7.2) |
 
 ### Team
 
@@ -1140,7 +1150,8 @@ The monthly cost of an allocation is working days × Allocation % × country
 day rate × role cost factor. Working days are the country's working days for
 that month and year (§6), and the country day rate is the one for that year.
 For a person with a custom role, the cost is working days × Allocation % ×
-custom day rate for that year; the role cost factor does not apply. Amounts
+the custom role's day rate for that year × the custom role's cost factor.
+The standard role's cost factor and the country day rate do not apply. Amounts
 are computed unrounded and rounded only for display. A phase's monthly
 estimate adds its cost items: an item timed in one month counts in that
 month, and an item spread over the phase counts equally in each month of the
@@ -1185,9 +1196,18 @@ Only a team's members may be allocated to that team's initiatives. An
 allocation that outlives its membership **stays and keeps costing** and is
 surfaced as a warning rather than dropped.
 
-**Rates and working days.** A **custom rate is absolute**: it replaces the
-country rate and bypasses the role factor. Working days still come from the
-person's country.
+**Changing an initiative's team** is the one act that does remove such
+allocations, because the person is not a member of the new team. It removes
+the allocations of people who are not active members of the new team from
+every phase that is not frozen by a passed gate (§8.1); people who are on
+both teams stay. Frozen phases, their snapshots and all recorded actuals are
+never touched. The change is confirmed first, in place, with the affected
+people named, and is undoable for 10 seconds (§5.11). A Closed or Cancelled
+initiative keeps its team.
+
+**Rates and working days.** A **custom role's day rate replaces the country
+day rate**, and its own cost factor replaces the standard role's. Working
+days still come from the person's country.
 
 Rates and working days are read for **the month's own year**, so a rate rise
 next year never moves this year's figures. The **tracked window** is always
@@ -1628,7 +1648,9 @@ full file list once. Fetched files are cached by version (§10.4).
 ### 10.3 Writing
 
 A single edit is written through the Contents API against the file's last-seen
-version, as one commit. Edits are grouped into one commit after 1 second
+version, as one commit. A text or number field makes its edit when it loses
+focus or Enter is pressed, never on each keystroke, so typing a value is one
+edit rather than several. Edits are grouped into one commit after 1 second
 without a further edit, one write is in flight at a time, and closing the tab
 while a write is pending shows a warning. A stale version is rejected with a
 409: the client re-reads the file, re-applies the change with the merge rule of

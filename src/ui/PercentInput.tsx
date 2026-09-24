@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { Input } from '@/components/ui/input';
+import { useState } from 'react';
+import { CommitInput } from './CommitInput';
 import { WarningIcon } from './icons';
 
-/** Bare number field that commits on every valid change (§5.6: edits in place, no save button). */
+/** Bare number field, edited in place (§5.6): commits on blur or Enter, with a live warning while the typed value is over its limit. */
 export function PercentInput({
   value,
   max,
@@ -19,33 +19,30 @@ export function PercentInput({
   flat?: boolean;
   onChange: (value: number) => void;
 }) {
-  const [draft, setDraft] = useState(String(value));
   const [capped, setCapped] = useState(false);
-  useEffect(() => setDraft(String(value)), [value]);
+  const limit = max ?? 100;
+  const parse = (text: string) => (text.trim() === '' ? NaN : Number(text));
 
   return (
     <div className={flat ? 'contents' : undefined}>
       <div className="flex items-center gap-1">
-        <Input
+        <CommitInput
           type="number"
           inputMode="numeric"
           min={0}
-          max={max ?? 100}
+          max={limit}
           className="w-16"
           aria-label={label}
           disabled={disabled}
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            const parsed = Number(e.target.value);
-            if (e.target.value === '' || Number.isNaN(parsed) || parsed < 0) return;
-            const limit = max ?? 100;
-            setCapped(parsed > limit);
-            onChange(Math.min(parsed, limit));
-          }}
-          onBlur={() => {
-            setDraft(String(value));
+          value={String(value)}
+          onDraftChange={(text) => setCapped(parse(text) > limit)}
+          onCommit={(text) => {
             setCapped(false);
+            const parsed = parse(text);
+            if (Number.isNaN(parsed) || parsed < 0) return false;
+            const next = Math.min(parsed, limit);
+            if (next === value) return false;
+            onChange(next);
           }}
         />
         <span className="text-sm text-text-secondary">%</span>

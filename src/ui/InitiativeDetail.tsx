@@ -1,10 +1,10 @@
 import { useRepositoryState } from '../state/DataContext';
+import { PhasesSection } from './PhasesSection';
 
 /**
- * A minimal initiative page: enough for "the initiative's page opens"
- * (slice 003's acceptance criteria) to be real. The full page — header
- * actions, cost summary, phases, gate panel, magic bar — is §5.4, not in
- * slice 003's spec_sections; it lands with slice 005 onward.
+ * The initiative page (§5.4), built up slice by slice: header and the Phases
+ * section (period, allocations) so far. Header actions, cost summary, gate
+ * panel and magic bar land with later slices.
  */
 export function InitiativeDetail({ id }: { id: string }) {
   const { initiatives, teams, status } = useRepositoryState();
@@ -28,9 +28,7 @@ export function InitiativeDetail({ id }: { id: string }) {
         <span>{team?.name ?? 'Unknown team'}</span>
         <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs">{initiative.status}</span>
       </div>
-      <p className="text-sm text-text-muted">
-        Planning (phases, allocations, cost, gates) isn&apos;t built yet — that starts with slice 005.
-      </p>
+      <PhasesSection initiative={initiative} team={team} />
     </div>
   );
 }
