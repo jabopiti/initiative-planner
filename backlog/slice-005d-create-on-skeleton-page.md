@@ -67,7 +67,7 @@ description, Actions menu), which arrive with their own slices.
 3. User triggers: types a name; the team selector becomes the highlighted
    step; they choose a team; Create initiative becomes the highlighted step.
 4. User triggers: clicks Create initiative (or presses Enter).
-5. Data: the initiative file is written once (§10.2), with no phases yet.
+5. Data: the initiative file is written once (§10.2), with its default plan (slice 005c) when that slice is done.
 6. User receives: the initiative's page, with its phases and the next
    highlighted step from slice 005.
 
@@ -97,7 +97,7 @@ description, Actions menu), which arrive with their own slices.
 - [ ] Given both a name and a team, when Create initiative is chosen (or
       Enter is pressed in the name field), then exactly one commit is made,
       the initiative's page replaces the draft, Back skips the draft, and its
-      phases appear.
+      phases appear (with their default dates once slice 005c is done).
 - [ ] Given a draft with a name, when the team is chosen and then changed to
       another team before creating, then the selection changes and nothing is
       saved.

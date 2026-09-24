@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
+import type { Initiative } from '../data/types';
 import { Repository } from './Repository';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -132,6 +133,28 @@ describe('Repository — slice 003 acceptance flows', () => {
     expect(putCall).toBeDefined();
     const body = JSON.parse((putCall![1] as RequestInit).body as string) as { branch: string };
     expect(body.branch).toBe('data');
+  });
+
+  it('creates the initiative with a default plan chained from the given day, in the one creation commit', async () => {
+    fetchMock = routingFetchMock({
+      'PUT /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ content: { sha: 'init-sha' } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+
+    const initiative = await repo.createInitiative('Checkout Redesign', 'team-1', '2026-09-24');
+
+    expect(initiative.defaultPlan).toBe(true);
+    expect(initiative.phases).toEqual({
+      validation: { startDate: '2026-09-24', endDate: '2026-12-23', allocations: [] },
+      development: { startDate: '2026-12-24', endDate: '2027-06-23', allocations: [] },
+    });
+    const puts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
+    expect(puts).toHaveLength(1);
+    const saved = JSON.parse(atob(JSON.parse((puts[0][1] as RequestInit).body as string).content)) as typeof initiative;
+    expect(saved.phases?.validation.startDate).toBe('2026-09-24');
+    expect(saved.defaultPlan).toBe(true);
   });
 });
 
@@ -285,7 +308,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     vi.unstubAllGlobals();
   });
 
-  const commits: { message: string; content: { phases?: Record<string, unknown> } }[] = [];
+  const commits: { message: string; content: Initiative }[] = [];
 
   async function repoWithInitiative() {
     commits.length = 0;
@@ -306,7 +329,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     const outsider = repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
     const membership = repo.addMembership(member.id, team.id)!;
     repo.updateMembership(membership.id, { teamFtePct: 60 });
-    const initiative = await repo.createInitiative('Payments API', team.id);
+    const initiative = await repo.createInitiative('Payments API', team.id, '2026-09-24');
     commits.length = 0; // the creation commit isn't under test
     return { repo, initiative, member, outsider };
   }
@@ -315,7 +338,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     const { repo, initiative, outsider } = await repoWithInitiative();
     const result = repo.addAllocation(initiative.id, 'validation', outsider.id);
     expect(result).toEqual({ ok: false, reason: "Cai Wu isn't a member of Payments. Only team members can be allocated." });
-    expect(repo.getState().initiatives[0].phases).toBeUndefined();
+    expect(repo.getState().initiatives[0].phases?.validation.allocations).toEqual([]);
   });
 
   it("prefills a new allocation with the member's Team FTE % and refuses a second row for the same person", async () => {
@@ -338,12 +361,10 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     expect(commits[0].message).toContain('Payments API: Validation start date set to 1 Oct 2026');
     expect(commits[0].message).toContain('Payments API: Validation end date set to 30 Nov 2026');
     expect(commits[0].message).toContain('Payments API: Validation allocation of Ana Ruiz set to 80%');
-    expect(commits[0].content.phases).toEqual({
-      validation: {
-        startDate: '2026-10-01',
-        endDate: '2026-11-30',
-        allocations: [{ id: added.allocation.id, personId: member.id, allocationPct: 80 }],
-      },
+    expect(commits[0].content.phases?.validation).toEqual({
+      startDate: '2026-10-01',
+      endDate: '2026-11-30',
+      allocations: [{ id: added.allocation.id, personId: member.id, allocationPct: 80 }],
     });
   });
 
@@ -357,10 +378,26 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     expect(repo.getState().initiatives[0].phases!.validation.allocations).toEqual([added.allocation]);
   });
 
+  it('the first edit to a default plan ends the suggestion, and the flag is gone from the committed file', async () => {
+    const { repo, initiative } = await repoWithInitiative();
+    expect(repo.getState().initiatives[0].defaultPlan).toBe(true);
+    repo.setPhaseDate(initiative.id, 'validation', 'endDate', '2026-12-31');
+    expect(repo.getState().initiatives[0].defaultPlan).toBeUndefined();
+    await repo.flushPending();
+    expect(commits[0].content.defaultPlan).toBeUndefined();
+    expect(commits[0].content.phases?.development.startDate).toBe('2026-12-24'); // no other phase moved
+  });
+
+  it('adding an allocation also ends the suggestion', async () => {
+    const { repo, initiative, member } = await repoWithInitiative();
+    repo.addAllocation(initiative.id, 'validation', member.id);
+    expect(repo.getState().initiatives[0].defaultPlan).toBeUndefined();
+  });
+
   it('clears a date', async () => {
     const { repo, initiative } = await repoWithInitiative();
     repo.setPhaseDate(initiative.id, 'validation', 'endDate', '2026-11-30');
     repo.setPhaseDate(initiative.id, 'validation', 'endDate', undefined);
-    expect(repo.getState().initiatives[0].phases!.validation).toEqual({ allocations: [] });
+    expect(repo.getState().initiatives[0].phases!.validation).toEqual({ startDate: '2026-09-24', allocations: [] });
   });
 });

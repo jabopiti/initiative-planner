@@ -4,12 +4,12 @@ import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { allocationFigures, phaseTotal } from '../data/cost';
-import { formatPeriod } from '../data/dates';
+import { formatDate, formatPeriod } from '../data/dates';
 import { roleLabel } from '../data/roleLabel';
 import type { Initiative, Team } from '../data/types';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
-import { ChevronDownIcon, ChevronRightIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
+import { ChevronDownIcon, ChevronRightIcon, InfoIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { PercentInput } from './PercentInput';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,16 +26,41 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
       return next;
     });
 
+  // One next step at a time: the first costed phase still missing its period or its people.
+  const costedPhases = process.filter((p) => p.costed);
+  const isPlanned = (phase: PhaseDef) => {
+    const plan = initiative.phases?.[phase.id];
+    return Boolean(plan?.startDate && plan.endDate) && plan!.allocations.length > 0;
+  };
+  const nextStepId = costedPhases.find((p) => !isPlanned(p))?.id;
+
   return (
     <section aria-labelledby="phases-heading">
       <h2 id="phases-heading" className="m-0 mb-3 text-lg">
         Phases
       </h2>
+      {initiative.defaultPlan && (
+        <p
+          className="m-0 mb-3 flex items-start gap-2 rounded-md border border-brand-accent bg-brand-accent-tint p-3 text-sm text-brand-accent-text"
+          data-testid="suggested-dates-note"
+        >
+          <InfoIcon width={16} height={16} className="mt-0.5 shrink-0" />
+          Suggested dates, starting today. Adjust them, then add people to see the cost.
+        </p>
+      )}
       <ol className="m-0 flex list-none flex-col gap-2 p-0">
         {process.map((phase) => (
           <li key={phase.id} className="rounded-lg border border-border-default bg-surface-card">
             {phase.costed ? (
-              <CostedPhase phase={phase} initiative={initiative} team={team} expanded={open.has(phase.id)} onToggle={() => toggle(phase.id)} />
+              <CostedPhase
+                phase={phase}
+                previous={costedPhases[costedPhases.indexOf(phase) - 1]}
+                isNextStep={phase.id === nextStepId}
+                initiative={initiative}
+                team={team}
+                expanded={open.has(phase.id)}
+                onToggle={() => toggle(phase.id)}
+              />
             ) : (
               <div className="flex items-center gap-2 px-3 py-2.5 text-sm">
                 <span className="font-medium">{phase.label}</span>
@@ -51,12 +76,18 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
 
 function CostedPhase({
   phase,
+  previous,
+  isNextStep,
   initiative,
   team,
   expanded,
   onToggle,
 }: {
   phase: PhaseDef;
+  /** The costed phase before this one, for the overlap warning. */
+  previous: PhaseDef | undefined;
+  /** This is the phase whose missing period or people is the highlighted next step. */
+  isNextStep: boolean;
   initiative: Initiative;
   team: Team | undefined;
   expanded: boolean;
@@ -72,9 +103,11 @@ function CostedPhase({
   const hasPeriod = Boolean(plan.startDate && plan.endDate);
   const inverted = hasPeriod && plan.endDate! < plan.startDate!;
   const costed = hasPeriod && !inverted;
-  // The next missing thing is highlighted: the period first, then the people.
-  const needsPeriod = !hasPeriod;
-  const needsPeople = hasPeriod && plan.allocations.length === 0;
+  // The next missing thing is highlighted, in one phase only: the period first, then the people.
+  const needsPeriod = isNextStep && !hasPeriod;
+  const needsPeople = isNextStep && hasPeriod && plan.allocations.length === 0;
+  const previousEnd = previous && initiative.phases?.[previous.id]?.endDate;
+  const overlap = previous && previousEnd && plan.startDate && plan.startDate <= previousEnd ? `Starts before ${previous.label} ends (${formatDate(previousEnd)}). The two phases overlap.` : null;
   const total = phaseTotal(plan, people, rateData);
 
   const teamMembers = team
@@ -133,10 +166,15 @@ function CostedPhase({
         {hasPeriod ? (
           <span className="text-text-secondary">{formatPeriod(plan.startDate!, plan.endDate!)}</span>
         ) : (
-          <span className="font-medium text-brand-accent-text">Set period</span>
+          <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>Set period</span>
         )}
-        {plan.allocations.length === 0 && <span className="font-medium text-brand-accent-text">· Add people</span>}
-        <span className="ml-auto font-medium tabular-nums">{costed ? formatAmount(total, currencySymbol) : '—'}</span>
+        {overlap && <WarningIcon width={16} height={16} className="shrink-0 text-warning-text" role="img" aria-hidden={false} aria-label={`Overlaps ${previous!.label}`} />}
+        {plan.allocations.length === 0 && (
+          <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>· Add people</span>
+        )}
+        <span className="ml-auto font-medium tabular-nums">
+          {costed && plan.allocations.length > 0 ? formatAmount(total, currencySymbol) : '—'}
+        </span>
         <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary">Estimate</span>
       </button>
 
@@ -169,6 +207,12 @@ function CostedPhase({
               </div>
             </div>
           </div>
+          {overlap && (
+            <p className="m-0 flex items-center gap-1 rounded-md bg-warning-tint px-2 py-1 text-xs text-warning-text" role="status">
+              <WarningIcon width={14} height={14} />
+              {overlap}
+            </p>
+          )}
           {inverted && (
             <p className="m-0 flex items-center gap-1 rounded-md bg-warning-tint px-2 py-1 text-xs text-warning-text" role="status">
               <WarningIcon width={14} height={14} />
