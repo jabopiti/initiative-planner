@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
-import { teamCapacity, teamHasCapacityWarning } from '../data/capacity';
+import { activeLoads, teamCapacity, teamHasCapacityWarning } from '../data/capacity';
 import { localToday } from '../data/dates';
 import { currentPhaseId } from '../data/processState';
 import { activeMembers } from '../data/teamMembers';
@@ -38,16 +38,16 @@ export function TeamsOverview() {
     return byTeam;
   }, [brand.process, initiatives]);
 
-  const rows = useMemo(
-    () =>
-      teams.map((team) => ({
-        team,
-        members: activeMembers(team.id, memberships, people).length,
-        capacityWarning: teamHasCapacityWarning(teamCapacity(team.id, { initiatives, people, memberships, process: brand.process, today: localToday() })),
-        counts: brand.process.map((phase) => phaseCountsByTeam.get(team.id)?.get(phase.id) ?? 0),
-      })),
-    [teams, initiatives, memberships, people, brand.process, phaseCountsByTeam],
-  );
+  const rows = useMemo(() => {
+    const data = { initiatives, people, memberships, process: brand.process, today: localToday() };
+    const loads = activeLoads(data);
+    return teams.map((team) => ({
+      team,
+      members: activeMembers(team.id, memberships, people).length,
+      capacityWarning: teamHasCapacityWarning(teamCapacity(team.id, data, loads)),
+      counts: brand.process.map((phase) => phaseCountsByTeam.get(team.id)?.get(phase.id) ?? 0),
+    }));
+  }, [teams, initiatives, memberships, people, brand.process, phaseCountsByTeam]);
 
   const sorted = useMemo(() => {
     const columns: Record<string, (r: (typeof rows)[number]) => SortValue> = {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateField, formatPeriod, parseDateText } from './dates';
+import { formatDate, formatDateField, formatMonth, formatMonthRanges, formatMonthShort, formatPeriod, nextMonth, parseDateText } from './dates';
 
 describe('date text (§9.11 date input)', () => {
   it('formats an ISO date for the field as dd.mm.yyyy, and for headlines as "3 Sep 2026"', () => {
@@ -32,5 +32,21 @@ describe('date text (§9.11 date input)', () => {
     for (const text of ['', 'soon', '31 Feb 2026', '31.02.2026', '3 Foo 2026', '2026-13-01', '3 Sep', '26.06', '13.13.2026']) {
       expect(parseDateText(text)).toBeNull();
     }
+  });
+});
+
+describe('month helpers', () => {
+  it('formats a month key', () => {
+    expect(formatMonth('2026-09')).toBe('Sep 2026');
+    expect(formatMonthShort('2026-09')).toBe('Sep 26');
+  });
+  it('steps to the next month across a year end', () => {
+    expect(nextMonth('2026-12')).toBe('2027-01');
+    expect(nextMonth('2026-09')).toBe('2026-10');
+  });
+  it('merges consecutive months into ranges', () => {
+    expect(formatMonthRanges(['2026-11', '2026-12', '2027-01'])).toBe('Nov 2026 – Jan 2027');
+    expect(formatMonthRanges(['2026-09', '2026-11', '2026-12'])).toBe('Sep 2026, Nov – Dec 2026');
+    expect(formatMonthRanges(['2026-09'])).toBe('Sep 2026');
   });
 });

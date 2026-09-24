@@ -3,9 +3,6 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import {
   allocationWarnings,
   claimedFtePct,
-  formatMonth,
-  formatMonthRanges,
-  formatMonthShort,
   isPhaseConfirmed,
   loadsIn,
   teamCapacity,
@@ -174,9 +171,9 @@ describe('teamCapacity (§5.8, §7.2)', () => {
   it('gives an allocated person who left the team a row of their own, with no Team FTE %', () => {
     const inits = [initiative('i1', 't1', { validation: plan('2026-09-01', '2026-09-30', ['ana', 30], ['bo', 20]) })];
     const cap = teamCapacity('t1', data(inits, [mem('ana', 't1', 60)]));
-    expect(cap.rows.map((r) => [r.person.name, r.member, r.teamFtePct])).toEqual([
-      ['Ana', true, 60],
-      ['Bo', false, null],
+    expect(cap.rows.map((r) => [r.person.name, r.teamFtePct])).toEqual([
+      ['Ana', 60],
+      ['Bo', null],
     ]);
     expect(cap.rows[1].stranded).toHaveLength(1);
     expect(cap.rows[1].cells[0]).toMatchObject({ teamPct: 20, overTeamFte: false });
@@ -185,7 +182,7 @@ describe('teamCapacity (§5.8, §7.2)', () => {
   it('treats a deactivated person as no longer a member', () => {
     const inits = [initiative('i1', 't1', { validation: plan('2026-09-01', '2026-09-30', ['ana', 30]) })];
     const cap = teamCapacity('t1', data(inits, [mem('ana', 't1', 60)], [{ ...ana, active: false }]));
-    expect(cap.rows[0]).toMatchObject({ member: false });
+    expect(cap.rows[0]).toMatchObject({ teamFtePct: null });
   });
 
   it('notes when the Team FTE %s add up to more than the Capacity %', () => {
@@ -237,17 +234,5 @@ describe('allocationWarnings (§5.4)', () => {
     const held = [{ ...inits[0], status: 'On Hold' as const }];
     expect(allocationWarnings(held[0], 'validation', 'ana', data(held, [mem('ana', 't1', 10)]))).toEqual({ notMember: false, overTeamFteMonths: [], overCapacityMonths: [] });
     expect(allocationWarnings(held[0], 'validation', 'ana', data(held, []))).toMatchObject({ notMember: true });
-  });
-});
-
-describe('month helpers', () => {
-  it('formats a month key', () => {
-    expect(formatMonth('2026-09')).toBe('Sep 2026');
-    expect(formatMonthShort('2026-09')).toBe('Sep 26');
-  });
-  it('merges consecutive months into ranges', () => {
-    expect(formatMonthRanges(['2026-11', '2026-12', '2027-01'])).toBe('Nov 2026 – Jan 2027');
-    expect(formatMonthRanges(['2026-09', '2026-11', '2026-12'])).toBe('Sep 2026, Nov – Dec 2026');
-    expect(formatMonthRanges(['2026-09'])).toBe('Sep 2026');
   });
 });

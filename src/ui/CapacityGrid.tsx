@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { useRepositoryState } from '../state/DataContext';
-import { formatMonth, formatMonthRanges, formatMonthShort, loadsIn, teamCapacity, type CapacityCell, type CapacityRow, type Load, type TeamCapacity } from '../data/capacity';
-import { formatPeriod, localToday } from '../data/dates';
+import { loadsIn, teamCapacity, type CapacityCell, type CapacityRow, type Load, type TeamCapacity } from '../data/capacity';
+import { formatMonth, formatMonthRanges, formatMonthShort, formatPeriod, localToday } from '../data/dates';
 import type { Team } from '../data/types';
 import { CopyButton } from './CopyButton';
 import { OverCapacityIcon, OverTeamFteIcon, WarningIcon } from './icons';
@@ -132,7 +132,7 @@ export function CapacityGrid({ team }: { team: Team }) {
 
 function CellButton({ name, cell, selected, onSelect }: { name: string; cell: CapacityCell; selected: boolean; onSelect: () => void }) {
   const { main, markers, provisional } = cellWords(cell);
-  const warned = markers.length > 0;
+  const warned = cell.overTeamFte || cell.overCapacity;
   const label = [`${name}, ${formatMonth(cell.month)}: ${cell.teamPct > 0 ? pct(cell.teamPct) : '0%'}`, ...markers, ...(provisional ? [provisional] : [])].join(', ');
   return (
     <button
@@ -145,16 +145,8 @@ function CellButton({ name, cell, selected, onSelect }: { name: string; cell: Ca
       } ${selected ? 'ring-2 ring-brand-accent ring-inset' : ''}`}
     >
       <span className={cell.teamPct > 0 ? 'font-medium' : 'text-text-muted'}>{main}</span>
-      {cell.overTeamFte && (
-        <span data-testid="over-team-fte">
-          <OverTeamFteIcon width={14} height={14} />
-        </span>
-      )}
-      {cell.overCapacity && (
-        <span data-testid="over-capacity">
-          <OverCapacityIcon width={14} height={14} />
-        </span>
-      )}
+      {cell.overTeamFte && <OverTeamFteIcon width={14} height={14} data-testid="over-team-fte" />}
+      {cell.overCapacity && <OverCapacityIcon width={14} height={14} data-testid="over-capacity" />}
       {cell.provisionalPct > 0 && <span className="text-xs font-normal text-text-muted">+{pct(cell.provisionalPct)}</span>}
     </button>
   );
@@ -165,31 +157,28 @@ function Detail({ row, month, team, capacity, onClose }: { row: CapacityRow; mon
   const { person } = row;
   const cell = month ? row.cells.find((c) => c.month === month) : undefined;
 
-  const ceilingWarnings: { key: string; icon: 'fte' | 'capacity'; text: string }[] = [];
+  const warnings: { Icon: typeof WarningIcon; text: string }[] = [];
   if (month && cell) {
-    if (cell.overTeamFte) ceilingWarnings.push({ key: 'fte', icon: 'fte', text: `Over Team FTE %: ${pct(cell.teamPct)} on ${team.name} initiatives, Team FTE % is ${pct(row.teamFtePct ?? 0)}.` });
-    if (cell.overCapacity) ceilingWarnings.push({ key: 'cap', icon: 'capacity', text: `Over Capacity %: ${pct(cell.totalPct)} across all teams, Capacity % is ${pct(person.capacityPct)}.` });
+    if (cell.overTeamFte) warnings.push({ Icon: OverTeamFteIcon, text: `Over Team FTE %: ${pct(cell.teamPct)} on ${team.name} initiatives, Team FTE % is ${pct(row.teamFtePct ?? 0)}.` });
+    if (cell.overCapacity) warnings.push({ Icon: OverCapacityIcon, text: `Over Capacity %: ${pct(cell.totalPct)} across all teams, Capacity % is ${pct(person.capacityPct)}.` });
   } else {
     const overFte = row.cells.filter((c) => c.overTeamFte).map((c) => c.month);
     const overCap = row.cells.filter((c) => c.overCapacity).map((c) => c.month);
-    if (overFte.length > 0) ceilingWarnings.push({ key: 'fte', icon: 'fte', text: `Over Team FTE % in ${formatMonthRanges(overFte)}.` });
-    if (overCap.length > 0) ceilingWarnings.push({ key: 'cap', icon: 'capacity', text: `Over Capacity % in ${formatMonthRanges(overCap)}.` });
+    if (overFte.length > 0) warnings.push({ Icon: OverTeamFteIcon, text: `Over Team FTE % in ${formatMonthRanges(overFte)}.` });
+    if (overCap.length > 0) warnings.push({ Icon: OverCapacityIcon, text: `Over Capacity % in ${formatMonthRanges(overCap)}.` });
   }
-
-  const otherWarnings: string[] = [];
   if (row.fteSumOverCapacity) {
-    otherWarnings.push(`${person.name}'s Team FTE %s add up to ${pct(row.fteSumOverCapacity.claimedPct)}, more than their ${pct(row.fteSumOverCapacity.capacityPct)} Capacity %.`);
+    warnings.push({ Icon: WarningIcon, text: `${person.name}'s Team FTE %s add up to ${pct(row.fteSumOverCapacity.claimedPct)}, more than their ${pct(row.fteSumOverCapacity.capacityPct)} Capacity %.` });
   }
   if (row.stranded.length > 0) {
     const where = [...new Set(row.stranded.map((l) => `${l.initiativeName} (${l.phaseLabel})`))].join(', ');
-    otherWarnings.push(`${person.name} is no longer a member of ${team.name}, but is still allocated to ${where}. These allocations stay and keep costing.`);
+    warnings.push({ Icon: WarningIcon, text: `${person.name} is no longer a member of ${team.name}, but is still allocated to ${where}. These allocations stay and keep costing.` });
   }
 
   const loads = month ? loadsIn(capacity.loads, person.id, month) : capacity.loads.filter((l) => l.personId === person.id && l.months.some((m) => capacity.months.includes(m)));
   const counted = loads.filter((l) => l.confirmed);
   const provisional = loads.filter((l) => !l.confirmed);
   const teamName = (l: Load) => (l.teamId === team.id ? null : teams.find((t) => t.id === l.teamId)?.name ?? 'another team');
-  const empty = ceilingWarnings.length === 0 && otherWarnings.length === 0;
 
   return (
     <section aria-label="Capacity detail" className="mt-4 rounded-lg border border-border-default bg-surface-card p-4">
@@ -202,19 +191,13 @@ function Detail({ row, month, team, capacity, onClose }: { row: CapacityRow; mon
         </Button>
       </div>
 
-      {empty ? (
+      {warnings.length === 0 ? (
         <p className="m-0 mb-3 text-sm text-text-secondary">{month ? 'No warnings this month.' : 'No warnings in these months.'}</p>
       ) : (
         <ul className="m-0 mb-3 flex list-none flex-col gap-1 p-0 text-sm text-warning-text">
-          {ceilingWarnings.map((w) => (
-            <li key={w.key} className="flex items-start gap-1.5">
-              {w.icon === 'fte' ? <OverTeamFteIcon width={16} height={16} className="mt-0.5 shrink-0" /> : <OverCapacityIcon width={16} height={16} className="mt-0.5 shrink-0" />}
-              {w.text}
-            </li>
-          ))}
-          {otherWarnings.map((text) => (
+          {warnings.map(({ Icon, text }) => (
             <li key={text} className="flex items-start gap-1.5">
-              <WarningIcon width={16} height={16} className="mt-0.5 shrink-0" />
+              <Icon width={16} height={16} className="mt-0.5 shrink-0" />
               {text}
             </li>
           ))}

@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
-import { allocationWarnings, formatMonthRanges } from '../data/capacity';
+import { activeLoads, allocationWarnings } from '../data/capacity';
 import { allocationFigures, phaseTotal } from '../data/cost';
-import { formatDate, formatPeriod, localToday } from '../data/dates';
+import { formatDate, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { roleLabel } from '../data/roleLabel';
 import { activeMembers } from '../data/teamMembers';
 import type { Initiative, Team } from '../data/types';
@@ -100,6 +100,8 @@ function CostedPhase({
   const { currencySymbol, process } = useBrand();
   const { people, roles, countries, memberships, initiatives } = useRepositoryState();
   const [refusal, setRefusal] = useState<string | null>(null);
+  const today = localToday();
+  const loads = useMemo(() => activeLoads({ initiatives, process, today }), [initiatives, process, today]);
 
   const plan = initiative.phases?.[phase.id] ?? { allocations: [] };
   const rateData = { roles, countries };
@@ -242,29 +244,22 @@ function CostedPhase({
                   const person = people.find((p) => p.id === allocation.personId);
                   const figures = person ? allocationFigures(plan, person, allocation.allocationPct, rateData) : null;
                   const name = person?.name ?? 'Unknown person';
-                  const warnings = allocationWarnings(initiative, phase.id, allocation.personId, { initiatives, people, memberships, process, today: localToday() });
+                  const warnings = allocationWarnings(initiative, phase.id, allocation.personId, { initiatives, people, memberships, process, today }, loads);
                   return (
                     <tr key={allocation.id} className="border-t border-border-default">
                       <td className="py-1.5 pr-2">
                         <div>{name}</div>
                         {person && <div className="text-xs text-text-muted">{roleLabel(person, roles)}</div>}
-                        {warnings.notMember && (
-                          <p className="m-0 mt-1 flex items-center gap-1 text-xs text-warning-text">
-                            <WarningIcon width={14} height={14} />
-                            No longer a member of {team?.name ?? 'the team'}
-                          </p>
-                        )}
+                        {warnings.notMember && <InlineWarning className="mt-1">No longer a member of {team?.name ?? 'the team'}</InlineWarning>}
                         {warnings.overTeamFteMonths.length > 0 && (
-                          <p className="m-0 mt-1 flex items-center gap-1 text-xs text-warning-text">
-                            <OverTeamFteIcon width={14} height={14} />
+                          <InlineWarning icon={OverTeamFteIcon} className="mt-1">
                             Over Team FTE % in {formatMonthRanges(warnings.overTeamFteMonths)}
-                          </p>
+                          </InlineWarning>
                         )}
                         {warnings.overCapacityMonths.length > 0 && (
-                          <p className="m-0 mt-1 flex items-center gap-1 text-xs text-warning-text">
-                            <OverCapacityIcon width={14} height={14} />
+                          <InlineWarning icon={OverCapacityIcon} className="mt-1">
                             Over Capacity % in {formatMonthRanges(warnings.overCapacityMonths)}
-                          </p>
+                          </InlineWarning>
                         )}
                       </td>
                       <td className="py-1.5 pr-2">
