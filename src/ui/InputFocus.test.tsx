@@ -6,8 +6,6 @@ import { buildBaselineDataset } from '../data/baseline';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { NewInitiativeUIProvider } from '../state/NewInitiativeUIContext';
-import { NewInitiativeControl } from './NewInitiativeControl';
 import { PeopleOverview } from './PeopleOverview';
 import { TeamsOverview } from './TeamsOverview';
 
@@ -41,9 +39,7 @@ function renderWith(ui: React.ReactNode) {
   return render(
     <BrandProvider brand={defaultBrandPack}>
       <TooltipProvider>
-        <RepositoryProvider token="token">
-          <NewInitiativeUIProvider>{ui}</NewInitiativeUIProvider>
-        </RepositoryProvider>
+        <RepositoryProvider token="token">{ui}</RepositoryProvider>
       </TooltipProvider>
     </BrandProvider>,
   );
@@ -60,13 +56,6 @@ describe('name inputs take keyboard focus (shadcn Input receives ref, React 19)'
     renderWith(<TeamsOverview />);
     await user.click(await screen.findByRole('button', { name: 'New team' }));
     await vi.waitFor(() => expect(screen.getByPlaceholderText('Team name')).toHaveFocus());
-  });
-
-  it('New initiative control: opening focuses the name field', async () => {
-    const user = userEvent.setup();
-    renderWith(<NewInitiativeControl />);
-    await user.click(await screen.findByRole('button', { name: 'New initiative' }));
-    expect(screen.getByPlaceholderText('Initiative name')).toHaveFocus();
   });
 
   it('People overview: adding a person returns focus to the quick-add name field', async () => {

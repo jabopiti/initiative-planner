@@ -18,6 +18,8 @@ export function useHashRoute(): string {
   return route;
 }
 
-export function navigate(path: string): void {
-  window.location.hash = path;
+/** `replace` swaps the current history entry, so Back skips a page that has served its purpose (a draft). */
+export function navigate(path: string, options?: { replace?: boolean }): void {
+  if (options?.replace) window.location.replace(`#${path}`);
+  else window.location.hash = path;
 }

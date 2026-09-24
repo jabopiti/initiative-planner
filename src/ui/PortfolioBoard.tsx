@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { useRepositoryState } from '../state/DataContext';
-import { useNewInitiativeUI } from '../state/NewInitiativeUIContext';
 import { useBrand } from '../state/BrandContext';
 import { currentPhaseId } from '../data/processState';
 import type { Initiative } from '../data/types';
@@ -16,7 +15,6 @@ import { EmptyState } from './EmptyState';
 export function PortfolioBoard() {
   const brand = useBrand();
   const { teams, initiatives } = useRepositoryState();
-  const { setOpen } = useNewInitiativeUI();
 
   const initiativesByPhase = useMemo(() => {
     const byPhase = new Map<string, Initiative[]>(brand.process.map((phase) => [phase.id, []]));
@@ -40,7 +38,7 @@ export function PortfolioBoard() {
   if (initiatives.length === 0) {
     return (
       <div className="px-8 py-6">
-        <EmptyState line="No initiatives yet" actionLabel="Create your first initiative" onAction={() => setOpen(true)} />
+        <EmptyState line="No initiatives yet" actionLabel="Create your first initiative" onAction={() => navigate('/initiatives/new')} />
       </div>
     );
   }

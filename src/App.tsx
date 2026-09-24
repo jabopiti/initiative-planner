@@ -3,13 +3,13 @@ import { tokenStore } from './auth/tokenStore';
 import { defaultBrandPack } from './brand/defaultBrand';
 import { BrandProvider } from './state/BrandContext';
 import { RepositoryProvider } from './state/DataContext';
-import { NewInitiativeUIProvider } from './state/NewInitiativeUIContext';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { TopBar } from './ui/TopBar';
 import { ConflictBanner } from './ui/ConflictBanner';
 import { PortfolioBoard } from './ui/PortfolioBoard';
 import { TeamsOverview } from './ui/TeamsOverview';
 import { InitiativeDetail } from './ui/InitiativeDetail';
+import { NewInitiativeDraft } from './ui/NewInitiativeDraft';
 import { PeopleOverview } from './ui/PeopleOverview';
 import { TeamDetail } from './ui/TeamDetail';
 import { Placeholder } from './ui/Placeholder';
@@ -21,6 +21,7 @@ function Screen({ route }: { route: string }) {
   if (route === '/portfolio') return <PortfolioBoard />;
   if (route === '/teams') return <TeamsOverview />;
   if (route.startsWith('/teams/')) return <TeamDetail id={route.slice('/teams/'.length)} />;
+  if (route === '/initiatives/new') return <NewInitiativeDraft />;
   if (route.startsWith('/initiatives/')) return <InitiativeDetail id={route.slice('/initiatives/'.length)} />;
   if (route === '/initiatives') {
     return <Placeholder title="Initiatives" note="The full initiatives table isn't built yet." />;
@@ -34,11 +35,9 @@ function MainApp({ token }: { token: string }) {
   const route = useHashRoute();
   return (
     <RepositoryProvider token={token}>
-      <NewInitiativeUIProvider>
-        <TopBar route={route} />
-        <ConflictBanner />
-        <Screen route={route} />
-      </NewInitiativeUIProvider>
+      <TopBar route={route} />
+      <ConflictBanner />
+      <Screen route={route} />
     </RepositoryProvider>
   );
 }

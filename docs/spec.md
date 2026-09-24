@@ -559,10 +559,15 @@ icon, the sync indicator (§3) and the theme control (§9.1):
 - **Teams**
 - **Settings**
 
-The **New initiative** button opens a name field with a team selector in
-place. The team defaults to the one last used, or to the only active team.
-Enter creates the initiative and opens its detail page (§5.4); Esc closes
-the field. The **sync indicator** is a small check icon while everything is
+The **New initiative** button opens a **draft page**, laid out like the
+initiative's header (§5.4): the name field is focused, with the team
+selector and a "Draft" chip beside it. The team defaults to the one last
+used, or to the only active team; with neither, the selector reads "Choose
+team". Nothing is saved while the draft has no name or no team. Once it has
+both, Enter, leaving the name field, or choosing the team creates the
+initiative and its detail page replaces the draft, so Back skips the draft.
+Esc discards the draft and returns to the Portfolio. The Portfolio's empty
+state (§9.4) opens the same draft page. The **sync indicator** is a small check icon while everything is
 synced; its label appears while syncing and stays visible in read-only mode
 with the cause (§3).
 
