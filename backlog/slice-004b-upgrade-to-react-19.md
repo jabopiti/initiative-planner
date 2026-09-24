@@ -64,17 +64,17 @@ with the slices that need them.
 
 ## Acceptance criteria
 
-- [ ] Given the upgrade, when `npm ls react react-dom` runs, then both
+- [x] Given the upgrade, when `npm ls react react-dom` runs, then both
       report a single React 19 version and no dependency reports an
       unmet peer requirement.
-- [ ] Given the upgrade, when `npm run test:quiet`, `npm run typecheck`
+- [x] Given the upgrade, when `npm run test:quiet`, `npm run typecheck`
       and `npm run lint` run, then all pass with no new warnings.
-- [ ] Given the Teams overview and the new-initiative control, when they
+- [x] Given the Teams overview and the new-initiative control, when they
       open, then their name input has keyboard focus (verified in a
       component test).
-- [ ] Given the People overview, when the quick-add row needs focus, then
+- [x] Given the People overview, when the quick-add row needs focus, then
       it uses a ref, not `document.getElementById`.
-- [ ] Given `npm run build:quiet && npm run preview`, when the app loads,
+- [x] Given `npm run build:quiet && npm run preview`, when the app loads,
       then there are no console errors and the CSP (§10.1) is unchanged.
 
 ## Delivery gate
