@@ -102,7 +102,9 @@ for the AI-agent-driven build the team asked for:
 - Slice 003c "Portfolio empty state names active and inactive teams":
   depends on 003 (the Portfolio and its empty states). Inserted after the
   review of slices 003 to 005d found the empty state and the New initiative
-  button disagreeing when every team is inactive.
+  button disagreeing when every team is inactive. It also builds the team
+  detail's Deactivate / Reactivate (§5.8), which no slice covered, so that
+  Reactivate a team leads somewhere.
 - Slice 004 "Add a person and assign them to a team": depends on 003b — a
   membership requires a team to exist, and 004 onward builds on the
   migrated stack.

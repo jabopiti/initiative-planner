@@ -529,6 +529,11 @@ cross-references point there.
   FTE %**. A person may hold several memberships. Membership governs
   allocation: only a team's members may be allocated to that team's
   initiatives.
+- **Active member:** an active membership held by an active person. A
+  deactivated person is an active member of no team, whatever their
+  membership records say; the records are kept, so reactivating the person
+  restores them (§5.6). Team size (§5.7) and who can be allocated (§7.2)
+  both count active members.
 - **Custom role:** a free-text role label with its own day rate per year and
   its own cost factor, configured on one person rather than in shared master
   data. Used for contractors and anyone whose rate is individually
@@ -560,7 +565,11 @@ icon, the sync indicator (§3) and the theme control (§9.1):
 - **Teams**
 - **Settings**
 
-The **New initiative** button opens a **draft page**, laid out like the
+The **New initiative** button names the missing prerequisite while there is
+no active team, so it is never a dead end: it reads **Create a team** while no
+team exists and **Reactivate a team** while teams exist but none is active,
+and either opens the Teams overview. With an active team it reads **New
+initiative** and opens a **draft page**, laid out like the
 initiative's header (§5.4): the name field is the title and is focused, with
 the team selector beside it, a "Draft" chip and the **Create initiative**
 button. The team selector always starts on "Select team", even when only
@@ -804,8 +813,10 @@ focus to the row (§9.5). It shows and allows editing of all person details:
 - Team memberships with Team FTE %s, capped at the person's unclaimed
   capacity (Capacity % minus the Team FTE %s already held) and defaulting
   to it, so a membership can never be created or edited here into an
-  over-Capacity % state (§7.2). Raising it further is done from the team
-  detail (§5.8), where the warning is visible.
+  over-Capacity % state (§7.2). A value above the cap is set to the cap and
+  the field says so beside it ("Set to 40%, the most left. Other teams hold
+  the rest.") until it is edited again. Raising it further is done from the
+  team detail (§5.8), where the warning is visible.
 - Actions: Deactivate / Reactivate (§9.3).
 
 The panel carries no warnings and no allocation list. Who is committed to
@@ -847,7 +858,9 @@ A full page showing all detail information for a team:
   contributing initiatives, including those of other teams, and any other
   §7.2 warning for that member: Team FTE %s that add up to more than
   Capacity %, and allocations that outlived the membership.
-- **Actions**: Deactivate / Reactivate (§9.3).
+- **Actions**: Deactivate team / Reactivate team (§9.3), one click with no
+  confirmation, at the top right of the header. An inactive team shows an
+  **Inactive** chip beside its name.
 
 The capacity grid has a **Copy** button (§9.2).
 
@@ -1418,8 +1431,11 @@ People and Teams overviews, and the members, initiatives and capacity
 sections of the team detail — shows a single line saying what it holds and
 **one primary action** (for example "No initiatives yet — Create your first
 initiative"). The Portfolio with no initiatives shows the same instead of an
-empty board; its action is **Create a team** while no team exists, and
-**Create your first initiative** after.
+empty board; its action is **Create a team** while no team exists,
+**Reactivate a team** (opening the Teams overview) while teams exist but none
+is active, and **Create your first initiative** after. The first two add a
+line under the heading saying why: "No teams yet." and "All your teams are
+inactive."
 
 An action blocked by a missing prerequisite links to it instead of
 dead-ending: an allocation section on a team without members reads "This

@@ -9,7 +9,7 @@ import { SortableHeader } from './SortableHeader';
 import { PersonPanel } from './PersonPanel';
 import { TruncatedText } from './TruncatedText';
 import { sortRows, useTableSort } from './tableSort';
-import { DeactivateIcon, ReactivateIcon, RemoveIcon, WarningIcon } from './icons';
+import { DeactivateIcon, DeactivateTeamIcon, ReactivateIcon, ReactivateTeamIcon, RemoveIcon, WarningIcon } from './icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -99,7 +99,16 @@ export function TeamDetail({ id }: { id: string }) {
       <a href="#/teams" className="text-sm text-text-secondary">
         Teams
       </a>
-      <h1 className="m-0 mt-1 mb-5 text-xl">{team.name}</h1>
+      <div className="mt-1 mb-5 flex items-center justify-between gap-4">
+        <h1 className="m-0 flex items-center gap-2 text-xl">
+          {team.name}
+          {!team.active && <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-normal text-text-secondary">Inactive</span>}
+        </h1>
+        <Button type="button" variant="ghost" size="sm" onClick={() => repository.updateTeam(team.id, { active: !team.active })}>
+          {team.active ? <DeactivateTeamIcon /> : <ReactivateTeamIcon />}
+          {team.active ? 'Deactivate team' : 'Reactivate team'}
+        </Button>
+      </div>
 
       <section aria-label="Members" className="max-w-3xl">
         <div className="mb-3 flex items-center justify-between">
