@@ -29,12 +29,3 @@ export function isPhaseConfirmed(startDate: string | undefined, isCurrentPhase: 
   if (!startDate) return false;
   return startDate.slice(0, 7) <= nextMonthKey(today);
 }
-
-/**
- * Whether a passed gate froze this phase (§8.1): its period, allocations and figures are then a snapshot
- * that nothing edits, a team change included (§7.2). Gates arrive with slice 008, until then no phase is
- * locked; that slice makes this real, and everything that must leave frozen phases alone asks it.
- */
-export function isPhaseLocked(_initiative: Initiative, _phaseId: string): boolean {
-  return false;
-}

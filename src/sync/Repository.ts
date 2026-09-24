@@ -19,15 +19,14 @@ import { allocationRefusal } from '../data/cost';
 import { formatDate } from '../data/dates';
 import { localToday } from '../data/dates';
 import { buildDefaultPlan } from '../data/defaultPlan';
+import { frozenPaths, isPhaseFrozen } from '../data/frozen';
 import { toReadOnlyState, type GithubFailureCause, type ReadOnlyState } from '../github/errors';
 import { GithubClient, parseJsonFile } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
-import { isPhaseLocked } from '../data/processState';
 import { activeMembership } from '../data/teamMembers';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
-import { mergeListDocument } from './documentMerge';
 import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
-import { mergeInitiative } from './mergeInitiative';
+import { mergeDocument } from './merge';
 import { WriteQueue } from './WriteQueue';
 
 export type { ReadOnlyState } from '../github/errors';
@@ -256,7 +255,7 @@ export class Repository {
       branch,
       github: this.github,
       queue: this.queue,
-      merge: mergeListDocument,
+      merge: mergeDocument,
       whenMissing: [],
       initial,
       onStatus: this.statusOf(path),
@@ -285,7 +284,7 @@ export class Repository {
       branch: this.brand.github.dataBranch,
       github: this.github,
       queue: this.queue,
-      merge: mergeInitiative,
+      merge: (base, mine, theirs) => mergeDocument(base, mine, theirs, { frozen: frozenPaths }),
       whenMissing: null,
       initial: sha === null ? null : { content: initiative, sha },
       creationFailure: 'Could not create the initiative.',
@@ -656,7 +655,7 @@ export class Repository {
       people: this.state.people,
       memberships: this.state.memberships,
       rateData: this.state,
-      isLocked: isLocked ?? ((phaseId) => isPhaseLocked(initiative, phaseId)),
+      isLocked: isLocked ?? ((phaseId) => isPhaseFrozen(initiative, phaseId)),
     });
   }
 
@@ -694,7 +693,7 @@ export class Repository {
   restoreTeam(initiativeId: string, change: TeamChange, isLocked?: (phaseId: string) => boolean): void {
     const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
     if (!initiative) return;
-    const locked = isLocked ?? ((phaseId) => isPhaseLocked(initiative, phaseId));
+    const locked = isLocked ?? ((phaseId) => isPhaseFrozen(initiative, phaseId));
     const phases = { ...initiative.phases };
     let restored = 0;
     // Ascending by index, so each insert lands where the allocation was once the ones before it are back.

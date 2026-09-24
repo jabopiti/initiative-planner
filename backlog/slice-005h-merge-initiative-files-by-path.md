@@ -81,25 +81,25 @@ which needs the field-level display of a later slice.
 
 ## Acceptance criteria
 
-- [ ] Given every merge case §10.5 steps 3 and 4 describe, when the fixture
+- [x] Given every merge case §10.5 steps 3 and 4 describe, when the fixture
       tests written from them run against the new merge, then each passes,
       and every case the current merge tests pin still passes.
-- [ ] Given a field the merge has no code for (a new top-level field, a new
+- [x] Given a field the merge has no code for (a new top-level field, a new
       phase field), when it changes on one side, then the merged file holds
       it, and when it changes on both sides differently, then a conflict
       names its path.
-- [ ] Given a person changes a phase's end date and another adds an
+- [x] Given a person changes a phase's end date and another adds an
       allocation to the same phase, when both save, then both changes are in
       the file and there is no conflict.
-- [ ] Given a conflict, when Use mine or Keep theirs is chosen, then only
+- [x] Given a conflict, when Use mine or Keep theirs is chosen, then only
       that path takes the chosen value and the rest of the merge is written
       as it was.
-- [ ] Given a conflict, when the banner renders, then it names the
+- [x] Given a conflict, when the banner renders, then it names the
       initiative or person and the field in words and shows both values in
       the form they have on screen, not as JSON.
-- [ ] Given a phase marked frozen, when either side changed anything in it,
+- [x] Given a phase marked frozen, when either side changed anything in it,
       then the merged file keeps the frozen snapshot unchanged.
-- [ ] Given the master files, when a shared item is edited on both sides,
+- [x] Given the master files, when a shared item is edited on both sides,
       then it merges by the same function, and the per-shape merge functions
       no longer exist.
 

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import { isPhaseLocked } from './processState';
 import { planTeamChange } from './teamChange';
 import type { Country, Initiative, Membership, Person, Role } from './types';
 
@@ -102,11 +101,5 @@ describe('planTeamChange: who a change of team removes (§7.2)', () => {
     expect(result.cost).toBe(0);
     const inverted = { ...initiative, phases: { validation: { ...initiative.phases!.validation, startDate: '2026-11-01' } } };
     expect(plan({ initiative: inverted }).cost).toBe(0);
-  });
-});
-
-describe('isPhaseLocked', () => {
-  it('reports no phase as locked until gates exist (slice 008)', () => {
-    expect(isPhaseLocked(initiative, 'validation')).toBe(false);
   });
 });

@@ -1,137 +1,162 @@
 /**
- * Field-level three-way merge (§10.5). No merge library: the shape is
- * narrow enough — flat fields on typed records, plus lists identified by
- * id — that a small, purpose-built function is more auditable, and it can
- * enforce the one rule a generic library wouldn't: a same-field conflict is
- * always surfaced, never auto-resolved.
+ * Three-way merge by path (§10.5). No merge library: the shape is narrow
+ * enough (records, plus lists identified by id) that a small, purpose-built
+ * function is more auditable, and it enforces the one rule a generic library
+ * wouldn't: a same-field conflict is always surfaced, never auto-resolved.
+ *
+ * The merge follows the document's shape rather than a list of known fields,
+ * so a field no code has heard of merges like any other.
  */
 
-export interface FieldConflict<T> {
-  field: keyof T;
+/** One step into a document: a record's key, or a list item named by its id. */
+export type PathSegment = string | { id: string };
+export type Path = PathSegment[];
+
+/** A value both sides changed, to different values; the merged document holds `theirs` until the user chooses. */
+export interface MergeConflict {
+  path: Path;
   base: unknown;
   mine: unknown;
   theirs: unknown;
 }
 
-export interface MergeOutcome<T> {
-  /** Non-conflicting fields merged; conflicting fields hold `theirs` until the user resolves them. */
-  merged: T;
-  conflicts: FieldConflict<T>[];
+export interface MergeOutcome<D> {
+  merged: D;
+  conflicts: MergeConflict[];
 }
 
-function shallowEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
-  return JSON.stringify(a) === JSON.stringify(b);
+/** How a file's document is merged: what the one writer is parameterised by. */
+export type DocumentMerge<D> = (base: D, mine: D, theirs: D) => MergeOutcome<D>;
+
+export interface MergeOptions<D> {
+  /** Paths frozen in a version of the document (§8.1): they keep their snapshot and never merge. */
+  frozen?: (doc: D) => Path[];
 }
 
-/** Merge one record's top-level fields, three-way. */
-export function mergeRecordFields<T extends object>(base: T, mine: T, theirs: T): MergeOutcome<T> {
-  const merged = { ...mine };
-  const conflicts: FieldConflict<T>[] = [];
+type Plain = Record<string, unknown>;
 
-  // Every key from any side: an optional field only the repository's version has is not lost.
-  for (const key of new Set([...Object.keys(base), ...Object.keys(mine), ...Object.keys(theirs)]) as Set<keyof T>) {
-    const b = base[key];
-    const m = mine[key];
-    const t = theirs[key];
+const isRecord = (value: unknown): value is Plain => typeof value === 'object' && value !== null && !Array.isArray(value);
 
-    if (shallowEqual(m, t)) {
-      merged[key] = m;
-    } else if (shallowEqual(m, b)) {
-      // Only the repository's version changed it.
-      merged[key] = t;
-    } else if (shallowEqual(t, b)) {
-      // Only the user changed it.
-      merged[key] = m;
-    } else {
-      // Both changed it, to different values: a real conflict.
-      conflicts.push({ field: key, base: b, mine: m, theirs: t });
-      merged[key] = t;
-    }
+/** A list whose every item carries a distinct string id: merged per item (§10.5 step 4). Any other list is one value. */
+function isIdList(value: unknown): value is Plain[] {
+  if (!Array.isArray(value)) return false;
+  const ids = new Set<unknown>();
+  for (const item of value) {
+    if (!isRecord(item) || typeof item.id !== 'string' || ids.has(item.id)) return false;
+    ids.add(item.id);
   }
-
-  return { merged, conflicts };
+  return true;
 }
 
-export interface Identified {
-  id: string;
+/** Deep equality, key order ignored; a key holding undefined equals a missing key. */
+export function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((item, i) => sameValue(item, b[i]));
+  }
+  if (!isRecord(a) || !isRecord(b)) return false;
+  return [...new Set([...Object.keys(a), ...Object.keys(b)])].every((key) => sameValue(a[key], b[key]));
 }
 
-/** A same-field conflict on one item of a merged list, named by the item's own id. */
-export interface ItemConflict<T> {
-  itemId: string;
-  base: unknown;
-  mine: T;
-  theirs: T;
-  /** The fields both sides changed; every other field of the item merged cleanly. */
-  fields: string[];
+/** A path as one string, for comparing and keying: `phases.validation.allocations[a1].allocationPct`. */
+export function pathKey(path: Path): string {
+  return path.map((s, i) => (typeof s === 'string' ? `${i === 0 ? '' : '.'}${s}` : `[${s.id}]`)).join('');
 }
 
-export interface ListMergeOutcome<T> {
-  merged: T[];
-  conflicts: ItemConflict<T>[];
+/** The value at a path, or undefined when anything along it is missing. */
+export function getAtPath(doc: unknown, path: Path): unknown {
+  let node = doc;
+  for (const segment of path) {
+    if (typeof segment === 'string') node = isRecord(node) ? node[segment] : undefined;
+    else node = Array.isArray(node) ? node.find((item) => isRecord(item) && item.id === segment.id) : undefined;
+  }
+  return node;
 }
 
 /**
- * Union a list field by id (§10.5 step 4): an item added on one side is
- * kept; an item removed on one side and unchanged on the other is removed;
- * an item present on both sides is merged field by field.
+ * A copy of `doc` with `value` at `path`, and nothing else changed. Undefined removes the key or the
+ * list item; a list item that is missing is added back. A path through an item that is gone is a no-op.
  */
-export function mergeListField<T extends Identified>(base: T[], mine: T[], theirs: T[]): ListMergeOutcome<T> {
-  const byId = (list: T[]) => new Map(list.map((item) => [item.id, item]));
-  const baseMap = byId(base);
-  const mineMap = byId(mine);
-  const theirsMap = byId(theirs);
+export function setAtPath<D>(doc: D, path: Path, value: unknown): D {
+  if (path.length === 0) return value as D;
+  if (value === undefined && getAtPath(doc, path) === undefined) return doc;
+  const [head, ...rest] = path;
+  if (typeof head === 'string') {
+    const record: Plain = isRecord(doc) ? { ...doc } : {};
+    const next = setAtPath(record[head], rest, value);
+    if (next === undefined) delete record[head];
+    else record[head] = next;
+    return record as D;
+  }
+  const list: unknown[] = Array.isArray(doc) ? doc : [];
+  const index = list.findIndex((item) => isRecord(item) && item.id === head.id);
+  if (index === -1) return (rest.length === 0 ? [...list, value] : list) as D;
+  const next = setAtPath(list[index], rest, value);
+  return (next === undefined ? list.filter((_, i) => i !== index) : list.map((item, i) => (i === index ? next : item))) as D;
+}
 
-  const allIds = new Set([...baseMap.keys(), ...mineMap.keys(), ...theirsMap.keys()]);
-  const merged: T[] = [];
-  const conflicts: ItemConflict<T>[] = [];
+/**
+ * Merge two edits of one document against the version both started from (§10.5). Records merge by
+ * key and lists of identified items by id, recursively. Anything else is a value: changed on one side
+ * only, that side's value; on both to the same value, kept; on both to different values, a conflict.
+ * An item removed on one side and changed on the other is a conflict too, never a silent choice.
+ */
+export function mergeDocument<D>(base: D, mine: D, theirs: D, options: MergeOptions<D> = {}): MergeOutcome<D> {
+  const frozenKeys = (doc: D) => new Set((options.frozen?.(doc) ?? []).map(pathKey));
+  const frozen = { base: frozenKeys(base), mine: frozenKeys(mine), theirs: frozenKeys(theirs) };
+  const anyFrozen = [...new Set([...frozen.base, ...frozen.mine, ...frozen.theirs])];
+  const conflicts: MergeConflict[] = [];
 
-  for (const id of allIds) {
-    const b = baseMap.get(id);
-    const m = mineMap.get(id);
-    const t = theirsMap.get(id);
+  /** Whether a frozen path lies under this one, so a whole-subtree shortcut would skip it. */
+  const frozenBelow = (key: string) =>
+    key === '' ? anyFrozen.length > 0 : anyFrozen.some((f) => f.startsWith(`${key}.`) || f.startsWith(`${key}[`));
 
-    if (!m && !t) continue; // removed on both sides, or never existed
-    if (m && !t) {
-      // Present in mine, absent from theirs: either the user added it, the
-      // repository removed it while unchanged locally (an item removed on one
-      // side and unchanged on the other is removed — §10.5), or the user
-      // edited it locally while the repository removed it. An id absent from
-      // `base` means it's a genuine addition, always kept. Present in `base`
-      // and unchanged from it means the removal wins. Present in `base` but
-      // changed from it is an edit the removal must not silently discard —
-      // "never auto-resolved" (this module's own rule) applies here too, and
-      // without a UI to surface a deletion-conflict yet, keeping the edit is
-      // the safer of the two silent choices.
-      if (!b || !shallowEqual(m, b)) merged.push(m);
-      continue;
-    }
-    if (!m && t) {
-      if (!b || !shallowEqual(t, b)) merged.push(t);
-      continue;
-    }
-    if (m && t) {
-      if (shallowEqual(m, t)) {
-        merged.push(m);
-      } else if (b && shallowEqual(m, b)) {
-        merged.push(t);
-      } else if (b && shallowEqual(t, b)) {
-        merged.push(m);
-      } else {
-        const { merged: mergedItem, conflicts: itemConflicts } = mergeRecordFields(
-          (b ?? m) as unknown as Record<string, unknown>,
-          m as unknown as Record<string, unknown>,
-          t as unknown as Record<string, unknown>,
-        );
-        merged.push(mergedItem as unknown as T);
-        if (itemConflicts.length > 0) {
-          conflicts.push({ itemId: id, base: b, mine: m, theirs: t, fields: itemConflicts.map((c) => String(c.field)) });
-        }
-      }
-    }
+  function oneSided(b: unknown, m: unknown, t: unknown): { value: unknown } | null {
+    if (sameValue(m, t)) return { value: m };
+    if (sameValue(m, b)) return { value: t }; // only theirs changed it
+    if (sameValue(t, b)) return { value: m }; // only mine changed it
+    return null;
   }
 
-  return { merged, conflicts };
+  function merge(path: Path, b: unknown, m: unknown, t: unknown): unknown {
+    const key = pathKey(path);
+    // A frozen snapshot is never merged: it stays as it was frozen, whatever either side holds.
+    // Frozen before both edits, it keeps the base; frozen by one side's edit (a gate passed), that side's.
+    if (frozen.theirs.has(key)) return frozen.base.has(key) ? b : t;
+    if (frozen.mine.has(key)) return frozen.base.has(key) ? t : m;
+
+    // A whole subtree changed on one side only is taken as is, unless a frozen path lies inside it.
+    const settled = oneSided(b, m, t);
+    if (settled && !frozenBelow(key)) return settled.value;
+    if (isRecord(m) && isRecord(t) && (b === undefined || isRecord(b))) return mergeRecord(path, b ?? {}, m, t);
+    if (isIdList(m) && isIdList(t) && (b === undefined || isIdList(b))) return mergeList(path, b ?? [], m, t);
+    if (settled) return settled.value;
+
+    conflicts.push({ path, base: b, mine: m, theirs: t });
+    return t;
+  }
+
+  function mergeRecord(path: Path, b: Plain, m: Plain, t: Plain): Plain {
+    const merged: Plain = {};
+    // Every key from any side: a field present on only one side is kept.
+    for (const key of new Set([...Object.keys(m), ...Object.keys(t), ...Object.keys(b)])) {
+      const value = merge([...path, key], b[key], m[key], t[key]);
+      if (value !== undefined) merged[key] = value;
+    }
+    return merged;
+  }
+
+  function mergeList(path: Path, b: Plain[], m: Plain[], t: Plain[]): Plain[] {
+    const byId = (list: Plain[]) => new Map(list.map((item) => [item.id as string, item]));
+    const [bs, ms, ts] = [byId(b), byId(m), byId(t)];
+    const merged: Plain[] = [];
+    // An item added on one side is kept; removed on one side and unchanged on the other, removed.
+    for (const id of new Set([...bs.keys(), ...ms.keys(), ...ts.keys()])) {
+      const item = merge([...path, { id }], bs.get(id), ms.get(id), ts.get(id));
+      if (item !== undefined) merged.push(item as Plain);
+    }
+    return merged;
+  }
+
+  return { merged: merge([], base, mine, theirs) as D, conflicts };
 }

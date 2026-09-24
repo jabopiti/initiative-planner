@@ -1,7 +1,7 @@
 import { fileCache } from '../cache/db';
 import type { GithubClient } from '../github/client';
 import { GithubApiError, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import type { DocumentConflict, DocumentMerge } from './documentMerge';
+import { pathKey, sameValue, setAtPath, type DocumentMerge, type MergeConflict } from './merge';
 import type { WriteQueue } from './WriteQueue';
 
 const COMMIT_DEBOUNCE_MS = 1000;
@@ -13,12 +13,9 @@ export type WriteStatus = 'synced' | 'syncing' | { readOnly: ReadOnlyState };
 export type SaveResult = 'saved' | 'conflicts' | 'failed';
 
 /** A same-field conflict a save found (§3, §10.5), for the banner. Resolving it is a new edit like any other. */
-export interface FileConflict {
-  path: string;
-  itemId: string;
-  base: unknown;
-  mine: unknown;
-  theirs: unknown;
+export interface FileConflict extends MergeConflict {
+  /** The data-branch file it is in (§10.2). */
+  file: string;
   /** Resolves true once the choice is saved (or needed no write) or replaced by a newer conflict; false when the write failed. */
   resolve: (choice: 'mine' | 'theirs') => Promise<boolean>;
 }
@@ -46,12 +43,10 @@ export interface FileWriterOptions<D> {
   onDocument: (doc: D) => void;
 }
 
-const sameDocument = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-
 /**
  * The one writer behind every file in the data branch (§10.2): debounce, save, merge on conflict,
- * report status. A file is a document `D`, merged as `merge` says (lists by id for the master files,
- * field by field for an initiative). Creating the file is its first save.
+ * report status. A file is a document `D`, merged by path (§10.5), with any rule of its own the
+ * `merge` it is given adds. Creating the file is its first save.
  *
  * One save runs at a time per file, in order. A save takes the latest edit when it reaches the front,
  * so it is built on whatever the save before it merged in, and it reads its sha when it reaches the
@@ -216,7 +211,7 @@ export class FileWriter<D> {
   }
 
   /** Conflicts found: nothing is written until the user chooses, and the screen shows the merge meanwhile. */
-  private surface(merged: D, conflicts: DocumentConflict<D>[], mine: D, message: string): SaveResult {
+  private surface(merged: D, conflicts: MergeConflict[], mine: D, message: string): SaveResult {
     const screen = this.pending === null ? merged : this.rebase(mine, this.pending, merged, message);
     if (this.pending !== null) this.pending = screen;
     this.screen = screen;
@@ -227,38 +222,36 @@ export class FileWriter<D> {
     return 'conflicts';
   }
 
-  private raise(conflicts: DocumentConflict<D>[], message: string): void {
+  private raise(conflicts: MergeConflict[], message: string): void {
     for (const c of conflicts) {
-      if (this.openConflicts.some((open) => open.itemId === c.itemId)) continue;
+      if (this.openConflicts.some((open) => pathKey(open.path) === pathKey(c.path))) continue;
       const conflict: FileConflict = {
-        path: this.options.path,
-        itemId: c.itemId,
-        base: c.base,
-        mine: c.mine,
-        theirs: c.theirs,
-        resolve: (choice) => this.resolve(conflict, c, choice, message),
+        ...c,
+        file: this.options.path,
+        resolve: (choice) => this.resolve(conflict, choice, message),
       };
       this.openConflicts.push(conflict);
       this.options.onConflict(conflict);
     }
   }
 
-  private async resolve(conflict: FileConflict, c: DocumentConflict<D>, choice: 'mine' | 'theirs', message: string): Promise<boolean> {
+  /** The chosen side's value goes in at the conflict's path, and only there: the rest of the merge stays as it was. */
+  private async resolve(conflict: FileConflict, choice: 'mine' | 'theirs', message: string): Promise<boolean> {
     // Free for a newer conflict on the same field, should the save find one.
     this.openConflicts = this.openConflicts.filter((open) => open !== conflict);
     this.options.onStatus('syncing');
     const result = await this.enqueue(async () => {
       const idle = this.pending === null;
-      const doc = c.apply(this.screen as D, choice === 'mine' ? c.mine : c.theirs);
+      const doc = setAtPath(this.screen as D, conflict.path, choice === 'mine' ? conflict.mine : conflict.theirs);
       this.screen = doc;
       this.options.onDocument(doc);
-      if (idle && this.synced && sameDocument(doc, this.synced.content)) {
+      if (idle && this.synced && sameValue(doc, this.synced.content)) {
         this.failed = false; // Keep theirs, with nothing else to write: the repository already holds it.
         this.reportIdle();
         return 'saved';
       }
       this.pending = doc;
-      this.notes.set(`conflict:${c.itemId}`, `${message} (conflict: ${choice === 'mine' ? 'used mine' : 'kept theirs'})`);
+      this.notes.set(`conflict:${pathKey(conflict.path)}`, `${message} (conflict: ${choice === 'mine' ? 'used mine' : 'kept theirs'})`);
       return this.saveNext();
     });
     if (result === 'failed') this.openConflicts.push(conflict);

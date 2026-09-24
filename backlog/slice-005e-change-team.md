@@ -47,9 +47,11 @@ first.
   allocations back as a normal edit.
 - **Locked phases are never touched.** A phase frozen by a passed gate keeps
   its people, its snapshot and its figures, and recorded actuals are never
-  touched. A single predicate decides whether a phase is locked. Until
-  gates exist (slice 008) it reports no phase as locked; slice 008 makes it
-  real (see its flags).
+  touched. A single predicate decides whether a phase is locked: use
+  `isPhaseFrozen` in `src/data/frozen.ts`, which the merge already uses
+  (slice 005h), rather than adding a second one. Until gates exist (slice
+  008) it reports no phase as locked; slice 008 makes it real (see its
+  flags).
 - A Closed or Cancelled initiative shows its team but cannot change it; On
   hold and Active can. Reopening restores the ability.
 
