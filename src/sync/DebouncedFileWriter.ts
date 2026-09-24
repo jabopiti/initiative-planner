@@ -34,6 +34,9 @@ export class DebouncedFileWriter<T extends Identified> {
   private pending: T[] | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private retriesRemaining = MAX_RETRIES;
+  /** What changed since the last commit, keyed so a repeated edit replaces its earlier note (§10.3). */
+  private notes = new Map<string, string>();
+  private message: string;
 
   constructor(
     private readonly path: string,
@@ -46,11 +49,17 @@ export class DebouncedFileWriter<T extends Identified> {
     initial: SyncedFile<T>,
   ) {
     this.synced = initial;
+    this.message = `${path}: update`;
   }
 
-  /** Apply a local edit immediately to the in-memory value, and schedule the commit. */
-  schedule(next: T[]): void {
+  /**
+   * Apply a local edit immediately to the in-memory value, and schedule the commit.
+   * `note` describes the change in plain words naming the entity (§10.3); edits within one
+   * debounce window are joined, and a later note with the same `key` replaces an earlier one.
+   */
+  schedule(next: T[], note?: { key: string; text: string }): void {
     this.pending = next;
+    if (note) this.notes.set(note.key, note.text);
     this.onStatusChange('syncing');
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
@@ -64,6 +73,8 @@ export class DebouncedFileWriter<T extends Identified> {
     if (this.pending === null) return;
     const mine = this.pending;
     this.pending = null;
+    this.message = this.notes.size > 0 ? [...this.notes.values()].join('; ') : `${this.path}: update`;
+    this.notes.clear();
     this.retriesRemaining = MAX_RETRIES;
     await this.attemptWrite(mine, this.synced.sha);
   }
@@ -75,7 +86,7 @@ export class DebouncedFileWriter<T extends Identified> {
           path: this.path,
           branch: this.branch,
           content: JSON.stringify(mine),
-          message: `${this.path}: update`,
+          message: this.message,
           sha,
         }),
       );

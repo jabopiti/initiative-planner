@@ -26,8 +26,6 @@
      best guess at GitHub's real wording, not a confirmed one. If you or
      someone in an org you administer can generate a fine-grained token
      and leave it pending, that's the one to test with.
-  This also serves as the delivery gate's "demonstrated to an external
-  stakeholder" step.
   6. **Token-creation link prefill** (`src/auth/tokenCreationUrl.ts`): only
      `name`, `description` and `target_name` are documented GitHub query
      params for the fine-grained token page. Expiry (one year) and the

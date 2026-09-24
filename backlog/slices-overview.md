@@ -65,6 +65,8 @@ for the AI-agent-driven build the team asked for:
 | 003 | Connect, create a team, and create a named initiative | ✅ valid | 002 |
 | 003b | Migrate to Vite, Tailwind CSS v4, shadcn/ui and Lucide | ✅ valid | 003 |
 | 004 | Add a person and assign them to a team | ✅ valid | 003b |
+| 004b | Upgrade to React 19 | ✅ valid | 004 |
+| 004c | Sort and copy the Teams and People tables | ✅ valid | 004 |
 | 005 | Plan a costed phase and see its cost calculated | ✅ valid | 001, 004 |
 | 006 | Availability suggestion in the person picker | ✅ valid | 005 |
 | 007 | Add cost items to a phase | ✅ valid | 005 |

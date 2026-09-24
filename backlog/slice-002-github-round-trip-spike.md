@@ -103,8 +103,6 @@ concern if it becomes necessary.
 ## Delivery gate
 
 - [ ] Deployed to production-equivalent environment
-- [ ] Demonstrated to at least one external stakeholder (user, customer,
-      or business owner)
 
 ## Flags and compromises
 

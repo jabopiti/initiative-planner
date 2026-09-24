@@ -10,17 +10,20 @@ import { ConflictBanner } from './ui/ConflictBanner';
 import { PortfolioBoard } from './ui/PortfolioBoard';
 import { TeamsOverview } from './ui/TeamsOverview';
 import { InitiativeDetail } from './ui/InitiativeDetail';
+import { PeopleOverview } from './ui/PeopleOverview';
+import { TeamDetail } from './ui/TeamDetail';
 import { Placeholder } from './ui/Placeholder';
 import { useHashRoute } from './router/useHashRoute';
 
 function Screen({ route }: { route: string }) {
   if (route === '/portfolio') return <PortfolioBoard />;
   if (route === '/teams') return <TeamsOverview />;
+  if (route.startsWith('/teams/')) return <TeamDetail id={route.slice('/teams/'.length)} />;
   if (route.startsWith('/initiatives/')) return <InitiativeDetail id={route.slice('/initiatives/'.length)} />;
   if (route === '/initiatives') {
     return <Placeholder title="Initiatives" note="The full initiatives table isn't built yet." />;
   }
-  if (route === '/people') return <Placeholder title="People" note="Adding people lands in slice 004." />;
+  if (route === '/people') return <PeopleOverview />;
   if (route === '/settings') return <Placeholder title="Settings" note="Settings isn't built yet." />;
   return <PortfolioBoard />;
 }

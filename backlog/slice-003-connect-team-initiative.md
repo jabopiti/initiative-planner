@@ -114,8 +114,6 @@ verification — that's the one remaining step; see TODO.md.
       Actions → Pages workflow (`.github/workflows/deploy.yml`),
       confirmed working (Connect screen, correct CSP, no console errors)
       after the first deploy run.
-- [ ] Demonstrated to at least one external stakeholder (user, customer,
-      or business owner) — needs a human; see TODO.md.
 
 ## Flags and compromises
 

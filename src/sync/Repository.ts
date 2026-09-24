@@ -8,11 +8,14 @@ import {
   type Country,
   type DatasetFlags,
   type Initiative,
+  type Membership,
+  type Person,
   type Role,
   type Team,
 } from '../data/types';
 import { toReadOnlyState, type GithubFailureCause, type ReadOnlyState } from '../github/errors';
 import { GithubClient, parseJsonFile } from '../github/client';
+import { unclaimedCapacityPct } from '../data/capacity';
 import { DebouncedFileWriter, type FileConflict } from './DebouncedFileWriter';
 import { WriteQueue } from './WriteQueue';
 
@@ -26,8 +29,19 @@ export interface RepositoryState {
   roles: Role[];
   countries: Country[];
   teams: Team[];
+  people: Person[];
+  memberships: Membership[];
   initiatives: Initiative[];
-  conflicts: FileConflict<Team>[];
+  conflicts: FileConflict<MasterRecord>[];
+}
+
+export type MasterRecord = Team | Person | Membership;
+
+/** New people (§5.5) take these; country and role default to the last values used. */
+export interface NewPersonInput {
+  name: string;
+  countryId: string;
+  roleId: string;
 }
 
 type Listener = () => void;
@@ -46,6 +60,8 @@ export class Repository {
     roles: [],
     countries: [],
     teams: [],
+    people: [],
+    memberships: [],
     initiatives: [],
     conflicts: [],
   };
@@ -54,6 +70,8 @@ export class Repository {
   private readonly github: GithubClient;
   private readonly queue = new WriteQueue();
   private teamsWriter: DebouncedFileWriter<Team> | null = null;
+  private peopleWriter: DebouncedFileWriter<Person> | null = null;
+  private membershipsWriter: DebouncedFileWriter<Membership> | null = null;
 
   constructor(
     private readonly brand: BrandPack,
@@ -119,11 +137,13 @@ export class Repository {
     }
 
     // Master files and initiative files don't depend on each other — pull both concurrently.
-    const [[rolesFile, countriesFile, teamsFile], initiatives] = await Promise.all([
+    const [[rolesFile, countriesFile, teamsFile, peopleFile, membershipsFile], initiatives] = await Promise.all([
       Promise.all([
         this.github.getFile({ path: FILE_PATHS.roles, branch }),
         this.github.getFile({ path: FILE_PATHS.countries, branch }),
         this.github.getFile({ path: FILE_PATHS.teams, branch }),
+        this.github.getFile({ path: FILE_PATHS.people, branch }),
+        this.github.getFile({ path: FILE_PATHS.memberships, branch }),
       ]),
       this.pullInitiatives(branch),
     ]);
@@ -131,6 +151,8 @@ export class Repository {
     const roles = parseJsonFile(rolesFile, [] as Role[]);
     const countries = parseJsonFile(countriesFile, [] as Country[]);
     const teams = parseJsonFile(teamsFile, [] as Team[]);
+    const people = parseJsonFile(peopleFile, [] as Person[]);
+    const memberships = parseJsonFile(membershipsFile, [] as Membership[]);
     const teamsSha = teamsFile?.sha ?? '';
 
     // Fire-and-forget: nothing downstream reads from the cache before "ready" (DebouncedFileWriter
@@ -138,20 +160,15 @@ export class Repository {
     // The cache is a local convenience, not the source of truth, so a failure here is silently fine.
     void fileCache.set(FILE_PATHS.teams, { content: JSON.stringify(teams), sha: teamsSha }).catch(() => {});
 
-    this.teamsWriter = new DebouncedFileWriter<Team>(
-      FILE_PATHS.teams,
-      branch,
-      this.github,
-      this.queue,
-      (status) => {
-        if (status === 'synced') this.setState({ syncing: false, readOnly: null });
-        else if (status === 'syncing') this.setState({ syncing: true });
-        else this.setState({ syncing: false, readOnly: status.readOnly });
-      },
-      (conflict) => this.setState({ conflicts: [...this.state.conflicts, conflict] }),
-      (content) => this.setState({ teams: content }),
-      { content: teams, sha: teamsSha },
-    );
+    this.teamsWriter = this.createWriter<Team>(FILE_PATHS.teams, branch, 'teams', { content: teams, sha: teamsSha });
+    this.peopleWriter = this.createWriter<Person>(FILE_PATHS.people, branch, 'people', {
+      content: people,
+      sha: peopleFile?.sha ?? '',
+    });
+    this.membershipsWriter = this.createWriter<Membership>(FILE_PATHS.memberships, branch, 'memberships', {
+      content: memberships,
+      sha: membershipsFile?.sha ?? '',
+    });
 
     this.setState({
       status: 'ready',
@@ -160,8 +177,33 @@ export class Repository {
       roles,
       countries,
       teams,
+      people,
+      memberships,
       initiatives,
     });
+  }
+
+  /** One debounced writer per master file (§10.3); each reports through the same sync/conflict state. */
+  private createWriter<T extends MasterRecord>(
+    path: string,
+    branch: string,
+    key: 'teams' | 'people' | 'memberships',
+    initial: { content: T[]; sha: string },
+  ): DebouncedFileWriter<T> {
+    return new DebouncedFileWriter<T>(
+      path,
+      branch,
+      this.github,
+      this.queue,
+      (status) => {
+        if (status === 'synced') this.setState({ syncing: false, readOnly: null });
+        else if (status === 'syncing') this.setState({ syncing: true });
+        else this.setState({ syncing: false, readOnly: status.readOnly });
+      },
+      (conflict) => this.setState({ conflicts: [...this.state.conflicts, conflict as FileConflict<MasterRecord>] }),
+      (content) => this.setState({ [key]: content } as Partial<RepositoryState>),
+      initial,
+    );
   }
 
   private async pullInitiatives(branch: string): Promise<Initiative[]> {
@@ -202,8 +244,118 @@ export class Repository {
     const team: Team = { id: newId(), name, active: true };
     const next = [...this.state.teams, team];
     this.setState({ teams: next });
-    this.teamsWriter?.schedule(next);
+    this.teamsWriter?.schedule(next, { key: team.id, text: `${name}: team created` });
     return team;
+  }
+
+  /** New person (§5.5): Capacity % defaults to 100, active. */
+  createPerson(input: NewPersonInput): Person {
+    const person: Person = {
+      id: newId(),
+      name: input.name,
+      countryId: input.countryId,
+      roleId: input.roleId,
+      capacityPct: 100,
+      active: true,
+    };
+    this.commitPeople([...this.state.people, person], { key: person.id, text: `${person.name}: person added` });
+    return person;
+  }
+
+  /** In-place edit from the person panel (§5.6): no save button, so every change commits. */
+  updatePerson(id: string, patch: Partial<Omit<Person, 'id'>>): void {
+    const current = this.state.people.find((p) => p.id === id);
+    if (!current) return;
+    const next = { ...current, ...patch };
+    this.commitPeople(
+      this.state.people.map((p) => (p.id === id ? next : p)),
+      { key: `${id}:${Object.keys(patch).sort().join(',')}`, text: `${next.name}: ${this.describePersonChange(current, patch)}` },
+    );
+  }
+
+  private describePersonChange(current: Person, patch: Partial<Omit<Person, 'id'>>): string {
+    const parts: string[] = [];
+    if (patch.name !== undefined) parts.push(`renamed from ${current.name}`);
+    if (patch.countryId !== undefined) {
+      parts.push(`country set to ${this.state.countries.find((c) => c.id === patch.countryId)?.name ?? 'unknown'}`);
+    }
+    if (patch.roleId !== undefined) {
+      parts.push(`role set to ${this.state.roles.find((r) => r.id === patch.roleId)?.name ?? 'unknown'}`);
+    }
+    if (patch.capacityPct !== undefined) parts.push(`capacity set to ${patch.capacityPct}%`);
+    if (patch.active !== undefined) parts.push(patch.active ? 'reactivated' : 'deactivated');
+    return parts.join(', ') || 'updated';
+  }
+
+  /**
+   * Add a person to a team (§5.6, §5.8). Team FTE % defaults to the person's
+   * unclaimed capacity; a requested value is capped at it unless `allowOver`
+   * (the team detail, where the over-capacity warning is visible).
+   */
+  addMembership(personId: string, teamId: string, requestedPct?: number, allowOver = false): Membership | null {
+    const person = this.state.people.find((p) => p.id === personId);
+    if (!person) return null;
+    const existing = this.state.memberships.find((m) => m.personId === personId && m.teamId === teamId);
+    if (existing) return existing;
+    const unclaimed = unclaimedCapacityPct(person, this.state.memberships);
+    const teamFtePct = requestedPct === undefined ? unclaimed : allowOver ? requestedPct : Math.min(requestedPct, unclaimed);
+    const membership: Membership = { id: newId(), personId, teamId, teamFtePct, active: true };
+    this.commitMemberships([...this.state.memberships, membership], {
+      key: membership.id,
+      text: `${person.name}: added to ${this.teamName(teamId)} at ${teamFtePct}%`,
+    });
+    return membership;
+  }
+
+  /** Edit a membership's Team FTE %; `allowOver` is set only by the team detail (§5.6). */
+  updateMembership(id: string, patch: Partial<Pick<Membership, 'teamFtePct' | 'active'>>, allowOver = false): void {
+    const current = this.state.memberships.find((m) => m.id === id);
+    if (!current) return;
+    const next = { ...current, ...patch };
+    if (patch.teamFtePct !== undefined && !allowOver) {
+      const person = this.state.people.find((p) => p.id === current.personId);
+      if (person) {
+        const cap = unclaimedCapacityPct(person, this.state.memberships, id);
+        next.teamFtePct = Math.min(patch.teamFtePct, cap);
+      }
+    }
+    const who = this.personName(current.personId);
+    const where = this.teamName(current.teamId);
+    const what =
+      patch.active !== undefined && patch.teamFtePct === undefined
+        ? `${patch.active ? 'reactivated' : 'deactivated'} on ${where}`
+        : `Team FTE % on ${where} set to ${next.teamFtePct}%`;
+    this.commitMemberships(
+      this.state.memberships.map((m) => (m.id === id ? next : m)),
+      { key: `${id}:${patch.active !== undefined && patch.teamFtePct === undefined ? 'active' : 'pct'}`, text: `${who}: ${what}` },
+    );
+  }
+
+  private personName(id: string): string {
+    return this.state.people.find((p) => p.id === id)?.name ?? 'Unknown person';
+  }
+
+  private teamName(id: string): string {
+    return this.state.teams.find((t) => t.id === id)?.name ?? 'unknown team';
+  }
+
+  /** Memberships are removable (§9.3); nothing points at them. */
+  removeMembership(id: string): void {
+    const removed = this.state.memberships.find((m) => m.id === id);
+    this.commitMemberships(
+      this.state.memberships.filter((m) => m.id !== id),
+      removed && { key: id, text: `${this.personName(removed.personId)}: removed from ${this.teamName(removed.teamId)}` },
+    );
+  }
+
+  private commitPeople(next: Person[], note?: { key: string; text: string }): void {
+    this.setState({ people: next });
+    this.peopleWriter?.schedule(next, note);
+  }
+
+  private commitMemberships(next: Membership[], note?: { key: string; text: string }): void {
+    this.setState({ memberships: next });
+    this.membershipsWriter?.schedule(next, note);
   }
 
   /** New initiative (§5.1, §6): name + team required; written as its own file. */
@@ -229,13 +381,13 @@ export class Repository {
   }
 
   /** Resolve a surfaced conflict (§10.5, "Keep theirs" / "Use mine") and clear it from state. */
-  async resolveConflict(conflict: FileConflict<Team>, choice: 'mine' | 'theirs'): Promise<void> {
+  async resolveConflict(conflict: FileConflict<MasterRecord>, choice: 'mine' | 'theirs'): Promise<void> {
     await conflict.resolve(choice);
     this.setState({ conflicts: this.state.conflicts.filter((c) => c !== conflict) });
   }
 
   /** Flush any pending debounced write immediately (page unload). */
   async flushPending(): Promise<void> {
-    await this.teamsWriter?.flush();
+    await Promise.all([this.teamsWriter?.flush(), this.peopleWriter?.flush(), this.membershipsWriter?.flush()]);
   }
 }

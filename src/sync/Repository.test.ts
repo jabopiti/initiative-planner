@@ -53,6 +53,8 @@ function routingFetchMock(
     if (method === 'GET' && url.includes('/contents/roles.json')) return contentsResponse([], 'roles-sha');
     if (method === 'GET' && url.includes('/contents/countries.json')) return contentsResponse([], 'countries-sha');
     if (method === 'GET' && url.includes('/contents/teams.json')) return contentsResponse([], 'teams-sha');
+    if (method === 'GET' && url.includes('/contents/people.json')) return contentsResponse([], 'people-sha');
+    if (method === 'GET' && url.includes('/contents/memberships.json')) return contentsResponse([], 'memberships-sha');
     if (method === 'GET' && url.includes('/contents/initiatives')) return jsonResponse({ message: 'Not Found' }, 404);
 
     throw new Error(`Unhandled request in test: ${key}`);
@@ -132,3 +134,120 @@ describe('Repository — slice 003 acceptance flows', () => {
     expect(body.branch).toBe('data');
   });
 });
+
+describe('Repository — slice 004 people and memberships', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function readyRepo() {
+    vi.stubGlobal('fetch', routingFetchMock());
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    return repo;
+  }
+
+  const input = { name: 'Ada Lovelace', countryId: 'c1', roleId: 'r1' };
+
+  it('creates a person with the given country and role, 100% capacity, active', async () => {
+    const repo = await readyRepo();
+    const person = repo.createPerson(input);
+    expect(person).toMatchObject({ name: 'Ada Lovelace', countryId: 'c1', roleId: 'r1', capacityPct: 100, active: true });
+    expect(repo.getState().people).toEqual([person]);
+  });
+
+  it("defaults a first membership's Team FTE % to the person's full capacity", async () => {
+    const repo = await readyRepo();
+    const person = repo.createPerson(input);
+    const membership = repo.addMembership(person.id, 'team-a');
+    expect(membership?.teamFtePct).toBe(100);
+  });
+
+  it('caps a second membership at the remaining unclaimed capacity', async () => {
+    const repo = await readyRepo();
+    const person = repo.createPerson(input);
+    const first = repo.addMembership(person.id, 'team-a')!;
+    repo.updateMembership(first.id, { teamFtePct: 60 });
+
+    expect(repo.addMembership(person.id, 'team-b')?.teamFtePct).toBe(40);
+
+    const second = repo.getState().memberships.find((m) => m.teamId === 'team-b')!;
+    repo.updateMembership(second.id, { teamFtePct: 90 });
+    expect(repo.getState().memberships.find((m) => m.id === second.id)?.teamFtePct).toBe(40);
+  });
+
+  it('lets the team detail raise a membership past the cap', async () => {
+    const repo = await readyRepo();
+    const person = repo.createPerson(input);
+    const first = repo.addMembership(person.id, 'team-a')!;
+    repo.updateMembership(first.id, { teamFtePct: 60 });
+    const second = repo.addMembership(person.id, 'team-b')!;
+    repo.updateMembership(second.id, { teamFtePct: 90 }, true);
+    expect(repo.getState().memberships.find((m) => m.id === second.id)?.teamFtePct).toBe(90);
+  });
+
+  it('does not add the same person to the same team twice', async () => {
+    const repo = await readyRepo();
+    const person = repo.createPerson(input);
+    repo.addMembership(person.id, 'team-a');
+    repo.addMembership(person.id, 'team-a');
+    expect(repo.getState().memberships).toHaveLength(1);
+  });
+
+  it('deactivates and reactivates a person, keeping the record; removes a membership', async () => {
+    const repo = await readyRepo();
+    const person = repo.createPerson(input);
+    const membership = repo.addMembership(person.id, 'team-a')!;
+    repo.updatePerson(person.id, { active: false });
+    expect(repo.getState().people[0].active).toBe(false);
+    repo.updatePerson(person.id, { active: true });
+    expect(repo.getState().people[0].active).toBe(true);
+    repo.removeMembership(membership.id);
+    expect(repo.getState().memberships).toEqual([]);
+    expect(repo.getState().people).toHaveLength(1);
+  });
+});
+
+describe('Repository — commit messages name the entity (§10.3)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function messagesFor(mock: ReturnType<typeof routingFetchMock>, file: string): string[] {
+    return mock.mock.calls
+      .filter(([url, init]) => (init as RequestInit)?.method === 'PUT' && (url as string).endsWith(`/contents/${file}`))
+      .map(([, init]) => (JSON.parse((init as RequestInit).body as string) as { message: string }).message);
+  }
+
+  it('says who was added, changed and added to which team', async () => {
+    const mock = routingFetchMock();
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const team = repo.createTeam('Payments');
+    await repo.flushPending();
+    const ada = repo.createPerson({ name: 'Ada Lovelace', countryId: 'c1', roleId: 'r1' });
+    await repo.flushPending();
+    repo.updatePerson(ada.id, { capacityPct: 80 });
+    repo.updatePerson(ada.id, { active: false });
+    await repo.flushPending();
+    const membership = repo.addMembership(ada.id, team.id)!;
+    await repo.flushPending();
+    repo.updateMembership(membership.id, { teamFtePct: 60 }, true);
+    await repo.flushPending();
+    repo.removeMembership(membership.id);
+    await repo.flushPending();
+
+    expect(messagesFor(mock, 'teams.json')).toEqual(['Payments: team created']);
+    expect(messagesFor(mock, 'people.json')).toEqual([
+      'Ada Lovelace: person added',
+      'Ada Lovelace: capacity set to 80%; Ada Lovelace: deactivated',
+    ]);
+    expect(messagesFor(mock, 'memberships.json')).toEqual([
+      'Ada Lovelace: added to Payments at 80%',
+      'Ada Lovelace: Team FTE % on Payments set to 60%',
+      'Ada Lovelace: removed from Payments',
+    ]);
+  });
+});
+

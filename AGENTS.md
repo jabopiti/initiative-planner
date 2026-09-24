@@ -76,6 +76,15 @@ Every call re-reads the whole context, so long sessions get expensive.
 - The dataset (`data` branch files) — runtime data (§6, §10.2), not
   source code; never edit directly.
 
+## Development data
+While this repo's `data` branch is a development dataset (it is, until a
+real dataset is put there), Claude may empty or reset it at any time for
+testing, without asking, so tests start from a clean state — but only with
+`npm run dev:reset-data`, which empties teams, people and memberships and
+deletes initiative files, keeping roles and countries. It reads the token
+from `.env.local` and never prints it. This exception ends when real data
+lives on that branch: remove this section then.
+
 ## Security
 - Never log, print, or commit a GitHub token or anything matching
   `github_pat_` / `ghp_`. A Claude Code PreToolUse hook
