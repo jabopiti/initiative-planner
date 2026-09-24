@@ -1,5 +1,5 @@
 import type { BrandPack } from '../brand/types';
-import { fileCache } from '../cache/db';
+import { FileCache, type CacheMeta } from '../cache/db';
 import { buildBaselineDataset } from '../data/baseline';
 import { newId } from '../data/ids';
 import {
@@ -20,13 +20,13 @@ import { formatDate } from '../data/dates';
 import { localToday } from '../data/dates';
 import { buildDefaultPlan } from '../data/defaultPlan';
 import { frozenPaths, isPhaseFrozen } from '../data/frozen';
-import { toReadOnlyState, type GithubFailureCause, type ReadOnlyState } from '../github/errors';
-import { GithubClient, parseJsonFile } from '../github/client';
+import { toReadOnlyState, type ReadOnlyState } from '../github/errors';
+import { GithubClient, parseJsonFile, type BranchHead, type GetFileResult } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
 import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
-import { mergeDocument } from './merge';
+import { mergeDocument, pathKey, type Path } from './merge';
 import { WriteQueue } from './WriteQueue';
 
 export type { ReadOnlyState } from '../github/errors';
@@ -43,7 +43,42 @@ export interface RepositoryState {
   memberships: Membership[];
   initiatives: Initiative[];
   conflicts: FileConflict[];
+  /** Values another user's change updated a moment ago, as `changeKey`s, to tint (§9.9 Changed by others). */
+  changed: ReadonlySet<string>;
+  /** Others' changes arrived a moment ago: the sync indicator's tooltip says so (§9.9). */
+  updatedByOthers: boolean;
 }
+
+/** The key by which a value at `path` of a data-branch file is reported as changed by others. */
+export const changeKey = (file: string, path: Path): string => `${file}#${pathKey(path)}`;
+
+/** How long a change from others stays tinted, and the indicator says "Updated by others" (§9.9: a few seconds). */
+export const CHANGE_TINT_MS = 4000;
+/** §3: a pull at least this often while the tab is visible. */
+export const PULL_INTERVAL_MS = 5 * 60 * 1000;
+/** A tab that regains focus again within this pulls only once. */
+export const FOCUS_PULL_MIN_GAP_MS = 15 * 1000;
+/** After a failed pull, or one that had to leave a file alone, the next attempt comes this soon. */
+export const PULL_RETRY_MS = 30 * 1000;
+
+/** Everything one pull found: the files it read, and the versions on screen it compared them with. */
+interface Pulled {
+  head: BranchHead | null;
+  files: Map<string, GetFileResult>;
+  /** Which paths the repository lists, with their versions: an initiative not in it has been removed. */
+  listing: Map<string, string>;
+  /** The version each path had on screen when the pull compared, so a save that lands meanwhile is not undone. */
+  compared: Map<string, string>;
+}
+
+const MASTER_FILES: string[] = [
+  FILE_PATHS.datasetFlags,
+  FILE_PATHS.roles,
+  FILE_PATHS.countries,
+  FILE_PATHS.teams,
+  FILE_PATHS.people,
+  FILE_PATHS.memberships,
+];
 
 export type MasterRecord = Team | Person | Membership;
 
@@ -91,6 +126,8 @@ export class Repository {
     memberships: [],
     initiatives: [],
     conflicts: [],
+    changed: new Set(),
+    updatedByOthers: false,
   };
 
   private readonly listeners = new Set<Listener>();
@@ -100,12 +137,33 @@ export class Repository {
   private peopleWriter: FileWriter<Person[]> | null = null;
   private membershipsWriter: FileWriter<Membership[]> | null = null;
   private readonly initiativeWriters = new Map<string, FileWriter<Initiative>>();
+  private readonly cache: FileCache;
+  /** Versions on screen of the files no writer holds (§10.2: the flags, roles and countries). */
+  private readonly shas = new Map<string, string>();
+  /** What the last complete pull saw; null when a file was left alone or the cache lost one, so the next pull compares everything. */
+  private meta: CacheMeta | null = null;
+  private pulling: Promise<void> | null = null;
+  private remembering: Promise<void> = Promise.resolve();
+  private lastPullAt = 0;
+  /** The first pull is still running: the sync indicator shows syncing until then (§9.9 Opening). */
+  private opening = true;
+  private markFirstPullDone: () => void = () => {};
+  private readonly firstPullDone = new Promise<void>((resolve) => (this.markFirstPullDone = resolve));
+  /** Why the last pull failed, until one succeeds (§3 Sync failures). */
+  private pullFailure: ReadOnlyState | null = null;
+  /** Fields with unsaved typing: a pull that arrives meanwhile is held until they are left (§3). */
+  private editing = 0;
+  private held: Pulled | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private tintTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private readonly brand: BrandPack,
     token: string,
   ) {
     this.github = new GithubClient(brand.github, () => token);
+    const { owner, repo, dataBranch } = brand.github;
+    this.cache = new FileCache(`${owner}/${repo}@${dataBranch}`);
   }
 
   // Arrow properties, so React's useSyncExternalStore gets the same functions on every render and never resubscribes.
@@ -121,103 +179,341 @@ export class Repository {
     for (const listener of this.listeners) listener();
   }
 
-  private goReadOnly(cause: GithubFailureCause, message: string): void {
-    this.setState({ readOnly: { cause, message } });
-  }
-
   private initialising: Promise<void> | null = null;
 
-  /** Loads the dataset once; a second call (React StrictMode runs the effect twice in dev) shares the first. */
+  /**
+   * Opens the dataset (§3, §9.9 Opening). With a cache of an earlier complete pull, it shows at once and the
+   * pull runs in the background, so this resolves before any response; with none, it resolves when the first
+   * pull has loaded the dataset. A second call (React StrictMode runs the effect twice in dev) shares the first.
+   */
   initialize(): Promise<void> {
-    return (this.initialising ??= this.load().catch((error) => this.handleReadFailure(error)));
+    return (this.initialising ??= this.open());
   }
 
-  private async load(): Promise<void> {
-    const branch = this.brand.github.dataBranch;
-
-    let datasetFile;
-    try {
-      datasetFile = await this.github.getFile({ path: FILE_PATHS.datasetFlags, branch });
-    } catch (error) {
-      this.handleReadFailure(error);
-      return;
-    }
-
-    if (!datasetFile) {
-      try {
-        await this.bootstrapBaseline(branch);
-      } catch (error) {
-        this.handleReadFailure(error);
-        return;
-      }
-      datasetFile = await this.github.getFile({ path: FILE_PATHS.datasetFlags, branch });
-    }
-
-    if (!datasetFile) {
-      this.goReadOnly('unknown', 'Dataset damaged — could not read it after creating it.');
-      return;
-    }
-
-    const datasetFlags = JSON.parse(datasetFile.content) as DatasetFlags;
-
-    // Data integrity (§3): a foreign process or a dataset newer than this build refuses the sync.
-    if (datasetFlags.processIdentity.id !== this.brand.processIdentity.id) {
-      this.goReadOnly('unknown', 'This dataset belongs to a different process build. Use the matching build.');
-      return;
-    }
-    if (datasetFlags.schemaVersion > SCHEMA_VERSION) {
-      this.goReadOnly('unknown', 'Dataset is newer than this version — reload to update.');
-      return;
-    }
-
-    // Master files and initiative files don't depend on each other — pull both concurrently.
-    const [[rolesFile, countriesFile, teamsFile, peopleFile, membershipsFile], initiativeFiles] = await Promise.all([
-      Promise.all([
-        this.github.getFile({ path: FILE_PATHS.roles, branch }),
-        this.github.getFile({ path: FILE_PATHS.countries, branch }),
-        this.github.getFile({ path: FILE_PATHS.teams, branch }),
-        this.github.getFile({ path: FILE_PATHS.people, branch }),
-        this.github.getFile({ path: FILE_PATHS.memberships, branch }),
-      ]),
-      this.pullInitiatives(branch),
-    ]);
-
-    const initiatives = initiativeFiles.map((f) => f.initiative);
-    for (const f of initiativeFiles) this.createInitiativeWriter(f.initiative, f.sha);
-
-    const roles = parseJsonFile(rolesFile, [] as Role[]);
-    const countries = parseJsonFile(countriesFile, [] as Country[]);
-    const teams = parseJsonFile(teamsFile, [] as Team[]);
-    const people = parseJsonFile(peopleFile, [] as Person[]);
-    const memberships = parseJsonFile(membershipsFile, [] as Membership[]);
-    const teamsSha = teamsFile?.sha ?? '';
-
-    // Fire-and-forget: nothing downstream reads from the cache before "ready" (FileWriter
-    // takes `initial` directly), so there's no reason to block the ready transition on this write.
-    // The cache is a local convenience, not the source of truth, so a failure here is silently fine.
-    void fileCache.set(FILE_PATHS.teams, { content: JSON.stringify(teams), sha: teamsSha }).catch(() => {});
-
-    this.teamsWriter = this.createWriter<Team>(FILE_PATHS.teams, branch, 'teams', { content: teams, sha: teamsSha });
-    this.peopleWriter = this.createWriter<Person>(FILE_PATHS.people, branch, 'people', {
-      content: people,
-      sha: peopleFile?.sha ?? '',
+  private async open(): Promise<void> {
+    const cached = await this.readCache();
+    if (cached) this.build(cached);
+    this.publishStatus();
+    const firstPull = this.pull().finally(() => {
+      this.opening = false;
+      this.publishStatus();
+      this.markFirstPullDone();
     });
+    if (!cached) await firstPull;
+  }
+
+  /** Resolves when the pull that is running, if any, has finished and its cache writes have. */
+  async whenPulled(): Promise<void> {
+    await this.pulling;
+    await this.remembering;
+  }
+
+  /** The cached dataset, or null when there is none to trust: never pulled completely, foreign, or damaged (§3 Damaged data). */
+  private async readCache(): Promise<Pulled | null> {
+    try {
+      const [cached, meta] = await Promise.all([this.cache.all(), this.cache.getMeta()]);
+      if (!meta || !cached.has(FILE_PATHS.datasetFlags)) return null;
+      const files = new Map<string, GetFileResult>();
+      for (const [path, file] of cached) {
+        JSON.parse(file.content); // a file that cannot be read makes the whole cache untrustworthy
+        files.set(path, { content: file.content, sha: file.sha });
+      }
+      const flags = JSON.parse(files.get(FILE_PATHS.datasetFlags)!.content) as DatasetFlags;
+      if (flags.processIdentity.id !== this.brand.processIdentity.id || flags.schemaVersion !== SCHEMA_VERSION) {
+        throw new Error('The cache is from another dataset.');
+      }
+      this.meta = meta;
+      return { head: null, files, listing: new Map(), compared: new Map() };
+    } catch {
+      await this.cache.clear().catch(() => {});
+      return null;
+    }
+  }
+
+  /** Why a dataset may not be used by this build (§3 Data integrity), or null. */
+  private refusal(flags: DatasetFlags): string | null {
+    if (flags.processIdentity.id !== this.brand.processIdentity.id) {
+      return 'This dataset belongs to a different process build. Use the matching build.';
+    }
+    if (flags.schemaVersion > SCHEMA_VERSION) return 'Dataset is newer than this version — reload to update.';
+    return null;
+  }
+
+  /** The dataset from what was read: every file, with a writer for each that can be saved. */
+  private build({ files }: Pulled): void {
+    const branch = this.brand.github.dataBranch;
+    const parsed = <T>(path: string, fallback: T): T => parseJsonFile(files.get(path) ?? null, fallback);
+    for (const path of [FILE_PATHS.datasetFlags, FILE_PATHS.roles, FILE_PATHS.countries]) {
+      const file = files.get(path);
+      if (file) this.shas.set(path, file.sha);
+    }
+    const initiatives: Initiative[] = [];
+    for (const [path, file] of files) {
+      if (!path.startsWith('initiatives/')) continue;
+      const initiative = JSON.parse(file.content) as Initiative;
+      initiatives.push(initiative);
+      this.createInitiativeWriter(initiative, file.sha);
+    }
+    const teams = parsed(FILE_PATHS.teams, [] as Team[]);
+    const people = parsed(FILE_PATHS.people, [] as Person[]);
+    const memberships = parsed(FILE_PATHS.memberships, [] as Membership[]);
+    const shaOf = (path: string) => files.get(path)?.sha ?? '';
+
+    this.teamsWriter = this.createWriter<Team>(FILE_PATHS.teams, branch, 'teams', { content: teams, sha: shaOf(FILE_PATHS.teams) });
+    this.peopleWriter = this.createWriter<Person>(FILE_PATHS.people, branch, 'people', { content: people, sha: shaOf(FILE_PATHS.people) });
     this.membershipsWriter = this.createWriter<Membership>(FILE_PATHS.memberships, branch, 'memberships', {
       content: memberships,
-      sha: membershipsFile?.sha ?? '',
+      sha: shaOf(FILE_PATHS.memberships),
     });
 
     this.setState({
       status: 'ready',
-      readOnly: null,
-      datasetFlags,
-      roles,
-      countries,
+      datasetFlags: parsed(FILE_PATHS.datasetFlags, null as DatasetFlags | null),
+      roles: parsed(FILE_PATHS.roles, [] as Role[]),
+      countries: parsed(FILE_PATHS.countries, [] as Country[]),
       teams,
       people,
       memberships,
       initiatives,
     });
+  }
+
+  /**
+   * Pulls the repository's changes (§3): on load, when the tab regains focus, and at least every 5 minutes
+   * while it is visible. One pull at a time. It never rejects: a failure is the read-only state, with its cause,
+   * and the data on screen stays (§3 Failure: refuse writes).
+   */
+  pull(): Promise<void> {
+    if (this.pulling) return this.pulling;
+    if (this.held) return Promise.resolve();
+    this.lastPullAt = Date.now();
+    const pulling = this.runPull().finally(() => {
+      if (this.pulling === pulling) this.pulling = null;
+    });
+    this.pulling = pulling;
+    return pulling;
+  }
+
+  private async runPull(): Promise<void> {
+    let complete = true;
+    try {
+      const pulled = await this.fetchPull();
+      this.pullFailure = null;
+      if (pulled) {
+        if (this.editing > 0 && this.state.status === 'ready') this.held = pulled;
+        else complete = this.finishPull(pulled);
+      }
+    } catch (error) {
+      this.pullFailure = toReadOnlyState(error, 'Something went wrong loading the dataset.');
+    }
+    this.publishStatus();
+    this.scheduleRetry(complete && this.pullFailure === null);
+  }
+
+  /** What changed in the repository since what is on screen: null when nothing did, else the files that did. */
+  private async fetchPull(): Promise<Pulled | null> {
+    const branch = this.brand.github.dataBranch;
+    const head = await this.github.getBranchHead({ branch, etag: this.state.status === 'ready' ? (this.meta?.etag ?? null) : null });
+    if (head === 'not-modified') return null;
+    if (head && this.meta && this.state.status === 'ready' && head.sha === this.meta.head) return null;
+
+    let listing = await this.listDataset(branch);
+    if (!listing.has(FILE_PATHS.datasetFlags)) {
+      // No dataset anywhere: the first write-capable client creates it (§3). Never over a dataset already on screen.
+      if (this.state.status === 'ready') throw new Error('Dataset damaged — its files are gone from the repository.');
+      await this.bootstrapBaseline(branch);
+      listing = await this.listDataset(branch);
+      if (!listing.has(FILE_PATHS.datasetFlags)) throw new Error('Dataset damaged — could not read it after creating it.');
+    }
+
+    const compared = this.knownShas();
+    const changed = [...listing].filter(([path, sha]) => compared.get(path) !== sha).map(([path]) => path);
+    const read = await Promise.all(changed.map(async (path) => [path, await this.github.getFile({ path, branch })] as const));
+    const files = new Map<string, GetFileResult>();
+    for (const [path, file] of read) if (file) files.set(path, file);
+    return { head: head ?? null, files, listing, compared };
+  }
+
+  /** The master files and the initiative files the repository lists, by path, with their versions (§10.2). */
+  private async listDataset(branch: string): Promise<Map<string, string>> {
+    const [root, initiatives] = await Promise.all([
+      this.github.listDirectory({ path: '', branch }),
+      this.github.listDirectory({ path: 'initiatives', branch }),
+    ]);
+    const listing = new Map<string, string>();
+    for (const entry of root) if (entry.type === 'file' && MASTER_FILES.includes(entry.path)) listing.set(entry.path, entry.sha);
+    for (const entry of initiatives) if (entry.name.endsWith('.json')) listing.set(entry.path, entry.sha);
+    return listing;
+  }
+
+  /** The version of each file as it is on screen. */
+  private knownShas(): Map<string, string> {
+    const known = new Map(this.shas);
+    for (const [path, writer] of [
+      [FILE_PATHS.teams, this.teamsWriter],
+      [FILE_PATHS.people, this.peopleWriter],
+      [FILE_PATHS.memberships, this.membershipsWriter],
+    ] as const) {
+      if (writer?.sha != null) known.set(path, writer.sha);
+    }
+    for (const [id, writer] of this.initiativeWriters) if (writer.sha !== null) known.set(FILE_PATHS.initiative(id), writer.sha);
+    return known;
+  }
+
+  /** Puts a pull on screen and in the cache. True when every file it read was applied, so the pull is complete. */
+  private finishPull(pulled: Pulled): boolean {
+    const flagsFile = pulled.files.get(FILE_PATHS.datasetFlags);
+    const refusal = flagsFile ? this.refusal(JSON.parse(flagsFile.content) as DatasetFlags) : null;
+    if (refusal) {
+      this.pullFailure = { cause: 'unknown', message: refusal };
+      return false;
+    }
+    const complete = this.state.status === 'ready' ? this.mergeIn(pulled) : (this.build(pulled), true);
+    this.remembering = this.remembering.then(() => this.remember(pulled, complete));
+    return complete;
+  }
+
+  /** A pull's changes into the dataset on screen; each file goes through its writer, which merges it with any edit not yet saved. */
+  private mergeIn({ files, listing, compared }: Pulled): boolean {
+    let complete = true;
+    const changed: string[] = [];
+    const applied = (path: string, paths: Path[] | null) => {
+      if (paths === null) complete = false;
+      else changed.push(...paths.map((p) => changeKey(path, p)));
+    };
+    const patch: Partial<RepositoryState> = {};
+
+    for (const [path, key] of [
+      [FILE_PATHS.datasetFlags, 'datasetFlags'],
+      [FILE_PATHS.roles, 'roles'],
+      [FILE_PATHS.countries, 'countries'],
+    ] as const) {
+      const file = files.get(path);
+      if (!file) continue;
+      (patch as Record<string, unknown>)[key] = JSON.parse(file.content);
+      this.shas.set(path, file.sha);
+      if (path !== FILE_PATHS.datasetFlags) changed.push(changeKey(path, []));
+    }
+    if (Object.keys(patch).length > 0) this.setState(patch);
+
+    for (const [path, writer] of [
+      [FILE_PATHS.teams, this.teamsWriter],
+      [FILE_PATHS.people, this.peopleWriter],
+      [FILE_PATHS.memberships, this.membershipsWriter],
+    ] as const) {
+      const file = files.get(path);
+      if (file && writer) applied(path, writer.receive({ content: JSON.parse(file.content), sha: file.sha }, compared.get(path) ?? null));
+    }
+
+    const added: Initiative[] = [];
+    for (const [path, file] of files) {
+      if (!path.startsWith('initiatives/')) continue;
+      const initiative = JSON.parse(file.content) as Initiative;
+      const writer = this.initiativeWriters.get(initiative.id);
+      if (writer) {
+        applied(path, writer.receive({ content: initiative, sha: file.sha }, compared.get(path) ?? null));
+      } else {
+        this.createInitiativeWriter(initiative, file.sha);
+        added.push(initiative);
+        changed.push(changeKey(path, []));
+      }
+    }
+
+    // Removed by others: only a file this client saw unchanged and that has nothing waiting. A new initiative
+    // whose first save is still on its way is not in the listing yet, and stays.
+    const removed = new Set<string>();
+    for (const [id, writer] of this.initiativeWriters) {
+      const path = FILE_PATHS.initiative(id);
+      if (!listing.has(path) && compared.has(path) && writer.sha === compared.get(path) && writer.idle) removed.add(id);
+    }
+    for (const id of removed) {
+      this.initiativeWriters.delete(id);
+      this.writerStatus.delete(FILE_PATHS.initiative(id));
+      void this.cache.delete(FILE_PATHS.initiative(id)).catch(() => {});
+    }
+    if (added.length > 0 || removed.size > 0) {
+      this.setState({ initiatives: [...this.state.initiatives.filter((i) => !removed.has(i.id)), ...added] });
+    }
+
+    if (changed.length > 0) this.markChanged(changed);
+    return complete;
+  }
+
+  /** Keeps a pull in the cache for the next open (§10.4), and what it saw, unless a file was left alone. Failures are survivable. */
+  private async remember({ files, head }: Pulled, complete: boolean): Promise<void> {
+    try {
+      await Promise.all([...files].map(([path, file]) => this.cache.set(path, file)));
+      if (complete && head) {
+        this.meta = { head: head.sha, etag: head.etag };
+        await this.cache.setMeta(this.meta);
+      } else {
+        this.meta = null;
+        await this.cache.clearMeta();
+      }
+    } catch {
+      // The cache is a local convenience: losing it only means the next open pulls everything.
+    }
+  }
+
+  /** Values changed by others are tinted, and the indicator says so, for a few seconds (§9.9). */
+  private markChanged(keys: string[]): void {
+    this.setState({ changed: new Set([...this.state.changed, ...keys]), updatedByOthers: true });
+    if (this.tintTimer) clearTimeout(this.tintTimer);
+    this.tintTimer = setTimeout(() => {
+      this.tintTimer = null;
+      this.setState({ changed: new Set(), updatedByOthers: false });
+    }, CHANGE_TINT_MS);
+  }
+
+  /**
+   * A field with unsaved typing calls this and releases when it is left (§3): a pull that arrives in between is
+   * held, and applied after the field's edit has been handed to its writer, so it merges like a save that found
+   * the file changed, and a clash is a conflict for the user to choose.
+   */
+  holdWhileEditing(): () => void {
+    this.editing += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.editing -= 1;
+      if (this.editing > 0 || !this.held) return;
+      const held = this.held;
+      this.held = null;
+      const complete = this.finishPull(held);
+      this.publishStatus();
+      this.scheduleRetry(complete && this.pullFailure === null);
+    };
+  }
+
+  private scheduleRetry(settled: boolean): void {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    if (settled) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      if (document.visibilityState === 'visible') void this.pull();
+    }, PULL_RETRY_MS);
+  }
+
+  /** Pulls on the schedule of §3, from now until the returned function is called: on focus, and every 5 minutes while visible. */
+  startPulling(): () => void {
+    const visible = () => document.visibilityState === 'visible';
+    const onFocus = () => {
+      if (visible() && Date.now() - this.lastPullAt >= FOCUS_PULL_MIN_GAP_MS) void this.pull();
+    };
+    const interval = setInterval(() => {
+      if (visible()) void this.pull();
+    }, PULL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', onFocus);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onFocus);
+      window.removeEventListener('focus', onFocus);
+      for (const timer of [this.retryTimer, this.tintTimer]) if (timer) clearTimeout(timer);
+      this.retryTimer = this.tintTimer = null;
+    };
   }
 
   /** Each file's latest status, by path. */
@@ -237,7 +533,7 @@ export class Repository {
   private publishStatus(): void {
     const all = [...this.writerStatus.values()];
     const failed = all.find((s): s is { readOnly: ReadOnlyState } => typeof s === 'object');
-    this.setState({ syncing: all.some((s) => s === 'syncing'), readOnly: failed?.readOnly ?? null });
+    this.setState({ syncing: this.opening || all.some((s) => s === 'syncing'), readOnly: failed?.readOnly ?? this.pullFailure });
   }
 
   /** Any conflict a file's writer finds, to resolve in the banner. */
@@ -255,6 +551,8 @@ export class Repository {
       branch,
       github: this.github,
       queue: this.queue,
+      cache: this.cache,
+      gate: () => this.firstPullDone,
       merge: mergeDocument,
       whenMissing: [],
       initial,
@@ -262,18 +560,6 @@ export class Repository {
       onConflict: this.onConflict,
       onDocument: (content) => this.setState({ [key]: content } as Partial<RepositoryState>),
     });
-  }
-
-  private async pullInitiatives(branch: string): Promise<{ initiative: Initiative; sha: string }[]> {
-    const entries = await this.github.listDirectory({ path: 'initiatives', branch });
-    const files = await Promise.all(
-      entries
-        .filter((entry) => entry.name.endsWith('.json'))
-        .map((entry) => this.github.getFile({ path: entry.path, branch })),
-    );
-    return files
-      .filter((f): f is NonNullable<typeof f> => f !== null)
-      .map((f) => ({ initiative: JSON.parse(f.content) as Initiative, sha: f.sha }));
   }
 
   /** The writer of one initiative's file; `sha` is null until the file exists (its first save creates it). */
@@ -284,6 +570,8 @@ export class Repository {
       branch: this.brand.github.dataBranch,
       github: this.github,
       queue: this.queue,
+      cache: this.cache,
+      gate: () => this.firstPullDone,
       merge: (base, mine, theirs) => mergeDocument(base, mine, theirs, { frozen: frozenPaths }),
       whenMissing: null,
       initial: sha === null ? null : { content: initiative, sha },
@@ -317,10 +605,6 @@ export class Repository {
         ],
       }),
     );
-  }
-
-  private handleReadFailure(error: unknown): void {
-    this.setState({ readOnly: toReadOnlyState(error, 'Something went wrong loading the dataset.') });
   }
 
   /** New team (§5.7): created from a name only. */

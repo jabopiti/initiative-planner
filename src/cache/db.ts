@@ -10,8 +10,10 @@ const DB_NAME = 'initiative-planner';
 // for an unrelated single object store. On an origin that ran both builds,
 // opening at version 1 again would silently reuse that old database and skip
 // onupgradeneeded, leaving this build's stores missing (§10.4 needs them).
-const DB_VERSION = 2;
+// 3 adds the store for what the last full pull saw (slice 005i).
+const DB_VERSION = 3;
 const FILES_STORE = 'files';
+const META_STORE = 'meta';
 const AUTH_STORE = 'auth';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -20,10 +22,13 @@ function openDb(): Promise<IDBDatabase> {
   if (!dbPromise) {
     dbPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
-      request.onupgradeneeded = () => {
+      request.onupgradeneeded = (event) => {
         const db = request.result;
-        if (!db.objectStoreNames.contains(FILES_STORE)) db.createObjectStore(FILES_STORE);
-        if (!db.objectStoreNames.contains(AUTH_STORE)) db.createObjectStore(AUTH_STORE);
+        for (const store of [FILES_STORE, META_STORE, AUTH_STORE]) {
+          if (!db.objectStoreNames.contains(store)) db.createObjectStore(store);
+        }
+        // Before 3, files were kept by bare path with nothing saying which repository they came from: nothing reads those now.
+        if (event.oldVersion > 0 && event.oldVersion < 3) request.transaction?.objectStore(FILES_STORE).clear();
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => {
@@ -64,15 +69,150 @@ async function del(store: string, key: string): Promise<void> {
   });
 }
 
+/** Every entry of `store` whose key starts with `prefix`, by key. */
+async function entriesWithPrefix<T>(store: string, prefix: string): Promise<Map<string, T>> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const found = new Map<string, T>();
+    const request = db
+      .transaction(store, 'readonly')
+      .objectStore(store)
+      .openCursor(IDBKeyRange.bound(prefix, `${prefix}￿`));
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return resolve(found);
+      found.set(cursor.key as string, cursor.value as T);
+      cursor.continue();
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function clearStore(store: string): Promise<void> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    tx.objectStore(store).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export interface CachedFile {
   content: string;
   sha: string;
+  /** When it was written (ms since the epoch): the oldest go first when the cache is over its budget (§10.4). */
+  at: number;
 }
 
-export const fileCache = {
-  get: (path: string) => get<CachedFile>(FILES_STORE, path),
-  set: (path: string, value: CachedFile) => set(FILES_STORE, path, value),
-};
+/** What the last complete pull saw: the branch head it read, and the ETag to ask about it again. */
+export interface CacheMeta {
+  head: string;
+  etag: string | null;
+}
+
+/** The smaller of what a browser reports as its storage quota and this, in bytes, when it reports none. */
+const FALLBACK_QUOTA_BYTES = 50 * 1024 * 1024;
+
+/** Half the storage quota (§3 Storage limits, §10.4): the most the cache may hold. */
+export async function defaultBudget(): Promise<number> {
+  const quota = (await navigator.storage?.estimate?.().catch(() => undefined))?.quota ?? FALLBACK_QUOTA_BYTES;
+  return quota / 2;
+}
+
+const isInitiativeFile = (path: string) => path.startsWith('initiatives/');
+
+/**
+ * The dataset cache (§10.4) of one repository and branch: each file by path with its version. It
+ * holds at most `budget()` bytes; over that, the oldest files are dropped first, initiative files
+ * before master files, and never the file just written. The token is in another store and is never touched.
+ */
+export class FileCache {
+  private readonly prefix: string;
+  private total: number | null = null;
+
+  constructor(
+    scope: string,
+    private readonly budget: () => Promise<number> = defaultBudget,
+  ) {
+    this.prefix = `${scope}|`;
+  }
+
+  private key(path: string): string {
+    return `${this.prefix}${path}`;
+  }
+
+  get(path: string): Promise<CachedFile | null> {
+    return get<CachedFile>(FILES_STORE, this.key(path));
+  }
+
+  async all(): Promise<Map<string, CachedFile>> {
+    const found = await entriesWithPrefix<CachedFile>(FILES_STORE, this.prefix);
+    return new Map([...found].map(([key, file]) => [key.slice(this.prefix.length), file]));
+  }
+
+  async set(path: string, value: { content: string; sha: string }): Promise<void> {
+    // Counted before the write, so a first write is not counted twice.
+    const before = this.total ?? (await this.size());
+    const previous = await this.get(path);
+    await set<CachedFile>(FILES_STORE, this.key(path), { ...value, at: Date.now() });
+    this.total = before - (previous?.content.length ?? 0) + value.content.length;
+    if (this.total > (await this.budget())) await this.evict(path);
+  }
+
+  async delete(path: string): Promise<void> {
+    const previous = await this.get(path);
+    await del(FILES_STORE, this.key(path));
+    if (this.total !== null && previous) this.total -= previous.content.length;
+  }
+
+  private async size(): Promise<number> {
+    return [...(await this.all()).values()].reduce((sum, file) => sum + file.content.length, 0);
+  }
+
+  /** Drops the oldest files until the cache fits its budget, and forgets that the cache is complete. */
+  private async evict(keep: string): Promise<void> {
+    const budget = await this.budget();
+    const files = [...(await this.all())].filter(([path]) => path !== keep);
+    files.sort(([pathA, a], [pathB, b]) => Number(!isInitiativeFile(pathA)) - Number(!isInitiativeFile(pathB)) || a.at - b.at);
+    for (const [path] of files) {
+      if ((this.total ?? 0) <= budget) break;
+      await this.delete(path);
+      await this.clearMeta();
+    }
+  }
+
+  getMeta(): Promise<CacheMeta | null> {
+    return get<CacheMeta>(META_STORE, this.prefix);
+  }
+
+  setMeta(meta: CacheMeta): Promise<void> {
+    return set(META_STORE, this.prefix, meta);
+  }
+
+  clearMeta(): Promise<void> {
+    return del(META_STORE, this.prefix);
+  }
+
+  /** Forgets every file of this repository and branch, for a cache that cannot be trusted (§3 Damaged data). */
+  async clear(): Promise<void> {
+    for (const path of (await this.all()).keys()) await del(FILES_STORE, this.key(path));
+    await this.clearMeta();
+    this.total = 0;
+  }
+}
+
+/** Closes the connection, so a test can delete or upgrade the database. The next call opens it again. */
+export async function closeDatabase(): Promise<void> {
+  (await dbPromise)?.close();
+  dbPromise = null;
+}
+
+/** Forgets every cached file of every repository, for tests. The token is not touched. */
+export async function clearAllFileCaches(): Promise<void> {
+  await clearStore(FILES_STORE);
+  await clearStore(META_STORE);
+}
 
 const TOKEN_KEY = 'github-token';
 

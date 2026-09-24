@@ -9,6 +9,7 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PeopleOverview } from './PeopleOverview';
 import { TeamDetail } from './TeamDetail';
+import { rootListing } from '../sync/testing/rootListing';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const teams = [
@@ -30,6 +31,7 @@ function stubGithub() {
     vi.fn(async (url: string, init: RequestInit = {}) => {
       const method = init.method ?? 'GET';
       if (method === 'PUT') return json({ content: { sha: 'next' } });
+      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
       if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
       if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');

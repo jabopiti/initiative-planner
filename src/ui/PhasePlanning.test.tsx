@@ -8,6 +8,7 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
+import { rootListing } from '../sync/testing/rootListing';
 
 // One country: €500/day, 20 working days every month of 2026 and 2027. One role, factor 0.8.
 const twenty = Array(12).fill(20);
@@ -60,6 +61,7 @@ beforeAll(() => {
         puts.push({ message: body.message, content: JSON.parse(atob(body.content)) });
         return json({ content: { sha: 'next' } });
       }
+      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) {
         return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
       }
@@ -71,7 +73,7 @@ beforeAll(() => {
       const otherFile = others.find((o) => url.includes(`/contents/initiatives/${o.id}.json`));
       if (otherFile) return file(otherFile, 'o');
       if (url.endsWith('/contents/initiatives.json') || url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json' }, ...others.map((o) => ({ name: `${o.id}.json`, path: `initiatives/${o.id}.json` }))]);
+      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }, ...others.map((o) => ({ name: `${o.id}.json`, path: `initiatives/${o.id}.json`, sha: `sha-${o.id}`, type: 'file' }))]);
       return json({ message: 'Not Found' }, 404);
     }),
   );

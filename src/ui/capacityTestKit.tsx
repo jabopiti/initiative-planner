@@ -75,6 +75,11 @@ export function installCapacityFixture() {
       'fetch',
       vi.fn(async (url: string, init: RequestInit = {}) => {
         if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
+        if (url.includes('/git/ref/heads/')) return json({ message: 'Not Found' }, 404);
+        if (new URL(url).pathname.endsWith('/contents/')) {
+          const masters = { 'dataset.json': 'd', 'roles.json': 'r', 'countries.json': 'c', 'teams.json': 't', 'people.json': 'p', 'memberships.json': 'm' };
+          return json(Object.entries(masters).map(([name, sha]) => ({ name, path: name, sha, type: 'file' })));
+        }
         if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
         if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
         if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');
@@ -83,7 +88,7 @@ export function installCapacityFixture() {
         if (url.includes('/contents/memberships.json')) return file(fixture.memberships, 'm');
         const one = fixture.initiatives.find((i) => url.includes(`/contents/initiatives/${i.id}.json`));
         if (one) return file(one, `i-${one.id}`);
-        if (url.includes('/contents/initiatives')) return json(fixture.initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json` })));
+        if (url.includes('/contents/initiatives')) return json(fixture.initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `i-${i.id}`, type: 'file' })));
         return json({ message: 'Not Found' }, 404);
       }),
     );

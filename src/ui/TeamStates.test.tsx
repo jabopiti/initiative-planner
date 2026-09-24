@@ -9,6 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { NewInitiativeControl } from './NewInitiativeControl';
 import { PortfolioBoard } from './PortfolioBoard';
 import { TeamDetail } from './TeamDetail';
+import { rootListing } from '../sync/testing/rootListing';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const ACTIVE = { id: 't1', name: 'Payments', active: true };
@@ -24,6 +25,7 @@ beforeAll(() => {
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
+      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
       if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
       if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');

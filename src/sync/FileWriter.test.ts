@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
-import { fileCache } from '../cache/db';
+import { FileCache } from '../cache/db';
 import { GithubClient } from '../github/client';
 import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey } from './merge';
@@ -25,6 +25,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-merge', () => {
+  const cache = new FileCache('jabopiti/initiative-planner@data');
   let fetchMock: ReturnType<typeof vi.fn>;
   let github: GithubClient;
   let statuses: WriteStatus[];
@@ -50,6 +51,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
       branch: location.dataBranch,
       github,
       queue: new WriteQueue(),
+      cache,
       merge: mergeDocument,
       whenMissing: [],
       initial,
@@ -229,7 +231,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
     const writer = makeWriter({ content: [], sha: 's0' });
     const team1: Team = { id: 't1', name: 'Platform', active: true };
 
-    vi.spyOn(fileCache, 'set').mockRejectedValueOnce(new Error('IndexedDB quota exceeded'));
+    vi.spyOn(cache, 'set').mockRejectedValueOnce(new Error('IndexedDB quota exceeded'));
     fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's1' } }));
 
     writer.schedule([team1]);
