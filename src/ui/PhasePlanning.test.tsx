@@ -33,7 +33,7 @@ const person = (id: string, name: string, extra: Partial<Person> = {}): Person =
   ...extra,
 });
 const ana = person('ana', 'Ana Ruiz');
-const cai = person('cai', 'Cai Wu', { customRole: { label: 'Fractional CTO', dayRatesByYear: [{ year: 2026, dayRate: 900 }] } });
+const cai = person('cai', 'Cai Wu', { customRole: { active: true, label: 'Fractional CTO', costFactor: 1, dayRatesByYear: [{ year: 2026, dayRate: 900 }] } });
 const outsider = person('out', 'Olga Nord');
 const membership = (id: string, personId: string, teamFtePct: number): Membership => ({ id, personId, teamId: 't1', teamFtePct, active: true });
 
@@ -138,6 +138,7 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     const pct = within(row).getByLabelText('Allocation % for Ana Ruiz');
     await user.clear(pct);
     await user.type(pct, '50');
+    await user.keyboard('{Enter}');
     expect(within(row).getByText('€8,000')).toBeInTheDocument();
     expect(validationRow()).toHaveTextContent('€8,000');
   });

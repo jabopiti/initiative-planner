@@ -5,7 +5,8 @@ import { useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { allocationFigures, phaseTotal } from '../data/cost';
 import { formatPeriod } from '../data/dates';
-import type { Initiative, Person, Team } from '../data/types';
+import { roleLabel } from '../data/roleLabel';
+import type { Initiative, Team } from '../data/types';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
 import { ChevronDownIcon, ChevronRightIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
@@ -82,7 +83,6 @@ function CostedPhase({
         .flatMap((m) => people.filter((p) => p.id === m.personId && p.active))
     : [];
   const addable = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
-  const roleLabel = (person: Person) => person.customRole?.label ?? roles.find((r) => r.id === person.roleId)?.name ?? '';
 
   const picker =
     team && teamMembers.length === 0 ? (
@@ -108,7 +108,7 @@ function CostedPhase({
           <SelectContent>
             {addable.map((p) => (
               <SelectItem key={p.id} value={p.id}>
-                {p.name} · {roleLabel(p)}
+                {p.name} · {roleLabel(p, roles)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -209,7 +209,7 @@ function CostedPhase({
                     <tr key={allocation.id} className="border-t border-border-default">
                       <td className="py-1.5 pr-2">
                         <div>{name}</div>
-                        {person && <div className="text-xs text-text-muted">{roleLabel(person)}</div>}
+                        {person && <div className="text-xs text-text-muted">{roleLabel(person, roles)}</div>}
                       </td>
                       <td className="py-1.5 pr-2">
                         <PercentInput

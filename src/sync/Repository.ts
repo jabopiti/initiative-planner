@@ -305,13 +305,16 @@ export class Repository {
     const current = this.state.people.find((p) => p.id === id);
     if (!current) return;
     const next = { ...current, ...patch };
+    const change = this.describePersonChange(current, next, patch);
+    // Custom role edits are keyed by what changed, so two different years edited together both reach the message.
+    const key = patch.customRole ? `${id}:customRole:${change}` : `${id}:${Object.keys(patch).sort().join(',')}`;
     this.commitPeople(
       this.state.people.map((p) => (p.id === id ? next : p)),
-      { key: `${id}:${Object.keys(patch).sort().join(',')}`, text: `${next.name}: ${this.describePersonChange(current, patch)}` },
+      { key, text: `${next.name}: ${change}` },
     );
   }
 
-  private describePersonChange(current: Person, patch: Partial<Omit<Person, 'id'>>): string {
+  private describePersonChange(current: Person, next: Person, patch: Partial<Omit<Person, 'id'>>): string {
     const parts: string[] = [];
     if (patch.name !== undefined) parts.push(`renamed from ${current.name}`);
     if (patch.countryId !== undefined) {
@@ -320,9 +323,31 @@ export class Repository {
     if (patch.roleId !== undefined) {
       parts.push(`role set to ${this.state.roles.find((r) => r.id === patch.roleId)?.name ?? 'unknown'}`);
     }
+    if (patch.customRole !== undefined) parts.push(...this.describeCustomRoleChange(current, next));
     if (patch.capacityPct !== undefined) parts.push(`capacity set to ${patch.capacityPct}%`);
     if (patch.active !== undefined) parts.push(patch.active ? 'reactivated' : 'deactivated');
     return parts.join(', ') || 'updated';
+  }
+
+  private describeCustomRoleChange(current: Person, next: Person): string[] {
+    const before = current.customRole;
+    const after = next.customRole;
+    if (!after) return [];
+    const parts: string[] = [];
+    if (after.active && !before?.active) parts.push(`custom role set to ${after.label.trim() || 'Custom role'}`);
+    if (!after.active && before?.active) {
+      parts.push(`back to standard role ${this.state.roles.find((r) => r.id === next.roleId)?.name ?? 'unknown'}`);
+    }
+    if (before && after.label !== before.label) parts.push(`custom role renamed to ${after.label.trim() || 'Custom role'}`);
+    if (before && after.costFactor !== before.costFactor) parts.push(`custom role cost factor set to ${after.costFactor}`);
+    const years = new Set([...(before?.dayRatesByYear ?? []), ...after.dayRatesByYear].map((r) => r.year));
+    for (const year of [...years].sort()) {
+      const was = before?.dayRatesByYear.find((r) => r.year === year)?.dayRate;
+      const now = after.dayRatesByYear.find((r) => r.year === year)?.dayRate;
+      if (was === now) continue;
+      parts.push(now === undefined ? `${year} custom day rate cleared` : `${year} custom day rate set to ${now}`);
+    }
+    return parts;
   }
 
   /**

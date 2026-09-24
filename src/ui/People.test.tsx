@@ -115,6 +115,7 @@ describe('People overview and team members (slice 004)', () => {
     // The team detail may lower it; the second team then gets only the remainder.
     await user.clear(fte);
     await user.type(fte, '60');
+    await user.tab(); // a field commits on blur or Enter (§10.3)
     goTo('t2');
     await user.type(await screen.findByRole('combobox', { name: 'Add member' }), 'Linus');
     await user.click(screen.getByRole('button', { name: /Linus Torvalds/ }));
@@ -130,6 +131,8 @@ describe('People overview and team members (slice 004)', () => {
     await user.clear(second);
     await user.type(second, '90');
     expect(within(panel).getByText('Max 40%. Other teams hold the rest.')).toBeInTheDocument();
+    await user.tab();
+    expect(second).toHaveValue(40);
     expect(within(panel).getByText('No capacity left to add to another team.')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('row', { name: /Linus Torvalds/, hidden: true })).toHaveTextContent('Payments, Platform'));
   });

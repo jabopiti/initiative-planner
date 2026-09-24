@@ -23,9 +23,13 @@ export interface CustomRoleYearRate {
   dayRate: number;
 }
 
-/** A per-person role label with its own day rate; replaces country rate × role factor (§6). */
+/** A per-person role label with its own day rate and cost factor; replaces country rate × role factor (§6). */
 export interface CustomRole {
+  /** Whether the person is costed and shown with the custom role. Off keeps the entries for later (§6). */
+  active: boolean;
   label: string;
+  /** Multiplied against the day rate, like a standard role's cost factor. */
+  costFactor: number;
   dayRatesByYear: CustomRoleYearRate[];
 }
 
@@ -34,7 +38,7 @@ export interface Person {
   name: string;
   countryId: string;
   roleId: string;
-  /** When set, the person's cost uses this rate and the role cost factor does not apply (§7.1). */
+  /** While `customRole.active`, the person is costed at its rate and factor instead of the country rate and role factor (§7.1). */
   customRole?: CustomRole;
   /** Ceiling on total concurrent commitment across all teams (§4). */
   capacityPct: number;
