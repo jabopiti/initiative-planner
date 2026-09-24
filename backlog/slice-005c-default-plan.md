@@ -11,7 +11,7 @@ supersedes: null
 change_summary: "Promoted from the one-line backlog tail so it is not lost. The tail said it depends on 003; it needs slice 005 too, because a phase period only exists from 005 on. Slice 005's empty-period highlight is written for an initiative with no plan, and this slice makes that the exception."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "Small, well-specified date arithmetic with clear edge cases (month ends, year rollover) that a handful of unit tests pin down. The one design choice, how to tell a default plan from user-entered dates, is called out in Scope."
-spec_sections: ["§5.11 Suggestions and shortcuts (Default plan)", "§2 Brand pack (the process, default duration)", "§4 Core definitions (current month)", "§6 Data model (Phase data)", "§8.2 Skipping and starting phase (untouched initiative)"]
+spec_sections: ["§5.11 Suggestions and shortcuts (Default plan)", "§2 What the build fixes, and what the user changes (the process, default duration)", "§4 Core definitions (current month)", "§6 Data model (Phase data)", "§8.2 Skipping a gate (starting phase, untouched initiative)"]
 ---
 
 # A new initiative starts with a default plan
