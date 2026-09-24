@@ -185,6 +185,19 @@ describe('Change an initiative’s team (§5.4, §7.2)', () => {
       expect(await teamControl()).toHaveTextContent('Payments');
     });
 
+    it('choosing the current team again closes the confirmation and leaves everything as it was', async () => {
+      const user = userEvent.setup();
+      renderPage();
+      await chooseTeam(user, 'Growth');
+      await screen.findByRole('alertdialog');
+      expect(await teamControl()).toHaveTextContent('Payments');
+      await chooseTeam(user, 'Payments');
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(await teamControl()).toHaveTextContent('Payments');
+      expect(await teamControl()).toHaveFocus();
+      expect(screen.getAllByRole('row', { name: /Ruiz|Wu|Rao/ })).toHaveLength(3);
+    });
+
     it('Change team applies it in one commit that names both teams and the count, and Undo brings everything back', async () => {
       const user = userEvent.setup();
       renderPage();
