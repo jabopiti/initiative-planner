@@ -529,6 +529,11 @@ cross-references point there.
   FTE %**. A person may hold several memberships. Membership governs
   allocation: only a team's members may be allocated to that team's
   initiatives.
+- **Active member:** an active membership held by an active person. A
+  deactivated person is an active member of no team, whatever their
+  membership records say; the records are kept, so reactivating the person
+  restores them (§5.6). Team size (§5.7) and who can be allocated (§7.2)
+  both count active members.
 - **Custom role:** a free-text role label with its own day rate per year and
   its own cost factor, configured on one person rather than in shared master
   data. Used for contractors and anyone whose rate is individually
