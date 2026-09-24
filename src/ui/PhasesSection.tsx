@@ -4,7 +4,7 @@ import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { allocationFigures, phaseTotal } from '../data/cost';
-import { formatDate } from '../data/dates';
+import { formatPeriod } from '../data/dates';
 import type { Initiative, Person, Team } from '../data/types';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
@@ -71,6 +71,9 @@ function CostedPhase({
   const hasPeriod = Boolean(plan.startDate && plan.endDate);
   const inverted = hasPeriod && plan.endDate! < plan.startDate!;
   const costed = hasPeriod && !inverted;
+  // The next missing thing is highlighted: the period first, then the people.
+  const needsPeriod = !hasPeriod;
+  const needsPeople = hasPeriod && plan.allocations.length === 0;
   const total = phaseTotal(plan, people, rateData);
 
   const teamMembers = team
@@ -80,6 +83,38 @@ function CostedPhase({
     : [];
   const addable = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
   const roleLabel = (person: Person) => person.customRole?.label ?? roles.find((r) => r.id === person.roleId)?.name ?? '';
+
+  const picker =
+    team && teamMembers.length === 0 ? (
+      <p className="m-0 text-sm text-text-secondary">
+        {team.name} has no active members yet. Add people on <a href={`#/teams/${team.id}`}>the team&apos;s page</a>.
+      </p>
+    ) : addable.length > 0 ? (
+      <div className="flex items-center gap-2">
+        <PlusIcon width={16} height={16} className={needsPeople ? 'text-accent-text' : 'text-text-secondary'} />
+        <Select
+          value=""
+          onValueChange={(personId) => {
+            const result = repository.addAllocation(initiative.id, phase.id, personId);
+            setRefusal(result.ok ? null : result.reason);
+          }}
+        >
+          <SelectTrigger
+            className={`w-64 ${needsPeople ? 'border-accent bg-surface-card font-medium text-accent-text' : ''}`}
+            aria-label={`Add person to ${phase.label}`}
+          >
+            <SelectValue placeholder="Add person" />
+          </SelectTrigger>
+          <SelectContent>
+            {addable.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name} · {roleLabel(p)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    ) : null;
 
   const Chevron = expanded ? ChevronDownIcon : ChevronRightIcon;
   const bodyId = `phase-${phase.id}`;
@@ -95,29 +130,43 @@ function CostedPhase({
       >
         <Chevron width={16} height={16} className="shrink-0 text-text-secondary" />
         <span className="font-medium">{phase.label}</span>
-        <span className="text-text-secondary">{hasPeriod ? `${formatDate(plan.startDate!)} – ${formatDate(plan.endDate!)}` : 'No period set'}</span>
+        {hasPeriod ? (
+          <span className="text-text-secondary">{formatPeriod(plan.startDate!, plan.endDate!)}</span>
+        ) : (
+          <span className="font-medium text-accent-text">Set period</span>
+        )}
+        {plan.allocations.length === 0 && <span className="font-medium text-accent-text">· Add people</span>}
         <span className="ml-auto font-medium tabular-nums">{costed ? formatAmount(total, currencySymbol) : '—'}</span>
         <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary">Estimate</span>
       </button>
 
       {expanded && (
         <div id={bodyId} className="flex flex-col gap-4 border-t border-border-default px-3 py-3">
-          <div className="flex flex-wrap items-start gap-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs text-text-secondary">Start date</span>
-              <DateInput
-                label={`${phase.label} start date`}
-                value={plan.startDate}
-                onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'startDate', v)}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs text-text-secondary">End date</span>
-              <DateInput
-                label={`${phase.label} end date`}
-                value={plan.endDate}
-                onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'endDate', v)}
-              />
+          <div
+            className={`flex flex-col gap-2 rounded-md ${needsPeriod ? 'border border-accent bg-accent-tint p-3' : ''}`}
+            data-highlight={needsPeriod || undefined}
+          >
+            {needsPeriod && <p className="m-0 text-sm font-medium text-accent-text">Set the period to calculate cost.</p>}
+            <div className="flex flex-wrap items-start gap-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-text-secondary">Start date</span>
+                <DateInput
+                  label={`${phase.label} start date`}
+                  value={plan.startDate}
+                  highlight={needsPeriod}
+                  onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'startDate', v)}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs text-text-secondary">End date</span>
+                <DateInput
+                  label={`${phase.label} end date`}
+                  value={plan.endDate}
+                  openOn={plan.startDate}
+                  highlight={needsPeriod}
+                  onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'endDate', v)}
+                />
+              </div>
             </div>
           </div>
           {inverted && (
@@ -128,7 +177,15 @@ function CostedPhase({
           )}
 
           {plan.allocations.length === 0 ? (
-            <p className="m-0 text-sm text-text-secondary">No one is allocated yet. Add a team member to see this phase&apos;s cost.</p>
+            <div
+              className={`flex flex-col items-start gap-2 rounded-md border border-dashed p-3 ${needsPeople ? 'border-accent bg-accent-tint' : 'border-border-strong'}`}
+              data-highlight={needsPeople || undefined}
+            >
+              <p className={`m-0 text-sm ${needsPeople ? 'font-medium text-accent-text' : 'text-text-secondary'}`}>
+                Who works on {phase.label}? Add a team member to see this phase&apos;s cost.
+              </p>
+              {picker}
+            </div>
           ) : (
             <table className="w-full border-collapse text-sm">
               <caption className="sr-only">{phase.label} allocations</caption>
@@ -193,35 +250,7 @@ function CostedPhase({
             </table>
           )}
 
-          {team && teamMembers.length === 0 ? (
-            <p className="m-0 text-sm text-text-secondary">
-              {team.name} has no active members yet. Add people on <a href={`#/teams/${team.id}`}>the team&apos;s page</a>.
-            </p>
-          ) : (
-            addable.length > 0 && (
-              <div className="flex items-center gap-2">
-                <PlusIcon width={16} height={16} className="text-text-secondary" />
-                <Select
-                  value=""
-                  onValueChange={(personId) => {
-                    const result = repository.addAllocation(initiative.id, phase.id, personId);
-                    setRefusal(result.ok ? null : result.reason);
-                  }}
-                >
-                  <SelectTrigger className="w-64" aria-label={`Add person to ${phase.label}`}>
-                    <SelectValue placeholder="Add person" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {addable.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} · {roleLabel(p)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )
-          )}
+          {plan.allocations.length > 0 && picker}
           {team && teamMembers.length > 0 && <p className="m-0 text-xs text-text-muted">Only members of {team.name} can be allocated.</p>}
           {refusal && (
             <p className="m-0 text-sm text-warning-text" role="alert">
