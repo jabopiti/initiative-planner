@@ -1,7 +1,7 @@
 import { trackedYears, yearRecord } from '../data/cost';
 import type { CustomRole, Person } from '../data/types';
 import { useBrand } from '../state/BrandContext';
-import { useRepository } from '../state/DataContext';
+import { useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { Label } from '@/components/ui/label';
 import { CommitInput } from './CommitInput';
 import { InlineWarning } from './InlineWarning';
@@ -19,6 +19,8 @@ function parseAmount(text: string): number | null {
  */
 export function CustomRoleFields({ person, customRole }: { person: Person; customRole: CustomRole }) {
   const repository = useRepository();
+  const changed = useIsChangedByOthers();
+  const customPath = (field: string) => [{ id: person.id }, 'customRole', field];
   const { currencySymbol } = useBrand();
   const save = (patch: Partial<CustomRole>) => repository.updatePerson(person.id, { customRole: { ...customRole, ...patch } });
 
@@ -43,6 +45,7 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
         <Label htmlFor="person-custom-label">Custom role label</Label>
         <CommitInput
           id="person-custom-label"
+          changed={changed('people.json', customPath('label'))}
           placeholder="e.g. Fractional CTO"
           value={customRole.label}
           onCommit={(text) => {
@@ -56,6 +59,7 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
         <Label htmlFor="person-custom-factor">Cost factor</Label>
         <CommitInput
           id="person-custom-factor"
+          changed={changed('people.json', customPath('costFactor'))}
           type="number"
           step="any"
           min={0}
@@ -84,6 +88,7 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
                 min={0}
                 className="w-28"
                 aria-label={`Day rate ${year}`}
+                changed={changed('people.json', customPath('dayRatesByYear'))}
                 disabled={year < tracked[0]}
                 placeholder={inherited ? String(inherited.dayRate) : undefined}
                 value={entered ? String(entered.dayRate) : ''}

@@ -24,7 +24,7 @@ export function SyncIndicator() {
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-sm text-met-text" title="Synced">
+    <span className="inline-flex items-center gap-1.5 text-sm text-met-text" title={state.updatedByOthers ? 'Updated by others' : 'Synced'}>
       <CheckIcon />
     </span>
   );

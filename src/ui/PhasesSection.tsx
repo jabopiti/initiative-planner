@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useBrand } from '../state/BrandContext';
-import { useRepository, useRepositoryState } from '../state/DataContext';
+import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
 import { allocationFigures, phaseTotal } from '../data/cost';
@@ -9,7 +9,7 @@ import { formatDate, formatMonthRanges, formatPeriod, localToday } from '../data
 import { freeCapacityByPerson } from '../data/personLoad';
 import { roleLabel } from '../data/roleLabel';
 import { activeMembers } from '../data/teamMembers';
-import type { Initiative, PhasePlan, Team } from '../data/types';
+import { FILE_PATHS, type Initiative, type PhasePlan, type Team } from '../data/types';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
@@ -113,6 +113,8 @@ function CostedPhase({
   onToggle: () => void;
 }) {
   const repository = useRepository();
+  const changed = useIsChangedByOthers();
+  const file = FILE_PATHS.initiative(initiative.id);
   const { currencySymbol, process } = useBrand();
   const { people, roles, countries, memberships, initiatives, teams } = useRepositoryState();
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -226,6 +228,7 @@ function CostedPhase({
                 <DateInput
                   label={`${phase.label} start date`}
                   value={plan.startDate}
+                  changed={changed(file, ['phases', phase.id, 'startDate'])}
                   highlight={needsPeriod}
                   onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'startDate', v)}
                 />
@@ -235,6 +238,7 @@ function CostedPhase({
                 <DateInput
                   label={`${phase.label} end date`}
                   value={plan.endDate}
+                  changed={changed(file, ['phases', phase.id, 'endDate'])}
                   openOn={plan.startDate}
                   highlight={needsPeriod}
                   onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'endDate', v)}
@@ -299,6 +303,7 @@ function CostedPhase({
                       <td className="py-1.5 pr-2">
                         <PercentInput
                           label={`Allocation % for ${name}`}
+                          changed={changed(file, ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct'])}
                           value={allocation.allocationPct}
                           onChange={(pct) => repository.updateAllocation(initiative.id, phase.id, allocation.id, pct)}
                         />

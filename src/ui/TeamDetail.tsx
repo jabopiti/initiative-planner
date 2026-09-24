@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useRepository, useRepositoryState } from '../state/DataContext';
+import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
 import { roleLabel } from '../data/roleLabel';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 /** Team detail (§5.8): the Members list and the Capacity view. */
 export function TeamDetail({ id }: { id: string }) {
   const repository = useRepository();
+  const changed = useIsChangedByOthers();
   const { teams, people, memberships, roles, countries } = useRepositoryState();
   const [query, setQuery] = useState('');
   const [personId, setPersonId] = useState<string | null>(null);
@@ -205,6 +206,7 @@ export function TeamDetail({ id }: { id: string }) {
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
                         <PercentInput
+                          changed={changed('memberships.json', [{ id: m.id }, 'teamFtePct'])}
                           label={`Team FTE % for ${person.name}`}
                           value={m.teamFtePct}
                           disabled={!m.active || !person.active}

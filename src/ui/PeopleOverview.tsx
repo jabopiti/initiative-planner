@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { useRepository, useRepositoryState } from '../state/DataContext';
+import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { roleLabel } from '../data/roleLabel';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
 import { PersonPanel } from './PersonPanel';
@@ -19,6 +19,7 @@ type StatusFilter = 'active' | 'inactive' | 'all';
 export function PeopleOverview() {
   const repository = useRepository();
   const { people, roles, countries, teams, memberships } = useRepositoryState();
+  const changed = useIsChangedByOthers();
   const [filter, setFilter] = useState<StatusFilter>('active');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -189,7 +190,7 @@ export function PeopleOverview() {
                   return (
                     <tr
                       key={p.id}
-                      className={`cursor-pointer border-b border-border-default ${p.id === selectedId ? 'bg-brand-accent-tint' : ''} ${p.active ? '' : 'text-text-secondary'}`}
+                      className={`cursor-pointer border-b border-border-default transition-colors duration-500 ${p.id === selectedId ? 'bg-brand-accent-tint' : changed('people.json', [{ id: p.id }]) ? 'bg-met-tint' : ''} ${p.active ? '' : 'text-text-secondary'}`}
                       onClick={() => setSelectedId(p.id)}
                     >
                       <td className="px-3 py-2">
