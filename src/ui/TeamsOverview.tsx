@@ -1,17 +1,20 @@
 import { useMemo, useRef, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
+import { teamCapacity, teamHasCapacityWarning } from '../data/capacity';
+import { localToday } from '../data/dates';
 import { currentPhaseId } from '../data/processState';
 import { activeMembers } from '../data/teamMembers';
 import { navigate } from '../router/useHashRoute';
 import { EmptyState } from './EmptyState';
-import { PlusIcon } from './icons';
+import { PlusIcon, WarningIcon } from './icons';
 import { CopyButton } from './CopyButton';
 import { SortableHeader } from './SortableHeader';
 import { TruncatedText } from './TruncatedText';
 import { sortRows, useTableSort, type SortValue } from './tableSort';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 /** Teams overview (§5.7): name, size, per-phase initiative counts, and New team. */
 export function TeamsOverview() {
@@ -40,9 +43,10 @@ export function TeamsOverview() {
       teams.map((team) => ({
         team,
         members: activeMembers(team.id, memberships, people).length,
+        capacityWarning: teamHasCapacityWarning(teamCapacity(team.id, { initiatives, people, memberships, process: brand.process, today: localToday() })),
         counts: brand.process.map((phase) => phaseCountsByTeam.get(team.id)?.get(phase.id) ?? 0),
       })),
-    [teams, memberships, people, brand.process, phaseCountsByTeam],
+    [teams, initiatives, memberships, people, brand.process, phaseCountsByTeam],
   );
 
   const sorted = useMemo(() => {
@@ -130,7 +134,7 @@ export function TeamsOverview() {
           </tr>
         </thead>
         <tbody>
-          {sorted.map(({ team, members, counts }) => (
+          {sorted.map(({ team, members, counts, capacityWarning }) => (
             <tr
               key={team.id}
               className={`cursor-pointer border-b border-border-default ${team.active ? '' : 'text-text-secondary'}`}
@@ -140,11 +144,23 @@ export function TeamsOverview() {
               }}
             >
               <td className="px-3 py-2 font-medium">
-                <TruncatedText text={team.name}>
-                  <a href={`#/teams/${team.id}`} className="text-inherit no-underline">
-                    {team.name}
-                  </a>
-                </TruncatedText>
+                <div className="flex items-center gap-2">
+                  <TruncatedText text={team.name}>
+                    <a href={`#/teams/${team.id}`} className="text-inherit no-underline">
+                      {team.name}
+                    </a>
+                  </TruncatedText>
+                  {capacityWarning && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span role="img" aria-label="Capacity warning" tabIndex={0} className="text-warning-text">
+                          <WarningIcon width={16} height={16} />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>A member has a capacity warning</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
               </td>
               <td className="px-3 py-2 text-right">{members}</td>
               {counts.map((count, i) => (

@@ -103,29 +103,29 @@ display.
 
 ## Acceptance criteria
 
-- [ ] Given a member allocated above their Team FTE % in a given month,
+- [x] Given a member allocated above their Team FTE % in a given month,
       when the grid is viewed, then that cell is tinted with the Warning
       colour and an icon distinct from the over-Capacity-% icon.
-- [ ] Given a member's total allocation across all their teams exceeds
+- [x] Given a member's total allocation across all their teams exceeds
       their Capacity % in a given month, when the grid is viewed, then
       that cell shows the over-Capacity-% warning.
-- [ ] Given a warned cell, when it is selected, then the contributing
+- [x] Given a warned cell, when it is selected, then the contributing
       initiatives are listed.
-- [ ] Given no member is over either ceiling, when the grid is viewed,
+- [x] Given no member is over either ceiling, when the grid is viewed,
       then no cell is tinted.
-- [ ] Given an allocation on a Provisional phase, when the grid is viewed,
+- [x] Given an allocation on a Provisional phase, when the grid is viewed,
       then it shows as a lighter figure beside the number and is not counted
       toward either warning.
-- [ ] Given a member whose Team FTE %s add up to more than their Capacity %,
+- [x] Given a member whose Team FTE %s add up to more than their Capacity %,
       or an allocation that outlived its membership, when their cell or row
       is selected, then the detail names that warning; the outlived
       allocation sits on a "No longer a member" row.
-- [ ] Given the grid, when Copy is used, then the shown months, figures and
+- [x] Given the grid, when Copy is used, then the shown months, figures and
       warning markers are copied as text and a table.
-- [ ] Given an allocation row on the initiative page whose person is over a
+- [x] Given an allocation row on the initiative page whose person is over a
       ceiling in a month of a Confirmed phase, or no longer on the team,
       then the row says so in words.
-- [ ] Given a team with a member who has a capacity warning, when the Teams
+- [x] Given a team with a member who has a capacity warning, when the Teams
       overview is viewed, then that team carries the warning marker.
 
 ## Delivery gate
