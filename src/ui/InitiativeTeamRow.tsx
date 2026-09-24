@@ -2,17 +2,11 @@ import { useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
-import { isPhaseLocked } from '../data/processState';
-import { planTeamChange } from '../data/teamChange';
-import type { Initiative } from '../data/types';
+import { allocationCount, describeTeamChange } from '../data/teamChange';
+import type { Initiative, Team } from '../data/types';
 import { formatAmount } from './formatAmount';
 import { TeamSelect } from './TeamSelect';
 import { Button } from '@/components/ui/button';
-
-/** "A", "A and B", "A, B and C". */
-function joinNames(names: string[]): string {
-  return names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
 
 /**
  * The initiative header's team and status (§5.4). The team is a dropdown of the active teams; choosing another one
@@ -22,8 +16,8 @@ function joinNames(names: string[]): string {
  */
 export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   const repository = useRepository();
-  const { currencySymbol, process } = useBrand();
-  const { teams, people, memberships, roles, countries } = useRepositoryState();
+  const { currencySymbol } = useBrand();
+  const { teams } = useRepositoryState();
   const [pendingTeamId, setPendingTeamId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const applyRef = useRef<HTMLButtonElement>(null);
@@ -31,30 +25,19 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   const bodyId = useId();
 
   const currentTeam = teams.find((t) => t.id === initiative.teamId);
-  const newTeam = teams.find((t) => t.id === pendingTeamId);
   const canChange = initiative.status === 'Active' || initiative.status === 'On Hold';
 
-  const planFor = (teamId: string) =>
-    planTeamChange({
-      initiative,
-      newTeamId: teamId,
-      process,
-      people,
-      memberships,
-      rateData: { roles, countries },
-      isLocked: (phaseId) => isPhaseLocked(initiative, phaseId),
-    });
   // Worked out on every render, so the names and figures shown are the ones that would be removed now.
-  const plan = pendingTeamId ? planFor(pendingTeamId) : null;
-  const confirming = newTeam && plan && plan.removed.length > 0 ? { team: newTeam, plan } : null;
+  const pendingTeam = teams.find((t) => t.id === pendingTeamId);
+  const plan = pendingTeam && repository.previewTeamChange(initiative.id, pendingTeam.id);
+  const confirming = pendingTeam && plan && plan.removed.length > 0 ? { team: pendingTeam, plan } : null;
 
-  const apply = (teamId: string) => {
+  const apply = (team: Team) => {
     setPendingTeamId(null);
-    const change = repository.changeTeam(initiative.id, teamId);
+    const change = repository.changeTeam(initiative.id, team.id);
     triggerRef.current?.focus();
     if (!change || change.removed.length === 0) return;
-    const count = change.removed.length;
-    toast(`Team changed to ${teams.find((t) => t.id === teamId)?.name}, ${count} allocation${count === 1 ? '' : 's'} removed.`, {
+    toast(`Team changed to ${team.name}, ${allocationCount(change.removed.length)} removed.`, {
       duration: 10_000,
       action: { label: 'Undo', onClick: () => repository.restoreTeam(initiative.id, change) },
     });
@@ -65,8 +48,10 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   };
 
   const choose = (teamId: string) => {
-    if (planFor(teamId).removed.length === 0) return apply(teamId);
-    setPendingTeamId(teamId);
+    const team = teams.find((t) => t.id === teamId);
+    if (!team) return;
+    if (repository.previewTeamChange(initiative.id, team.id)?.removed.length === 0) return apply(team);
+    setPendingTeamId(team.id);
   };
 
   return (
@@ -107,10 +92,10 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
             Change team to {confirming.team.name}?
           </p>
           <p id={bodyId} className="m-0">
-            {confirmationText(confirming.team.name, confirming.plan, currencySymbol)}
+            {describeTeamChange(confirming.plan, confirming.team.name, (cost) => formatAmount(cost, currencySymbol))}
           </p>
           <div className="mt-3 flex gap-2">
-            <Button ref={applyRef} size="sm" onClick={() => apply(confirming.team.id)}>
+            <Button ref={applyRef} size="sm" onClick={() => apply(confirming.team)}>
               Change team
             </Button>
             <Button size="sm" variant="outline" onClick={cancel}>
@@ -121,16 +106,4 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
       )}
     </div>
   );
-}
-
-function confirmationText(teamName: string, plan: ReturnType<typeof planTeamChange>, currencySymbol: string): string {
-  const one = plan.removedPeople.length === 1;
-  const count = plan.removed.length;
-  const cost = plan.cost > 0 ? ` (planned cost ${formatAmount(plan.cost, currencySymbol)})` : '';
-  const goes =
-    `${joinNames(plan.removedPeople.map((p) => p.name))} ${one ? "isn't an active member" : "aren't active members"} of ${teamName}. ` +
-    `Their ${count === 1 ? 'allocation' : `${count} allocations`} in ${joinNames(plan.phaseLabels)} will be removed${cost}.`;
-  const stays = plan.stayingPeople.length;
-  if (stays === 0) return goes;
-  return `${goes} ${joinNames(plan.stayingPeople.map((p) => p.name))} ${stays === 1 ? 'is' : 'are'} on both teams and ${stays === 1 ? 'stays' : 'stay'}.`;
 }
