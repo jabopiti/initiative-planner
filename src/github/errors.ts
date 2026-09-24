@@ -31,8 +31,17 @@ export interface ReadOnlyState {
   message: string;
 }
 
-/** The read-only state (§3 Sync failures) a failed request should show: the API's own cause/message, or a fallback for a non-API failure. */
+/** What the read-only state says for the causes §3 Sync failures names, because each needs a different fix. */
+const CAUSE_MESSAGES: Partial<Record<GithubFailureCause, string>> = {
+  'access-denied': 'The token is missing, expired, revoked or lacks write permission',
+  'rate-limited': 'GitHub is limiting requests; try again shortly',
+};
+
+/**
+ * The read-only state (§3 Sync failures) a failed request should show: §3's wording for the cause where it
+ * has one, otherwise the API's own message, or a fallback for a non-API failure.
+ */
 export function toReadOnlyState(error: unknown, fallbackMessage: string): ReadOnlyState {
-  if (error instanceof GithubApiError) return { cause: error.cause_, message: error.message };
+  if (error instanceof GithubApiError) return { cause: error.cause_, message: CAUSE_MESSAGES[error.cause_] ?? error.message };
   return { cause: 'unknown', message: fallbackMessage };
 }
