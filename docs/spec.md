@@ -750,7 +750,9 @@ Its layout follows the design rules in §9.8.
   or Cancelled); a phase behind a skipped gate stays editable (§8.2). Each
   allocation row shows a warning when the person is over their Capacity % or
   their team's Team FTE % in any month of the phase, or is no longer a
-  member of the team (§7.2). The current phase shows its **period** as two
+  member of the team (§7.2). A phase that starts on or before the previous
+costed phase's end date shows a warning saying so; no phase moves on its own.
+The current phase shows its **period** as two
   date fields (§9.11), an **allocation table** (person, Allocation %, and
   the person's cost for the phase), a **cost items table** (label, amount,
   and when: one month, or spread over the phase) beneath it, with the phase
@@ -945,15 +947,18 @@ A pasted token is checked immediately, and the result is specific:
 Every suggestion is computed from data the tool already has, is optional and
 one click, and never changes user data on its own. A suggestion that is
 taken is a normal edit, so it syncs like any other (§3). Wherever a
-suggestion re-chains phases from "the current month" (the default plan,
-Duplicate, the starting-phase mechanism), that month is the one containing
-today's actual date, determined the same way as Confirmed vs. Provisional in
-§4.
+suggestion re-chains phases from today (the default plan, Duplicate, the
+starting-phase mechanism), that date is today's actual date in the user's
+local time, determined the same way as Confirmed vs. Provisional in §4.
 
 - **Default plan.** A new initiative gets a period for every costed phase,
-  chained from the current month, each with the default duration the brand
-  pack defines for that phase (§2). The user adjusts instead of building the
-  schedule.
+  chained from the day it is created, each with the default duration the
+  brand pack defines for that phase (§2). A phase starts on the day after
+  the previous costed phase ends, and ends on the day before the same day of
+  the month, that many months later (a day the later month lacks counts as
+  its last day). The initiative page says the dates are
+  a suggestion until the user first edits the plan. The user adjusts instead
+  of building the schedule. Editing one phase's dates moves no other phase.
 - **Copy allocations.** A costed phase with no allocations offers **Copy
   from <previous costed phase>** when that phase has some. It copies each
   active team member with the same Allocation %, and lists anyone skipped
@@ -985,7 +990,7 @@ today's actual date, determined the same way as Confirmed vs. Provisional in
   with the same team, owner and description, and for each costed phase the
   same length, allocations (active team members only) and cost items,
   keeping each one-month item's position within its phase. Phase periods are
-  re-chained from the current month, the same rule the default plan and the
+  re-chained from today, the same rule the default plan and the
   starting-phase mechanism use (§2). It carries no gate records, checklist
   state or actuals. The new initiative is named "<name> copy" and opens in
   place.
@@ -1297,8 +1302,7 @@ initiative is untouched (no data entered by a user and no gate record; the
 default plan, §5.11, does not count), the user can choose a later **starting
 phase** and types one reason. That reason is recorded on every gate behind
 it, each as skipped, regardless of the skippable flags. The default periods
-are then chained again so that the starting phase begins in the current
-month. Until the initiative is touched, the starting phase can be changed
+are then chained again so that the starting phase begins today. Until the initiative is touched, the starting phase can be changed
 again; afterwards only Reopen (§8.3) moves it back.
 
 ### 8.3 Reopening
