@@ -1,7 +1,7 @@
 ---
 generated_from: "Initiative Planner (white-label core) spec, v1 — 22 September 2026"
-total_slices: 12
-valid_slices: 12
+total_slices: 13
+valid_slices: 13
 flagged_slices: 0
 ---
 
@@ -68,6 +68,7 @@ for the AI-agent-driven build the team asked for:
 | 004b | Upgrade to React 19 | ✅ valid | 004 |
 | 004c | Sort and copy the Teams and People tables | ✅ valid | 004 |
 | 005 | Plan a costed phase and see its cost calculated | ✅ valid | 001, 004 |
+| 005b | Give a person a custom role and day rate | ✅ valid | 004, 005 |
 | 006 | Availability suggestion in the person picker | ✅ valid | 005 |
 | 007 | Add cost items to a phase | ✅ valid | 005 |
 | 008 | Pass a gate with its checklist | ✅ valid | 005, 007 |
@@ -95,6 +96,10 @@ for the AI-agent-driven build the team asked for:
 - Slice 005 "Plan a costed phase and see its cost calculated": depends on
   001 (the audited engine logic it wires in) and 004 (a team member to
   allocate).
+- Slice 005b "Give a person a custom role and day rate": depends on 004
+  (the person panel it extends) and 005 (the custom-rate cost rule it feeds).
+  Inserted while planning 005, which ships the data shape and engine but no
+  screen that sets a custom role.
 - Slice 006 "Availability suggestion in the person picker": depends on
   005 — it enhances the picker that slice introduces.
 - Slice 007 "Add cost items to a phase": depends on 005 — it adds to a
