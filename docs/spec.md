@@ -562,11 +562,13 @@ icon, the sync indicator (§3) and the theme control (§9.1):
 
 The **New initiative** button opens a **draft page**, laid out like the
 initiative's header (§5.4): the name field is the title and is focused, with
-the team selector beside it and a "Draft" chip. The team selector always
-starts on "Select team", with the last-used team listed first and marked;
-the tool never chooses a team for the user. The next thing to fill in is
-highlighted: the name, then the team, then, once both are filled, the
-**Create initiative** button. No phases appear on the draft. Nothing is
+the team selector beside it, a "Draft" chip and the **Create initiative**
+button. The team selector always starts on "Select team", even when only
+one team exists; the tool never chooses a team for the user. The next thing
+to fill in is highlighted: the name, then the team, then, once both are
+filled, the Create initiative button, which is disabled until then. A line
+under the header names the next step in text, so the highlight never
+carries it by colour alone. No phases appear on the draft. Nothing is
 saved until Create initiative is chosen (Enter in the name field does the
 same once a team is selected); leaving a field saves nothing. Creating the
 initiative saves it and its detail page replaces the draft, so Back skips the
