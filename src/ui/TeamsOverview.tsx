@@ -4,6 +4,10 @@ import { useBrand } from '../state/BrandContext';
 import { currentPhaseId } from '../data/processState';
 import { EmptyState } from './EmptyState';
 import { PlusIcon } from './icons';
+import { CopyButton } from './CopyButton';
+import { SortableHeader } from './SortableHeader';
+import { TruncatedText } from './TruncatedText';
+import { sortRows, useTableSort } from './tableSort';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -15,6 +19,7 @@ export function TeamsOverview() {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const sort = useTableSort('name');
 
   const phaseCountsByTeam = useMemo(() => {
     const byTeam = new Map<string, Map<string, number>>();
@@ -27,6 +32,34 @@ export function TeamsOverview() {
     }
     return byTeam;
   }, [brand.process, initiatives]);
+
+  const rows = useMemo(
+    () =>
+      teams.map((team) => ({
+        team,
+        members: memberships.filter((m) => m.teamId === team.id && m.active).length,
+        counts: brand.process.map((phase) => phaseCountsByTeam.get(team.id)?.get(phase.id) ?? 0),
+      })),
+    [teams, memberships, brand.process, phaseCountsByTeam],
+  );
+
+  const sorted = useMemo(() => {
+    const columns: Record<string, (r: (typeof rows)[number]) => string | number> = {
+      name: (r) => r.team.name,
+      members: (r) => r.members,
+    };
+    brand.process.forEach((phase, i) => {
+      columns[`phase:${phase.id}`] = (r) => r.counts[i];
+    });
+    return sortRows(rows, columns, sort.key in columns ? sort.key : 'name', sort.dir, 'name');
+  }, [rows, brand.process, sort.key, sort.dir]);
+
+  function copyData() {
+    return {
+      headers: ['Name', 'Members', ...brand.process.map((phase) => phase.label)],
+      rows: sorted.map((r) => [r.team.name, String(r.members), ...r.counts.map(String)]),
+    };
+  }
 
   function startCreating() {
     setCreating(true);
@@ -54,6 +87,8 @@ export function TeamsOverview() {
     <div className="px-8 py-6">
       <div className="mb-5 flex items-center justify-between">
         <h1 className="m-0 text-xl">Teams</h1>
+        <div className="flex items-center gap-2">
+        {teams.length > 0 && <CopyButton getData={copyData} noun={['team', 'teams']} />}
         {creating ? (
           <form
             className="flex gap-1.5"
@@ -73,42 +108,47 @@ export function TeamsOverview() {
             New team
           </Button>
         )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
-        {teams.map((team) => {
-          const teamPhaseCounts = phaseCountsByTeam.get(team.id);
-          const phaseCounts = brand.process.map((phase) => ({
-            phase,
-            count: teamPhaseCounts?.get(phase.id) ?? 0,
-          }));
-          return (
-            <div
-              key={team.id}
-              className={`rounded-[10px] border border-border-default bg-surface-card p-4 ${team.active ? '' : 'opacity-55'}`}
-            >
-              <h2 className="m-0 mb-1 text-base">
-                <a href={`#/teams/${team.id}`} className="text-inherit no-underline">
-                  {team.name}
-                </a>
-              </h2>
-              <p className="m-0 mb-3 text-sm text-text-secondary">
-                {memberships.filter((m) => m.teamId === team.id && m.active).length} members
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {phaseCounts.map(({ phase, count }) => (
-                  <span
-                    key={phase.id}
-                    className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary"
-                  >
-                    {phase.label}: {count}
-                  </span>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="text-left text-text-secondary">
+            <SortableHeader label="Name" sortKey="name" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
+            <SortableHeader label="Members" sortKey="members" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} align="right" />
+            {brand.process.map((phase) => (
+              <SortableHeader
+                key={phase.id}
+                label={phase.label}
+                sortKey={`phase:${phase.id}`}
+                activeKey={sort.key}
+                dir={sort.dir}
+                onSort={sort.toggle}
+                align="right"
+              />
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(({ team, members, counts }) => (
+            <tr key={team.id} className={`border-b border-border-default ${team.active ? '' : 'text-text-secondary'}`}>
+              <td className="px-3 py-2 font-medium">
+                <TruncatedText text={team.name}>
+                  <a href={`#/teams/${team.id}`} className="text-inherit no-underline">
+                    {team.name}
+                  </a>
+                </TruncatedText>
+              </td>
+              <td className="px-3 py-2 text-right">{members}</td>
+              {counts.map((count, i) => (
+                <td key={brand.process[i].id} className="px-3 py-2 text-right">
+                  {count}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

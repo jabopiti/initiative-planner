@@ -3,6 +3,10 @@ import { useRepository, useRepositoryState } from '../state/DataContext';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
 import { PersonPanel } from './PersonPanel';
 import { EmptyState } from './EmptyState';
+import { CopyButton } from './CopyButton';
+import { SortableHeader } from './SortableHeader';
+import { TruncatedText } from './TruncatedText';
+import { sortRows, useTableSort } from './tableSort';
 import { DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,14 +30,60 @@ export function PeopleOverview() {
   function focusRow(id: string) {
     requestAnimationFrame(() => rowRefs.current.get(id)?.focus());
   }
-
   const effectiveCountry = countries.some((c) => c.id === countryId && c.active) ? countryId : defaultCountryId(countries);
   const effectiveRole = roles.some((r) => r.id === roleId && r.active) ? roleId : defaultRoleId(roles);
 
+  const sort = useTableSort('name');
+
+  const rows = useMemo(() => {
+    const teamNamesOf = (personId: string) =>
+      memberships
+        .filter((m) => m.personId === personId && m.active)
+        .map((m) => teams.find((t) => t.id === m.teamId)?.name)
+        .filter(Boolean)
+        .join(', ');
+    return people
+      .filter((p) => filter === 'all' || (filter === 'active' ? p.active : !p.active))
+      .map((p) => ({
+        person: p,
+        roleName: roles.find((r) => r.id === p.roleId)?.name ?? '—',
+        countryName: countries.find((c) => c.id === p.countryId)?.name ?? '—',
+        teamNames: teamNamesOf(p.id),
+      }));
+  }, [people, filter, roles, countries, teams, memberships]);
+
   const visible = useMemo(
-    () => people.filter((p) => filter === 'all' || (filter === 'active' ? p.active : !p.active)),
-    [people, filter],
+    () =>
+      sortRows(
+        rows,
+        {
+          name: (r) => r.person.name,
+          role: (r) => r.roleName,
+          country: (r) => r.countryName,
+          teams: (r) => r.teamNames,
+          capacity: (r) => r.person.capacityPct,
+          status: (r) => (r.person.active ? 0 : 1),
+        },
+        sort.key,
+        sort.dir,
+        'name',
+      ),
+    [rows, sort.key, sort.dir],
   );
+
+  function copyData() {
+    return {
+      headers: ['Name', 'Role', 'Country', 'Team(s)', 'Capacity', 'Status'],
+      rows: visible.map((r) => [
+        r.person.name,
+        r.roleName,
+        r.countryName,
+        r.teamNames || '—',
+        `${r.person.capacityPct}%`,
+        r.person.active ? 'Active' : 'Inactive',
+      ]),
+    };
+  }
   const selected = people.find((p) => p.id === selectedId) ?? null;
 
   function handleAdd(event: React.FormEvent) {
@@ -67,16 +117,19 @@ export function PeopleOverview() {
     <div className="px-8 py-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="m-0 text-xl">People</h1>
-        <Select value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
-          <SelectTrigger aria-label="Show people">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-            <SelectItem value="all">All</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
+            <SelectTrigger aria-label="Show people">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
+          {visible.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} />}
+        </div>
       </div>
 
       <form
@@ -142,24 +195,19 @@ export function PeopleOverview() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="text-left text-text-secondary">
-                  <th className="border-b border-border-default px-3 py-2 font-medium">Name</th>
-                  <th className="border-b border-border-default px-3 py-2 font-medium">Role</th>
-                  <th className="border-b border-border-default px-3 py-2 font-medium">Country</th>
-                  <th className="border-b border-border-default px-3 py-2 font-medium">Team(s)</th>
-                  <th className="border-b border-border-default px-3 py-2 text-right font-medium">Capacity</th>
-                  <th className="border-b border-border-default px-3 py-2 font-medium">Status</th>
+                  <SortableHeader label="Name" sortKey="name" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
+                  <SortableHeader label="Role" sortKey="role" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
+                  <SortableHeader label="Country" sortKey="country" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
+                  <SortableHeader label="Team(s)" sortKey="teams" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
+                  <SortableHeader label="Capacity" sortKey="capacity" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} align="right" />
+                  <SortableHeader label="Status" sortKey="status" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
                   <th className="border-b border-border-default px-3 py-2">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map((p) => {
-                  const teamNames = memberships
-                    .filter((m) => m.personId === p.id && m.active)
-                    .map((m) => teams.find((t) => t.id === m.teamId)?.name)
-                    .filter(Boolean)
-                    .join(', ');
+                {visible.map(({ person: p, roleName, countryName, teamNames }) => {
                   return (
                     <tr
                       key={p.id}
@@ -176,11 +224,11 @@ export function PeopleOverview() {
                           className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-inherit"
                           onClick={() => setSelectedId(p.id)}
                         >
-                          {p.name}
+                          <TruncatedText text={p.name} />
                         </button>
                       </td>
-                      <td className="px-3 py-2">{roles.find((r) => r.id === p.roleId)?.name ?? '—'}</td>
-                      <td className="px-3 py-2">{countries.find((c) => c.id === p.countryId)?.name ?? '—'}</td>
+                      <td className="px-3 py-2">{roleName}</td>
+                      <td className="px-3 py-2">{countryName}</td>
                       <td className="px-3 py-2">{teamNames || '—'}</td>
                       <td className="px-3 py-2 text-right">{p.capacityPct}%</td>
                       <td className="px-3 py-2">{p.active ? 'Active' : 'Inactive'}</td>

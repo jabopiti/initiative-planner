@@ -5,6 +5,7 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { NewInitiativeUIProvider } from '../state/NewInitiativeUIContext';
 import { NewInitiativeControl } from './NewInitiativeControl';
 import { PeopleOverview } from './PeopleOverview';
@@ -39,9 +40,11 @@ function stubGithub() {
 function renderWith(ui: React.ReactNode) {
   return render(
     <BrandProvider brand={defaultBrandPack}>
-      <RepositoryProvider token="token">
-        <NewInitiativeUIProvider>{ui}</NewInitiativeUIProvider>
-      </RepositoryProvider>
+      <TooltipProvider>
+        <RepositoryProvider token="token">
+          <NewInitiativeUIProvider>{ui}</NewInitiativeUIProvider>
+        </RepositoryProvider>
+      </TooltipProvider>
     </BrandProvider>,
   );
 }

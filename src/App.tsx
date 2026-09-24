@@ -14,6 +14,8 @@ import { PeopleOverview } from './ui/PeopleOverview';
 import { TeamDetail } from './ui/TeamDetail';
 import { Placeholder } from './ui/Placeholder';
 import { useHashRoute } from './router/useHashRoute';
+import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 function Screen({ route }: { route: string }) {
   if (route === '/portfolio') return <PortfolioBoard />;
@@ -58,16 +60,19 @@ export function App() {
 
   return (
     <BrandProvider brand={defaultBrandPack}>
-      {token ? (
-        <MainApp token={token} />
-      ) : (
-        <ConnectScreen
-          onConnected={(newToken, remember) => {
-            void tokenStore.save(newToken, remember);
-            setToken(newToken);
-          }}
-        />
-      )}
+      <TooltipProvider>
+        {token ? (
+          <MainApp token={token} />
+        ) : (
+          <ConnectScreen
+            onConnected={(newToken, remember) => {
+              void tokenStore.save(newToken, remember);
+              setToken(newToken);
+            }}
+          />
+        )}
+        <Toaster />
+      </TooltipProvider>
     </BrandProvider>
   );
 }

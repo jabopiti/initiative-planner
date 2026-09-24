@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct } from '../data/capacity';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
 import { PercentInput } from './PercentInput';
+import { CopyButton } from './CopyButton';
+import { SortableHeader } from './SortableHeader';
+import { TruncatedText } from './TruncatedText';
+import { sortRows, useTableSort } from './tableSort';
 import { DeactivateIcon, ReactivateIcon, RemoveIcon, WarningIcon } from './icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +16,35 @@ export function TeamDetail({ id }: { id: string }) {
   const repository = useRepository();
   const { teams, people, memberships, roles, countries } = useRepositoryState();
   const [query, setQuery] = useState('');
+  const sort = useTableSort('name');
   const team = teams.find((t) => t.id === id);
+
+  const rows = useMemo(
+    () =>
+      memberships
+        .filter((m) => m.teamId === id)
+        .flatMap((m) => {
+          const person = people.find((p) => p.id === m.personId);
+          if (!person) return [];
+          return [{ membership: m, person, roleName: roles.find((r) => r.id === person.roleId)?.name ?? '—' }];
+        }),
+    [memberships, people, roles, id],
+  );
+  const members = useMemo(
+    () =>
+      sortRows(
+        rows,
+        {
+          name: (r) => r.person.name,
+          role: (r) => r.roleName,
+          fte: (r) => r.membership.teamFtePct,
+        },
+        sort.key,
+        sort.dir,
+        'name',
+      ),
+    [rows, sort.key, sort.dir],
+  );
 
   if (!team) {
     return (
@@ -23,13 +55,26 @@ export function TeamDetail({ id }: { id: string }) {
     );
   }
 
-  const members = memberships.filter((m) => m.teamId === team.id);
-  const memberIds = new Set(members.map((m) => m.personId));
+  const memberIds = new Set(members.map((r) => r.person.id));
   const trimmed = query.trim();
   const matches = people.filter(
     (p) => p.active && !memberIds.has(p.id) && p.name.toLowerCase().includes(trimmed.toLowerCase()),
   );
   const exact = people.some((p) => p.name.toLowerCase() === trimmed.toLowerCase());
+
+  function copyData() {
+    // Status appears only when someone is inactive, so a plain roster stays three columns.
+    const showStatus = members.some((r) => !r.membership.active || !r.person.active);
+    return {
+      headers: ['Name', 'Role', 'Team FTE %', ...(showStatus ? ['Status'] : [])],
+      rows: members.map((r) => [
+        r.person.name,
+        r.roleName,
+        `${r.membership.teamFtePct}%`,
+        ...(showStatus ? [r.membership.active && r.person.active ? 'Active' : 'Inactive'] : []),
+      ]),
+    };
+  }
 
   function addExisting(personId: string) {
     repository.addMembership(personId, team!.id);
@@ -54,7 +99,10 @@ export function TeamDetail({ id }: { id: string }) {
       <h1 className="m-0 mt-1 mb-5 text-xl">{team.name}</h1>
 
       <section aria-label="Members" className="max-w-3xl">
-        <h2 className="m-0 mb-3 text-base">Members</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="m-0 text-base">Members</h2>
+          {members.length > 0 && <CopyButton getData={copyData} noun={['member', 'members']} />}
+        </div>
 
         <div className="relative mb-4 max-w-sm">
           <Input
@@ -114,23 +162,26 @@ export function TeamDetail({ id }: { id: string }) {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="text-left text-text-secondary">
-                <th className="border-b border-border-default px-3 py-2 font-medium">Name</th>
-                <th className="border-b border-border-default px-3 py-2 font-medium">Role</th>
-                <th className="border-b border-border-default px-3 py-2 font-medium">Team FTE %</th>
+                <SortableHeader label="Name" sortKey="name" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
+                <SortableHeader label="Role" sortKey="role" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
+                <SortableHeader label="Team FTE %" sortKey="fte" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
                 <th className="border-b border-border-default px-3 py-2">
                   <span className="sr-only">Actions</span>
                 </th>
               </tr>
             </thead>
             <tbody>
-              {members.map((m) => {
-                const person = people.find((p) => p.id === m.personId);
-                if (!person) return null;
+              {members.map(({ membership: m, person, roleName }) => {
                 const over = claimedFtePct(person.id, memberships) > person.capacityPct;
                 return (
-                  <tr key={m.id} className={`border-b border-border-default ${m.active && person.active ? '' : 'text-text-secondary'}`}>
-                    <td className="px-3 py-2 font-medium">{person.name}</td>
-                    <td className="px-3 py-2">{roles.find((r) => r.id === person.roleId)?.name ?? '—'}</td>
+                  <tr
+                    key={m.id}
+                    className={`border-b border-border-default ${m.active && person.active ? '' : 'text-text-secondary'}`}
+                  >
+                    <td className="px-3 py-2 font-medium">
+                      <TruncatedText text={person.name} />
+                    </td>
+                    <td className="px-3 py-2">{roleName}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
                         <PercentInput

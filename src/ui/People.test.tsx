@@ -6,6 +6,7 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { PeopleOverview } from './PeopleOverview';
 import { TeamDetail } from './TeamDetail';
 
@@ -51,9 +52,11 @@ function Harness() {
 async function renderApp() {
   render(
     <BrandProvider brand={defaultBrandPack}>
-      <RepositoryProvider token="token">
-        <Harness />
-      </RepositoryProvider>
+      <TooltipProvider>
+        <RepositoryProvider token="token">
+          <Harness />
+        </RepositoryProvider>
+      </TooltipProvider>
     </BrandProvider>,
   );
   await screen.findByPlaceholderText('Add a person by name');
