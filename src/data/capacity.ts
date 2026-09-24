@@ -1,7 +1,7 @@
 import type { PhaseDef } from '../brand/types';
 import { monthsInRange } from './cost';
-import { monthOf, nextMonth } from './dates';
-import { currentPhaseId } from './processState';
+import { monthOf } from './dates';
+import { currentPhaseId, isPhaseConfirmed as isConfirmedByStart } from './processState';
 import { activeMembers, activeMembership } from './teamMembers';
 import type { Initiative, Membership, Person, Team } from './types';
 
@@ -23,18 +23,9 @@ export function unclaimedCapacityPct(person: Person, memberships: Membership[], 
 
 // ---- Month-by-month capacity (§5.8, §7.2) ----
 
-/**
- * Confirmed or Provisional (§4): Confirmed when it is the initiative's current phase or its start date falls in
- * the current or the next calendar month. The threshold is a month-key comparison, not date arithmetic, so it
- * has no day-31 overflow (engine-audit.md). A phase with no start date is Provisional.
- */
+/** Confirmed or Provisional (§4) for one phase of an initiative: the shared rule in `processState`, applied to that phase. */
 export function isPhaseConfirmed(initiative: Initiative, phaseId: string, process: PhaseDef[], today: string): boolean {
-  if (currentPhaseId(initiative, process) === phaseId) return true;
-  const start = initiative.phases?.[phaseId]?.startDate;
-  if (!start) return false;
-  const now = monthOf(today);
-  const startMonth = monthOf(start);
-  return startMonth === now || startMonth === nextMonth(now);
+  return isConfirmedByStart(initiative.phases?.[phaseId]?.startDate, currentPhaseId(initiative, process) === phaseId, today);
 }
 
 /** One person's Allocation % on one phase of an Active initiative, with the months it covers. */
@@ -63,13 +54,13 @@ export interface CapacityData {
 }
 
 /** An initiative counts toward capacity when it is Active and its team is active (§7.2, §9.3); a team that is not in the list does not count. */
-const counts = (initiative: Initiative, teams: Team[]) => initiative.status === 'Active' && teams.some((t) => t.id === initiative.teamId && t.active);
+export const countsTowardCapacity = (initiative: Initiative, teams: Team[]) => initiative.status === 'Active' && teams.some((t) => t.id === initiative.teamId && t.active);
 
 /** Every allocation of every counted initiative on a costed phase with a valid period (§7.2). Compute once, share across callers. */
 export function activeLoads({ initiatives, teams, process, today }: Pick<CapacityData, 'initiatives' | 'teams' | 'process' | 'today'>): Load[] {
   const loads: Load[] = [];
   for (const initiative of initiatives) {
-    if (!counts(initiative, teams)) continue;
+    if (!countsTowardCapacity(initiative, teams)) continue;
     for (const phase of process) {
       const plan = initiative.phases?.[phase.id];
       if (!phase.costed || !plan?.startDate || !plan.endDate) continue;
@@ -223,7 +214,7 @@ export function allocationWarnings(initiative: Initiative, phaseId: string, pers
   // A dangling person is shown as "Unknown person" on the row already; that is not a membership matter.
   const none: AllocationWarnings = { notMember: person !== undefined && !membership, overTeamFteMonths: [], overCapacityMonths: [] };
   const plan = initiative.phases?.[phaseId];
-  if (!person || !counts(initiative, data.teams) || !plan?.startDate || !plan.endDate) return none;
+  if (!person || !countsTowardCapacity(initiative, data.teams) || !plan?.startDate || !plan.endDate) return none;
   if (!isPhaseConfirmed(initiative, phaseId, data.process, data.today)) return none;
 
   const loads = allLoads.filter((l) => l.confirmed && l.personId === personId);

@@ -1,6 +1,6 @@
 import type { Membership, Person } from './types';
 
-/** The person's active membership of a team, if any. */
+/** A person's active membership of a team, if any: it holds their Team FTE % there (§4). */
 export function activeMembership(personId: string, teamId: string, memberships: Membership[]): Membership | undefined {
   return memberships.find((m) => m.personId === personId && m.teamId === teamId && m.active);
 }

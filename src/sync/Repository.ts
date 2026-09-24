@@ -22,8 +22,10 @@ import { buildDefaultPlan } from '../data/defaultPlan';
 import { toReadOnlyState, type GithubFailureCause, type ReadOnlyState } from '../github/errors';
 import { GithubClient, parseJsonFile } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
-import { DebouncedFileWriter, type FileConflict, type WriteStatus } from './DebouncedFileWriter';
-import { InitiativeFileWriter } from './InitiativeFileWriter';
+import { activeMembership } from '../data/teamMembers';
+import { mergeListDocument } from './documentMerge';
+import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
+import { mergeInitiative } from './mergeInitiative';
 import { WriteQueue } from './WriteQueue';
 
 export type { ReadOnlyState } from '../github/errors';
@@ -39,7 +41,7 @@ export interface RepositoryState {
   people: Person[];
   memberships: Membership[];
   initiatives: Initiative[];
-  conflicts: FileConflict<unknown>[];
+  conflicts: FileConflict[];
 }
 
 export type MasterRecord = Team | Person | Membership;
@@ -58,8 +60,8 @@ type Listener = () => void;
 
 /**
  * The single source of truth for dataset state and GitHub sync (§3, §10.2,
- * §10.3). Owns the debounced-write pipeline for master list files and for
- * per-initiative files; a new initiative file is created in one put first.
+ * §10.3). Every file, master or initiative, is saved by its own FileWriter; a new
+ * initiative's file is that writer's first save.
  */
 export class Repository {
   private state: RepositoryState = {
@@ -79,10 +81,10 @@ export class Repository {
   private readonly listeners = new Set<Listener>();
   private readonly github: GithubClient;
   private readonly queue = new WriteQueue();
-  private teamsWriter: DebouncedFileWriter<Team> | null = null;
-  private peopleWriter: DebouncedFileWriter<Person> | null = null;
-  private membershipsWriter: DebouncedFileWriter<Membership> | null = null;
-  private readonly initiativeWriters = new Map<string, InitiativeFileWriter>();
+  private teamsWriter: FileWriter<Team[]> | null = null;
+  private peopleWriter: FileWriter<Person[]> | null = null;
+  private membershipsWriter: FileWriter<Membership[]> | null = null;
+  private readonly initiativeWriters = new Map<string, FileWriter<Initiative>>();
 
   constructor(
     private readonly brand: BrandPack,
@@ -175,7 +177,7 @@ export class Repository {
     const memberships = parseJsonFile(membershipsFile, [] as Membership[]);
     const teamsSha = teamsFile?.sha ?? '';
 
-    // Fire-and-forget: nothing downstream reads from the cache before "ready" (DebouncedFileWriter
+    // Fire-and-forget: nothing downstream reads from the cache before "ready" (FileWriter
     // takes `initial` directly), so there's no reason to block the ready transition on this write.
     // The cache is a local convenience, not the source of truth, so a failure here is silently fine.
     void fileCache.set(FILE_PATHS.teams, { content: JSON.stringify(teams), sha: teamsSha }).catch(() => {});
@@ -203,7 +205,7 @@ export class Repository {
     });
   }
 
-  /** One debounced writer per master file (§10.3); each reports through the same sync/conflict state. */
+  /** Each file's latest status, by path. */
   private readonly writerStatus = new Map<string, WriteStatus>();
 
   /**
@@ -213,15 +215,18 @@ export class Repository {
   private statusOf(file: string): (status: WriteStatus) => void {
     return (status) => {
       this.writerStatus.set(file, status);
-      const all = [...this.writerStatus.values()];
-      const failed = all.find((s): s is { readOnly: ReadOnlyState } => typeof s === 'object');
-      this.setState({ syncing: all.some((s) => s === 'syncing'), readOnly: failed?.readOnly ?? null });
+      this.publishStatus();
     };
   }
 
-  /** Any conflict a file's writer finds, to resolve in the banner. */
+  private publishStatus(): void {
+    const all = [...this.writerStatus.values()];
+    const failed = all.find((s): s is { readOnly: ReadOnlyState } => typeof s === 'object');
+    this.setState({ syncing: all.some((s) => s === 'syncing'), readOnly: failed?.readOnly ?? null });
+  }
 
-  private readonly onConflict = (conflict: FileConflict<unknown>): void =>
+  /** Any conflict a file's writer finds, to resolve in the banner. */
+  private readonly onConflict = (conflict: FileConflict): void =>
     this.setState({ conflicts: [...this.state.conflicts, conflict] });
 
   private createWriter<T extends MasterRecord>(
@@ -229,17 +234,19 @@ export class Repository {
     branch: string,
     key: 'teams' | 'people' | 'memberships',
     initial: { content: T[]; sha: string },
-  ): DebouncedFileWriter<T> {
-    return new DebouncedFileWriter<T>(
+  ): FileWriter<T[]> {
+    return new FileWriter<T[]>({
       path,
       branch,
-      this.github,
-      this.queue,
-      this.statusOf(path),
-      this.onConflict,
-      (content) => this.setState({ [key]: content } as Partial<RepositoryState>),
+      github: this.github,
+      queue: this.queue,
+      merge: mergeListDocument,
+      whenMissing: [],
       initial,
-    );
+      onStatus: this.statusOf(path),
+      onConflict: this.onConflict,
+      onDocument: (content) => this.setState({ [key]: content } as Partial<RepositoryState>),
+    });
   }
 
   private async pullInitiatives(branch: string): Promise<{ initiative: Initiative; sha: string }[]> {
@@ -254,20 +261,24 @@ export class Repository {
       .map((f) => ({ initiative: JSON.parse(f.content) as Initiative, sha: f.sha }));
   }
 
-  private createInitiativeWriter(initiative: Initiative, sha: string): void {
-    this.initiativeWriters.set(
-      initiative.id,
-      new InitiativeFileWriter(
-        FILE_PATHS.initiative(initiative.id),
-        this.brand.github.dataBranch,
-        this.github,
-        this.queue,
-        this.statusOf(FILE_PATHS.initiative(initiative.id)),
-        this.onConflict,
-        (merged) => this.replaceInitiative(merged),
-        { content: initiative, sha },
-      ),
-    );
+  /** The writer of one initiative's file; `sha` is null until the file exists (its first save creates it). */
+  private createInitiativeWriter(initiative: Initiative, sha: string | null): FileWriter<Initiative> {
+    const path = FILE_PATHS.initiative(initiative.id);
+    const writer = new FileWriter<Initiative>({
+      path,
+      branch: this.brand.github.dataBranch,
+      github: this.github,
+      queue: this.queue,
+      merge: mergeInitiative,
+      whenMissing: null,
+      initial: sha === null ? null : { content: initiative, sha },
+      creationFailure: 'Could not create the initiative.',
+      onStatus: this.statusOf(path),
+      onConflict: this.onConflict,
+      onDocument: (doc) => this.replaceInitiative(doc),
+    });
+    this.initiativeWriters.set(initiative.id, writer);
+    return writer;
   }
 
   private replaceInitiative(next: Initiative): void {
@@ -454,35 +465,35 @@ export class Repository {
     this.membershipsWriter?.schedule(next, note);
   }
 
-  /** Create an initiative with its default plan (§5.11), chained from `today` (injectable for tests). */
-  async createInitiative(name: string, teamId: string, today: string = localToday()): Promise<Initiative> {
+  /**
+   * Create an initiative with its default plan (§5.11), chained from `today` (injectable for tests). Its
+   * file is its writer's first save, so edits never go to a missing writer. `id` is the draft's, kept
+   * across retries so a failed creation is the same file when it is tried again.
+   */
+  async createInitiative(name: string, teamId: string, today: string = localToday(), id: string = newId()): Promise<Initiative> {
     const phases = buildDefaultPlan(this.brand.process, today);
     const hasPlan = Object.keys(phases).length > 0;
-    const initiative: Initiative = { id: newId(), name, teamId, status: 'Active', ...(hasPlan && { phases, defaultPlan: true }) };
-    this.setState({ initiatives: [...this.state.initiatives, initiative], syncing: true });
+    const initiative: Initiative = { id, name, teamId, status: 'Active', ...(hasPlan && { phases, defaultPlan: true }) };
+    this.setState({ initiatives: [...this.state.initiatives, initiative] });
 
-    try {
-      const { sha } = await this.queue.run(() =>
-        this.github.putFile({
-          path: FILE_PATHS.initiative(initiative.id),
-          branch: this.brand.github.dataBranch,
-          content: JSON.stringify(initiative),
-          message: `${name}: created`,
-        }),
-      );
-      this.createInitiativeWriter(initiative, sha);
-      this.setState({ syncing: false, readOnly: null });
-    } catch (error) {
-      // No file exists, so no writer would ever save edits to it: take it back out rather than leave a page that only looks saved.
-      this.setState({
-        initiatives: this.state.initiatives.filter((i) => i.id !== initiative.id),
-        syncing: false,
-        readOnly: toReadOnlyState(error, 'Could not create the initiative.'),
-      });
-      throw error;
+    const writer = this.createInitiativeWriter(initiative, null);
+    writer.schedule(initiative, { key: 'created', text: `${name}: created` });
+    if ((await writer.flush()) !== 'saved') {
+      // No file exists, so nothing would ever save edits to it: take it back out rather than leave a page that only looks saved.
+      this.initiativeWriters.delete(id);
+      this.setState({ initiatives: this.state.initiatives.filter((i) => i.id !== id) });
+      throw new Error('Could not create the initiative.');
     }
-
     return initiative;
+  }
+
+  /**
+   * A draft was left after its creation failed (§5.1): nothing will retry that file, so the failure no
+   * longer counts against sync. A creation that did save keeps its writer and is left alone.
+   */
+  discardFailedCreation(id: string): void {
+    if (this.initiativeWriters.has(id)) return;
+    if (this.writerStatus.delete(FILE_PATHS.initiative(id))) this.publishStatus();
   }
 
   /** Rename an initiative in place (§5.4). An empty name is refused (returns false) and the old one stays. */
@@ -543,7 +554,8 @@ export class Repository {
 
   /**
    * Allocate a person to a phase (§5.4). Only the initiative team's members can be allocated
-   * (§7.2), and a refusal says why. Allocation % defaults to the person's Team FTE % on the team.
+   * (§7.2), and a refusal says why. Allocation % is `allocationPct` when the caller has worked out what fits (the
+   * phase picker passes the person's free capacity, §5.11), else the person's Team FTE % on the team.
    */
   addAllocation(initiativeId: string, phaseId: string, personId: string, allocationPct?: number): AddAllocationResult {
     const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
@@ -557,7 +569,7 @@ export class Repository {
       return { ok: false, reason: `${person.name} is already allocated to this phase.` };
     }
 
-    const membership = this.state.memberships.find((m) => m.personId === personId && m.teamId === team.id && m.active);
+    const membership = activeMembership(personId, team.id, this.state.memberships);
     const allocation: Allocation = { id: newId(), personId, allocationPct: allocationPct ?? membership?.teamFtePct ?? 0 };
     this.editPhase(
       initiativeId,
@@ -616,10 +628,14 @@ export class Repository {
     );
   }
 
-  /** Resolve a surfaced conflict (§10.5, "Keep theirs" / "Use mine") and clear it from state. */
-  async resolveConflict(conflict: FileConflict<unknown>, choice: 'mine' | 'theirs'): Promise<void> {
-    await conflict.resolve(choice);
-    this.setState({ conflicts: this.state.conflicts.filter((c) => c !== conflict) });
+  /**
+   * Resolve a surfaced conflict (§10.5, "Keep theirs" / "Use mine"). It leaves the banner only once the
+   * choice is saved; a failed write leaves it there to choose again. Resolves whether the choice was saved.
+   */
+  async resolveConflict(conflict: FileConflict, choice: 'mine' | 'theirs'): Promise<boolean> {
+    const saved = await conflict.resolve(choice);
+    if (saved) this.setState({ conflicts: this.state.conflicts.filter((c) => c !== conflict) });
+    return saved;
   }
 
   /** Flush any pending debounced write immediately (page unload). */
