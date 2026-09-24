@@ -143,6 +143,63 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     expect(validationRow()).toHaveTextContent('€8,000');
   });
 
+  describe('Allocation % refuses out-of-range entries inline (§9.9)', () => {
+    async function allocationField(user: ReturnType<typeof userEvent.setup>) {
+      renderPage();
+      await addPerson(user, 'Ana Ruiz · Developer');
+      const row = screen.getByRole('row', { name: /Ana Ruiz/ });
+      return { row, pct: within(row).getByLabelText('Allocation % for Ana Ruiz') };
+    }
+
+    it.each([['120'], ['-5'], ['abc'], ['']])('refuses %j: nothing is saved, the field stays invalid with the message', async (typed) => {
+      const user = userEvent.setup();
+      const { row, pct } = await allocationField(user);
+      await user.clear(pct);
+      if (typed) await user.type(pct, typed);
+      await user.keyboard('{Enter}');
+
+      const message = within(row).getByRole('alert');
+      expect(message).toHaveTextContent('Enter a percentage from 0 to 100.');
+      expect(pct).toBeInvalid();
+      expect(pct).toHaveAccessibleDescription('Enter a percentage from 0 to 100.');
+      if (typed === '120' || typed === '-5') expect(pct).toHaveValue(Number(typed));
+
+      // Leaving the field repeats the refusal rather than reverting.
+      await user.tab();
+      expect(within(row).getByRole('alert')).toBeInTheDocument();
+      expect(pct).toBeInvalid();
+    });
+
+    it('puts the last saved value back on Esc and clears the message', async () => {
+      const user = userEvent.setup();
+      const { row, pct } = await allocationField(user);
+      await user.clear(pct);
+      await user.type(pct, '120');
+      await user.keyboard('{Enter}');
+      expect(within(row).getByRole('alert')).toBeInTheDocument();
+
+      await user.keyboard('{Escape}');
+      expect(pct).toHaveValue(60);
+      expect(pct).not.toBeInvalid();
+      expect(within(row).queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('saves a corrected value and clears the message', async () => {
+      const user = userEvent.setup();
+      const { row, pct } = await allocationField(user);
+      await user.clear(pct);
+      await user.type(pct, '120');
+      await user.keyboard('{Enter}');
+      await user.clear(pct);
+      await user.type(pct, '50');
+      await user.keyboard('{Enter}');
+
+      expect(within(row).queryByRole('alert')).not.toBeInTheDocument();
+      expect(pct).not.toBeInvalid();
+      expect(pct).toHaveValue(50);
+    });
+  });
+
   it("prorates a mid-month start by the share of that month's weekdays covered", async () => {
     const user = userEvent.setup();
     renderPage();
