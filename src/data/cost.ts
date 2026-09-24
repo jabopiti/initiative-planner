@@ -1,4 +1,5 @@
 import { parseIso } from './dates';
+import { isActiveMember } from './teamMembers';
 import type { Country, Membership, PhasePlan, Person, Role, Team } from './types';
 
 /**
@@ -172,6 +173,5 @@ export function phaseTotal(plan: PhasePlan, people: Person[], data: RateData): n
 
 /** Why a person can't be allocated to this team's initiative, or null when they can (§7.2). */
 export function allocationRefusal(person: Person, team: Team, memberships: Membership[]): string | null {
-  const isMember = memberships.some((m) => m.personId === person.id && m.teamId === team.id && m.active);
-  return isMember ? null : `${person.name} isn't a member of ${team.name}. Only team members can be allocated.`;
+  return isActiveMember(person, team.id, memberships) ? null : `${person.name} isn't a member of ${team.name}. Only team members can be allocated.`;
 }

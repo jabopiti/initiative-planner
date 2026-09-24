@@ -6,6 +6,7 @@ import type { PhaseDef } from '../brand/types';
 import { allocationFigures, phaseTotal } from '../data/cost';
 import { formatDate, formatPeriod } from '../data/dates';
 import { roleLabel } from '../data/roleLabel';
+import { activeMembers } from '../data/teamMembers';
 import type { Initiative, Team } from '../data/types';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
@@ -111,11 +112,7 @@ function CostedPhase({
   const overlap = previous && previousEnd && plan.startDate && plan.startDate <= previousEnd ? `Starts before ${previous.label} ends (${formatDate(previousEnd)}). The two phases overlap.` : null;
   const total = phaseTotal(plan, people, rateData);
 
-  const teamMembers = team
-    ? memberships
-        .filter((m) => m.teamId === team.id && m.active)
-        .flatMap((m) => people.filter((p) => p.id === m.personId && p.active))
-    : [];
+  const teamMembers = team ? activeMembers(team.id, memberships, people) : [];
   const addable = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
 
   const picker =

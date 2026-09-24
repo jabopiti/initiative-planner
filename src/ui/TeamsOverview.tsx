@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { currentPhaseId } from '../data/processState';
+import { activeMembers } from '../data/teamMembers';
 import { navigate } from '../router/useHashRoute';
 import { EmptyState } from './EmptyState';
 import { PlusIcon } from './icons';
@@ -16,7 +17,7 @@ import { Input } from '@/components/ui/input';
 export function TeamsOverview() {
   const brand = useBrand();
   const repository = useRepository();
-  const { teams, initiatives, memberships } = useRepositoryState();
+  const { teams, initiatives, memberships, people } = useRepositoryState();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,10 +39,10 @@ export function TeamsOverview() {
     () =>
       teams.map((team) => ({
         team,
-        members: memberships.filter((m) => m.teamId === team.id && m.active).length,
+        members: activeMembers(team.id, memberships, people).length,
         counts: brand.process.map((phase) => phaseCountsByTeam.get(team.id)?.get(phase.id) ?? 0),
       })),
-    [teams, memberships, brand.process, phaseCountsByTeam],
+    [teams, memberships, people, brand.process, phaseCountsByTeam],
   );
 
   const sorted = useMemo(() => {
