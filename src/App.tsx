@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { tokenStore } from './auth/tokenStore';
 import { defaultBrandPack } from './brand/defaultBrand';
 import { BrandProvider } from './state/BrandContext';
-import { RepositoryProvider } from './state/DataContext';
+import { RepositoryProvider, useRepositoryState } from './state/DataContext';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { TopBar } from './ui/TopBar';
 import { ConflictBanner } from './ui/ConflictBanner';
@@ -18,9 +18,19 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 function Screen({ route }: { route: string }) {
+  const { status, readOnly } = useRepositoryState();
+  // Until the dataset has loaded every list would read as empty and every id as missing. If it cannot
+  // load, the screens stay away and the reason is shown instead of "No teams yet".
+  if (status === 'loading') {
+    return readOnly ? (
+      <div className="max-w-[720px] p-8">
+        <p role="alert">{readOnly.message}</p>
+      </div>
+    ) : null;
+  }
   if (route === '/portfolio') return <PortfolioBoard />;
   if (route === '/teams') return <TeamsOverview />;
-  if (route.startsWith('/teams/')) return <TeamDetail id={route.slice('/teams/'.length)} />;
+  if (route.startsWith('/teams/')) return <TeamDetail key={route} id={route.slice('/teams/'.length)} />;
   if (route === '/initiatives/new') return <NewInitiativeDraft />;
   if (route.startsWith('/initiatives/')) return <InitiativeDetail id={route.slice('/initiatives/'.length)} />;
   if (route === '/initiatives') {
@@ -47,9 +57,12 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    void tokenStore.load().then((stored) => {
-      if (!cancelled) setToken(stored);
-    });
+    tokenStore
+      .load()
+      .catch(() => null) // browser storage unavailable: connect again rather than show nothing
+      .then((stored) => {
+        if (!cancelled) setToken(stored);
+      });
     return () => {
       cancelled = true;
     };

@@ -20,6 +20,14 @@ describe('date text (§9.11 date input)', () => {
     }
   });
 
+  it('refuses years outside 2000 to 2100, so a typo is not stored or costed month by month', () => {
+    for (const text of ['01.01.0999', '30.06.1026', '01.01.9999', '1999-12-31', '3 Sep 2101']) {
+      expect(parseDateText(text)).toBeNull();
+    }
+    expect(parseDateText('01.01.2000')).toBe('2000-01-01');
+    expect(parseDateText('31.12.2100')).toBe('2100-12-31');
+  });
+
   it('rejects text that is not a real date', () => {
     for (const text of ['', 'soon', '31 Feb 2026', '31.02.2026', '3 Foo 2026', '2026-13-01', '3 Sep', '26.06', '13.13.2026']) {
       expect(parseDateText(text)).toBeNull();

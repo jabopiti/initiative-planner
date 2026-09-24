@@ -28,6 +28,7 @@ export function TopBar({ route }: { route: string }) {
             <a
               key={item.path}
               href={`#${item.path}`}
+              aria-current={active ? 'page' : undefined}
               className={
                 active
                   ? 'rounded-lg bg-brand-accent-tint px-3 py-1.5 font-medium text-brand-accent-text no-underline'

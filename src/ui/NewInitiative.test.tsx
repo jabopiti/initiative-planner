@@ -22,6 +22,7 @@ const file = (content: unknown, sha: string) => json({ content: btoa(JSON.string
 
 let teams = ONE_TEAM;
 let puts: { url: string; body: { message: string; content: string } }[] = [];
+let failInitiativePut = false;
 
 beforeAll(() => {
   // Radix Select needs these pointer/scroll APIs, which jsdom lacks.
@@ -32,6 +33,7 @@ beforeAll(() => {
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') {
+        if (failInitiativePut && url.includes('/initiatives/')) return json({ message: 'Server Error' }, 500);
         puts.push({ url, body: JSON.parse(String(init.body)) });
         return json({ content: { sha: 'next' } });
       }
@@ -50,6 +52,7 @@ afterEach(cleanup);
 beforeEach(() => {
   teams = ONE_TEAM;
   puts = [];
+  failInitiativePut = false;
   localStorage.clear();
   window.location.hash = '';
 });
@@ -140,6 +143,25 @@ describe('New initiative: name it on the page (§5.1, §5.4)', () => {
     expect(create).toHaveClass('ring-brand-accent');
     expect(screen.getByRole('status')).toHaveTextContent('Ready. Create the initiative to start planning.');
     expect(initiativePuts()).toHaveLength(0);
+  });
+
+  it('when the initiative cannot be saved the draft stays, with its name and team, and Create can be tried again', async () => {
+    const user = userEvent.setup();
+    renderWith(<NewInitiativeDraft />);
+    await user.type(await nameField(), 'Data lake');
+    await user.click(screen.getByRole('combobox', { name: 'Team' }));
+    await user.click(await screen.findByRole('option', { name: 'Payments' }));
+
+    failInitiativePut = true;
+    await user.click(screen.getByRole('button', { name: 'Create initiative' }));
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Create initiative' })).toBeEnabled());
+    expect(window.location.hash).toBe('');
+    expect(await nameField()).toHaveValue('Data lake');
+
+    failInitiativePut = false;
+    await user.click(screen.getByRole('button', { name: 'Create initiative' }));
+    await vi.waitFor(() => expect(window.location.hash).toMatch(/^#\/initiatives\/./));
+    expect(initiativePuts()).toHaveLength(1);
   });
 
   it('Create initiative writes one commit and the initiative page replaces the draft', async () => {

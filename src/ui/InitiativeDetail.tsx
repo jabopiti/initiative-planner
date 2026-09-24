@@ -9,11 +9,9 @@ import { PhasesSection } from './PhasesSection';
  */
 export function InitiativeDetail({ id }: { id: string }) {
   const repository = useRepository();
-  const { initiatives, teams, status } = useRepositoryState();
+  const { initiatives, teams } = useRepositoryState();
   const initiative = initiatives.find((i) => i.id === id);
   const team = initiative ? teams.find((t) => t.id === initiative.teamId) : undefined;
-
-  if (status === 'loading') return null;
 
   if (!initiative) {
     return (

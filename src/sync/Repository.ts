@@ -112,7 +112,7 @@ export class Repository {
 
   /** Loads the dataset once; a second call (React StrictMode runs the effect twice in dev) shares the first. */
   initialize(): Promise<void> {
-    return (this.initialising ??= this.load());
+    return (this.initialising ??= this.load().catch((error) => this.handleReadFailure(error)));
   }
 
   private async load(): Promise<void> {
@@ -204,12 +204,22 @@ export class Repository {
   }
 
   /** One debounced writer per master file (§10.3); each reports through the same sync/conflict state. */
-  /** What every file writer reports: the top bar's syncing and read-only state, and any conflict to resolve. */
-  private readonly onWriteStatus = (status: WriteStatus): void => {
-    if (status === 'synced') this.setState({ syncing: false, readOnly: null });
-    else if (status === 'syncing') this.setState({ syncing: true });
-    else this.setState({ syncing: false, readOnly: status.readOnly });
-  };
+  private readonly writerStatus = new Map<string, WriteStatus>();
+
+  /**
+   * What one file's writer reports. The top bar shows syncing while any writer is, and read-only while
+   * any writer has failed, so a file that saved cannot hide another file's failure or pending write.
+   */
+  private statusOf(file: string): (status: WriteStatus) => void {
+    return (status) => {
+      this.writerStatus.set(file, status);
+      const all = [...this.writerStatus.values()];
+      const failed = all.find((s): s is { readOnly: ReadOnlyState } => typeof s === 'object');
+      this.setState({ syncing: all.some((s) => s === 'syncing'), readOnly: failed?.readOnly ?? null });
+    };
+  }
+
+  /** Any conflict a file's writer finds, to resolve in the banner. */
 
   private readonly onConflict = (conflict: FileConflict<unknown>): void =>
     this.setState({ conflicts: [...this.state.conflicts, conflict] });
@@ -225,7 +235,7 @@ export class Repository {
       branch,
       this.github,
       this.queue,
-      this.onWriteStatus,
+      this.statusOf(path),
       this.onConflict,
       (content) => this.setState({ [key]: content } as Partial<RepositoryState>),
       initial,
@@ -252,7 +262,7 @@ export class Repository {
         this.brand.github.dataBranch,
         this.github,
         this.queue,
-        this.onWriteStatus,
+        this.statusOf(FILE_PATHS.initiative(initiative.id)),
         this.onConflict,
         (merged) => this.replaceInitiative(merged),
         { content: initiative, sha },
@@ -453,7 +463,13 @@ export class Repository {
       this.createInitiativeWriter(initiative, sha);
       this.setState({ syncing: false, readOnly: null });
     } catch (error) {
-      this.setState({ syncing: false, readOnly: toReadOnlyState(error, 'Could not create the initiative.') });
+      // No file exists, so no writer would ever save edits to it: take it back out rather than leave a page that only looks saved.
+      this.setState({
+        initiatives: this.state.initiatives.filter((i) => i.id !== initiative.id),
+        syncing: false,
+        readOnly: toReadOnlyState(error, 'Could not create the initiative.'),
+      });
+      throw error;
     }
 
     return initiative;

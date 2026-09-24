@@ -383,6 +383,18 @@ describe('Initiative name: edited in place (§5.4)', () => {
     expect(renamed()!.content.name).toBe('Payments API v2');
   });
 
+  it('Esc cancels an edit in progress: the old name comes back and nothing is committed', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const field = await screen.findByRole('textbox', { name: 'Initiative name' });
+    await user.type(field, ' draft');
+    expect(field).toHaveValue('Payments API draft');
+    await user.keyboard('{Escape}');
+    expect(field).toHaveValue('Payments API');
+    await user.tab();
+    expect(puts.some((p) => p.message.includes('renamed'))).toBe(false);
+  });
+
   it('refuses an empty name and puts the previous one back', async () => {
     const user = userEvent.setup();
     renderPage();

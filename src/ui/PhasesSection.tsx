@@ -31,7 +31,7 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
   // One next step at a time: the first costed phase still missing its period or its people.
   const isPlanned = (phase: PhaseDef) => {
     const plan = initiative.phases?.[phase.id];
-    return Boolean(plan?.startDate && plan.endDate) && plan!.allocations.length > 0;
+    return Boolean(plan?.startDate && plan.endDate && plan.startDate <= plan.endDate) && plan!.allocations.length > 0;
   };
   const nextStepId = costedPhases.find((p) => !isPlanned(p))?.id;
 

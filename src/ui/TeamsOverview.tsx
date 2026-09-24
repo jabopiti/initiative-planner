@@ -133,7 +133,10 @@ export function TeamsOverview() {
             <tr
               key={team.id}
               className={`cursor-pointer border-b border-border-default ${team.active ? '' : 'text-text-secondary'}`}
-              onClick={() => navigate(`/teams/${team.id}`)}
+              onClick={(e) => {
+                // A click on the name link is the link's own (Cmd-click opens a new tab, without also leaving this one).
+                if (!(e.target as HTMLElement).closest('a')) navigate(`/teams/${team.id}`);
+              }}
             >
               <td className="px-3 py-2 font-medium">
                 <TruncatedText text={team.name}>

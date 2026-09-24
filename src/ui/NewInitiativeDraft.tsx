@@ -16,7 +16,7 @@ const GUIDANCE_ID = 'new-initiative-guidance';
  */
 export function NewInitiativeDraft() {
   const repository = useRepository();
-  const { teams, status } = useRepositoryState();
+  const { teams } = useRepositoryState();
   const [name, setName] = useState('');
   const [teamId, setTeamId] = useState('');
   const creating = useRef(false); // set on the first create, so a double click or Enter makes one commit
@@ -33,18 +33,20 @@ export function NewInitiativeDraft() {
   async function create() {
     if (!hasName || !teamId || creating.current) return;
     creating.current = true;
-    const initiative = await repository.createInitiative(name.trim(), teamId);
-    navigate(`/initiatives/${initiative.id}`, { replace: true });
+    try {
+      const initiative = await repository.createInitiative(name.trim(), teamId);
+      navigate(`/initiatives/${initiative.id}`, { replace: true });
+    } catch {
+      creating.current = false; // the top bar says why it wasn't saved; the draft stays for another try
+    }
   }
-
-  if (status === 'loading') return null;
 
   return (
     <div
       className="max-w-[720px] p-8"
       onKeyDown={(e) => {
         // A dropdown that Esc just closed has already claimed the key.
-        if (e.key === 'Escape' && !e.defaultPrevented) navigate('/portfolio');
+        if (e.key === 'Escape' && !e.defaultPrevented) navigate('/portfolio', { replace: true });
       }}
     >
       <div className="flex items-center gap-3">

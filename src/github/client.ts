@@ -78,7 +78,8 @@ export class GithubClient {
     if (token) headers.set('Authorization', `Bearer ${token}`);
 
     try {
-      return await fetch(input, { ...init, headers });
+      // no-store: GitHub's Contents API answers with max-age=60, and a re-read after a 409 must see the other writer's commit.
+      return await fetch(input, { cache: 'no-store', ...init, headers });
     } catch {
       throw new GithubApiError('Cannot reach GitHub; changes are paused.', 'unreachable');
     }

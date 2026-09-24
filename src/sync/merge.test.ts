@@ -42,6 +42,16 @@ describe('mergeRecordFields (§10.5 step 3)', () => {
     expect(merged.name).toBe('Core Platform');
   });
 
+  it('keeps an optional field that only the repository\'s version has', () => {
+    const base = { id: 't1', name: 'Platform' };
+    const mine = { id: 't1', name: 'Platform', note: undefined as string | undefined };
+    delete (mine as { note?: string }).note;
+    const theirs = { id: 't1', name: 'Platform', note: 'added elsewhere' };
+    const { merged, conflicts } = mergeRecordFields<Record<string, unknown>>(base, { ...mine, name: 'Renamed' }, theirs);
+    expect(conflicts).toEqual([]);
+    expect(merged).toEqual({ id: 't1', name: 'Renamed', note: 'added elsewhere' });
+  });
+
   it('merges independent fields cleanly even when a different field conflicts', () => {
     const mine: Team = { ...base, name: 'Platform Squad', active: false };
     const theirs: Team = { ...base, name: 'Core Platform' };
@@ -99,6 +109,7 @@ describe('mergeListField (§10.5 step 4)', () => {
     const { merged, conflicts } = mergeListField(base, mine, theirs);
     expect(merged).toHaveLength(1);
     expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].fields).toEqual(['allocationPct']);
   });
 
   it('keeps a locally-edited item instead of silently honouring its remote deletion', () => {
