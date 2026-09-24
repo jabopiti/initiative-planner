@@ -1,17 +1,20 @@
 import { useMemo, useRef, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
+import { activeLoads, teamCapacity, teamHasCapacityWarning } from '../data/capacity';
+import { localToday } from '../data/dates';
 import { currentPhaseId } from '../data/processState';
 import { activeMembers } from '../data/teamMembers';
 import { navigate } from '../router/useHashRoute';
 import { EmptyState } from './EmptyState';
-import { PlusIcon } from './icons';
+import { PlusIcon, WarningIcon } from './icons';
 import { CopyButton } from './CopyButton';
 import { SortableHeader } from './SortableHeader';
 import { TruncatedText } from './TruncatedText';
 import { sortRows, useTableSort, type SortValue } from './tableSort';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 /** Teams overview (§5.7): name, size, per-phase initiative counts, and New team. */
 export function TeamsOverview() {
@@ -35,15 +38,17 @@ export function TeamsOverview() {
     return byTeam;
   }, [brand.process, initiatives]);
 
-  const rows = useMemo(
-    () =>
-      teams.map((team) => ({
-        team,
-        members: activeMembers(team.id, memberships, people).length,
-        counts: brand.process.map((phase) => phaseCountsByTeam.get(team.id)?.get(phase.id) ?? 0),
-      })),
-    [teams, memberships, people, brand.process, phaseCountsByTeam],
-  );
+  const today = localToday();
+  const rows = useMemo(() => {
+    const data = { initiatives, teams, people, memberships, process: brand.process, today };
+    const loads = activeLoads(data);
+    return teams.map((team) => ({
+      team,
+      members: activeMembers(team.id, memberships, people).length,
+      capacityWarning: teamHasCapacityWarning(teamCapacity(team.id, data, loads)),
+      counts: brand.process.map((phase) => phaseCountsByTeam.get(team.id)?.get(phase.id) ?? 0),
+    }));
+  }, [teams, initiatives, memberships, people, brand.process, phaseCountsByTeam, today]);
 
   const sorted = useMemo(() => {
     const columns: Record<string, (r: (typeof rows)[number]) => SortValue> = {
@@ -130,21 +135,33 @@ export function TeamsOverview() {
           </tr>
         </thead>
         <tbody>
-          {sorted.map(({ team, members, counts }) => (
+          {sorted.map(({ team, members, counts, capacityWarning }) => (
             <tr
               key={team.id}
               className={`cursor-pointer border-b border-border-default ${team.active ? '' : 'text-text-secondary'}`}
               onClick={(e) => {
-                // A click on the name link is the link's own (Cmd-click opens a new tab, without also leaving this one).
-                if (!(e.target as HTMLElement).closest('a')) navigate(`/teams/${team.id}`);
+                // A click on the name link is the link's own (Cmd-click opens a new tab, without also leaving this one); the warning marker only shows its tooltip.
+                if (!(e.target as HTMLElement).closest('a, [data-row-action]')) navigate(`/teams/${team.id}`);
               }}
             >
               <td className="px-3 py-2 font-medium">
-                <TruncatedText text={team.name}>
-                  <a href={`#/teams/${team.id}`} className="text-inherit no-underline">
-                    {team.name}
-                  </a>
-                </TruncatedText>
+                <div className="flex items-center gap-2">
+                  <TruncatedText text={team.name}>
+                    <a href={`#/teams/${team.id}`} className="text-inherit no-underline">
+                      {team.name}
+                    </a>
+                  </TruncatedText>
+                  {capacityWarning && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span role="img" aria-label="Capacity warning" tabIndex={0} data-row-action className="shrink-0 text-warning-text">
+                          <WarningIcon width={16} height={16} />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>A member has a capacity warning</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
               </td>
               <td className="px-3 py-2 text-right">{members}</td>
               {counts.map((count, i) => (

@@ -39,6 +39,52 @@ export function formatPeriod(startIso: string, endIso: string): string {
   return `${formatDate(startIso).replace(/ \d{4}$/, '')} – ${formatDate(endIso)}`;
 }
 
+/** A date's month as `YYYY-MM` (§6 Month encoding). */
+export const monthOf = (isoDate: string) => isoDate.slice(0, 7);
+
+/** A month key `YYYY-MM` as [year, month 1-12]. */
+const parseMonth = (key: string): [number, number] => {
+  const [y, m] = key.split('-').map(Number);
+  return [y, m];
+};
+
+/** The month after a month key, by integer arithmetic (no date objects, so no day-31 overflow). */
+export function nextMonth(key: string): string {
+  const [y, m] = parseMonth(key);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+}
+
+/** "Sep 2026". */
+export function formatMonth(key: string): string {
+  const [y, m] = parseMonth(key);
+  return `${MONTHS[m - 1]} ${y}`;
+}
+
+/** "Sep 26", for a grid column. */
+export function formatMonthShort(key: string): string {
+  const [y, m] = parseMonth(key);
+  return `${MONTHS[m - 1]} ${String(y).slice(2)}`;
+}
+
+/** Consecutive months merged: "Sep 2026, Nov – Dec 2026, Jan – Feb 2027". Keys are ascending. */
+export function formatMonthRanges(keys: string[]): string {
+  const runs: string[][] = [];
+  for (const key of keys) {
+    const run = runs[runs.length - 1];
+    if (run && nextMonth(run[run.length - 1]) === key) run.push(key);
+    else runs.push([key]);
+  }
+  return runs
+    .map((run) => {
+      const first = run[0];
+      const last = run[run.length - 1];
+      if (first === last) return formatMonth(first);
+      const sameYear = parseMonth(first)[0] === parseMonth(last)[0];
+      return `${sameYear ? MONTHS[parseMonth(first)[1] - 1] : formatMonth(first)} – ${formatMonth(last)}`;
+    })
+    .join(', ');
+}
+
 /** An ISO `YYYY-MM-DD` date in words for headlines and commit messages: "3 Sep 2026". */
 export function formatDate(isoDate: string): string {
   const [y, m, d] = parseIso(isoDate);

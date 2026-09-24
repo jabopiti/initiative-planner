@@ -8,10 +8,10 @@ depends_on: ["005"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: null
 recommended_model: "Claude Sonnet 5"
 model_rationale: "Moderate-complexity aggregation across months and teams with two distinct ceiling types; not as rule-dense as gate passing but more than simple CRUD. Escalate to Opus 5 only if the multi-team aggregation misbehaves in testing."
-spec_sections: ["§5.8 Team detail view (Capacity view)", "§7.2 Capacity, rates, and the three percentages", "§9.8 Visual design (Warning colour)"]
+change_summary: "Decided in the pre-implementation review: the slice also carries the orphaned capacity warnings (the allocation-row warning slice 005 deferred, the Teams overview marker slice 004d left out) and the rest of §5.8's capacity view (Provisional figure, Copy, Team FTE %-sum line, stranded allocations on their own row). Detail opens below the grid; the two ceilings use the Lucide chart-pie and gauge icons."
+spec_sections: ["§5.8 Team detail view (Capacity view)", "§5.4 Initiative detail view (allocation rows)", "§5.7 Teams overview (warning marker)", "§7.2 Capacity, rates, and the three percentages", "§9.2 Copy", "§9.8 Visual design (Warning colour)", "§9.10 Icons"]
 ---
 
 # View team capacity grid with warnings
@@ -44,6 +44,44 @@ for both ceiling types.
   its current-or-next-month threshold, not date-object arithmetic (the
   prototype's `setUTCMonth` shift is subject to day-31 overflow).
 
+- Decided in review (pre-implementation):
+  - Each cell shows the number only; the Team FTE % sits under the name (§5.8).
+    An empty cell reads `–`.
+  - Allocations on Provisional phases appear as a lighter `+20%` beside the
+    number and are not counted toward either flag; a legend line under the
+    grid says so.
+  - A cell can carry both icons. Over Team FTE % = Lucide `ChartPie`, over
+    Capacity % = `Gauge`; the detail names the ceiling in words.
+  - Selecting a cell or a person's name opens the detail **below the grid**:
+    the ceiling(s) exceeded in words, the counted initiatives (other teams'
+    named), the Provisional ones not counted, and the other §7.2 warnings
+    for that person: Team FTE %s adding up to more than Capacity %, and
+    allocations that outlived the membership.
+  - A person allocated on the team's Active initiatives who is no longer an
+    active member gets their own row, "No longer a member" in place of a
+    Team FTE %.
+  - The grid has a **Copy** button (§9.2): cells as `70%`, with markers in
+    words (`70% (over Team FTE %)`, `50% +20% provisional`).
+  - Allocation rows on the initiative page (§5.4) warn, in words, when the
+    person is over their Team FTE % or Capacity % in any month of a
+    Confirmed phase, or is no longer a member of the team.
+  - The Teams overview (§5.7) marks a team, icon-only with a tooltip, when
+    any of its members has a capacity warning.
+  - Empty states: no members, "No members yet. Add members to see their
+    capacity."; no allocations, "Nothing allocated yet. Allocate members to
+    an initiative's phase and their months appear here."
+  - Only initiatives of **active teams** count (§7.2, §9.3): deactivating a
+    team lifts its initiatives' load from every member's Capacity % and from
+    other teams' grids, and the deactivated team's own capacity view shows a
+    note instead of a grid. Slice 003c's open question on whether an inactive
+    team's Active initiatives count is settled this way; whether they show a
+    marker or block edits is still open.
+  - Selecting a cell or name moves focus to the detail heading; Close details
+    returns it to the opener.
+  - Until slice 008 the current phase is always the process's first phase
+    (`currentPhaseId`), which is Discovery and not costed, so a costed phase
+    counts as Confirmed only by its start date (this or next month).
+
 **Explicitly excluded:** The two-fix capacity suggestion (§5.11) — seeing
 the warning and its cause is the core value; suggesting a specific fix is
 a separate, later enhancement on top of an already-correct warning
@@ -73,16 +111,30 @@ display.
 
 ## Acceptance criteria
 
-- [ ] Given a member allocated above their Team FTE % in a given month,
+- [x] Given a member allocated above their Team FTE % in a given month,
       when the grid is viewed, then that cell is tinted with the Warning
       colour and an icon distinct from the over-Capacity-% icon.
-- [ ] Given a member's total allocation across all their teams exceeds
+- [x] Given a member's total allocation across all their teams exceeds
       their Capacity % in a given month, when the grid is viewed, then
       that cell shows the over-Capacity-% warning.
-- [ ] Given a warned cell, when it is selected, then the contributing
+- [x] Given a warned cell, when it is selected, then the contributing
       initiatives are listed.
-- [ ] Given no member is over either ceiling, when the grid is viewed,
+- [x] Given no member is over either ceiling, when the grid is viewed,
       then no cell is tinted.
+- [x] Given an allocation on a Provisional phase, when the grid is viewed,
+      then it shows as a lighter figure beside the number and is not counted
+      toward either warning.
+- [x] Given a member whose Team FTE %s add up to more than their Capacity %,
+      or an allocation that outlived its membership, when their cell or row
+      is selected, then the detail names that warning; the outlived
+      allocation sits on a "No longer a member" row.
+- [x] Given the grid, when Copy is used, then the shown months, figures and
+      warning markers are copied as text and a table.
+- [x] Given an allocation row on the initiative page whose person is over a
+      ceiling in a month of a Confirmed phase, or no longer on the team,
+      then the row says so in words.
+- [x] Given a team with a member who has a capacity warning, when the Teams
+      overview is viewed, then that team carries the warning marker.
 
 ## Delivery gate
 

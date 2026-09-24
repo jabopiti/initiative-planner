@@ -1,8 +1,9 @@
 import type { PhaseDef } from '../brand/types';
+import { countsTowardCapacity } from './capacity';
 import { monthsInRange, type Period } from './cost';
 import { currentPhaseId, isPhaseConfirmed } from './processState';
 import { activeMembership } from './teamMembers';
-import type { Initiative, Membership, Person } from './types';
+import type { Initiative, Membership, Person, Team } from './types';
 
 /** One person's Allocation % in one month over the Confirmed phases of Active initiatives (§7.2). */
 interface MonthLoad {
@@ -16,12 +17,13 @@ interface MonthLoad {
  * What each of `people` has free for a phase (§5.11, §7.2): the lower of their unused Team FTE % on the team
  * and their unused Capacity % across all teams, taken as the minimum over the phase's months, in whole percent
  * rounded down so that using it can never trip a ceiling. Provisional phases and initiatives that are not
- * Active are left out. Never below 0. Undefined when the phase has no months (no period yet, or an inverted
+ * Active, or belong to an inactive team (§7.2), are left out. Never below 0. Undefined when the phase has no months (no period yet, or an inverted
  * one). One pass over the initiatives serves everyone in the list.
  */
 export function freeCapacityByPerson({
   people,
   teamId,
+  teams,
   memberships,
   period,
   initiatives,
@@ -30,6 +32,7 @@ export function freeCapacityByPerson({
 }: {
   people: Person[];
   teamId: string;
+  teams: Team[];
   memberships: Membership[];
   period: Period;
   initiatives: Initiative[];
@@ -43,7 +46,7 @@ export function freeCapacityByPerson({
 
   const load = new Map<string, Map<string, MonthLoad>>();
   for (const initiative of initiatives) {
-    if (initiative.status !== 'Active') continue;
+    if (!countsTowardCapacity(initiative, teams)) continue;
     const current = currentPhaseId(initiative, process);
     const onTeam = initiative.teamId === teamId;
     for (const [phaseId, plan] of Object.entries(initiative.phases ?? {})) {

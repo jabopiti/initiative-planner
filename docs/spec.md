@@ -858,6 +858,8 @@ A full page showing all detail information for a team:
   contributing initiatives, including those of other teams, and any other
   §7.2 warning for that member: Team FTE %s that add up to more than
   Capacity %, and allocations that outlived the membership.
+  On a deactivated team the capacity view is replaced by a note that its
+  initiatives are not counted (§7.2).
 - **Actions**: Deactivate team / Reactivate team (§9.3), one click with no
   confirmation, at the top right of the header. An inactive team shows an
   **Inactive** chip beside its name.
@@ -1191,8 +1193,13 @@ prorates that one month against its own weekday span.
 The three percentages (§4) are never interchangeable.
 
 **Capacity.** Two ceilings are checked for every month, and only **Active**
-initiatives count; On Hold, Cancelled and Closed initiatives are excluded
-from capacity accounting but keep their cost calculations.
+initiatives of **active teams** count; On Hold, Cancelled and Closed
+initiatives, and those of a deactivated team (§9.3), are excluded from
+capacity accounting but keep their cost calculations. Deactivating a team
+therefore lifts its initiatives' load from every member's Capacity % and from
+the grids of the other teams they belong to, and reactivating it puts the load
+back. The deactivated team's own capacity view says so instead of showing a
+grid (§5.8).
 
 - The **Capacity % ceiling**: a person's total Allocation % across all their
   teams' initiatives may not exceed their Capacity %.
@@ -1419,10 +1426,10 @@ removed, because nothing points at them.
 | Role | Deactivate only |
 | Country | Deactivate only |
 
-Deactivated entities are excluded from active capacity accounting and from
-selection lists for new allocations (and, for roles and countries, for
-people), but their historical data is preserved and they can be
-reactivated.
+Deactivated entities are excluded from active capacity accounting (for a
+team, that includes its initiatives, §7.2) and from selection lists for new
+allocations (and, for roles and countries, for people), but their historical
+data is preserved and they can be reactivated.
 
 ### 9.4 Empty states
 
