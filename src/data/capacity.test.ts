@@ -236,3 +236,33 @@ describe('allocationWarnings (§5.4)', () => {
     expect(allocationWarnings(held[0], 'validation', 'ana', data(held, []))).toMatchObject({ notMember: true });
   });
 });
+
+describe('review fixes', () => {
+  const phases = { validation: plan('2026-06-01', '2026-12-31', ['ana', 130]) };
+  it('allocation-row warnings look only at the current month on, like the grid', () => {
+    const inits = [initiative('i1', 't1', phases)];
+    // Validation first in the process makes it the current phase (Confirmed), although it started in June.
+    const running = { ...data(inits, [mem('ana', 't1', 100)]), process: [process[1], process[0], ...process.slice(2)] };
+    const w = allocationWarnings(inits[0], 'validation', 'ana', running);
+    expect(w.overCapacityMonths).toEqual(['2026-09', '2026-10', '2026-11', '2026-12']);
+    expect(w.overTeamFteMonths).toEqual(['2026-09', '2026-10', '2026-11', '2026-12']);
+  });
+
+  it('checks no Team FTE % for a deactivated person, as the grid does', () => {
+    const inits = [initiative('i1', 't1', { validation: plan('2026-09-01', '2026-09-30', ['ana', 80]) })];
+    const w = allocationWarnings(inits[0], 'validation', 'ana', data(inits, [mem('ana', 't1', 60)], [{ ...ana, active: false }]));
+    expect(w).toEqual({ notMember: true, overTeamFteMonths: [], overCapacityMonths: [] });
+  });
+
+  it('does not call a dangling person a non-member', () => {
+    const inits = [initiative('i1', 't1', { validation: plan('2026-09-01', '2026-09-30', ['ghost', 80]) })];
+    expect(allocationWarnings(inits[0], 'validation', 'ghost', data(inits, [])).notMember).toBe(false);
+  });
+
+  it('gives no stranded row, and no warning, for an allocation whose phase has already ended', () => {
+    const inits = [initiative('i1', 't1', { validation: plan('2026-01-01', '2026-06-30', ['bo', 20]), development: plan('2026-09-01', '2026-09-30', ['ana', 30]) })];
+    const cap = teamCapacity('t1', data(inits, [mem('ana', 't1', 60)]));
+    expect(cap.rows.map((r) => r.person.name)).toEqual(['Ana']);
+    expect(teamHasCapacityWarning(cap)).toBe(false);
+  });
+});

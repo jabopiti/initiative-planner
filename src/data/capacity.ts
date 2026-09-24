@@ -146,7 +146,9 @@ export interface TeamCapacity {
 /** The team's capacity view (§5.8): a row per active member, then a row per person whose allocation outlived their membership. */
 export function teamCapacity(teamId: string, data: CapacityData, loads: Load[] = activeLoads(data)): TeamCapacity {
   const { people, memberships, today } = data;
-  const teamLoads = loads.filter((l) => l.teamId === teamId);
+  const first = monthOf(today);
+  // A phase that ended before this month is history: it draws no column and, if its person left, no warning.
+  const teamLoads = loads.filter((l) => l.teamId === teamId && monthOf(l.endDate) >= first);
   const members = activeMembers(teamId, memberships, people);
   const memberIds = new Set(members.map((p) => p.id));
   const loadedIds = new Set(teamLoads.map((l) => l.personId));
@@ -154,7 +156,6 @@ export function teamCapacity(teamId: string, data: CapacityData, loads: Load[] =
   const allByPerson = groupByPerson(loads);
   const teamByPerson = groupByPerson(teamLoads);
 
-  const first = monthOf(today);
   const lastEnd = teamLoads.reduce((max, l) => (l.endDate > max ? l.endDate : max), '');
   const months = lastEnd && monthOf(lastEnd) >= first ? monthsInRange(`${first}-01`, `${monthOf(lastEnd)}-01`) : [];
 
@@ -213,15 +214,18 @@ export interface AllocationWarnings {
  */
 export function allocationWarnings(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): AllocationWarnings {
   const person = data.people.find((p) => p.id === personId);
-  const membership = activeMembership(personId, initiative.teamId, data.memberships);
-  const none: AllocationWarnings = { notMember: !person?.active || !membership, overTeamFteMonths: [], overCapacityMonths: [] };
+  // A deactivated person is a member of no team (§4), so no Team FTE % applies to them.
+  const membership = person?.active ? activeMembership(personId, initiative.teamId, data.memberships) : undefined;
+  // A dangling person is shown as "Unknown person" on the row already; that is not a membership matter.
+  const none: AllocationWarnings = { notMember: person !== undefined && !membership, overTeamFteMonths: [], overCapacityMonths: [] };
   const plan = initiative.phases?.[phaseId];
   if (!person || initiative.status !== 'Active' || !plan?.startDate || !plan.endDate) return none;
   if (!isPhaseConfirmed(initiative, phaseId, data.process, data.today)) return none;
 
   const loads = allLoads.filter((l) => l.confirmed && l.personId === personId);
   const teamLoads = loads.filter((l) => l.teamId === initiative.teamId);
-  const months = monthsInRange(plan.startDate, plan.endDate);
+  // Like the grid, from the current month on: earlier months are history.
+  const months = monthsInRange(plan.startDate, plan.endDate).filter((m) => m >= monthOf(data.today));
   return {
     ...none,
     overTeamFteMonths: membership ? months.filter((m) => sum(loadsIn(teamLoads, personId, m)) > membership.teamFtePct + EPSILON) : [],

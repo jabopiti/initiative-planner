@@ -32,7 +32,7 @@ export function CopyButton({ getData, noun, label = 'Copy' }: Props) {
           <Copy size={18} aria-hidden="true" />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Copy</TooltipContent>
+      <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
 }

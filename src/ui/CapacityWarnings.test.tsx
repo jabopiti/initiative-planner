@@ -252,6 +252,15 @@ describe('the capacity grid on the team detail (§5.8)', () => {
     expect(detail.getByText(/stay and keep costing/)).toBeInTheDocument();
   });
 
+  it('still names Team FTE %s over the Capacity % when nothing is allocated yet', async () => {
+    initiatives = [];
+    memberships = [member('ana', 't1', 70), member('ana', 't2', 50)];
+    renderView(<TeamDetail id="t1" />);
+    const g = await grid();
+    expect(g.getByText("Nothing allocated yet. Allocate members to an initiative's phase and their months appear here.")).toBeInTheDocument();
+    expect(g.getByText("Ana Ruiz's Team FTE %s add up to 120%, more than their 100% Capacity %.")).toBeInTheDocument();
+  });
+
   it('closes the detail', async () => {
     const user = setupUser();
     renderView(<TeamDetail id="t1" />);

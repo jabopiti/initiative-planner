@@ -38,8 +38,9 @@ export function TeamsOverview() {
     return byTeam;
   }, [brand.process, initiatives]);
 
+  const today = localToday();
   const rows = useMemo(() => {
-    const data = { initiatives, people, memberships, process: brand.process, today: localToday() };
+    const data = { initiatives, people, memberships, process: brand.process, today };
     const loads = activeLoads(data);
     return teams.map((team) => ({
       team,
@@ -47,7 +48,7 @@ export function TeamsOverview() {
       capacityWarning: teamHasCapacityWarning(teamCapacity(team.id, data, loads)),
       counts: brand.process.map((phase) => phaseCountsByTeam.get(team.id)?.get(phase.id) ?? 0),
     }));
-  }, [teams, initiatives, memberships, people, brand.process, phaseCountsByTeam]);
+  }, [teams, initiatives, memberships, people, brand.process, phaseCountsByTeam, today]);
 
   const sorted = useMemo(() => {
     const columns: Record<string, (r: (typeof rows)[number]) => SortValue> = {
@@ -139,8 +140,8 @@ export function TeamsOverview() {
               key={team.id}
               className={`cursor-pointer border-b border-border-default ${team.active ? '' : 'text-text-secondary'}`}
               onClick={(e) => {
-                // A click on the name link is the link's own (Cmd-click opens a new tab, without also leaving this one).
-                if (!(e.target as HTMLElement).closest('a')) navigate(`/teams/${team.id}`);
+                // A click on the name link is the link's own (Cmd-click opens a new tab, without also leaving this one); the warning marker only shows its tooltip.
+                if (!(e.target as HTMLElement).closest('a, [data-row-action]')) navigate(`/teams/${team.id}`);
               }}
             >
               <td className="px-3 py-2 font-medium">
@@ -153,7 +154,7 @@ export function TeamsOverview() {
                   {capacityWarning && (
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span role="img" aria-label="Capacity warning" tabIndex={0} className="text-warning-text">
+                        <span role="img" aria-label="Capacity warning" tabIndex={0} data-row-action className="shrink-0 text-warning-text">
                           <WarningIcon width={16} height={16} />
                         </span>
                       </TooltipTrigger>

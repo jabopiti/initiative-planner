@@ -5,6 +5,7 @@ import { loadsIn, teamCapacity, type CapacityCell, type CapacityRow, type Load, 
 import { formatMonth, formatMonthRanges, formatMonthShort, formatPeriod, localToday } from '../data/dates';
 import type { Team } from '../data/types';
 import { CopyButton } from './CopyButton';
+import { InlineWarning } from './InlineWarning';
 import { OverCapacityIcon, OverTeamFteIcon, WarningIcon } from './icons';
 import { Button } from '@/components/ui/button';
 
@@ -18,6 +19,25 @@ function cellWords(cell: CapacityCell): { main: string; markers: string[]; provi
     markers: [...(cell.overTeamFte ? ['over Team FTE %'] : []), ...(cell.overCapacity ? ['over Capacity %'] : [])],
     provisional: cell.provisionalPct > 0 ? `+${pct(cell.provisionalPct)} provisional` : null,
   };
+}
+
+interface Warning {
+  Icon: typeof WarningIcon;
+  text: string;
+}
+
+/** The §7.2 warnings on a person beyond the two ceilings: Team FTE %s over Capacity %, and allocations that outlived the membership. */
+function otherWarnings(row: CapacityRow, team: Team): Warning[] {
+  const { person } = row;
+  const warnings: Warning[] = [];
+  if (row.fteSumOverCapacity) {
+    warnings.push({ Icon: WarningIcon, text: `${person.name}'s Team FTE %s add up to ${pct(row.fteSumOverCapacity.claimedPct)}, more than their ${pct(row.fteSumOverCapacity.capacityPct)} Capacity %.` });
+  }
+  if (row.stranded.length > 0) {
+    const where = [...new Set(row.stranded.map((l) => `${l.initiativeName} (${l.phaseLabel})`))].join(', ');
+    warnings.push({ Icon: WarningIcon, text: `${person.name} is no longer a member of ${team.name}, but is still allocated to ${where}. These allocations stay and keep costing.` });
+  }
+  return warnings;
 }
 
 interface Selection {
@@ -48,7 +68,8 @@ export function CapacityGrid({ team }: { team: Team }) {
     };
   }
 
-  const selectedRow = selection && capacity.rows.find((r) => r.person.id === selection.personId);
+  // A selection whose person or month has since left the grid (an allocation was edited or removed) shows nothing.
+  const selectedRow = selection && capacity.rows.find((r) => r.person.id === selection.personId && (selection.month === null || r.cells.some((c) => c.month === selection.month)));
   const toggle = (next: Selection) => setSelection((cur) => (cur && cur.personId === next.personId && cur.month === next.month ? null : next));
 
   return (
@@ -61,7 +82,16 @@ export function CapacityGrid({ team }: { team: Team }) {
       {capacity.rows.length === 0 ? (
         <p className="m-0 py-6 text-[15px] text-text-secondary">No members yet. Add members to see their capacity.</p>
       ) : capacity.months.length === 0 ? (
-        <p className="m-0 py-6 text-[15px] text-text-secondary">Nothing allocated yet. Allocate members to an initiative&apos;s phase and their months appear here.</p>
+        <>
+          <p className="m-0 py-6 text-[15px] text-text-secondary">Nothing allocated yet. Allocate members to an initiative&apos;s phase and their months appear here.</p>
+          <div className="flex flex-col items-start gap-1">
+            {capacity.rows.flatMap((row) => otherWarnings(row, team)).map(({ Icon, text }) => (
+              <InlineWarning key={text} icon={Icon}>
+                {text}
+              </InlineWarning>
+            ))}
+          </div>
+        </>
       ) : (
         <>
           <div className="overflow-x-auto rounded-lg border border-border-default bg-surface-card">
@@ -140,14 +170,18 @@ function CellButton({ name, cell, selected, onSelect }: { name: string; cell: Ca
       aria-label={label}
       aria-pressed={selected}
       onClick={onSelect}
-      className={`flex h-10 w-full min-w-20 cursor-pointer items-center justify-center gap-1 border-0 px-2 tabular-nums focus-visible:ring-2 focus-visible:ring-brand-accent focus-visible:outline-none focus-visible:ring-inset ${
+      className={`flex h-10 w-full min-w-20 cursor-pointer items-center justify-center gap-1 border-0 px-2 tabular-nums -outline-offset-2 ${
         warned ? 'bg-warning-tint text-warning-text' : 'bg-transparent text-text-primary'
       } ${selected ? 'ring-2 ring-brand-accent ring-inset' : ''}`}
     >
       <span className={cell.teamPct > 0 ? 'font-medium' : 'text-text-muted'}>{main}</span>
       {cell.overTeamFte && <OverTeamFteIcon width={14} height={14} data-testid="over-team-fte" />}
       {cell.overCapacity && <OverCapacityIcon width={14} height={14} data-testid="over-capacity" />}
-      {cell.provisionalPct > 0 && <span className="text-xs font-normal text-text-muted">+{pct(cell.provisionalPct)}</span>}
+      {cell.provisionalPct > 0 && (
+        <span className="text-xs font-normal text-text-muted" title="Provisional, not counted">
+          +{pct(cell.provisionalPct)}
+        </span>
+      )}
     </button>
   );
 }
@@ -157,7 +191,7 @@ function Detail({ row, month, team, capacity, onClose }: { row: CapacityRow; mon
   const { person } = row;
   const cell = month ? row.cells.find((c) => c.month === month) : undefined;
 
-  const warnings: { Icon: typeof WarningIcon; text: string }[] = [];
+  const warnings: Warning[] = [];
   if (month && cell) {
     if (cell.overTeamFte) warnings.push({ Icon: OverTeamFteIcon, text: `Over Team FTE %: ${pct(cell.teamPct)} on ${team.name} initiatives, Team FTE % is ${pct(row.teamFtePct ?? 0)}.` });
     if (cell.overCapacity) warnings.push({ Icon: OverCapacityIcon, text: `Over Capacity %: ${pct(cell.totalPct)} across all teams, Capacity % is ${pct(person.capacityPct)}.` });
@@ -167,13 +201,7 @@ function Detail({ row, month, team, capacity, onClose }: { row: CapacityRow; mon
     if (overFte.length > 0) warnings.push({ Icon: OverTeamFteIcon, text: `Over Team FTE % in ${formatMonthRanges(overFte)}.` });
     if (overCap.length > 0) warnings.push({ Icon: OverCapacityIcon, text: `Over Capacity % in ${formatMonthRanges(overCap)}.` });
   }
-  if (row.fteSumOverCapacity) {
-    warnings.push({ Icon: WarningIcon, text: `${person.name}'s Team FTE %s add up to ${pct(row.fteSumOverCapacity.claimedPct)}, more than their ${pct(row.fteSumOverCapacity.capacityPct)} Capacity %.` });
-  }
-  if (row.stranded.length > 0) {
-    const where = [...new Set(row.stranded.map((l) => `${l.initiativeName} (${l.phaseLabel})`))].join(', ');
-    warnings.push({ Icon: WarningIcon, text: `${person.name} is no longer a member of ${team.name}, but is still allocated to ${where}. These allocations stay and keep costing.` });
-  }
+  warnings.push(...otherWarnings(row, team));
 
   const loads = month ? loadsIn(capacity.loads, person.id, month) : capacity.loads.filter((l) => l.personId === person.id && l.months.some((m) => capacity.months.includes(m)));
   const counted = loads.filter((l) => l.confirmed);
@@ -216,8 +244,8 @@ function LoadList({ heading, loads, showPeriod, teamName }: { heading: string; l
     <div className="mb-2">
       <h4 className="m-0 mb-1 text-xs font-medium text-text-secondary">{heading}</h4>
       <ul className="m-0 flex list-none flex-col gap-0.5 p-0 text-sm">
-        {loads.map((l) => (
-          <li key={`${l.initiativeId}-${l.phaseId}`}>
+        {loads.map((l, i) => (
+          <li key={`${l.initiativeId}-${l.phaseId}-${i}`}>
             <a href={`#/initiatives/${l.initiativeId}`}>{l.initiativeName}</a>{' '}
             <span className="text-text-secondary">
               {l.phaseLabel}

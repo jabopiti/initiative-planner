@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
-import { activeLoads, allocationWarnings } from '../data/capacity';
+import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
 import { allocationFigures, phaseTotal } from '../data/cost';
 import { formatDate, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { roleLabel } from '../data/roleLabel';
@@ -20,6 +20,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 /** The initiative page's Phases section (§5.4): every phase in order, costed ones expandable. */
 export function PhasesSection({ initiative, team }: { initiative: Initiative; team: Team | undefined }) {
   const { process } = useBrand();
+  const { initiatives } = useRepositoryState();
+  // One portfolio-wide pass for every allocation row of every phase (§5.4 warnings).
+  const today = localToday();
+  const loads = useMemo(() => activeLoads({ initiatives, process, today }), [initiatives, process, today]);
   // The first costed phase opens by default; the others are one line until clicked.
   const costedPhases = process.filter((p) => p.costed);
   const [open, setOpen] = useState<Set<string>>(() => new Set(costedPhases.slice(0, 1).map((p) => p.id)));
@@ -61,6 +65,8 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
                 isNextStep={phase.id === nextStepId}
                 initiative={initiative}
                 team={team}
+                loads={loads}
+                today={today}
                 expanded={open.has(phase.id)}
                 onToggle={() => toggle(phase.id)}
               />
@@ -83,6 +89,8 @@ function CostedPhase({
   isNextStep,
   initiative,
   team,
+  loads,
+  today,
   expanded,
   onToggle,
 }: {
@@ -93,6 +101,9 @@ function CostedPhase({
   isNextStep: boolean;
   initiative: Initiative;
   team: Team | undefined;
+  /** Every Active allocation of the portfolio, for the capacity warnings on the rows. */
+  loads: Load[];
+  today: string;
   expanded: boolean;
   onToggle: () => void;
 }) {
@@ -100,8 +111,6 @@ function CostedPhase({
   const { currencySymbol, process } = useBrand();
   const { people, roles, countries, memberships, initiatives } = useRepositoryState();
   const [refusal, setRefusal] = useState<string | null>(null);
-  const today = localToday();
-  const loads = useMemo(() => activeLoads({ initiatives, process, today }), [initiatives, process, today]);
 
   const plan = initiative.phases?.[phase.id] ?? { allocations: [] };
   const rateData = { roles, countries };
