@@ -15,7 +15,8 @@
     "test:quiet": "vitest run --reporter=dot",
     "build:quiet": "tsc -b && vite build --logLevel error",
     "lint": "eslint .",
-    "typecheck": "tsc -b --noEmit"
+    "typecheck": "tsc -b --noEmit",
+    "dev:reset-data": "node --env-file=.env.local scripts/reset-dev-data.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
