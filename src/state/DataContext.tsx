@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, ty
 import { useBrand } from './BrandContext';
 import { Repository, type RepositoryState } from '../sync/Repository';
 
-const RepositoryContext = createContext<Repository | null>(null);
+export const RepositoryContext = createContext<Repository | null>(null);
 
 export function RepositoryProvider({ token, children }: { token: string; children: ReactNode }) {
   const brand = useBrand();
