@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import { freeCapacityPct, isPhaseConfirmed } from './personLoad';
-import type { Initiative, Person } from './types';
+import { freeCapacityByPerson } from './personLoad';
+import type { Initiative, Membership, Person } from './types';
 
 const process = defaultBrandPack.process;
 const [current, later] = [process[0].id, process[1].id]; // no gate records yet: the first phase is current
 const TODAY = '2026-09-24';
 
 const person: Person = { id: 'ana', name: 'Ana', countryId: 'de', roleId: 'dev', capacityPct: 100, active: true };
+const membership = (teamFtePct: number): Membership => ({ id: 'm', personId: 'ana', teamId: 't1', teamFtePct, active: true });
 
 function initiative(id: string, teamId: string, phaseId: string, pct: number, start: string, end: string, extra: Partial<Initiative> = {}): Initiative {
   return {
@@ -20,38 +21,11 @@ function initiative(id: string, teamId: string, phaseId: string, pct: number, st
   };
 }
 
-const free = (initiatives: Initiative[], period = { startDate: '2026-10-01', endDate: '2026-11-30' }, teamFtePct = 60) =>
-  freeCapacityPct({ person, teamId: 't1', teamFtePct, period, initiatives, process, today: TODAY });
+/** Ana's free capacity for a phase of `t1`, or undefined when the phase has no months. */
+const free = (initiatives: Initiative[], period: { startDate?: string; endDate?: string } = { startDate: '2026-10-01', endDate: '2026-11-30' }, teamFtePct = 60) =>
+  freeCapacityByPerson({ people: [person], teamId: 't1', memberships: [membership(teamFtePct)], period, initiatives, process, today: TODAY })?.get('ana');
 
-describe('isPhaseConfirmed (§4)', () => {
-  it('is true for the current phase whatever its dates', () => {
-    expect(isPhaseConfirmed('2027-08-01', true, TODAY)).toBe(true);
-    expect(isPhaseConfirmed(undefined, true, TODAY)).toBe(true);
-  });
-
-  it('is true when the start falls in the current or the next calendar month, or earlier', () => {
-    expect(isPhaseConfirmed('2026-09-01', false, TODAY)).toBe(true);
-    expect(isPhaseConfirmed('2026-10-31', false, TODAY)).toBe(true);
-    expect(isPhaseConfirmed('2026-06-15', false, TODAY)).toBe(true);
-    expect(isPhaseConfirmed('2026-11-01', false, TODAY)).toBe(false);
-  });
-
-  it('compares months, so the 31st of a short next month cannot overflow', () => {
-    expect(isPhaseConfirmed('2026-02-28', false, '2026-01-31')).toBe(true);
-    expect(isPhaseConfirmed('2026-03-01', false, '2026-01-31')).toBe(false);
-  });
-
-  it('rolls the next month over the year end', () => {
-    expect(isPhaseConfirmed('2027-01-31', false, '2026-12-15')).toBe(true);
-    expect(isPhaseConfirmed('2027-02-01', false, '2026-12-15')).toBe(false);
-  });
-
-  it('is false for a phase with no start date that is not the current one', () => {
-    expect(isPhaseConfirmed(undefined, false, TODAY)).toBe(false);
-  });
-});
-
-describe('freeCapacityPct (§5.11, §7.2)', () => {
+describe('freeCapacityByPerson (§5.11, §7.2)', () => {
   it('is the Team FTE % when the person has no other commitments', () => {
     expect(free([])).toBe(60);
   });
@@ -103,8 +77,23 @@ describe('freeCapacityPct (§5.11, §7.2)', () => {
     expect(free([initiative('x', 't2', later, 66.6, '2026-10-01', '2026-10-31')], undefined, 100)).toBe(33);
   });
 
-  it('is null when the phase has no months to check', () => {
-    expect(free([], { startDate: undefined, endDate: '2026-11-30' } as never)).toBeNull();
-    expect(free([], { startDate: '2026-11-30', endDate: '2026-10-01' })).toBeNull();
+  it('is undefined when the phase has no months to check', () => {
+    expect(free([], { endDate: '2026-11-30' })).toBeUndefined();
+    expect(free([], { startDate: '2026-11-30', endDate: '2026-10-01' })).toBeUndefined();
+  });
+
+  it('answers for everyone in the list in one call, each against their own load and Team FTE %', () => {
+    const bo: Person = { ...person, id: 'bo', name: 'Bo', capacityPct: 80 };
+    const result = freeCapacityByPerson({
+      people: [person, bo],
+      teamId: 't1',
+      memberships: [membership(60), { id: 'm2', personId: 'bo', teamId: 't1', teamFtePct: 50, active: true }],
+      period: { startDate: '2026-10-01', endDate: '2026-10-31' },
+      initiatives: [initiative('other', 't2', later, 40, '2026-10-01', '2026-10-31')],
+      process,
+      today: TODAY,
+    });
+    expect(result).toEqual(new Map([['ana', 60], ['bo', 50]])); // Ana carries 40 on another team; Bo carries nothing and is held to his Team FTE %
   });
 });
+

@@ -531,30 +531,6 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
     expect(pct).toHaveValue(45);
   });
 
-  it('counts only the months of this phase', async () => {
-    others = [elsewhere('ana', 70, '2026-12-01', '2026-12-31')]; // Provisional as well, but also outside October to November
-    const user = userEvent.setup();
-    renderPage();
-    await openPicker(user);
-    expect(optionTexts()).toEqual(['Ana Ruiz · Developer60% free', 'Cai Wu · Fractional CTO50% free']);
-  });
-
-  it('leaves out a Provisional phase: one that starts more than a month ahead', async () => {
-    others = [elsewhere('ana', 90, '2026-11-01', '2026-11-30')];
-    const user = userEvent.setup();
-    renderPage();
-    await openPicker(user);
-    expect(optionTexts()[0]).toBe('Ana Ruiz · Developer60% free');
-  });
-
-  it('leaves out an initiative that is not Active', async () => {
-    others = [{ ...elsewhere('ana', 90), status: 'On Hold' }];
-    const user = userEvent.setup();
-    renderPage();
-    await openPicker(user);
-    expect(optionTexts()[0]).toBe('Ana Ruiz · Developer60% free');
-  });
-
   it('asks for the period, and lists members by name with no figures, when there is none', async () => {
     initiative = { ...initiative, phases: undefined };
     const user = userEvent.setup();

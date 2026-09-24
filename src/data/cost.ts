@@ -21,7 +21,7 @@ export interface Period {
 }
 
 /** `YYYY-MM` (§6 Month encoding). `month` is 0-based. */
-function monthKey(year: number, month: number): string {
+export function monthKey(year: number, month: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}`;
 }
 
