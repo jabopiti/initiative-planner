@@ -73,6 +73,8 @@ export interface Initiative {
   status: InitiativeStatus;
   /** Per costed phase, keyed by the process's phase id. Absent until the phase is first planned. */
   phases?: Record<string, PhasePlan>;
+  /** Set while the phase periods are the tool's suggestion (§5.11); the first user edit to the plan clears it (§8.2 "untouched"). */
+  defaultPlan?: true;
 }
 
 export interface Role {

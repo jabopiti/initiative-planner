@@ -296,3 +296,72 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     expect(validationRow()).toHaveTextContent('€8,000');
   });
 });
+
+describe('Default plan (§5.11)', () => {
+  const developmentRow = () => screen.getByRole('button', { name: /^Development/ });
+  const suggested = {
+    validation: { startDate: '2026-09-24', endDate: '2026-12-23', allocations: [] },
+    development: { startDate: '2026-12-24', endDate: '2027-06-23', allocations: [] },
+  };
+
+  it('shows the suggested dates with a note, no Set period prompt, and no total yet', async () => {
+    initiative = { ...initiative, phases: suggested, defaultPlan: true };
+    renderPage();
+    expect(await screen.findByText('Suggested dates, starting today. Adjust them, then add people to see the cost.')).toBeInTheDocument();
+    expect(validationRow()).toHaveTextContent('24 Sep – 23 Dec 2026');
+    expect(developmentRow()).toHaveTextContent('24 Dec 2026 – 23 Jun 2027');
+    expect(validationRow()).not.toHaveTextContent('Set period');
+    expect(screen.queryByText('Set the period to calculate cost.')).not.toBeInTheDocument();
+    expect(validationRow()).toHaveTextContent('· Add people');
+    expect(validationRow()).toHaveTextContent('—'); // dates but no people: no €0
+    expect(validationRow()).not.toHaveTextContent('€');
+  });
+
+  it('highlights Add people on the first costed phase only', async () => {
+    initiative = { ...initiative, phases: suggested, defaultPlan: true };
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText(/^Who works on Validation\?/);
+    expect(screen.getByText(/^Who works on Validation\?/).closest('div')).toHaveAttribute('data-highlight', 'true');
+    await user.click(developmentRow());
+    expect(screen.getByText(/^Who works on Development\?/).closest('div')).not.toHaveAttribute('data-highlight');
+
+    await addPerson(user, 'Ana Ruiz · Developer'); // Validation is planned: the next step moves on
+    expect(screen.getByText(/^Who works on Development\?/).closest('div')).toHaveAttribute('data-highlight', 'true');
+  });
+
+  it('drops the note on the first edit and moves no other phase', async () => {
+    initiative = { ...initiative, phases: suggested, defaultPlan: true };
+    const user = userEvent.setup();
+    renderPage();
+    await typeDate(user, 'Validation end date', '31.12.2026');
+    expect(screen.queryByText(/^Suggested dates/)).not.toBeInTheDocument();
+    expect(developmentRow()).toHaveTextContent('24 Dec 2026 – 23 Jun 2027');
+  });
+
+  it('warns on the later phase when it starts before the previous one ends, and moves nothing', async () => {
+    initiative = { ...initiative, phases: suggested, defaultPlan: true };
+    const user = userEvent.setup();
+    renderPage();
+    await typeDate(user, 'Validation end date', '31.12.2026');
+    expect(developmentRow()).toContainElement(screen.getByRole('img', { name: 'Overlaps Validation' }));
+    await user.click(developmentRow());
+    expect(screen.getByText('Starts before Validation ends (31 Dec 2026). The two phases overlap.')).toBeInTheDocument();
+    expect(validationRow()).not.toContainElement(screen.queryByRole('img', { name: /Overlaps/ }));
+    expect(developmentRow()).toHaveTextContent('24 Dec 2026 – 23 Jun 2027');
+  });
+
+  it('shows no overlap warning for back-to-back phases', async () => {
+    initiative = { ...initiative, phases: suggested, defaultPlan: true };
+    renderPage();
+    await screen.findByRole('heading', { name: 'Phases' });
+    expect(screen.queryByRole('img', { name: /Overlaps/ })).not.toBeInTheDocument();
+  });
+
+  it('leaves an initiative made before this slice with its Set period prompt and no note', async () => {
+    renderPage();
+    expect(await screen.findByText('Set the period to calculate cost.')).toBeInTheDocument();
+    expect(validationRow()).toHaveTextContent('Set period');
+    expect(screen.queryByText(/^Suggested dates/)).not.toBeInTheDocument();
+  });
+});

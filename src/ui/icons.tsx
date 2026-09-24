@@ -3,7 +3,7 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { CalendarDays, Check, ChevronDown, ChevronRight, Plus, RefreshCw, Search, Trash2, TriangleAlert, UserCheck, UserX, Users, X, type LucideIcon } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, ChevronRight, Info, Plus, RefreshCw, Search, Trash2, TriangleAlert, UserCheck, UserX, Users, X, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
 
 function iconWrapper(Lucide: LucideIcon) {
@@ -16,6 +16,7 @@ export const SearchIcon = iconWrapper(Search);
 export const CheckIcon = iconWrapper(Check);
 export const SyncingIcon = iconWrapper(RefreshCw);
 export const WarningIcon = iconWrapper(TriangleAlert);
+export const InfoIcon = iconWrapper(Info);
 export const PlusIcon = iconWrapper(Plus);
 export const CloseIcon = iconWrapper(X);
 export const TeamsIcon = iconWrapper(Users);

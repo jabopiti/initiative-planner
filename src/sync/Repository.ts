@@ -17,6 +17,7 @@ import {
 } from '../data/types';
 import { allocationRefusal } from '../data/cost';
 import { formatDate } from '../data/dates';
+import { buildDefaultPlan, localToday } from '../data/defaultPlan';
 import { toReadOnlyState, type GithubFailureCause, type ReadOnlyState } from '../github/errors';
 import { GithubClient, parseJsonFile } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
@@ -397,8 +398,11 @@ export class Repository {
   }
 
   /** New initiative (§5.1, §6): name + team required; written as its own file. */
-  async createInitiative(name: string, teamId: string): Promise<Initiative> {
-    const initiative: Initiative = { id: newId(), name, teamId, status: 'Active' };
+  /** Create an initiative with its default plan (§5.11), chained from `today` (injectable for tests). */
+  async createInitiative(name: string, teamId: string, today: string = localToday()): Promise<Initiative> {
+    const phases = buildDefaultPlan(this.brand.process, today);
+    const hasPlan = Object.keys(phases).length > 0;
+    const initiative: Initiative = { id: newId(), name, teamId, status: 'Active', ...(hasPlan && { phases, defaultPlan: true }) };
     this.setState({ initiatives: [...this.state.initiatives, initiative], syncing: true });
 
     try {
@@ -433,7 +437,9 @@ export class Repository {
     const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
     if (!initiative) return false;
     const plan = initiative.phases?.[phaseId] ?? { allocations: [] };
+    // The first edit to the plan ends the suggestion: from here on the dates are the user's (§8.2).
     const next: Initiative = { ...initiative, phases: { ...initiative.phases, [phaseId]: change(plan) } };
+    delete next.defaultPlan;
     this.replaceInitiative(next);
     this.initiativeWriters.get(initiativeId)?.schedule(next, {
       key: `${phaseId}:${note.key}`,

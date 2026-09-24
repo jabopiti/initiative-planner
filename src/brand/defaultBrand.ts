@@ -64,6 +64,7 @@ export const defaultBrandPack: BrandPack = {
       label: 'Validation',
       description: 'Validate the approach and build the business case.',
       costed: true,
+      defaultDurationMonths: 3,
       exitGate: {
         id: 'g2',
         label: 'G2',
@@ -82,6 +83,7 @@ export const defaultBrandPack: BrandPack = {
       label: 'Development',
       description: 'Build the initiative.',
       costed: true,
+      defaultDurationMonths: 6,
       exitGate: {
         id: 'g3',
         label: 'G3',
