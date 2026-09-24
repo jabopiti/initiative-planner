@@ -6,7 +6,7 @@ no custom backend — a GitHub repository is the data store. `docs/spec.md`
 is authoritative; cite the section you're following (e.g. §7.1).
 
 ## Setup
-`npm install`. Node 20+.
+`npm install`. Node 22.22+ (24 LTS recommended).
 
 ## Run
 `npm run dev` (Vite, http://localhost:5173). `npm run build:quiet && npm
