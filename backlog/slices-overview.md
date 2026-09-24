@@ -266,6 +266,14 @@ team is approaching them.
   stays in edit** (§3 Sync failures, §9.9) — depends on 005g; today a failed
   push drops the write and leaves the edited value on screen, and no Retry
   exists.
+- **Retry backoff** (§10.3) — depends on 005g; a 409 retry re-reads the file
+  and goes again at once, where §10.3 asks for a short backoff, to stay
+  inside GitHub's request limits. One place to change now (the file writer),
+  with the delay injectable so tests stay fast.
+- **Entity id in each commit's trailer line** (§10.3) — depends on 005h;
+  commit messages read as plain words but carry no trailer with the
+  entity's id. Callers must pass the entity explicitly (note keys are only
+  sometimes ids), and every commit-message expectation changes with it.
 - **Same-field conflict shown inline under the field** (§9.9) — depends on
   005h; the banner is the first step.
 - **Accessibility fixes from the review** — the add-member list has no

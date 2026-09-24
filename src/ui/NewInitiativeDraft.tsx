@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { newId } from '../data/ids';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { navigate } from '../router/useHashRoute';
 import { Button } from '@/components/ui/button';
@@ -19,8 +20,14 @@ export function NewInitiativeDraft() {
   const { teams } = useRepositoryState();
   const [name, setName] = useState('');
   const [teamId, setTeamId] = useState('');
+  const [draftId] = useState(newId); // kept across retries, so a failed creation is the same file when tried again
   const creating = useRef(false); // set on the first create, so a double click or Enter makes one commit
   const teamTrigger = useRef<HTMLButtonElement>(null);
+
+  // Leaving the draft after a failed creation ends that failure: nothing will retry it (a saved one is left alone).
+  useEffect(() => {
+    return () => repository.discardFailedCreation(draftId);
+  }, [repository, draftId]);
 
   const hasName = name.trim() !== '';
   const nextStep = !hasName ? 'name' : !teamId ? 'team' : 'create';
@@ -34,7 +41,7 @@ export function NewInitiativeDraft() {
     if (!hasName || !teamId || creating.current) return;
     creating.current = true;
     try {
-      const initiative = await repository.createInitiative(name.trim(), teamId);
+      const initiative = await repository.createInitiative(name.trim(), teamId, undefined, draftId);
       navigate(`/initiatives/${initiative.id}`, { replace: true });
     } catch {
       creating.current = false; // the top bar says why it wasn't saved; the draft stays for another try
