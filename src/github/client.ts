@@ -77,13 +77,12 @@ export class GithubClient {
     headers.set('X-GitHub-Api-Version', '2022-11-28');
     if (token) headers.set('Authorization', `Bearer ${token}`);
 
-    let response: Response;
     try {
-      response = await fetch(input, { ...init, headers });
+      // no-store: GitHub's Contents API answers with max-age=60, and a re-read after a 409 must see the other writer's commit.
+      return await fetch(input, { cache: 'no-store', ...init, headers });
     } catch {
       throw new GithubApiError('Cannot reach GitHub; changes are paused.', 'unreachable');
     }
-    return response;
   }
 
   /** GET .../contents/{path}?ref={branch} (§10.2). Returns null when the file doesn't exist yet. */
@@ -237,7 +236,7 @@ export class GithubClient {
       body: JSON.stringify({
         message: args.message,
         tree: tree.sha,
-        ...(parentCommitSha ? { parents: [parentCommitSha] } : { parents: [] }),
+        parents: parentCommitSha ? [parentCommitSha] : [],
       }),
     });
     assertOk(commitResponse, 'Commit create');

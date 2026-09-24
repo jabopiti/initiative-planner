@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CommitInput } from './CommitInput';
-import { WarningIcon } from './icons';
+import { InlineWarning } from './InlineWarning';
 
 /** Bare number field, edited in place (§5.6): commits on blur or Enter, with a live warning while the typed value is over its limit. */
 export function PercentInput({
@@ -48,10 +48,7 @@ export function PercentInput({
         <span className="text-sm text-text-secondary">%</span>
       </div>
       {capped && max !== undefined && (
-        <p className={`m-0 mt-1 flex ${flat ? 'order-last w-full' : ''}  items-center gap-1 rounded-md bg-warning-tint px-2 py-1 text-xs text-warning-text`} role="status">
-          <WarningIcon width={14} height={14} />
-          Max {max}%. Other teams hold the rest.
-        </p>
+        <InlineWarning className={`mt-1 ${flat ? 'order-last w-full' : ''}`}>Max {max}%. Other teams hold the rest.</InlineWarning>
       )}
     </div>
   );

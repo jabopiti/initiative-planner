@@ -111,6 +111,51 @@ describe('Repository — slice 003 acceptance flows', () => {
     expect(repo.getState().teams).toEqual([team]);
   });
 
+  it('a failed initiative create takes the initiative back out, reports read-only, and rejects', async () => {
+    fetchMock = routingFetchMock({
+      'PUT /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ message: 'Server Error' }, 500),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+
+    await expect(repo.createInitiative('Checkout Redesign', 'team-1')).rejects.toThrow();
+    expect(repo.getState().initiatives).toEqual([]);
+    expect(repo.getState().readOnly).not.toBeNull();
+    expect(repo.getState().syncing).toBe(false);
+  });
+
+  it('a file that saved does not hide another file\'s failed save', async () => {
+    fetchMock = routingFetchMock({
+      'PUT /repos/jabopiti/initiative-planner/contents/teams.json': () => jsonResponse({ message: 'Forbidden' }, 403),
+      'PUT /repos/jabopiti/initiative-planner/contents/people.json': () => jsonResponse({ content: { sha: 'people-sha-2' } }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+
+    repo.createTeam('Platform');
+    repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
+    await repo.flushPending();
+
+    expect(repo.getState().readOnly).not.toBeNull(); // the teams file is still unsaved
+    expect(repo.getState().syncing).toBe(false);
+  });
+
+  it('a dataset that cannot be read reports why instead of rejecting unhandled', async () => {
+    fetchMock = routingFetchMock({
+      'GET /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ message: 'Server Error' }, 500),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const repo = new Repository(defaultBrandPack, 'token');
+    await expect(repo.initialize()).resolves.toBeUndefined();
+    expect(repo.getState().status).toBe('loading');
+    expect(repo.getState().readOnly).not.toBeNull();
+  });
+
   it('creating an initiative writes its own file and appears in state with the given team', async () => {
     fetchMock = routingFetchMock({
       'PUT /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ content: { sha: 'init-sha' } }),
@@ -366,6 +411,20 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       endDate: '2026-11-30',
       allocations: [{ id: added.allocation.id, personId: member.id, allocationPct: 80 }],
     });
+  });
+
+  it('renames an initiative in place with a commit naming the old and new name, and refuses an empty name', async () => {
+    const { repo, initiative } = await repoWithInitiative();
+    expect(repo.renameInitiative(initiative.id, '   ')).toBe(false);
+    expect(repo.getState().initiatives[0].name).toBe('Payments API');
+
+    expect(repo.renameInitiative(initiative.id, ' Payments API 2 ')).toBe(true);
+    await repo.flushPending();
+
+    expect(repo.getState().initiatives[0].name).toBe('Payments API 2');
+    expect(commits).toHaveLength(1);
+    expect(commits[0].message).toBe('Payments API: renamed to Payments API 2');
+    expect(commits[0].content.name).toBe('Payments API 2');
   });
 
   it('puts an undone removal back in its place', async () => {

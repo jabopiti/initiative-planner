@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 /**
  * A text or number field that commits when it loses focus or Enter is pressed, never on each keystroke
  * (§10.3), so typing a value is one edit and one commit. `onCommit` returns `false` to reject the text,
- * which puts the last committed value back in the field.
+ * which puts the last committed value back in the field. Esc cancels an edit in progress (§9.5) and,
+ * having used the key, keeps it from also closing a panel around the field; with nothing typed it passes on.
  */
 export function CommitInput({
   value,
@@ -37,6 +38,10 @@ export function CommitInput({
       onKeyDown={(e) => {
         props.onKeyDown?.(e);
         if (e.key === 'Enter') commit();
+        if (e.key === 'Escape' && draft !== value) {
+          setDraft(value);
+          e.stopPropagation();
+        }
       }}
     />
   );

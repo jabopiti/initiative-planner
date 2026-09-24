@@ -27,7 +27,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
 
   async function handleConnect(event: React.FormEvent) {
     event.preventDefault();
-    if (!token.trim()) return;
+    if (!token.trim() || checking) return;
     setChecking(true);
     setResult(null);
     const outcome = await checkToken(brand.github, token.trim());

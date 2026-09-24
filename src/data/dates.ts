@@ -2,11 +2,25 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 
 function isRealDate(year: number, month: number, day: number): boolean {
+  if (year < FIRST_YEAR || year > LAST_YEAR) return false;
   const d = new Date(Date.UTC(year, month - 1, day));
   return d.getUTCFullYear() === year && d.getUTCMonth() === month - 1 && d.getUTCDate() === day;
 }
 
-const iso = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+/** The ISO `YYYY-MM-DD` date for a year, month (1-12) and day. */
+export const iso = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+/** An ISO `YYYY-MM-DD` date's year, month (1-12) and day. */
+export const parseIso = (isoDate: string): [number, number, number] => {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return [y, m, d];
+};
+
+/** A Date's calendar day in the user's local time, as `YYYY-MM-DD`. */
+export const localIso = (d: Date) => iso(d.getFullYear(), d.getMonth() + 1, d.getDate());
+
+/** Today's calendar date in the user's local time (§7.1, §5.11), as `YYYY-MM-DD`. */
+export const localToday = (now: Date = new Date()) => localIso(now);
 
 /** An ISO `YYYY-MM-DD` date as the date input shows it: "26.06.2026". */
 export function formatDateField(isoDate: string): string {
@@ -22,11 +36,15 @@ export function formatPeriod(startIso: string, endIso: string): string {
 
 /** An ISO `YYYY-MM-DD` date in words for headlines and commit messages: "3 Sep 2026". */
 export function formatDate(isoDate: string): string {
-  const [y, m, d] = isoDate.split('-').map(Number);
+  const [y, m, d] = parseIso(isoDate);
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
-/** "26.06.2026" (or "3 Sep 2026", a longer month name, or ISO) to ISO; null when it isn't a real date. */
+/** Years a plan can sensibly name; a typo such as 1026 or 20266 is refused rather than costed month by month. */
+const FIRST_YEAR = 2000;
+const LAST_YEAR = 2100;
+
+/** "26.06.2026" (or "3 Sep 2026", a longer month name, or ISO) to ISO; null when it isn't a real date in 2000 to 2100. */
 export function parseDateText(text: string): string | null {
   const t = text.trim();
   const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);

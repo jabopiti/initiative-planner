@@ -26,10 +26,7 @@ export function RepositoryProvider({ token, children }: { token: string; childre
 export function useRepositoryState(): RepositoryState {
   const repository = useContext(RepositoryContext);
   if (!repository) throw new Error('useRepositoryState must be used within a RepositoryProvider');
-  return useSyncExternalStore(
-    (listener) => repository.subscribe(listener),
-    () => repository.getState(),
-  );
+  return useSyncExternalStore(repository.subscribe, repository.getState);
 }
 
 export function useRepository(): Repository {

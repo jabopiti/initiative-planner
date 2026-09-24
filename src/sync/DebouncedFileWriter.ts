@@ -26,17 +26,24 @@ export type WriteStatus = 'synced' | 'syncing' | { readOnly: ReadOnlyState };
 
 /**
  * Writes one array-shaped master data file (§10.2), applying §10.3's
- * debounce-then-commit and 409-retry-with-merge (§10.5) rules. Not used for
- * per-initiative files, which are created once and never merged in slice 003.
+ * debounce-then-commit and 409-retry-with-merge (§10.5) rules. Per-initiative
+ * files use InitiativeFileWriter, which merges them field by field.
  */
+interface WriteOpts<T> {
+  sha?: string;
+  local?: T[];
+  flush?: number;
+}
+
 export class DebouncedFileWriter<T extends Identified> {
   private synced: SyncedFile<T>;
   private pending: T[] | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private retriesRemaining = MAX_RETRIES;
+  /** Numbers each flush; a write that is not the newest one has later edits behind it. */
+  private flushCount = 0;
   /** What changed since the last commit, keyed so a repeated edit replaces its earlier note (§10.3). */
   private notes = new Map<string, string>();
-  private message: string;
 
   constructor(
     private readonly path: string,
@@ -49,7 +56,6 @@ export class DebouncedFileWriter<T extends Identified> {
     initial: SyncedFile<T>,
   ) {
     this.synced = initial;
-    this.message = `${path}: update`;
   }
 
   /**
@@ -73,41 +79,62 @@ export class DebouncedFileWriter<T extends Identified> {
     if (this.pending === null) return;
     const mine = this.pending;
     this.pending = null;
-    this.message = this.notes.size > 0 ? [...this.notes.values()].join('; ') : `${this.path}: update`;
+    const message = this.notes.size > 0 ? [...this.notes.values()].join('; ') : `${this.path}: update`;
     this.notes.clear();
     this.retriesRemaining = MAX_RETRIES;
-    await this.attemptWrite(mine, this.synced.sha);
+    await this.attemptWrite(mine, message, { flush: (this.flushCount += 1) });
   }
 
-  private async attemptWrite(mine: T[], sha: string): Promise<void> {
+  /**
+   * Puts `sent` to the file. `sha` is read when the write reaches the front of the queue (a write
+   * queued behind an earlier one would otherwise carry a stale sha and always conflict), unless the
+   * caller has just fetched one. `local` is the value the user's edits were built on, when `sent`
+   * is a merge of it with the repository's version. `flush` numbers the write (absent for a resolution).
+   */
+  private async attemptWrite(sent: T[], message: string, opts: WriteOpts<T> = {}): Promise<void> {
+    const { sha, local = sent, flush = this.flushCount } = opts;
     try {
       const result = await this.queue.run(() =>
         this.github.putFile({
           path: this.path,
           branch: this.branch,
-          content: JSON.stringify(mine),
-          message: this.message,
-          sha,
+          content: JSON.stringify(sent),
+          message,
+          sha: sha ?? this.synced.sha,
         }),
       );
-      this.synced = { content: mine, sha: result.sha };
-      this.onCommitted(mine);
-      this.onStatusChange('synced');
+      this.synced = { content: sent, sha: result.sha };
+      this.settle(sent, local, flush);
       // The cache is a local convenience, not the source of truth — GitHub already has this
       // write. A failure here (storage full, private browsing) must not be reported as a
       // failed save, since the save already succeeded.
       try {
-        await fileCache.set(this.path, { content: JSON.stringify(mine), sha: result.sha });
+        await fileCache.set(this.path, { content: JSON.stringify(sent), sha: result.sha });
       } catch {
         // Losing the cache entry just means the next load re-fetches from GitHub instead of
         // the cache — survivable, unlike misreporting a write that actually succeeded.
       }
     } catch (error) {
-      await this.handleWriteFailure(error, mine);
+      await this.handleWriteFailure(error, sent, message, flush);
     }
   }
 
-  private async handleWriteFailure(error: unknown, mine: T[]): Promise<void> {
+  /**
+   * A write landed. Edits made while it was in flight are newer than what it wrote, so they stay in
+   * state and are reported synced only when their own write lands; when the write was a merge with the
+   * repository's version, those edits are rebased onto it so the other writer's changes are not lost.
+   */
+  private settle(sent: T[], local: T[], flush: number): void {
+    if (this.pending === null && flush === this.flushCount) {
+      this.onCommitted(sent);
+      this.onStatusChange('synced');
+    } else if (this.pending !== null && sent !== local) {
+      this.pending = mergeListField(local, this.pending, sent).merged;
+      this.onCommitted(this.pending);
+    }
+  }
+
+  private async handleWriteFailure(error: unknown, mine: T[], message: string, flush: number): Promise<void> {
     if (!(error instanceof GithubApiError) || error.cause_ !== 'conflict') {
       this.onStatusChange({ readOnly: toReadOnlyState(error, 'Something went wrong saving this change.') });
       return;
@@ -125,13 +152,13 @@ export class DebouncedFileWriter<T extends Identified> {
     // must still resolve to a reported readOnly state rather than an unhandled rejection —
     // every caller of flush()/schedule() discards this promise without a catch of its own.
     try {
-      await this.retryAfterConflict(mine);
+      await this.retryAfterConflict(mine, message, flush);
     } catch (retryError) {
       this.onStatusChange({ readOnly: toReadOnlyState(retryError, 'Could not save this change after a conflict.') });
     }
   }
 
-  private async retryAfterConflict(mine: T[]): Promise<void> {
+  private async retryAfterConflict(mine: T[], message: string, flush: number): Promise<void> {
     const theirsFile = await this.github.getFile({ path: this.path, branch: this.branch });
     const theirs = parseJsonFile(theirsFile, [] as T[]);
     const theirsSha = theirsFile?.sha ?? '';
@@ -154,20 +181,23 @@ export class DebouncedFileWriter<T extends Identified> {
           mine: conflict.mine,
           theirs: conflict.theirs,
           resolve: (choice) => {
-            const chosen = choice === 'mine' ? conflict.mine : conflict.theirs;
-            const resolved = this.synced.content.map((item) => (item.id === conflict.itemId ? chosen : item));
-            return this.attemptWrite(resolved, this.synced.sha);
+            // Only the conflicting fields take the chosen side; the rest of the item keeps its clean merge.
+            const chosen = (item: T): T =>
+              choice === 'mine'
+                ? { ...item, ...Object.fromEntries(conflict.fields.map((f) => [f, (conflict.mine as Record<string, unknown>)[f]])) }
+                : item;
+            const resolved = this.synced.content.map((item) => (item.id === conflict.itemId ? chosen(item) : item));
+            return this.attemptWrite(resolved, message);
           },
         });
       }
-      // Keep the non-conflicting part of the merge visible locally, but don't
-      // write until every conflict on this file is resolved.
+      // Keep the clean part of the merge visible locally. Each resolution is written as it is chosen.
       this.onCommitted(merged);
       this.onStatusChange('synced');
       return;
     }
 
     this.synced = { content: theirs, sha: theirsSha };
-    await this.attemptWrite(merged, theirsSha);
+    await this.attemptWrite(merged, message, { sha: theirsSha, local: mine, flush });
   }
 }

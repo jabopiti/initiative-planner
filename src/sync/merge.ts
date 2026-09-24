@@ -30,7 +30,8 @@ export function mergeRecordFields<T extends object>(base: T, mine: T, theirs: T)
   const merged = { ...mine };
   const conflicts: FieldConflict<T>[] = [];
 
-  for (const key of Object.keys(mine) as (keyof T)[]) {
+  // Every key from any side: an optional field only the repository's version has is not lost.
+  for (const key of new Set([...Object.keys(base), ...Object.keys(mine), ...Object.keys(theirs)]) as Set<keyof T>) {
     const b = base[key];
     const m = mine[key];
     const t = theirs[key];
@@ -63,6 +64,8 @@ export interface ItemConflict<T> {
   base: unknown;
   mine: T;
   theirs: T;
+  /** The fields both sides changed; every other field of the item merged cleanly. */
+  fields: string[];
 }
 
 export interface ListMergeOutcome<T> {
@@ -124,7 +127,7 @@ export function mergeListField<T extends Identified>(base: T[], mine: T[], their
         );
         merged.push(mergedItem as unknown as T);
         if (itemConflicts.length > 0) {
-          conflicts.push({ itemId: id, base: b, mine: m, theirs: t });
+          conflicts.push({ itemId: id, base: b, mine: m, theirs: t, fields: itemConflicts.map((c) => String(c.field)) });
         }
       }
     }

@@ -137,6 +137,49 @@ describe('DebouncedFileWriter — §10.3 debounce + §10.5 409-retry-with-merge'
     expect(resolvedBody.sha).toBe('s1');
   });
 
+  it('keeps an edit made while a write is in flight: the finished write does not rewind state, and the queued write carries the new sha', async () => {
+    const writer = makeWriter({ content: [], sha: 's0' });
+    const team1: Team = { id: 't1', name: 'Platform', active: true };
+    const team2: Team = { id: 't2', name: 'Payments', active: true };
+
+    let releaseFirst!: (response: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((resolve) => (releaseFirst = resolve)));
+    writer.schedule([team1]);
+    const first = writer.flush();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    writer.schedule([team1, team2]); // edited while the first write is still in flight
+    fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
+    const second = writer.flush();
+
+    releaseFirst(jsonResponse({ content: { sha: 's1' } }));
+    await Promise.all([first, second]);
+
+    expect(committed).toEqual([[team1, team2]]); // never [team1] alone
+    expect(statuses.filter((s) => s === 'synced')).toHaveLength(1); // synced once, when the last write landed
+    const puts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
+    expect((JSON.parse((puts[1][1] as RequestInit).body as string) as { sha: string }).sha).toBe('s1');
+  });
+
+  it('resolving a conflict changes only the conflicting fields; the rest of the item keeps its clean merge', async () => {
+    const base = { id: 'p1', name: 'A', active: true };
+    const writer = makeWriter({ content: [base], sha: 's0' });
+    const theirs = [{ id: 'p1', name: 'C', active: false }]; // they renamed it and deactivated it
+    writer.schedule([{ id: 'p1', name: 'B', active: true }]); // we renamed it
+
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ message: 'Conflict' }, 409))
+      .mockResolvedValueOnce(jsonResponse({ content: btoa(JSON.stringify(theirs)), sha: 's1' }));
+    await writer.flush();
+    expect(conflicts).toHaveLength(1);
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
+    await conflicts[0].resolve('mine');
+    const put = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT').at(-1)!;
+    const written = JSON.parse(atob((JSON.parse((put[1] as RequestInit).body as string) as { content: string }).content)) as Team[];
+    expect(written).toEqual([{ id: 'p1', name: 'B', active: false }]); // our name, their deactivation
+  });
+
   it('resolving one of several conflicts does not revert an already-resolved sibling', async () => {
     const baseA: Team = { id: 'tA', name: 'Original A', active: true };
     const baseB: Team = { id: 'tB', name: 'Original B', active: true };

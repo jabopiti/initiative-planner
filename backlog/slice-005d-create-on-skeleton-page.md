@@ -32,15 +32,18 @@ the initiative when ready.
 
 - **New initiative** opens a skeleton page laid out like the initiative
   header (§5.4): the name field is the title and takes focus, the team
-  selector sits beside it, with the "Draft" chip.
-- The team selector always starts on **Select team**. The tool never
-  chooses a team. The last-used team, remembered as today, is listed first in
-  the dropdown and marked "last used".
+  selector sits beside it, with the "Draft" chip and the **Create
+  initiative** button (disabled until a name and a team exist).
+- The team selector always starts on **Select team**, even with one team.
+  The tool never chooses a team. There is no "last used" team any more:
+  the dropdown lists the active teams as they are.
 - The next missing thing is highlighted with the brand accent used in
   slice 005: the name first, then the team, then, once both are filled, the
   **Create initiative** button.
-- No phases are shown on the draft. A short line says what to do: "Give it
-  a name and a team to start planning."
+- A line under the header states the next step in text (a polite live
+  region, so a screen reader hears it change): "Next: name the initiative.",
+  then "Next: choose a team.", then "Ready. Create the initiative to start
+  planning." No phases are shown on the draft.
 - Nothing is saved until **Create initiative** is chosen. Enter in the name
   field does the same once a team is selected; with no team yet it moves
   focus to the team selector. Leaving the name field, or choosing a team,
@@ -51,7 +54,8 @@ the initiative when ready.
   detail page replaces the draft, so Back skips the draft. The phases
   appear there, with slice 005's guidance.
 - On the initiative page, the name is editable in place (§5.4), so a typo is
-  not permanent. Changing the team is slice 005e.
+  not permanent. It saves on blur or Enter as "<old name>: renamed to <new
+  name>"; an empty name is refused and the old one stays. Changing the team is slice 005e.
 - With no active team, the button that opens the draft stays unavailable,
   as it is today, and the Portfolio's empty state (§9.4) points to creating a
   team.
@@ -82,31 +86,34 @@ description, Actions menu), which arrive with their own slices.
 
 ## Acceptance criteria
 
-- [ ] Given the New initiative button, when it is clicked, then the draft
+- [x] Given the New initiative button, when it is clicked, then the draft
       page opens with the name field focused and highlighted, the team
-      selector reading "Select team" (even when only one team exists or a
-      team was used last), and no phases shown.
-- [ ] Given the team dropdown, when it opens, then the last-used team is
-      listed first and marked "last used", and no team is preselected.
-- [ ] Given a name only, when the field is left, then nothing is saved and
+      selector reading "Select team" (even when only one team exists),
+      Create initiative disabled, and no phases shown.
+- [x] Given the team dropdown, when it opens, then it lists the active teams
+      with none marked or preselected.
+- [x] Given a name only, when the field is left, then nothing is saved and
       the team selector is the highlighted step.
-- [ ] Given a team only, when Create initiative is looked for, then it is
-      not available and the name is the highlighted step.
-- [ ] Given both a name and a team, when the page renders, then Create
+- [x] Given a team only, when Create initiative is looked for, then it is
+      disabled and the name is the highlighted step.
+- [x] Given both a name and a team, when the page renders, then Create
       initiative is available and highlighted, and no initiative exists yet.
-- [ ] Given both a name and a team, when Create initiative is chosen (or
+- [x] Given both a name and a team, when Create initiative is chosen (or
       Enter is pressed in the name field), then exactly one commit is made,
       the initiative's page replaces the draft, Back skips the draft, and its
       phases appear (with their default dates once slice 005c is done).
-- [ ] Given a draft with a name, when the team is chosen and then changed to
+- [x] Given a draft with a name, when the team is chosen and then changed to
       another team before creating, then the selection changes and nothing is
       saved.
-- [ ] Given a draft, when Esc is pressed or Back is used, then nothing is
+- [x] Given a draft, when Esc is pressed or Back is used, then nothing is
       saved and the Portfolio opens with no confirmation.
-- [ ] Given an initiative's page, when its name is edited, then the change
+- [x] Given an initiative's page, when its name is edited, then the change
       saves in place with a commit naming the initiative.
-- [ ] Given the highlight, when read by a screen reader, then the next
-      step is stated in text and is not carried by colour alone.
+- [x] Given the highlight, when read by a screen reader, then the guidance
+      line states the next step in text and is announced as it changes; it
+      is not carried by colour alone.
+- [x] Given an initiative's page, when its name is cleared, then the change
+      is refused and the previous name stays.
 
 ## Delivery gate
 
@@ -115,5 +122,5 @@ description, Actions menu), which arrive with their own slices.
 ## Flags and compromises
 
 This changes a spec rule, not just its wording: the team no longer defaults
-to the last-used or only active team, and leaving the name field no longer
-creates the initiative. §5.1 was updated with this slice.
+to the only active team, the last-used team memory is removed, and leaving
+the name field no longer creates the initiative. §5.1 was updated with this slice.

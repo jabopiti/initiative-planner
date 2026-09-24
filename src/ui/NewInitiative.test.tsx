@@ -22,6 +22,7 @@ const file = (content: unknown, sha: string) => json({ content: btoa(JSON.string
 
 let teams = ONE_TEAM;
 let puts: { url: string; body: { message: string; content: string } }[] = [];
+let failInitiativePut = false;
 
 beforeAll(() => {
   // Radix Select needs these pointer/scroll APIs, which jsdom lacks.
@@ -32,6 +33,7 @@ beforeAll(() => {
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') {
+        if (failInitiativePut && url.includes('/initiatives/')) return json({ message: 'Server Error' }, 500);
         puts.push({ url, body: JSON.parse(String(init.body)) });
         return json({ content: { sha: 'next' } });
       }
@@ -50,6 +52,7 @@ afterEach(cleanup);
 beforeEach(() => {
   teams = ONE_TEAM;
   puts = [];
+  failInitiativePut = false;
   localStorage.clear();
   window.location.hash = '';
 });
@@ -83,43 +86,133 @@ describe('New initiative: name it on the page (§5.1, §5.4)', () => {
     expect(window.location.hash).toBe('#/initiatives/new');
   });
 
-  it('opens with the name field focused, a Draft chip, and the only active team chosen', async () => {
+  it('opens with the name field focused and highlighted, Select team even with one team, and Create disabled', async () => {
     renderWith(<NewInitiativeDraft />);
-    expect(await nameField()).toHaveFocus();
+    const field = await nameField();
+    expect(field).toHaveFocus();
+    expect(field).toHaveClass('border-brand-accent');
     expect(screen.getByText('Draft')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Payments');
+    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Select team');
+    expect(screen.getByRole('button', { name: 'Create initiative' })).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('Next: name the initiative.');
+    expect(screen.queryByRole('heading', { name: 'Phases' })).not.toBeInTheDocument();
   });
 
-  it('Enter saves the initiative as its own file and opens its page in place of the draft', async () => {
+  it('lists the active teams with none marked or preselected', async () => {
+    const user = userEvent.setup();
+    teams = [...TWO_TEAMS, { id: 't3', name: 'Retired', active: false }];
+    renderWith(<NewInitiativeDraft />);
+    await nameField();
+    await user.click(screen.getByRole('combobox', { name: 'Team' }));
+    const options = await screen.findAllByRole('option');
+    expect(options.map((o) => o.textContent)).toEqual(['Payments', 'Platform']);
+    expect(options.some((o) => o.getAttribute('aria-selected') === 'true')).toBe(false);
+  });
+
+  it('a name only: leaving the field saves nothing and the team is the next step', async () => {
     const user = userEvent.setup();
     renderWith(<NewInitiativeDraft />);
-    await user.type(await nameField(), 'Payments API v2{Enter}');
+    await user.type(await nameField(), 'Loyalty pilot');
+    await user.click(document.body);
+    expect(initiativePuts()).toHaveLength(0);
+    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveClass('border-brand-accent');
+    expect(screen.getByRole('status')).toHaveTextContent('Next: choose a team.');
+    expect(screen.getByRole('button', { name: 'Create initiative' })).toBeDisabled();
+  });
+
+  it('a team only: Create is disabled and the name is the next step', async () => {
+    const user = userEvent.setup();
+    renderWith(<NewInitiativeDraft />);
+    await nameField();
+    await user.click(screen.getByRole('combobox', { name: 'Team' }));
+    await user.click(await screen.findByRole('option', { name: 'Payments' }));
+    expect(screen.getByRole('button', { name: 'Create initiative' })).toBeDisabled();
+    expect(await nameField()).toHaveClass('border-brand-accent');
+    expect(screen.getByRole('status')).toHaveTextContent('Next: name the initiative.');
+    expect(initiativePuts()).toHaveLength(0);
+  });
+
+  it('with a name and a team, Create is enabled and highlighted, and nothing is saved yet', async () => {
+    const user = userEvent.setup();
+    renderWith(<NewInitiativeDraft />);
+    await user.type(await nameField(), 'Data lake');
+    await user.click(screen.getByRole('combobox', { name: 'Team' }));
+    await user.click(await screen.findByRole('option', { name: 'Payments' }));
+    const create = screen.getByRole('button', { name: 'Create initiative' });
+    expect(create).toBeEnabled();
+    expect(create).toHaveClass('ring-brand-accent');
+    expect(screen.getByRole('status')).toHaveTextContent('Ready. Create the initiative to start planning.');
+    expect(initiativePuts()).toHaveLength(0);
+  });
+
+  it('when the initiative cannot be saved the draft stays, with its name and team, and Create can be tried again', async () => {
+    const user = userEvent.setup();
+    renderWith(<NewInitiativeDraft />);
+    await user.type(await nameField(), 'Data lake');
+    await user.click(screen.getByRole('combobox', { name: 'Team' }));
+    await user.click(await screen.findByRole('option', { name: 'Payments' }));
+
+    failInitiativePut = true;
+    await user.click(screen.getByRole('button', { name: 'Create initiative' }));
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Create initiative' })).toBeEnabled());
+    expect(window.location.hash).toBe('');
+    expect(await nameField()).toHaveValue('Data lake');
+
+    failInitiativePut = false;
+    await user.click(screen.getByRole('button', { name: 'Create initiative' }));
+    await vi.waitFor(() => expect(window.location.hash).toMatch(/^#\/initiatives\/./));
+    expect(initiativePuts()).toHaveLength(1);
+  });
+
+  it('Create initiative writes one commit and the initiative page replaces the draft', async () => {
+    const user = userEvent.setup();
+    renderWith(<NewInitiativeDraft />);
+    await user.type(await nameField(), 'Payments API v2');
+    await user.click(screen.getByRole('combobox', { name: 'Team' }));
+    await user.click(await screen.findByRole('option', { name: 'Payments' }));
+    await user.click(screen.getByRole('button', { name: 'Create initiative' }));
 
     await vi.waitFor(() => expect(initiativePuts()).toHaveLength(1));
+    expect(initiativePuts()[0].body.message).toBe('Payments API v2: created');
     const saved = JSON.parse(atob(initiativePuts()[0].body.content));
     expect(saved).toMatchObject({ name: 'Payments API v2', teamId: 't1', status: 'Active' });
     expect(window.location.hash).toBe(`#/initiatives/${saved.id}`);
   });
 
-  it('leaving the name field with a name typed saves too', async () => {
+  it('Enter in the name field creates once a team is chosen', async () => {
     const user = userEvent.setup();
     renderWith(<NewInitiativeDraft />);
-    await user.type(await nameField(), 'Loyalty pilot');
-    await user.tab();
-    await user.click(document.body);
+    const field = await nameField();
+    await user.click(screen.getByRole('combobox', { name: 'Team' }));
+    await user.click(await screen.findByRole('option', { name: 'Payments' }));
+    await user.click(field);
+    await user.type(field, 'Data lake{Enter}');
     await vi.waitFor(() => expect(initiativePuts()).toHaveLength(1));
   });
 
-  it('saves nothing while the name is empty', async () => {
+  it('Enter with no team yet moves focus to the team selector and saves nothing', async () => {
     const user = userEvent.setup();
     renderWith(<NewInitiativeDraft />);
-    await user.type(await nameField(), '   {Enter}');
-    await user.click(document.body);
+    await user.type(await nameField(), 'Data lake{Enter}');
+    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveFocus();
     expect(initiativePuts()).toHaveLength(0);
-    expect(window.location.hash).not.toMatch(/^#\/initiatives\/(?!new)/);
   });
 
-  it('Esc discards the draft and returns to the Portfolio', async () => {
+  it('changing the team before creating changes the selection and saves nothing', async () => {
+    const user = userEvent.setup();
+    teams = TWO_TEAMS;
+    renderWith(<NewInitiativeDraft />);
+    await user.type(await nameField(), 'Checkout redo');
+    await user.click(screen.getByRole('combobox', { name: 'Team' }));
+    await user.click(await screen.findByRole('option', { name: 'Platform' }));
+    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Platform');
+    await user.click(screen.getByRole('combobox', { name: 'Team' }));
+    await user.click(await screen.findByRole('option', { name: 'Payments' }));
+    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Payments');
+    expect(initiativePuts()).toHaveLength(0);
+  });
+
+  it('Esc discards the draft and returns to the Portfolio, saving nothing', async () => {
     const user = userEvent.setup();
     renderWith(<NewInitiativeDraft />);
     await user.type(await nameField(), 'Never mind{Escape}');
@@ -127,35 +220,14 @@ describe('New initiative: name it on the page (§5.1, §5.4)', () => {
     expect(initiativePuts()).toHaveLength(0);
   });
 
-  it('with several teams and none used before, asks for a team and saves once one is chosen', async () => {
+  it('Esc with the team dropdown open only closes the dropdown', async () => {
     const user = userEvent.setup();
-    teams = TWO_TEAMS;
     renderWith(<NewInitiativeDraft />);
-    const field = await nameField();
-    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Choose team');
-
-    await user.type(field, 'Data lake{Enter}');
-    expect(initiativePuts()).toHaveLength(0);
-
+    await nameField();
+    window.location.hash = '#/initiatives/new';
     await user.click(screen.getByRole('combobox', { name: 'Team' }));
-    await user.click(await screen.findByRole('option', { name: 'Platform' }));
-    await vi.waitFor(() => expect(initiativePuts()).toHaveLength(1));
-    expect(JSON.parse(atob(initiativePuts()[0].body.content))).toMatchObject({ name: 'Data lake', teamId: 't2' });
-  });
-
-  it('defaults to the team used last, and changing the team before saving is respected', async () => {
-    const user = userEvent.setup();
-    teams = TWO_TEAMS;
-    localStorage.setItem('initiative-planner/last-used-team', 't2');
-    renderWith(<NewInitiativeDraft />);
-    const field = await nameField();
-    expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Platform');
-
-    await user.type(field, 'Checkout redo');
-    await user.click(screen.getByRole('combobox', { name: 'Team' }));
-    await user.click(await screen.findByRole('option', { name: 'Payments' }));
-    await vi.waitFor(() => expect(initiativePuts()).toHaveLength(1));
-    expect(JSON.parse(atob(initiativePuts()[0].body.content))).toMatchObject({ teamId: 't1' });
-    expect(localStorage.getItem('initiative-planner/last-used-team')).toBe('t1');
+    await screen.findByRole('option', { name: 'Payments' });
+    await user.keyboard('{Escape}');
+    expect(window.location.hash).toBe('#/initiatives/new');
   });
 });

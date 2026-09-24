@@ -1,14 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { formatDateField, parseDateText } from '../data/dates';
+import { formatDateField, localIso, localToday, parseDateText, parseIso } from '../data/dates';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { CalendarIcon } from './icons';
 
-const toIso = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const fromIso = (iso: string) => {
-  const [y, m, d] = iso.split('-').map(Number);
+const fromIso = (isoDate: string) => {
+  const [y, m, d] = parseIso(isoDate);
   return new Date(y, m - 1, d);
 };
 
@@ -36,7 +34,7 @@ export function DateInput({
   const [draft, setDraft] = useState(value ? formatDateField(value) : '');
   const [unreadable, setUnreadable] = useState(false);
   const [open, setOpen] = useState(false);
-  const [month, setMonth] = useState<Date>(() => fromIso(value ?? openOn ?? toIso(new Date())));
+  const [month, setMonth] = useState<Date>(() => fromIso(value ?? openOn ?? localToday()));
   const errorId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -64,7 +62,7 @@ export function DateInput({
 
   const openCalendar = () => {
     if (open) return;
-    if (!value) setMonth(fromIso(parseDateText(draft) ?? openOn ?? toIso(new Date())));
+    if (!value) setMonth(fromIso(parseDateText(draft) ?? openOn ?? localToday()));
     setOpen(true);
   };
 
@@ -130,7 +128,7 @@ export function DateInput({
             month={month}
             onMonthChange={setMonth}
             onSelect={(date) => {
-              if (date) onChange(toIso(date));
+              if (date) onChange(localIso(date));
               setOpen(false);
               inputRef.current?.focus();
             }}

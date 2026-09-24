@@ -173,12 +173,12 @@ export function PeopleOverview() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="text-left text-text-secondary">
-                  <SortableHeader label="Name" sortKey="name" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
-                  <SortableHeader label="Role" sortKey="role" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
-                  <SortableHeader label="Country" sortKey="country" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
-                  <SortableHeader label="Team(s)" sortKey="teams" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
-                  <SortableHeader label="Capacity" sortKey="capacity" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} align="right" />
-                  <SortableHeader label="Status" sortKey="status" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
+                  <SortableHeader label="Name" sortKey="name" sort={sort} />
+                  <SortableHeader label="Role" sortKey="role" sort={sort} />
+                  <SortableHeader label="Country" sortKey="country" sort={sort} />
+                  <SortableHeader label="Team(s)" sortKey="teams" sort={sort} />
+                  <SortableHeader label="Capacity" sortKey="capacity" sort={sort} align="right" />
+                  <SortableHeader label="Status" sortKey="status" sort={sort} />
                   <th className="border-b border-border-default px-3 py-2">
                     <span className="sr-only">Actions</span>
                   </th>

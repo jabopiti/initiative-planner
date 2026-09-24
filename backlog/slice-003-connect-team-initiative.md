@@ -38,6 +38,8 @@ initiative that appears on the Portfolio board.
   only; the team appears as a card.
 - New initiative (§5.1, §6): name + team required, created via the top
   bar; team defaults to the one last used or the only active team.
+  (Superseded by slice 005d: the team is never chosen for the user, and
+  the initiative is created by Create initiative, not by Enter alone.)
 - Portfolio board (§5.2): the new initiative appears as a card in its
   process's first phase column; the empty-board and empty-Teams states
   (§9.4) show one line and one primary action each.
@@ -95,6 +97,8 @@ anything to guide toward.
 - [x] Given at least one team exists, when the user clicks New initiative,
       types a name, and presses Enter, then the initiative's page opens
       and the initiative appears on the Portfolio board.
+      (Superseded by slice 005d: a team must be chosen first, then Create
+      initiative or Enter creates it.)
 - [x] Given the Portfolio has no initiatives, when it loads, then it shows
       one line and one primary action instead of an empty board.
 

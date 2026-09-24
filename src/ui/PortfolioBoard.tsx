@@ -7,10 +7,9 @@ import { navigate } from '../router/useHashRoute';
 import { EmptyState } from './EmptyState';
 
 /**
- * Portfolio overview (§5.2), scoped to slice 003: the board and its two
- * empty states. Filters, key metrics, the Getting started strip and the
- * Needs attention strip are later work (§8.5 and richer §5.2 depend on
- * data slice 003 doesn't create yet).
+ * Portfolio overview (§5.2): the board and its two empty states. Filters,
+ * key metrics, the Getting started strip and the Needs attention strip are
+ * later work (§8.5 and richer §5.2 depend on gate data that isn't built yet).
  */
 export function PortfolioBoard() {
   const brand = useBrand();

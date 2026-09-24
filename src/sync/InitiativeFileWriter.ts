@@ -13,12 +13,19 @@ const MAX_RETRIES = 3;
  * writer behind the master files. The same rules apply: debounce, then commit with a plain-words
  * message (§10.3), and on a 409 re-read, three-way merge and retry (§10.5).
  */
+interface WriteOpts {
+  sha?: string;
+  local?: Initiative;
+  flush?: number;
+}
+
 export class InitiativeFileWriter {
   private pending: Initiative | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private retriesRemaining = MAX_RETRIES;
+  /** Numbers each flush; a write that is not the newest one has later edits behind it. */
+  private flushCount = 0;
   private notes = new Map<string, string>();
-  private message: string;
 
   constructor(
     private readonly path: string,
@@ -29,9 +36,7 @@ export class InitiativeFileWriter {
     private readonly onConflict: (conflict: FileConflict<unknown>) => void,
     private readonly onMerged: (content: Initiative) => void,
     private synced: { content: Initiative; sha: string },
-  ) {
-    this.message = `${path}: update`;
-  }
+  ) {}
 
   /** Apply an edit to the in-memory value now and commit it once edits settle; a repeated `key` replaces its note. */
   schedule(next: Initiative, note?: { key: string; text: string }): void {
@@ -53,27 +58,40 @@ export class InitiativeFileWriter {
     if (this.pending === null) return;
     const mine = this.pending;
     this.pending = null;
-    this.message = this.notes.size > 0 ? [...this.notes.values()].join('; ') : `${this.path}: update`;
+    const message = this.notes.size > 0 ? [...this.notes.values()].join('; ') : `${this.path}: update`;
     this.notes.clear();
     this.retriesRemaining = MAX_RETRIES;
-    await this.attemptWrite(mine, this.synced.sha);
+    await this.attemptWrite(mine, message, { flush: (this.flushCount += 1) });
   }
 
-  private async attemptWrite(mine: Initiative, sha: string): Promise<void> {
+  /**
+   * Puts `sent` to the file. `sha` is read when the write reaches the front of the queue (a write
+   * queued behind an earlier one would otherwise carry a stale sha and always conflict), unless the
+   * caller has just fetched one. `local` is the value the user's edits were built on, when `sent`
+   * is a merge of it with the repository's version. `flush` numbers the write (absent for a resolution).
+   */
+  private async attemptWrite(sent: Initiative, message: string, opts: WriteOpts = {}): Promise<void> {
+    const { sha, local = sent, flush = this.flushCount } = opts;
     try {
       const result = await this.queue.run(() =>
-        this.github.putFile({ path: this.path, branch: this.branch, content: JSON.stringify(mine), message: this.message, sha }),
+        this.github.putFile({ path: this.path, branch: this.branch, content: JSON.stringify(sent), message, sha: sha ?? this.synced.sha }),
       );
       // The in-memory value already holds this edit (schedule applied it), and edits made while this
-      // write was in flight are newer, so success reports nothing back into state.
-      this.synced = { content: mine, sha: result.sha };
-      this.onStatusChange('synced');
+      // write was in flight are newer, so success reports nothing back into state, and reports
+      // synced only when no newer edit is waiting for its own write.
+      this.synced = { content: sent, sha: result.sha };
+      if (this.pending === null && flush === this.flushCount) this.onStatusChange('synced');
+      else if (this.pending !== null && sent !== local) {
+        // The write was a merge with the repository's version: carry it into the newer edits.
+        this.pending = mergeInitiative(local, this.pending, sent).merged;
+        this.onMerged(this.pending);
+      }
     } catch (error) {
-      await this.handleWriteFailure(error, mine);
+      await this.handleWriteFailure(error, sent, message, flush);
     }
   }
 
-  private async handleWriteFailure(error: unknown, mine: Initiative): Promise<void> {
+  private async handleWriteFailure(error: unknown, mine: Initiative, message: string, flush: number): Promise<void> {
     if (!(error instanceof GithubApiError) || error.cause_ !== 'conflict') {
       this.onStatusChange({ readOnly: toReadOnlyState(error, 'Something went wrong saving this change.') });
       return;
@@ -84,13 +102,13 @@ export class InitiativeFileWriter {
     }
     this.retriesRemaining -= 1;
     try {
-      await this.retryAfterConflict(mine);
+      await this.retryAfterConflict(mine, message, flush);
     } catch (retryError) {
       this.onStatusChange({ readOnly: toReadOnlyState(retryError, 'Could not save this change after a conflict.') });
     }
   }
 
-  private async retryAfterConflict(mine: Initiative): Promise<void> {
+  private async retryAfterConflict(mine: Initiative, message: string, flush: number): Promise<void> {
     const theirsFile = await this.github.getFile({ path: this.path, branch: this.branch });
     if (!theirsFile) throw new Error('The initiative file is gone from the repository.');
     const theirs = parseJsonFile(theirsFile, mine);
@@ -98,8 +116,10 @@ export class InitiativeFileWriter {
 
     if (conflicts.length === 0) {
       this.synced = { content: theirs, sha: theirsFile.sha };
-      this.onMerged(merged); // carries what the other writer changed into what the user sees
-      await this.attemptWrite(merged, theirsFile.sha);
+      // Carries what the other writer changed into what the user sees, unless newer edits are waiting:
+      // attemptWrite then rebases those onto the merge once it has landed.
+      if (this.pending === null) this.onMerged(merged);
+      await this.attemptWrite(merged, message, { sha: theirsFile.sha, local: mine, flush });
       return;
     }
 
@@ -116,11 +136,15 @@ export class InitiativeFileWriter {
         resolve: (choice) => {
           const resolved = conflict.apply(this.synced.content, choice === 'mine' ? conflict.mine : conflict.theirs);
           this.onMerged(resolved);
-          return this.attemptWrite(resolved, this.synced.sha);
+          return this.attemptWrite(resolved, message);
         },
       });
     }
-    this.onMerged(merged);
-    this.onStatusChange('synced');
+    if (this.pending === null) this.onMerged(merged);
+    else {
+      this.pending = mergeInitiative(mine, this.pending, merged).merged;
+      this.onMerged(this.pending);
+    }
+    if (this.pending === null) this.onStatusChange('synced');
   }
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
-import { claimedFtePct } from '../data/capacity';
+import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
+import { roleLabel } from '../data/roleLabel';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
 import { PercentInput } from './PercentInput';
 import { CopyButton } from './CopyButton';
@@ -28,7 +29,7 @@ export function TeamDetail({ id }: { id: string }) {
         .flatMap((m) => {
           const person = people.find((p) => p.id === m.personId);
           if (!person) return [];
-          return [{ membership: m, person, roleName: roles.find((r) => r.id === person.roleId)?.name ?? '—' }];
+          return [{ membership: m, person, roleName: roleLabel(person, roles) }];
         }),
     [memberships, people, roles, id],
   );
@@ -125,21 +126,18 @@ export function TeamDetail({ id }: { id: string }) {
               role="listbox"
               className="absolute z-10 m-0 mt-1 w-full list-none rounded-md border border-border-default bg-surface-card p-1 shadow-md"
             >
-              {matches.map((p) => {
-                const held = claimedFtePct(p.id, memberships);
-                return (
-                  <li key={p.id} role="option" aria-selected={false}>
-                    <button
-                      type="button"
-                      className="flex w-full cursor-pointer justify-between rounded-sm border-0 bg-transparent px-2 py-1.5 text-left text-sm hover:bg-surface-subtle"
-                      onClick={() => addExisting(p.id)}
-                    >
-                      <span>{p.name}</span>
-                      <span className="text-text-secondary">{Math.max(0, p.capacityPct - held)}% unclaimed</span>
-                    </button>
-                  </li>
-                );
-              })}
+              {matches.map((p) => (
+                <li key={p.id} role="option" aria-selected={false}>
+                  <button
+                    type="button"
+                    className="flex w-full cursor-pointer justify-between rounded-sm border-0 bg-transparent px-2 py-1.5 text-left text-sm hover:bg-surface-subtle"
+                    onClick={() => addExisting(p.id)}
+                  >
+                    <span>{p.name}</span>
+                    <span className="text-text-secondary">{unclaimedCapacityPct(p, memberships)}% unclaimed</span>
+                  </button>
+                </li>
+              ))}
               {!exact && (
                 <li role="option" aria-selected={false}>
                   <button
@@ -164,9 +162,9 @@ export function TeamDetail({ id }: { id: string }) {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="text-left text-text-secondary">
-                <SortableHeader label="Name" sortKey="name" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
-                <SortableHeader label="Role" sortKey="role" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
-                <SortableHeader label="Team FTE %" sortKey="fte" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
+                <SortableHeader label="Name" sortKey="name" sort={sort} />
+                <SortableHeader label="Role" sortKey="role" sort={sort} />
+                <SortableHeader label="Team FTE %" sortKey="fte" sort={sort} />
                 <th className="border-b border-border-default px-3 py-2">
                   <span className="sr-only">Actions</span>
                 </th>

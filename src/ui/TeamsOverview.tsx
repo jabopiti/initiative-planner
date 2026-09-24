@@ -2,16 +2,17 @@ import { useMemo, useRef, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { currentPhaseId } from '../data/processState';
+import { navigate } from '../router/useHashRoute';
 import { EmptyState } from './EmptyState';
 import { PlusIcon } from './icons';
 import { CopyButton } from './CopyButton';
 import { SortableHeader } from './SortableHeader';
 import { TruncatedText } from './TruncatedText';
-import { sortRows, useTableSort } from './tableSort';
+import { sortRows, useTableSort, type SortValue } from './tableSort';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-/** Teams overview (§5.7), scoped to slice 003: name, size, per-phase initiative counts, and New team. */
+/** Teams overview (§5.7): name, size, per-phase initiative counts, and New team. */
 export function TeamsOverview() {
   const brand = useBrand();
   const repository = useRepository();
@@ -44,7 +45,7 @@ export function TeamsOverview() {
   );
 
   const sorted = useMemo(() => {
-    const columns: Record<string, (r: (typeof rows)[number]) => string | number> = {
+    const columns: Record<string, (r: (typeof rows)[number]) => SortValue> = {
       name: (r) => r.team.name,
       members: (r) => r.members,
     };
@@ -114,16 +115,14 @@ export function TeamsOverview() {
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="text-left text-text-secondary">
-            <SortableHeader label="Name" sortKey="name" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} />
-            <SortableHeader label="Members" sortKey="members" activeKey={sort.key} dir={sort.dir} onSort={sort.toggle} align="right" />
+            <SortableHeader label="Name" sortKey="name" sort={sort} />
+            <SortableHeader label="Members" sortKey="members" sort={sort} align="right" />
             {brand.process.map((phase) => (
               <SortableHeader
                 key={phase.id}
                 label={phase.label}
                 sortKey={`phase:${phase.id}`}
-                activeKey={sort.key}
-                dir={sort.dir}
-                onSort={sort.toggle}
+                sort={sort}
                 align="right"
               />
             ))}
@@ -134,8 +133,9 @@ export function TeamsOverview() {
             <tr
               key={team.id}
               className={`cursor-pointer border-b border-border-default ${team.active ? '' : 'text-text-secondary'}`}
-              onClick={() => {
-                window.location.hash = `#/teams/${team.id}`;
+              onClick={(e) => {
+                // A click on the name link is the link's own (Cmd-click opens a new tab, without also leaving this one).
+                if (!(e.target as HTMLElement).closest('a')) navigate(`/teams/${team.id}`);
               }}
             >
               <td className="px-3 py-2 font-medium">
