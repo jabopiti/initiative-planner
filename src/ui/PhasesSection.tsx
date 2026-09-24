@@ -91,7 +91,7 @@ function CostedPhase({
       </p>
     ) : addable.length > 0 ? (
       <div className="flex items-center gap-2">
-        <PlusIcon width={16} height={16} className={needsPeople ? 'text-accent-text' : 'text-text-secondary'} />
+        <PlusIcon width={16} height={16} className={needsPeople ? 'text-brand-accent-text' : 'text-text-secondary'} />
         <Select
           value=""
           onValueChange={(personId) => {
@@ -100,7 +100,7 @@ function CostedPhase({
           }}
         >
           <SelectTrigger
-            className={`w-64 ${needsPeople ? 'border-accent bg-surface-card font-medium text-accent-text' : ''}`}
+            className={`w-64 ${needsPeople ? 'border-brand-accent bg-surface-card font-medium text-brand-accent-text' : ''}`}
             aria-label={`Add person to ${phase.label}`}
           >
             <SelectValue placeholder="Add person" />
@@ -133,9 +133,9 @@ function CostedPhase({
         {hasPeriod ? (
           <span className="text-text-secondary">{formatPeriod(plan.startDate!, plan.endDate!)}</span>
         ) : (
-          <span className="font-medium text-accent-text">Set period</span>
+          <span className="font-medium text-brand-accent-text">Set period</span>
         )}
-        {plan.allocations.length === 0 && <span className="font-medium text-accent-text">· Add people</span>}
+        {plan.allocations.length === 0 && <span className="font-medium text-brand-accent-text">· Add people</span>}
         <span className="ml-auto font-medium tabular-nums">{costed ? formatAmount(total, currencySymbol) : '—'}</span>
         <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary">Estimate</span>
       </button>
@@ -143,10 +143,10 @@ function CostedPhase({
       {expanded && (
         <div id={bodyId} className="flex flex-col gap-4 border-t border-border-default px-3 py-3">
           <div
-            className={`flex flex-col gap-2 rounded-md ${needsPeriod ? 'border border-accent bg-accent-tint p-3' : ''}`}
+            className={`flex flex-col gap-2 rounded-md ${needsPeriod ? 'border border-brand-accent bg-brand-accent-tint p-3' : ''}`}
             data-highlight={needsPeriod || undefined}
           >
-            {needsPeriod && <p className="m-0 text-sm font-medium text-accent-text">Set the period to calculate cost.</p>}
+            {needsPeriod && <p className="m-0 text-sm font-medium text-brand-accent-text">Set the period to calculate cost.</p>}
             <div className="flex flex-wrap items-start gap-4">
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-text-secondary">Start date</span>
@@ -178,10 +178,10 @@ function CostedPhase({
 
           {plan.allocations.length === 0 ? (
             <div
-              className={`flex flex-col items-start gap-2 rounded-md border border-dashed p-3 ${needsPeople ? 'border-accent bg-accent-tint' : 'border-border-strong'}`}
+              className={`flex flex-col items-start gap-2 rounded-md border border-dashed p-3 ${needsPeople ? 'border-brand-accent bg-brand-accent-tint' : 'border-border-strong'}`}
               data-highlight={needsPeople || undefined}
             >
-              <p className={`m-0 text-sm ${needsPeople ? 'font-medium text-accent-text' : 'text-text-secondary'}`}>
+              <p className={`m-0 text-sm ${needsPeople ? 'font-medium text-brand-accent-text' : 'text-text-secondary'}`}>
                 Who works on {phase.label}? Add a team member to see this phase&apos;s cost.
               </p>
               {picker}

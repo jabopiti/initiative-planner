@@ -76,7 +76,7 @@ export function DateInput({
             <Input
               ref={inputRef}
               type="text"
-              className={`w-full pr-9 ${highlight ? 'border-accent bg-accent-tint' : ''}`}
+              className={`w-full pr-9 ${highlight ? 'border-brand-accent bg-brand-accent-tint' : ''}`}
               aria-label={label}
               aria-invalid={unreadable || undefined}
               aria-describedby={unreadable ? errorId : undefined}
