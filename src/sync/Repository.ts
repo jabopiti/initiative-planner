@@ -19,11 +19,12 @@ import { allocationRefusal } from '../data/cost';
 import { formatDate } from '../data/dates';
 import { localToday } from '../data/dates';
 import { buildDefaultPlan } from '../data/defaultPlan';
-import { frozenPaths } from '../data/frozen';
+import { frozenPaths, isPhaseFrozen } from '../data/frozen';
 import { toReadOnlyState, type GithubFailureCause, type ReadOnlyState } from '../github/errors';
 import { GithubClient, parseJsonFile } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
+import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
 import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
 import { mergeDocument } from './merge';
 import { WriteQueue } from './WriteQueue';
@@ -55,6 +56,20 @@ export interface NewPersonInput {
 
 /** Why an allocation wasn't added (§7.2), in words the page can show as is. */
 export type AddAllocationResult = { ok: true; allocation: Allocation } | { ok: false; reason: string };
+
+/** What a team change did, kept by the page for the 10 seconds it can be undone (§5.11). */
+export interface TeamChange {
+  fromTeamId: string;
+  toTeamId: string;
+  removed: RemovedAllocation[];
+}
+
+/** `allocation` put at `index` of `allocations`, or at the end when the list has since become shorter. */
+function insertAllocation(allocations: Allocation[], allocation: Allocation, index: number): Allocation[] {
+  const next = [...allocations];
+  next.splice(Math.min(index, next.length), 0, allocation);
+  return next;
+}
 
 type Listener = () => void;
 
@@ -619,13 +634,83 @@ export class Repository {
     this.editPhase(
       initiativeId,
       phaseId,
-      (plan) => {
-        const allocations = [...plan.allocations];
-        allocations.splice(Math.min(index, allocations.length), 0, allocation);
-        return { ...plan, allocations };
-      },
+      (plan) => ({ ...plan, allocations: insertAllocation(plan.allocations, allocation, index) }),
       { key: allocation.id, text: (name, phase) => `${name}: ${phase} allocation restored (${this.personName(allocation.personId)})` },
     );
+  }
+
+  /**
+   * What moving an initiative to another team would remove (§7.2), for the confirmation; nothing changes. Null when
+   * nothing can change: an unknown initiative or team, the team it already has, or a Closed or Cancelled
+   * initiative. `isLocked` is the phase-locked predicate (§8.1), replaceable so a test can supply a locked phase.
+   */
+  previewTeamChange(initiativeId: string, teamId: string, isLocked?: (phaseId: string) => boolean): TeamChangePlan | null {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    if (!initiative || initiative.teamId === teamId || initiative.status === 'Closed' || initiative.status === 'Cancelled') return null;
+    if (!this.state.teams.some((t) => t.id === teamId)) return null;
+    return planTeamChange({
+      initiative,
+      newTeamId: teamId,
+      process: this.brand.process,
+      people: this.state.people,
+      memberships: this.state.memberships,
+      rateData: this.state,
+      isLocked: isLocked ?? ((phaseId) => isPhaseFrozen(initiative, phaseId)),
+    });
+  }
+
+  /**
+   * Move an initiative to another team (§5.4, §7.2): from every phase that is not locked, the allocations of
+   * people who are not active members of the new team go, in the same single commit. Null when
+   * {@link previewTeamChange} is.
+   */
+  changeTeam(initiativeId: string, teamId: string, isLocked?: (phaseId: string) => boolean): TeamChange | null {
+    const plan = this.previewTeamChange(initiativeId, teamId, isLocked);
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    if (!plan || !initiative) return null;
+
+    const { removed } = plan;
+    const gone = new Set(removed.map((r) => r.allocation.id));
+    const next: Initiative = { ...initiative, teamId };
+    if (initiative.phases && gone.size > 0) {
+      // Only the phases that lose something are rebuilt; the others keep their objects.
+      const phases = { ...initiative.phases };
+      for (const phaseId of new Set(removed.map((r) => r.phaseId))) {
+        phases[phaseId] = { ...phases[phaseId], allocations: phases[phaseId].allocations.filter((a) => !gone.has(a.id)) };
+      }
+      next.phases = phases;
+    }
+    const tail = removed.length > 0 ? `, ${allocationCount(removed.length)} removed` : '';
+    this.commitTeam(next, `${initiative.name}: team changed from ${this.teamName(initiative.teamId)} to ${this.teamName(teamId)}${tail}`);
+    return { fromTeamId: initiative.teamId, toTeamId: teamId, removed };
+  }
+
+  /**
+   * Undo of {@link changeTeam}: the previous team, and each removed allocation back in its place with its
+   * own id, as a normal edit. A phase locked since then keeps what it has (§8.1), and an allocation that is
+   * already there is not added twice.
+   */
+  restoreTeam(initiativeId: string, change: TeamChange, isLocked?: (phaseId: string) => boolean): void {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    if (!initiative) return;
+    const locked = isLocked ?? ((phaseId) => isPhaseFrozen(initiative, phaseId));
+    const phases = { ...initiative.phases };
+    let restored = 0;
+    // Ascending by index, so each insert lands where the allocation was once the ones before it are back.
+    for (const { phaseId, allocation, index } of [...change.removed].sort((a, b) => a.index - b.index)) {
+      const plan = phases[phaseId];
+      if (!plan || locked(phaseId) || plan.allocations.some((a) => a.id === allocation.id)) continue;
+      phases[phaseId] = { ...plan, allocations: insertAllocation(plan.allocations, allocation, index) };
+      restored += 1;
+    }
+    const next: Initiative = { ...initiative, teamId: change.fromTeamId, ...(initiative.phases && { phases }) };
+    const tail = restored > 0 ? `, ${allocationCount(restored)} restored` : '';
+    this.commitTeam(next, `${initiative.name}: team changed back from ${this.teamName(change.toTeamId)} to ${this.teamName(change.fromTeamId)}${tail}`);
+  }
+
+  private commitTeam(next: Initiative, text: string): void {
+    this.replaceInitiative(next);
+    this.initiativeWriters.get(next.id)?.schedule(next, { key: 'team', text });
   }
 
   /**
