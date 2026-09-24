@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
 import { fileCache } from '../cache/db';
 import { GithubClient } from '../github/client';
-import { DebouncedFileWriter, type FileConflict, type WriteStatus } from './DebouncedFileWriter';
+import { mergeListDocument } from './documentMerge';
+import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
 import { WriteQueue } from './WriteQueue';
 
 const location: GithubLocation = {
@@ -23,11 +24,11 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
 }
 
-describe('DebouncedFileWriter — §10.3 debounce + §10.5 409-retry-with-merge', () => {
+describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-merge', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   let github: GithubClient;
   let statuses: WriteStatus[];
-  let conflicts: FileConflict<Team>[];
+  let conflicts: FileConflict[];
   let committed: Team[][];
 
   beforeEach(() => {
@@ -44,16 +45,18 @@ describe('DebouncedFileWriter — §10.3 debounce + §10.5 409-retry-with-merge'
   });
 
   function makeWriter(initial: { content: Team[]; sha: string }) {
-    return new DebouncedFileWriter<Team>(
-      'teams.json',
-      location.dataBranch,
+    return new FileWriter<Team[]>({
+      path: 'teams.json',
+      branch: location.dataBranch,
       github,
-      new WriteQueue(),
-      (s) => statuses.push(s),
-      (c) => conflicts.push(c),
-      (content) => committed.push(content),
+      queue: new WriteQueue(),
+      merge: mergeListDocument,
+      whenMissing: [],
       initial,
-    );
+      onStatus: (s) => statuses.push(s),
+      onConflict: (c) => conflicts.push(c),
+      onDocument: (content) => committed.push(content),
+    });
   }
 
   it('groups an edit into one commit after 1s, against the last-seen sha, on the data branch', async () => {
@@ -204,12 +207,12 @@ describe('DebouncedFileWriter — §10.3 debounce + §10.5 409-retry-with-merge'
     const conflictA = conflicts.find((c) => c.itemId === 'tA')!;
     const conflictB = conflicts.find((c) => c.itemId === 'tB')!;
 
-    // Resolve A ("use mine"), then B ("keep theirs") — each against whatever is current when it runs.
+    // Resolve A ("use mine"), then B ("use mine" too: "keep theirs" with nothing else to write makes no commit) — each against whatever is current when it runs.
     fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
     await conflictA.resolve('mine');
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's3' } }));
-    await conflictB.resolve('theirs');
+    await conflictB.resolve('mine');
 
     const putCalls = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
     expect(putCalls).toHaveLength(3); // initial (409'd) + A's resolve + B's resolve
@@ -220,7 +223,7 @@ describe('DebouncedFileWriter — §10.3 debounce + §10.5 409-retry-with-merge'
 
     const finalTeams = JSON.parse(atob(bResolveBody.content)) as Team[];
     expect(finalTeams.find((t) => t.id === 'tA')?.name).toBe('My A'); // A's resolution preserved
-    expect(finalTeams.find((t) => t.id === 'tB')?.name).toBe('Their B'); // B's own resolution applied
+    expect(finalTeams.find((t) => t.id === 'tB')?.name).toBe('My B'); // B's own resolution applied
   });
 
   it('reports a synced status even when the local IndexedDB cache write fails, since the GitHub write already succeeded', async () => {
@@ -246,7 +249,7 @@ describe('DebouncedFileWriter — §10.3 debounce + §10.5 409-retry-with-merge'
       .mockResolvedValueOnce(jsonResponse({ message: 'Conflict' }, 409))
       .mockRejectedValueOnce(new Error('network dropped mid-retry'));
 
-    await expect(writer.flush()).resolves.toBeUndefined(); // never throws/rejects out to the caller
+    await expect(writer.flush()).resolves.toBe('failed'); // never throws/rejects out to the caller
 
     const last = statuses.at(-1);
     expect(typeof last === 'object' && last !== null && 'readOnly' in last).toBe(true);
