@@ -457,6 +457,101 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     expect(repo.getState().initiatives[0].phases!.validation.allocations).toEqual([added.allocation]);
   });
 
+  describe('changing the team (§7.2)', () => {
+    async function withTwoTeams() {
+      const ctx = await repoWithInitiative();
+      const growth = ctx.repo.createTeam('Growth');
+      ctx.repo.addMembership(ctx.member.id, growth.id); // Ana is on both teams
+      const bo = ctx.repo.createPerson({ name: 'Bo Lin', countryId: 'c1', roleId: 'r1' });
+      const boMembership = ctx.repo.addMembership(bo.id, ctx.initiative.teamId)!;
+      ctx.repo.updateMembership(boMembership.id, { teamFtePct: 40 });
+      const ana = ctx.repo.addAllocation(ctx.initiative.id, 'validation', ctx.member.id);
+      const boAlloc = ctx.repo.addAllocation(ctx.initiative.id, 'validation', bo.id);
+      const boDev = ctx.repo.addAllocation(ctx.initiative.id, 'development', bo.id);
+      if (!ana.ok || !boAlloc.ok || !boDev.ok) throw new Error('expected the allocations to be added');
+      await ctx.repo.flushPending();
+      commits.length = 0;
+      return { ...ctx, growth, bo, ana: ana.allocation, boAlloc: boAlloc.allocation, boDev: boDev.allocation };
+    }
+
+    it('moves the initiative and removes only the non-members from the open phases, in one commit naming both teams and the count', async () => {
+      const { repo, initiative, growth, ana } = await withTwoTeams();
+      const result = repo.changeTeam(initiative.id, growth.id)!;
+      expect(result.removed).toHaveLength(2);
+      const changed = repo.getState().initiatives[0];
+      expect(changed.teamId).toBe(growth.id);
+      expect(changed.phases!.validation.allocations).toEqual([ana]);
+      expect(changed.phases!.development.allocations).toEqual([]);
+
+      await repo.flushPending();
+      expect(commits).toHaveLength(1);
+      expect(commits[0].message).toBe('Payments API: team changed from Payments to Growth, 2 allocations removed');
+      expect(commits[0].content.teamId).toBe(growth.id);
+    });
+
+    it('changes the team with a plain message when no allocation goes', async () => {
+      const { repo, initiative, growth } = await repoWithInitiative().then(async (ctx) => ({ ...ctx, growth: ctx.repo.createTeam('Growth') }));
+      const result = repo.changeTeam(initiative.id, growth.id)!;
+      expect(result.removed).toEqual([]);
+      await repo.flushPending();
+      expect(commits.map((c) => c.message)).toEqual(['Payments API: team changed from Payments to Growth']);
+    });
+
+    it('says "1 allocation" for one', async () => {
+      const { repo, initiative, growth, boAlloc } = await withTwoTeams();
+      repo.removeAllocation(initiative.id, 'validation', boAlloc.id);
+      await repo.flushPending();
+      commits.length = 0;
+      repo.changeTeam(initiative.id, growth.id);
+      await repo.flushPending();
+      expect(commits[0].message).toBe('Payments API: team changed from Payments to Growth, 1 allocation removed');
+    });
+
+    it('leaves a locked phase untouched', async () => {
+      const { repo, initiative, growth, boAlloc } = await withTwoTeams();
+      const result = repo.changeTeam(initiative.id, growth.id, (phaseId) => phaseId === 'validation')!;
+      expect(result.removed.map((r) => r.phaseId)).toEqual(['development']);
+      const phases = repo.getState().initiatives[0].phases!;
+      expect(phases.validation.allocations).toContainEqual(boAlloc);
+      expect(phases.validation.allocations).toHaveLength(2);
+    });
+
+    it('is refused for the current team and for a team that does not exist', async () => {
+      const { repo, initiative } = await withTwoTeams();
+      expect(repo.changeTeam(initiative.id, initiative.teamId)).toBeNull();
+      expect(repo.changeTeam(initiative.id, 'no-such-team')).toBeNull();
+      expect(repo.getState().initiatives[0].teamId).toBe(initiative.teamId);
+    });
+
+    it('undo puts back the team and the removed allocations in their places, as a normal edit', async () => {
+      const { repo, initiative, growth, member, boAlloc, boDev } = await withTwoTeams();
+      const before = repo.getState().initiatives[0].phases;
+      const result = repo.changeTeam(initiative.id, growth.id)!;
+      await repo.flushPending();
+      commits.length = 0;
+
+      repo.restoreTeam(initiative.id, result);
+      const restored = repo.getState().initiatives[0];
+      expect(restored.teamId).toBe(initiative.teamId);
+      expect(restored.phases).toEqual(before);
+      expect(restored.phases!.validation.allocations.map((a) => a.personId)).toEqual([member.id, boAlloc.personId]);
+      expect(restored.phases!.development.allocations).toEqual([boDev]);
+
+      await repo.flushPending();
+      expect(commits[0].message).toBe('Payments API: team changed back from Growth to Payments, 2 allocations restored');
+    });
+
+    it('undo skips a phase that has been locked since, but still restores the team', async () => {
+      const { repo, initiative, growth } = await withTwoTeams();
+      const result = repo.changeTeam(initiative.id, growth.id)!;
+      repo.restoreTeam(initiative.id, result, (phaseId) => phaseId === 'validation');
+      const restored = repo.getState().initiatives[0];
+      expect(restored.teamId).toBe(initiative.teamId);
+      expect(restored.phases!.validation.allocations).toHaveLength(1);
+      expect(restored.phases!.development.allocations).toHaveLength(1);
+    });
+  });
+
   it('the first edit to a default plan ends the suggestion, and the flag is gone from the committed file', async () => {
     const { repo, initiative } = await repoWithInitiative();
     expect(repo.getState().initiatives[0].defaultPlan).toBe(true);

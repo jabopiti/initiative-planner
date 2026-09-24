@@ -1,5 +1,6 @@
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { CommitInput } from './CommitInput';
+import { InitiativeTeamRow } from './InitiativeTeamRow';
 import { PhasesSection } from './PhasesSection';
 
 /**
@@ -31,10 +32,7 @@ export function InitiativeDetail({ id }: { id: string }) {
           onCommit={(text) => repository.renameInitiative(initiative.id, text)}
         />
       </h1>
-      <div className="mb-6 flex items-center gap-3 text-text-secondary">
-        <span>{team?.name ?? 'Unknown team'}</span>
-        <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs">{initiative.status}</span>
-      </div>
+      <InitiativeTeamRow initiative={initiative} />
       <PhasesSection initiative={initiative} team={team} />
     </div>
   );
