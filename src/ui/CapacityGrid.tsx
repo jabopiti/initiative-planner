@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { useRepositoryState } from '../state/DataContext';
 import { loadsIn, teamCapacity, type CapacityCell, type CapacityRow, type Load, type TeamCapacity } from '../data/capacity';
@@ -51,6 +51,8 @@ export function CapacityGrid({ team }: { team: Team }) {
   const { process } = useBrand();
   const { initiatives, people, memberships } = useRepositoryState();
   const [selection, setSelection] = useState<Selection | null>(null);
+  /** The cell or name that opened the detail, so closing it puts focus back there. */
+  const opener = useRef<HTMLElement | null>(null);
   const today = localToday();
   const capacity = useMemo(() => teamCapacity(team.id, { initiatives, people, memberships, process, today }), [team.id, initiatives, people, memberships, process, today]);
 
@@ -70,7 +72,14 @@ export function CapacityGrid({ team }: { team: Team }) {
 
   // A selection whose person or month has since left the grid (an allocation was edited or removed) shows nothing.
   const selectedRow = selection && capacity.rows.find((r) => r.person.id === selection.personId && (selection.month === null || r.cells.some((c) => c.month === selection.month)));
-  const toggle = (next: Selection) => setSelection((cur) => (cur && cur.personId === next.personId && cur.month === next.month ? null : next));
+  const toggle = (next: Selection, from: HTMLElement) => {
+    opener.current = from;
+    setSelection((cur) => (cur && cur.personId === next.personId && cur.month === next.month ? null : next));
+  };
+  const close = () => {
+    setSelection(null);
+    if (opener.current?.isConnected) opener.current.focus();
+  };
 
   return (
     <section aria-label="Capacity" className="mt-8">
@@ -117,7 +126,7 @@ export function CapacityGrid({ team }: { team: Team }) {
                         aria-label={`All months for ${row.person.name}`}
                         aria-pressed={selection?.personId === row.person.id && selection.month === null}
                         className="cursor-pointer rounded-sm border-0 bg-transparent p-0 text-left font-medium text-inherit"
-                        onClick={() => toggle({ personId: row.person.id, month: null })}
+                        onClick={(e) => toggle({ personId: row.person.id, month: null }, e.currentTarget)}
                       >
                         {row.person.name}
                       </button>
@@ -129,7 +138,7 @@ export function CapacityGrid({ team }: { team: Team }) {
                           name={row.person.name}
                           cell={cell}
                           selected={selection?.personId === row.person.id && selection.month === cell.month}
-                          onSelect={() => toggle({ personId: row.person.id, month: cell.month })}
+                          onSelect={(from) => toggle({ personId: row.person.id, month: cell.month }, from)}
                         />
                       </td>
                     ))}
@@ -155,12 +164,12 @@ export function CapacityGrid({ team }: { team: Team }) {
         </>
       )}
 
-      {selection && selectedRow && <Detail row={selectedRow} month={selection.month} team={team} capacity={capacity} onClose={() => setSelection(null)} />}
+      {selection && selectedRow && <Detail row={selectedRow} month={selection.month} team={team} capacity={capacity} onClose={close} />}
     </section>
   );
 }
 
-function CellButton({ name, cell, selected, onSelect }: { name: string; cell: CapacityCell; selected: boolean; onSelect: () => void }) {
+function CellButton({ name, cell, selected, onSelect }: { name: string; cell: CapacityCell; selected: boolean; onSelect: (from: HTMLElement) => void }) {
   const { main, markers, provisional } = cellWords(cell);
   const warned = cell.overTeamFte || cell.overCapacity;
   const label = [`${name}, ${formatMonth(cell.month)}: ${cell.teamPct > 0 ? pct(cell.teamPct) : '0%'}`, ...markers, ...(provisional ? [provisional] : [])].join(', ');
@@ -169,7 +178,7 @@ function CellButton({ name, cell, selected, onSelect }: { name: string; cell: Ca
       type="button"
       aria-label={label}
       aria-pressed={selected}
-      onClick={onSelect}
+      onClick={(e) => onSelect(e.currentTarget)}
       className={`flex h-10 w-full min-w-20 cursor-pointer items-center justify-center gap-1 border-0 px-2 tabular-nums -outline-offset-2 ${
         warned ? 'bg-warning-tint text-warning-text' : 'bg-transparent text-text-primary'
       } ${selected ? 'ring-2 ring-brand-accent ring-inset' : ''}`}
@@ -191,6 +200,10 @@ function Detail({ row, month, team, capacity, onClose }: { row: CapacityRow; mon
   const { person } = row;
   const cell = month ? row.cells.find((c) => c.month === month) : undefined;
 
+  // The detail sits below the grid, so a keyboard or screen-reader user is taken to it when a selection opens it.
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => heading.current?.focus(), [person.id, month]);
+
   const warnings: Warning[] = [];
   if (month && cell) {
     if (cell.overTeamFte) warnings.push({ Icon: OverTeamFteIcon, text: `Over Team FTE %: ${pct(cell.teamPct)} on ${team.name} initiatives, Team FTE % is ${pct(row.teamFtePct ?? 0)}.` });
@@ -211,7 +224,7 @@ function Detail({ row, month, team, capacity, onClose }: { row: CapacityRow; mon
   return (
     <section aria-label="Capacity detail" className="mt-4 rounded-lg border border-border-default bg-surface-card p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="m-0 text-base font-medium">
+        <h3 ref={heading} tabIndex={-1} className="m-0 text-base font-medium">
           {person.name} · {month ? formatMonth(month) : 'all months'}
         </h3>
         <Button type="button" variant="ghost" size="sm" onClick={onClose}>

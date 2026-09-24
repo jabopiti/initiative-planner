@@ -140,6 +140,30 @@ describe('the capacity grid on the team detail (§5.8)', () => {
     expect(g.getByText("Ana Ruiz's Team FTE %s add up to 120%, more than their 100% Capacity %.")).toBeInTheDocument();
   });
 
+  it('moves focus to the detail when a cell is selected, and back to that cell when it is closed', async () => {
+    const user = setupUser();
+    renderView(<TeamDetail id="t1" />);
+    const g = await grid();
+    const oct = cell(g, 'Ana Ruiz', 'Oct 2026');
+    await user.click(oct);
+    expect(screen.getByRole('heading', { name: 'Ana Ruiz · Oct 2026' })).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Close details' }));
+    expect(oct).toHaveFocus();
+  });
+
+  it('does the same for a person\'s name, and follows a new selection', async () => {
+    const user = setupUser();
+    renderView(<TeamDetail id="t1" />);
+    const g = await grid();
+    const name = g.getByRole('button', { name: 'All months for Ana Ruiz' });
+    await user.click(name);
+    expect(screen.getByRole('heading', { name: 'Ana Ruiz · all months' })).toHaveFocus();
+    await user.click(cell(g, 'Bo Lind', 'Sep 2026'));
+    expect(screen.getByRole('heading', { name: 'Bo Lind · Sep 2026' })).toHaveFocus();
+    await user.click(screen.getByRole('button', { name: 'Close details' }));
+    expect(cell(g, 'Bo Lind', 'Sep 2026')).toHaveFocus();
+  });
+
   it('closes the detail', async () => {
     const user = setupUser();
     renderView(<TeamDetail id="t1" />);
