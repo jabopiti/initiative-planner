@@ -106,3 +106,12 @@ Slice 005e (change an initiative's team) skips locked phases through one
 `isPhaseLocked` predicate that returns false until this slice. Passing a gate
 must make it true for the phase that gate froze, and reopening the gate must
 make it false again.
+
+Slice 005h (merge by path) keeps a frozen phase's period, allocations and cost
+items out of every merge through one `isPhaseFrozen` predicate
+(`src/data/frozen.ts`) that returns false until this slice; its tests use a
+`frozen: true` marker on the phase instead. This slice bases the predicate on
+the gate record (passed, not reopened), replaces the test marker with it, and
+decides whether the side whose edit to a phase lost to a concurrent gate pass
+is told so. `isPhaseLocked` from 005e is the same question and should be the
+same predicate.

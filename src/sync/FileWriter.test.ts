@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
 import { fileCache } from '../cache/db';
 import { GithubClient } from '../github/client';
-import { mergeListDocument } from './documentMerge';
 import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
+import { mergeDocument, pathKey } from './merge';
 import { WriteQueue } from './WriteQueue';
 
 const location: GithubLocation = {
@@ -50,7 +50,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
       branch: location.dataBranch,
       github,
       queue: new WriteQueue(),
-      merge: mergeListDocument,
+      merge: mergeDocument,
       whenMissing: [],
       initial,
       onStatus: (s) => statuses.push(s),
@@ -122,8 +122,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
     await writer.flush();
 
     expect(conflicts).toHaveLength(1);
-    expect(conflicts[0].mine).toEqual(mine);
-    expect(conflicts[0].theirs).toEqual(theirs);
+    expect(conflicts[0]).toMatchObject({ file: 'teams.json', path: [{ id: 't1' }, 'name'], mine: 'My Rename', theirs: 'Their Rename' });
     // Never auto-resolved: no third PUT fired yet.
     const putCallsBeforeResolve = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
     expect(putCallsBeforeResolve).toHaveLength(1);
@@ -204,8 +203,8 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
     await writer.flush();
 
     expect(conflicts).toHaveLength(2);
-    const conflictA = conflicts.find((c) => c.itemId === 'tA')!;
-    const conflictB = conflicts.find((c) => c.itemId === 'tB')!;
+    const conflictA = conflicts.find((c) => pathKey(c.path) === '[tA].name')!;
+    const conflictB = conflicts.find((c) => pathKey(c.path) === '[tB].name')!;
 
     // Resolve A ("use mine"), then B ("use mine" too: "keep theirs" with nothing else to write makes no commit) — each against whatever is current when it runs.
     fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
