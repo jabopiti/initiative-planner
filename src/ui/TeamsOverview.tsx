@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 export function TeamsOverview() {
   const brand = useBrand();
   const repository = useRepository();
-  const { teams, initiatives } = useRepositoryState();
+  const { teams, initiatives, memberships } = useRepositoryState();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -87,8 +87,14 @@ export function TeamsOverview() {
               key={team.id}
               className={`rounded-[10px] border border-border-default bg-surface-card p-4 ${team.active ? '' : 'opacity-55'}`}
             >
-              <h2 className="m-0 mb-1 text-base">{team.name}</h2>
-              <p className="m-0 mb-3 text-sm text-text-secondary">0 members</p>
+              <h2 className="m-0 mb-1 text-base">
+                <a href={`#/teams/${team.id}`} className="text-inherit no-underline">
+                  {team.name}
+                </a>
+              </h2>
+              <p className="m-0 mb-3 text-sm text-text-secondary">
+                {memberships.filter((m) => m.teamId === team.id && m.active).length} members
+              </p>
               <div className="flex flex-wrap gap-1.5">
                 {phaseCounts.map(({ phase, count }) => (
                   <span

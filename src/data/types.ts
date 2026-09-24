@@ -1,7 +1,6 @@
 /**
- * Dataset shapes (spec §6), scoped to the fields slice 003 reads or writes.
- * Person/Membership are not modelled yet — they belong to slice 004, which
- * adds the People screen. Phase/cost/gate data belongs to slice 005+.
+ * Dataset shapes (spec §6), scoped to the fields slices 003–004 read or write.
+ * Phase/cost/gate data belongs to slice 005+; custom roles to a later slice.
  */
 
 export type InitiativeStatus = 'Active' | 'On Hold' | 'Cancelled' | 'Closed';
@@ -15,6 +14,25 @@ export interface DatasetFlags {
 export interface Team {
   id: string;
   name: string;
+  active: boolean;
+}
+
+export interface Person {
+  id: string;
+  name: string;
+  countryId: string;
+  roleId: string;
+  /** Ceiling on total concurrent commitment across all teams (§4). */
+  capacityPct: number;
+  active: boolean;
+}
+
+export interface Membership {
+  id: string;
+  personId: string;
+  teamId: string;
+  /** The team's claim on the person's full-time capacity (§4). */
+  teamFtePct: number;
   active: boolean;
 }
 
