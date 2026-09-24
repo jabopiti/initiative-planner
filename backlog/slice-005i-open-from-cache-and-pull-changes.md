@@ -36,12 +36,13 @@ people's changes arrive by themselves.
   dataset shows immediately and the sync indicator shows syncing while the
   pull runs. With no cache (a first visit), the tool waits for the pull as
   it does now.
-- **Pull by version.** The repository's directory listing already gives each
-  initiative file's version; it is kept, and a file whose version equals the
-  cached one is not downloaded. The master files are re-read with a
-  conditional request, so an unchanged file costs no download and no rate
-  limit. The dataset identity check runs in parallel with the reads, not
-  before them.
+- **Pull by version (§10.2).** One conditional request on the branch head:
+  unchanged, it answers "not modified" (no download, no rate limit) and
+  nothing else is asked. Moved, the data branch's files are listed with
+  their versions (the root, for the master files, and `initiatives/`) and
+  only a file whose version differs from the cached one is downloaded. The
+  dataset identity check runs on the dataset flags file like any other file,
+  not before the reads.
 - **Keep pulling (§3).** The tool pulls again when the tab regains focus and
   at least every 5 minutes while the tab is visible. Changes arrive without
   a reload.
@@ -81,28 +82,28 @@ Retry button and the read-only banner (backlog tail).
 
 ## Acceptance criteria
 
-- [ ] Given a warm cache, when the tool opens, then the dataset is shown
+- [x] Given a warm cache, when the tool opens, then the dataset is shown
       before any network response and the indicator shows syncing until the
       pull finishes.
-- [ ] Given no change in the repository, when the tool opens twice, then the
+- [x] Given no change in the repository, when the tool opens twice, then the
       second open downloads no initiative file and no master file (each read
       answers "not modified" or is skipped by version).
-- [ ] Given a colleague's commit changes one initiative, when the tab
+- [x] Given a colleague's commit changes one initiative, when the tab
       regains focus, then only that file is downloaded and its change appears
       without a reload, tinted for a few seconds, with the sync indicator's
       tooltip reading "Updated by others".
-- [ ] Given the tab stays visible, when 5 minutes pass, then a pull is made;
+- [x] Given the tab stays visible, when 5 minutes pass, then a pull is made;
       given it is hidden, then none is.
-- [ ] Given a field is being edited, when a pull changes that field's value,
+- [x] Given a field is being edited, when a pull changes that field's value,
       then the typed text stays and the change is applied through the merge
       when the field is left.
-- [ ] Given an edit is made before the first pull has finished, when the pull
+- [x] Given an edit is made before the first pull has finished, when the pull
       finishes, then the edit is saved against the pulled data, and nothing
       the pull returned is lost.
-- [ ] Given the cache would exceed half the storage quota, when a file is
+- [x] Given the cache would exceed half the storage quota, when a file is
       added, then the oldest files are dropped, the token is kept, and an
       automated test checks the rule (§10.4).
-- [ ] Given the pull fails, when the tool is open, then it shows the
+- [x] Given the pull fails, when the tool is open, then it shows the
       read-only state with its cause and keeps showing the cached data.
 
 ## Delivery gate
@@ -111,9 +112,16 @@ Retry button and the read-only banner (backlog tail).
 
 ## Flags and compromises
 
-§3 also says the tool "always pulls before pushing a change". The writers
-instead push against the last version they hold and, when the repository
-answers 409, pull and merge (§10.5); the outcome is the same for the data,
-at one fewer request in the common case. This slice keeps that and does not
-add a pull before every push; the spec sentence should be reworded to match
-when the slice is built, or the decision reversed.
+§3 said the tool "always pulls before pushing a change". The writers instead
+push against the last version they hold and, when the repository answers
+409, pull and merge (§10.5); the outcome is the same for the data, at one
+fewer request in the common case. Kept as is: §3 is reworded to describe
+that flow.
+
+Decided with the slice: background pulls (focus, the 5-minute timer) leave
+the indicator alone and only a change from others shows "Updated by others";
+a change from others is tinted at the changed value (a row in lists); a
+pull that arrives while a field holds uncommitted typing is held until the
+field is left, with no hint on screen; the spec's read-only banner and the
+disabling of fields stay in the backlog tail, so a failed pull shows in the
+indicator only and edits still fail at their push.

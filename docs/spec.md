@@ -337,12 +337,18 @@ person who made it.
   A change counts as saved only once the push has succeeded (see Sync
   failures below). There is no manual save or sync action.
 - **Pulling others' changes.** The tool pulls the repository dataset on
-  load, when the tab regains focus, and at least every 5 minutes while the
-  tab is visible, and always before pushing a change. On load the cached
-  data shows immediately while the pull runs, and a change made before that
-  first pull completes waits for it. Changes arrive without a reload, and a
-  field being edited is never overwritten under the user (see Conflict edge
-  cases).
+  load, when the tab regains focus (at most once every 15 seconds), and at
+  least every 5 minutes while the tab is visible; a hidden tab does not
+  pull. A push is made against the last version the tool holds, and when the
+  repository answers that the file has changed, the tool pulls that file and
+  merges it (§10.5), so the push never overwrites a newer version. On load
+  the cached data shows immediately while the pull runs, and a change made
+  before that first pull completes waits for it. Changes arrive without a
+  reload, and a field being edited is never overwritten under the user:
+  while a field holds typing that is not yet committed, a pull that arrives
+  is held, and once the field is left it merges like any other change (see
+  Conflict edge cases). After a failed pull the tool tries again every 30
+  seconds and recovers by itself.
 - **Field-level merge.** When two users modify different fields on the same
   entity concurrently, both changes are preserved. The sync mechanism merges
   at the field level rather than overwriting entire records, and lists merge
@@ -1670,9 +1676,11 @@ checklist state and gate records. Every file is JSON and carries the stable ids
 of §6.
 
 A client reads the data branch as follows. It checks the branch's head with a
-conditional request; only when the head has moved does it list the files that
-changed since the last-known head and fetch those. On first load it reads the
-full file list once. Fetched files are cached by version (§10.4).
+conditional request (an unchanged head costs one request that GitHub does not
+count against the rate limit). Only when the head has moved does it list the
+data branch's files with their versions and fetch those whose version differs
+from the one it holds. On first load it reads the full file list once. Fetched
+files are cached by version (§10.4).
 
 ### 10.3 Writing
 
@@ -1703,9 +1711,14 @@ line, so the history reads as a change log.
 
 ### 10.4 Browser storage
 
-The cache is kept in IndexedDB, keyed by file version. The token is kept there
-too, separately from the dataset (§3, Authentication). The size rule in §3 (at
-most half the storage quota) is checked by an automated test.
+The cache is kept in IndexedDB: each file with its version, for one repository
+and branch, together with the branch head the last complete pull read. It
+shows on opening (§3), and a cache that cannot be read, or belongs to another
+process or schema version, is discarded. The token is kept there too,
+separately from the dataset (§3, Authentication), and is never dropped to make
+room. The cache holds at most half the storage quota; over that, the oldest
+files are dropped first, initiative files before master files. The size rule in
+§3 (at most half the storage quota) is checked by an automated test.
 
 ### 10.5 Merging
 
