@@ -37,7 +37,7 @@ const SAVE_DEBOUNCE_MS = 200;
 export function load(now = new Date().getFullYear()) {
   const fresh = () => createApp(createMasterData(now), PROCESS);
 
-  let raw = null;
+  let raw;
   try {
     raw = localStorage.getItem(STORAGE_KEY);
   } catch {
