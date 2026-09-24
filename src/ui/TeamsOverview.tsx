@@ -131,7 +131,13 @@ export function TeamsOverview() {
         </thead>
         <tbody>
           {sorted.map(({ team, members, counts }) => (
-            <tr key={team.id} className={`border-b border-border-default ${team.active ? '' : 'text-text-secondary'}`}>
+            <tr
+              key={team.id}
+              className={`cursor-pointer border-b border-border-default ${team.active ? '' : 'text-text-secondary'}`}
+              onClick={() => {
+                window.location.hash = `#/teams/${team.id}`;
+              }}
+            >
               <td className="px-3 py-2 font-medium">
                 <TruncatedText text={team.name}>
                   <a href={`#/teams/${team.id}`} className="text-inherit no-underline">

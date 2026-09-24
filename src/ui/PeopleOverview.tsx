@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
 import { PersonPanel } from './PersonPanel';
@@ -25,11 +25,6 @@ export function PeopleOverview() {
   const [roleId, setRoleId] = useState(() => defaultRoleId(roles));
 
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
-
-  function focusRow(id: string) {
-    requestAnimationFrame(() => rowRefs.current.get(id)?.focus());
-  }
   const effectiveCountry = countries.some((c) => c.id === countryId && c.active) ? countryId : defaultCountryId(countries);
   const effectiveRole = roles.some((r) => r.id === roleId && r.active) ? roleId : defaultRoleId(roles);
 
@@ -94,24 +89,6 @@ export function PeopleOverview() {
     setName('');
     nameInputRef.current?.focus();
   }
-
-  function closePanel() {
-    const id = selectedId;
-    setSelectedId(null);
-    if (id) focusRow(id);
-  }
-
-  // Esc closes the panel wherever focus is (§5.6), including back on the row that opened it.
-  useEffect(() => {
-    if (!selectedId) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      setSelectedId(null);
-      focusRow(selectedId);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [selectedId]);
 
   return (
     <div className="px-8 py-6">
@@ -216,10 +193,6 @@ export function PeopleOverview() {
                     >
                       <td className="px-3 py-2">
                         <button
-                          ref={(el) => {
-                            if (el) rowRefs.current.set(p.id, el);
-                            else rowRefs.current.delete(p.id);
-                          }}
                           type="button"
                           className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-inherit"
                           onClick={() => setSelectedId(p.id)}
@@ -254,7 +227,7 @@ export function PeopleOverview() {
             </table>
           )}
         </div>
-        {selected && <PersonPanel key={selected.id} person={selected} onClose={closePanel} />}
+        <PersonPanel person={selected} onClose={() => setSelectedId(null)} />
       </div>
     </div>
   );

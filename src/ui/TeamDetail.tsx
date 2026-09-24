@@ -5,6 +5,7 @@ import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './perso
 import { PercentInput } from './PercentInput';
 import { CopyButton } from './CopyButton';
 import { SortableHeader } from './SortableHeader';
+import { PersonPanel } from './PersonPanel';
 import { TruncatedText } from './TruncatedText';
 import { sortRows, useTableSort } from './tableSort';
 import { DeactivateIcon, ReactivateIcon, RemoveIcon, WarningIcon } from './icons';
@@ -16,6 +17,7 @@ export function TeamDetail({ id }: { id: string }) {
   const repository = useRepository();
   const { teams, people, memberships, roles, countries } = useRepositoryState();
   const [query, setQuery] = useState('');
+  const [personId, setPersonId] = useState<string | null>(null);
   const sort = useTableSort('name');
   const team = teams.find((t) => t.id === id);
 
@@ -176,10 +178,20 @@ export function TeamDetail({ id }: { id: string }) {
                 return (
                   <tr
                     key={m.id}
-                    className={`border-b border-border-default ${m.active && person.active ? '' : 'text-text-secondary'}`}
+                    className={`cursor-pointer border-b border-border-default ${m.active && person.active ? '' : 'text-text-secondary'}`}
+                    onClick={(e) => {
+                      // Editing the FTE or using the row actions must not open the drawer.
+                      if (!(e.target as HTMLElement).closest('input, [data-row-action]')) setPersonId(person.id);
+                    }}
                   >
                     <td className="px-3 py-2 font-medium">
-                      <TruncatedText text={person.name} />
+                      <button
+                        type="button"
+                        className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-inherit"
+                        onClick={() => setPersonId(person.id)}
+                      >
+                        <TruncatedText text={person.name} />
+                      </button>
                     </td>
                     <td className="px-3 py-2">{roleName}</td>
                     <td className="px-3 py-2">
@@ -187,6 +199,7 @@ export function TeamDetail({ id }: { id: string }) {
                         <PercentInput
                           label={`Team FTE % for ${person.name}`}
                           value={m.teamFtePct}
+                          disabled={!m.active || !person.active}
                           onChange={(teamFtePct) => repository.updateMembership(m.id, { teamFtePct }, true)}
                         />
                         {over && (
@@ -201,7 +214,7 @@ export function TeamDetail({ id }: { id: string }) {
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                    <td className="px-3 py-2 text-right whitespace-nowrap" data-row-action>
                       <Button
                         type="button"
                         variant="ghost"
@@ -230,6 +243,7 @@ export function TeamDetail({ id }: { id: string }) {
           </table>
         )}
       </section>
+      <PersonPanel person={people.find((p) => p.id === personId) ?? null} onClose={() => setPersonId(null)} />
     </div>
   );
 }

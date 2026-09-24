@@ -1,17 +1,39 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
 import type { Person } from '../data/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CloseIcon, DeactivateIcon, PlusIcon, ReactivateIcon, RemoveIcon, TeamsIcon } from './icons';
+import { DeactivateIcon, PlusIcon, ReactivateIcon, RemoveIcon, TeamsIcon } from './icons';
 import { PercentInput } from './PercentInput';
 import { teamColorClass } from './teamColors';
 
-/** Person detail side panel (§5.6). Carries no warnings and no allocation list. */
-export function PersonPanel({ person, onClose }: { person: Person; onClose: () => void }) {
+/** Person detail drawer (§5.6), shared by every view that opens a person. Carries no warnings and no allocation list. */
+export function PersonPanel({ person, onClose }: { person: Person | null; onClose: () => void }) {
+  // The drawer has no trigger element, so hand focus back to whatever opened it (§5.6).
+  const opener = useRef<HTMLElement | null>(null);
+  return (
+    <Sheet open={person !== null} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent
+        className="w-96 overflow-y-auto p-4"
+        onOpenAutoFocus={() => {
+          opener.current = document.activeElement as HTMLElement | null;
+        }}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault();
+          opener.current?.focus();
+        }}
+      >
+        {person && <PersonDetails key={person.id} person={person} />}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function PersonDetails({ person }: { person: Person }) {
   const repository = useRepository();
   const { roles, countries, teams, memberships } = useRepositoryState();
   const [name, setName] = useState(person.name);
@@ -25,17 +47,13 @@ export function PersonPanel({ person, onClose }: { person: Person; onClose: () =
   const barPct = (pct: number) => `${Math.min(100, (pct / Math.max(person.capacityPct, 1)) * 100)}%`;
 
   return (
-    <aside
-      className="w-80 shrink-0 self-start rounded-[10px] border border-border-default bg-surface-card p-4"
-      aria-label={`${person.name} details`}
-    >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="m-0 truncate text-base">{person.name}</h2>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label="Close panel" title="Close" onClick={onClose}>
-          <CloseIcon />
-        </Button>
-      </div>
+    <>
+      <SheetHeader className="p-0 pr-6">
+        <SheetTitle className="truncate text-base">{person.name}</SheetTitle>
+        <SheetDescription className="sr-only">Person details</SheetDescription>
+      </SheetHeader>
 
+      <fieldset disabled={!person.active} className="m-0 min-w-0 border-0 p-0">
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <Label htmlFor="person-name">Name</Label>
@@ -115,10 +133,11 @@ export function PersonPanel({ person, onClose }: { person: Person; onClose: () =
           const team = teams.find((t) => t.id === m.teamId);
           const max = unclaimedCapacityPct(person, memberships, m.id);
           return (
-            <div key={m.id} className="flex items-center gap-2 py-1">
+            <div key={m.id} className="flex flex-wrap items-center gap-x-2 gap-y-0 py-1">
               <span className={`size-2.5 shrink-0 rounded-full ${teamColorClass(teamIds, m.teamId)}`} aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate text-sm">{team?.name ?? 'Unknown team'}</span>
               <PercentInput
+                flat
                 label={`Team FTE % for ${team?.name ?? 'team'}`}
                 value={m.teamFtePct}
                 max={max}
@@ -159,6 +178,7 @@ export function PersonPanel({ person, onClose }: { person: Person; onClose: () =
           </div>
         )}
       </section>
+      </fieldset>
 
       <div className="mt-4 border-t border-border-default pt-3">
         {person.active ? (
@@ -173,6 +193,6 @@ export function PersonPanel({ person, onClose }: { person: Person; onClose: () =
           </Button>
         )}
       </div>
-    </aside>
+    </>
   );
 }
