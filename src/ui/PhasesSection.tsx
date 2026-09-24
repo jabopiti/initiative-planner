@@ -4,7 +4,8 @@ import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { allocationFigures, phaseTotal } from '../data/cost';
-import { formatDate, formatPeriod } from '../data/dates';
+import { formatDate, formatPeriod, localToday } from '../data/dates';
+import { freeCapacityPct } from '../data/personLoad';
 import { roleLabel } from '../data/roleLabel';
 import { activeMembers } from '../data/teamMembers';
 import type { Initiative, Team } from '../data/types';
@@ -96,8 +97,8 @@ function CostedPhase({
   onToggle: () => void;
 }) {
   const repository = useRepository();
-  const { currencySymbol } = useBrand();
-  const { people, roles, countries, memberships } = useRepositoryState();
+  const { currencySymbol, process } = useBrand();
+  const { people, roles, countries, memberships, initiatives } = useRepositoryState();
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const plan = initiative.phases?.[phase.id] ?? { allocations: [] };
@@ -113,7 +114,15 @@ function CostedPhase({
   const total = phaseTotal(plan, people, rateData);
 
   const teamMembers = team ? activeMembers(team.id, memberships, people) : [];
-  const addable = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
+  // Free capacity for the phase's months (§5.11); unknown without a period, when the list is by name.
+  const free = new Map<string, number | null>();
+  for (const p of teamMembers) {
+    const membership = memberships.find((m) => m.personId === p.id && m.teamId === team!.id && m.active);
+    free.set(p.id, freeCapacityPct({ person: p, teamId: team!.id, teamFtePct: membership?.teamFtePct ?? 0, period: plan, initiatives, process, today: localToday() }));
+  }
+  const addable = teamMembers
+    .filter((p) => !plan.allocations.some((a) => a.personId === p.id))
+    .sort((a, b) => (free.get(b.id) ?? 0) - (free.get(a.id) ?? 0) || a.name.localeCompare(b.name));
 
   const picker =
     team && teamMembers.length === 0 ? (
@@ -126,7 +135,7 @@ function CostedPhase({
         <Select
           value=""
           onValueChange={(personId) => {
-            const result = repository.addAllocation(initiative.id, phase.id, personId);
+            const result = repository.addAllocation(initiative.id, phase.id, personId, free.get(personId) ?? undefined);
             setRefusal(result.ok ? null : result.reason);
           }}
         >
@@ -137,11 +146,18 @@ function CostedPhase({
             <SelectValue placeholder="Add person" />
           </SelectTrigger>
           <SelectContent>
-            {addable.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.name} · {roleLabel(p, roles)}
-              </SelectItem>
-            ))}
+            {!costed && <p className="m-0 border-b border-border-default px-2 py-1.5 text-xs text-text-secondary">Set the period to see who has room.</p>}
+            {addable.map((p) => {
+              const pct = free.get(p.id);
+              return (
+                <SelectItem key={p.id} value={p.id}>
+                  <span className="flex-1">
+                    {p.name} · {roleLabel(p, roles)}
+                  </span>
+                  {pct != null && <span className={`ml-4 tabular-nums ${pct === 0 ? 'text-warning-text' : 'text-text-secondary'}`}>{pct}% free</span>}
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       </div>

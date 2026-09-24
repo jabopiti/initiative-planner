@@ -41,6 +41,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
 
 let initiative: Initiative;
+let others: Initiative[] = [];
 let members: Membership[];
 let puts: { message: string; content: Initiative }[] = [];
 
@@ -67,8 +68,10 @@ beforeAll(() => {
       if (url.includes('/contents/teams.json')) return file([{ id: 't1', name: 'Payments', active: true }], 't');
       if (url.includes('/contents/people.json')) return file([ana, cai, outsider], 'p');
       if (url.includes('/contents/memberships.json')) return file(members, 'm');
+      const otherFile = others.find((o) => url.includes(`/contents/initiatives/${o.id}.json`));
+      if (otherFile) return file(otherFile, 'o');
       if (url.endsWith('/contents/initiatives.json') || url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json' }]);
+      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json' }, ...others.map((o) => ({ name: `${o.id}.json`, path: `initiatives/${o.id}.json` }))]);
       return json({ message: 'Not Found' }, 404);
     }),
   );
@@ -78,6 +81,7 @@ afterEach(cleanup);
 beforeEach(() => {
   initiative = { id: 'i1', name: 'Payments API', teamId: 't1', status: 'Active' };
   members = [membership('m1', 'ana', 60), membership('m2', 'cai', 50)];
+  others = [];
   puts = [];
 });
 
@@ -102,7 +106,8 @@ async function typeDate(user: ReturnType<typeof userEvent.setup>, label: string,
 
 async function addPerson(user: ReturnType<typeof userEvent.setup>, optionName: string) {
   await user.click(await screen.findByRole('combobox', { name: 'Add person to Validation' }));
-  await user.click(await screen.findByRole('option', { name: optionName }));
+  // With a period set the option also carries "N% free" after the name.
+  await user.click(await screen.findByRole('option', { name: new RegExp(`^${optionName}`) }));
 }
 
 const validationRow = () => screen.getByRole('button', { name: /^Validation/ });
@@ -460,5 +465,102 @@ describe('Initiative name: edited in place (§5.4)', () => {
     await user.tab();
     expect(field).toHaveValue('Payments API');
     expect(puts.some((p) => p.message.includes('renamed'))).toBe(false);
+  });
+});
+
+describe('Add person lists free capacity, most free first (§5.11, §7.2)', () => {
+  const validationId = defaultBrandPack.process[1].id;
+  const thisPeriod = { startDate: '2026-10-01', endDate: '2026-11-30' };
+  // Another team's Active initiative holding `pct` of `personId` in October, in a phase that is not its current one.
+  const elsewhere = (personId: string, pct: number, start = '2026-10-01', end = '2026-10-31'): Initiative => ({
+    id: 'i2',
+    name: 'Ledger',
+    teamId: 't2',
+    status: 'Active',
+    phases: { [validationId]: { startDate: start, endDate: end, allocations: [{ id: 'x', personId, allocationPct: pct }] } },
+  });
+  const optionTexts = () => screen.getAllByRole('option').map((o) => o.textContent);
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 24, 12));
+    initiative = { ...initiative, phases: { [validationId]: { ...thisPeriod, allocations: [] } } };
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function openPicker(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('combobox', { name: 'Add person to Validation' }));
+  }
+
+  it('lists members with their free capacity, the most free first', async () => {
+    others = [elsewhere('ana', 70)]; // Ana: 30 left of Capacity %; Cai: his 50 Team FTE %
+    const user = userEvent.setup();
+    renderPage();
+    await openPicker(user);
+    expect(optionTexts()).toEqual(['Cai Wu · Fractional CTO50% free', 'Ana Ruiz · Developer30% free']);
+  });
+
+  it('breaks a tie by name', async () => {
+    members = [membership('m1', 'ana', 50), membership('m2', 'cai', 50)];
+    const user = userEvent.setup();
+    renderPage();
+    await openPicker(user);
+    expect(optionTexts()).toEqual(['Ana Ruiz · Developer50% free', 'Cai Wu · Fractional CTO50% free']);
+  });
+
+  it('keeps someone fully committed elsewhere in the list, at 0% free', async () => {
+    others = [elsewhere('ana', 100)];
+    const user = userEvent.setup();
+    renderPage();
+    await openPicker(user);
+    expect(optionTexts()).toEqual(['Cai Wu · Fractional CTO50% free', 'Ana Ruiz · Developer0% free']);
+    await user.click(screen.getByRole('option', { name: /^Ana Ruiz/ }));
+    expect(within(screen.getByRole('row', { name: /Ana Ruiz/ })).getByLabelText('Allocation % for Ana Ruiz')).toHaveValue(0);
+  });
+
+  it('prefills Allocation % with the free capacity, and it stays editable', async () => {
+    others = [elsewhere('ana', 70)];
+    const user = userEvent.setup();
+    renderPage();
+    await openPicker(user);
+    await user.click(screen.getByRole('option', { name: /^Ana Ruiz/ }));
+    const pct = within(screen.getByRole('row', { name: /Ana Ruiz/ })).getByLabelText('Allocation % for Ana Ruiz');
+    expect(pct).toHaveValue(30);
+    await user.clear(pct);
+    await user.type(pct, '45{Enter}');
+    expect(pct).toHaveValue(45);
+  });
+
+  it('counts only the months of this phase', async () => {
+    others = [elsewhere('ana', 70, '2026-12-01', '2026-12-31')]; // Provisional as well, but also outside October to November
+    const user = userEvent.setup();
+    renderPage();
+    await openPicker(user);
+    expect(optionTexts()).toEqual(['Ana Ruiz · Developer60% free', 'Cai Wu · Fractional CTO50% free']);
+  });
+
+  it('leaves out a Provisional phase: one that starts more than a month ahead', async () => {
+    others = [elsewhere('ana', 90, '2026-11-01', '2026-11-30')];
+    const user = userEvent.setup();
+    renderPage();
+    await openPicker(user);
+    expect(optionTexts()[0]).toBe('Ana Ruiz · Developer60% free');
+  });
+
+  it('leaves out an initiative that is not Active', async () => {
+    others = [{ ...elsewhere('ana', 90), status: 'On Hold' }];
+    const user = userEvent.setup();
+    renderPage();
+    await openPicker(user);
+    expect(optionTexts()[0]).toBe('Ana Ruiz · Developer60% free');
+  });
+
+  it('asks for the period, and lists members by name with no figures, when there is none', async () => {
+    initiative = { ...initiative, phases: undefined };
+    const user = userEvent.setup();
+    renderPage();
+    await openPicker(user);
+    expect(screen.getByText('Set the period to see who has room.')).toBeInTheDocument();
+    expect(optionTexts()).toEqual(['Ana Ruiz · Developer', 'Cai Wu · Fractional CTO']);
   });
 });
