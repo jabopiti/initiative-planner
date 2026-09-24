@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tokenCache } from '../cache/db';
 import { tokenStore } from './tokenStore';
 
@@ -38,6 +38,22 @@ describe('tokenStore (§3)', () => {
     await tokenStore.save('t3', true);
     await tokenStore.clear();
 
+    expect(await tokenStore.load()).toBeNull();
+  });
+});
+
+describe('tokenStore dev token', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('uses VITE_DEV_TOKEN in development', async () => {
+    vi.stubEnv('DEV', true);
+    vi.stubEnv('VITE_DEV_TOKEN', 'dev-token-value');
+    expect(await tokenStore.load()).toBe('dev-token-value');
+  });
+
+  it('ignores VITE_DEV_TOKEN outside development', async () => {
+    vi.stubEnv('DEV', false);
+    vi.stubEnv('VITE_DEV_TOKEN', 'dev-token-value');
     expect(await tokenStore.load()).toBeNull();
   });
 });

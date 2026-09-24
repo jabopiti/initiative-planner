@@ -25,9 +25,20 @@ function writeSession(token: string | null): void {
   }
 }
 
+/**
+ * Local development only: a token from the gitignored `.env.local`
+ * (`VITE_DEV_TOKEN`) skips the Connect screen. `import.meta.env.DEV` is
+ * replaced with `false` in a production build, so this whole branch, and the
+ * token with it, is removed from the shipped bundle.
+ */
+function devToken(): string | null {
+  if (!import.meta.env.DEV) return null;
+  return import.meta.env.VITE_DEV_TOKEN || null;
+}
+
 export const tokenStore = {
   async load(): Promise<string | null> {
-    return readSession() ?? (await tokenCache.get());
+    return devToken() ?? readSession() ?? (await tokenCache.get());
   },
 
   /** Keep the token for this tab only, or — with `remember` — on this device until it is removed. */
