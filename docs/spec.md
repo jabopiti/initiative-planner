@@ -529,9 +529,10 @@ cross-references point there.
   FTE %**. A person may hold several memberships. Membership governs
   allocation: only a team's members may be allocated to that team's
   initiatives.
-- **Custom role:** a free-text role label with an absolute day rate per
-  year, configured on one person rather than in shared master data. Used for
-  contractors and anyone whose rate is individually negotiated.
+- **Custom role:** a free-text role label with its own day rate per year and
+  its own cost factor, configured on one person rather than in shared master
+  data. Used for contractors and anyone whose rate is individually
+  negotiated.
 - **Capacity %:** a person's ceiling on total concurrent commitment across
   all teams.
 - **Team FTE %:** how much of a person's full-time capacity one team holds,
@@ -792,7 +793,10 @@ Opened as a **side panel** from the People overview. Edits happen in place,
 with no save button, and Esc or the close icon closes the panel and returns
 focus to the row (§9.5). It shows and allows editing of all person details:
 
-- Name, country, role (standard or custom), capacity %.
+- Name, country, role (standard or custom), capacity %. A custom role shows
+  a label, a cost factor and a day rate for each year of the tracked window
+  (§7.2), saying which years take another year's rate; earlier years are
+  shown read-only.
 - Team memberships with Team FTE %s, capped at the person's unclaimed
   capacity (Capacity % minus the Team FTE %s already held) and defaulting
   to it, so a membership can never be created or edited here into an
@@ -1075,7 +1079,7 @@ Created when a gate is passed or skipped; cleared when it is reopened
 | Id | UUID | Auto | Assigned when the person is created (§6) |
 | Name | Text | Yes | |
 | Country | Country reference | Yes | Determines working days and day rate |
-| Role | Role reference | Yes | A standard role, or a custom role instead (see below) |
+| Role | Role reference | Yes | The standard role. Kept while the person has a custom role, so switching back restores it; the custom role, when in use, is costed and shown instead (see below) |
 | Capacity % | Percentage | Yes | Ceiling on total concurrent commitment |
 | Active | Boolean | Auto | See §9.3 for deactivation rules |
 
@@ -1083,8 +1087,10 @@ Created when a gate is passed or skipped; cleared when it is reopened
 
 | Field | Type | Notes |
 |---|---|---|
+| Active | Boolean | Whether the person is costed and shown with the custom role. Switching back to the standard role clears it and keeps the rest, so the custom entries are still there when the custom role is chosen again |
 | Label | Text | Free-text role name |
-| Day rate | Currency, per year | Absolute rate for the given year; replaces country rate × role factor. Same tracked window and yearly copy rule as country rates (§7.2) |
+| Cost factor | Number | Multiplied against the day rate, like a standard role's cost factor. Defaults to 1 |
+| Day rate | Currency, per year | Replaces the country day rate for the given year; the cost factor still applies. A year with no entry takes the nearest entered year's rate. Same tracked window and yearly copy rule as country rates (§7.2) |
 
 ### Team
 
@@ -1144,7 +1150,8 @@ The monthly cost of an allocation is working days × Allocation % × country
 day rate × role cost factor. Working days are the country's working days for
 that month and year (§6), and the country day rate is the one for that year.
 For a person with a custom role, the cost is working days × Allocation % ×
-custom day rate for that year; the role cost factor does not apply. Amounts
+the custom role's day rate for that year × the custom role's cost factor.
+The standard role's cost factor and the country day rate do not apply. Amounts
 are computed unrounded and rounded only for display. A phase's monthly
 estimate adds its cost items: an item timed in one month counts in that
 month, and an item spread over the phase counts equally in each month of the
@@ -1198,9 +1205,9 @@ never touched. The change is confirmed first, in place, with the affected
 people named, and is undoable for 10 seconds (§5.11). A Closed or Cancelled
 initiative keeps its team.
 
-**Rates and working days.** A **custom rate is absolute**: it replaces the
-country rate and bypasses the role factor. Working days still come from the
-person's country.
+**Rates and working days.** A **custom role's day rate replaces the country
+day rate**, and its own cost factor replaces the standard role's. Working
+days still come from the person's country.
 
 Rates and working days are read for **the month's own year**, so a rate rise
 next year never moves this year's figures. The **tracked window** is always
@@ -1641,7 +1648,9 @@ full file list once. Fetched files are cached by version (§10.4).
 ### 10.3 Writing
 
 A single edit is written through the Contents API against the file's last-seen
-version, as one commit. Edits are grouped into one commit after 1 second
+version, as one commit. A text or number field makes its edit when it loses
+focus or Enter is pressed, never on each keystroke, so typing a value is one
+edit rather than several. Edits are grouped into one commit after 1 second
 without a further edit, one write is in flight at a time, and closing the tab
 while a write is pending shows a warning. A stale version is rejected with a
 409: the client re-reads the file, re-applies the change with the merge rule of
