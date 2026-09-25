@@ -775,7 +775,15 @@ The current phase shows its **period** as two
   the person's cost for the phase), a **cost items table** (label, amount,
   and when: one month, or spread over the phase) beneath it, with the phase
   total in the phase header covering both, and an **actuals table** with a
-  row per month: the estimate, and the actual. A closed month with no
+  row per month: the estimate, and the actual. **Add cost item** opens an
+  unsaved row with a label, an amount and the timing (a toggle, One month or
+  Spread over the phase, which defaults to spread; the month input, §9.11,
+  appears with One month); nothing is saved until **Add**, which needs a
+  label and an amount of 0 or more. A one-month item outside the period shows
+  "<month> is outside the phase's period. It still counts." A phase with no
+  valid period is not costed yet, so its items are listed but count nothing
+  and its total reads "—". A phase without items reads "No cost items yet —
+  Add cost item". A closed month with no
   recorded actual reads "using the estimate"; its check icon records the
   estimate as the actual in one act, and typing another amount records that
   instead (§7.3). A month not yet closed shows "not closed yet".
