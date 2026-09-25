@@ -49,6 +49,38 @@ recording the grand estimate and approval track at that moment.
   costed — the prototype's `lastPassedGate`/`buildGateRecord` don't filter
   for this and need that fix while porting.
 
+### Decided in review (pre-implementation)
+
+- **Cost summary section** (§5.4 page sections) doesn't exist in the UI yet
+  and isn't separately bulleted above, but AC4 requires it ("the cost
+  summary shows the recorded grand estimate and approval track") — building
+  it (grand estimate, approved-at figure + gate name, difference, deviation,
+  Copy button) is in this slice's scope, as a horizontal stat strip between
+  the header and Phases.
+- **Frozen phase figures** (collapsed row and expanded read-only view) blend
+  the *frozen snapshot's* monthly estimate with any actuals recorded since,
+  never recalculated from live people/rate data — only the gate record's
+  grand-estimate/approval-track figure is a pure point-in-time snapshot; the
+  phase row itself keeps folding in new actuals (§8.1's "later master-data
+  changes can never move a recorded figure").
+- **Non-costed phase gates** (G1, G4): no estimate check applies, and there
+  is nothing to freeze (a non-costed phase carries no period, allocations or
+  cost items, §4) — passing records only outcome, checklist snapshot and
+  "passed on," never a grand estimate or approval track, matching this
+  slice's "recorded only when the exited phase is costed" rule.
+- **Magic bar layout:** two rows — the phase stepper on its own row, guidance
+  text and the Pass gate button on the row below.
+- **Checklist item row:** name and on-demand description on the left; the
+  3-icon status toggle and status text right-aligned, matching the
+  allocation table's name-left/controls-right convention.
+- **Frozen phase's collapsed-row pill:** replaced with "Frozen" (instead of
+  keeping Estimate/Forecast/Actual), alongside a lock icon before the phase
+  name.
+- **Reopen:** a small "Reopen <gate>" text link next to the status badge,
+  shown whenever there's a passed gate to reverse — not a full Actions menu.
+  The Actions menu itself (Put on hold, Cancel, Duplicate, Delete) is other
+  slices' scope and stays deferred.
+
 **Explicitly excluded:** Skipping a gate and the starting-phase mechanism
 (§8.2) — passing a gate the normal way is the core governance behaviour;
 skipping is a distinct, separately valuable capability for entering
