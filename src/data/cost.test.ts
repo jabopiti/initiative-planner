@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  actualOrEstimate,
   allocationFigures,
   allocationRefusal,
   isOutsidePeriod,
   monthsInRange,
   parseAmount,
   periodMonths,
+  phaseBlendedTotal,
   phaseByMonth,
+  phaseCoverage,
+  phaseDeviation,
+  phaseMonths,
   phaseTotal,
   resolveRate,
   weekdaysInMonth,
@@ -14,7 +19,7 @@ import {
   trackedYears,
   yearRecord,
 } from './cost';
-import type { CostItem, Country, Membership, Person, Role, Team } from './types';
+import type { CostItem, Country, Membership, PhasePlan, Person, Role, Team } from './types';
 
 const twenty = Array(12).fill(20);
 
@@ -171,6 +176,67 @@ describe('cost of an allocation (§7.1)', () => {
       data,
     );
     expect(total).toBeCloseTo(8000 + 18000);
+  });
+});
+
+describe('actuals default to the estimate once a month closes (§7.3, §4)', () => {
+  const period = { startDate: '2026-10-01', endDate: '2026-11-30' };
+  const plan = (actualMonths?: Record<string, number>, costItems?: CostItem[]): PhasePlan => ({
+    ...period,
+    allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50 }],
+    costItems,
+    actualMonths,
+  });
+  // 20 working days × 50% × 500 × 0.8 = 4,000 a month (Oct and Nov alike).
+
+  it('lists every month of the period plus any recorded actual or one-month cost item outside it, sorted', () => {
+    expect(phaseMonths({ ...period, allocations: [] })).toEqual(['2026-10', '2026-11']);
+    expect(phaseMonths(plan({ '2027-01': 100 }))).toEqual(['2026-10', '2026-11', '2027-01']);
+    expect(phaseMonths(plan(undefined, [{ id: 'c1', label: 'Audit', amount: 500, timing: 'month', month: '2027-03' }]))).toEqual([
+      '2026-10',
+      '2026-11',
+      '2027-03',
+    ]);
+    expect(phaseMonths({ allocations: [] })).toEqual([]);
+  });
+
+  it("estimates a phase's cost month by month from its allocations", () => {
+    expect(phaseByMonth(plan(), [ana], data)).toEqual({ '2026-10': 4000, '2026-11': 4000 });
+  });
+
+  it('a recorded actual once closed; the estimate is what it defaults to until then', () => {
+    const estimate = phaseByMonth(plan(), [ana], data);
+    // "Today" is mid-November: October has closed, November has not.
+    expect(actualOrEstimate(plan(), '2026-10', '2026-11-15', estimate)).toBe(4000);
+    expect(actualOrEstimate(plan(), '2026-11', '2026-11-15', estimate)).toBeUndefined();
+    expect(actualOrEstimate(plan({ '2026-10': 5250 }), '2026-10', '2026-11-15', estimate)).toBe(5250);
+  });
+
+  it('defaults a closed month to the estimate even when it is exactly 0 (decided in slice 010 review)', () => {
+    const empty = { ...period, allocations: [] };
+    expect(actualOrEstimate(empty, '2026-10', '2026-11-15', phaseByMonth(empty, [ana], data))).toBe(0);
+  });
+
+  it('blends the recorded actual where there is one, the estimate elsewhere', () => {
+    expect(phaseBlendedTotal(plan({ '2026-10': 5250 }), [ana], data)).toBe(5250 + 4000);
+    expect(phaseBlendedTotal(plan(), [ana], data)).toBe(4000 + 4000); // no actuals: the blended total is the estimate
+  });
+
+  it('folds cost items into the blended total too, not just labour', () => {
+    const withItem = plan({ '2026-10': 5250 }, [{ id: 'c1', label: 'Audit', amount: 1000, timing: 'month', month: '2026-11' }]);
+    expect(phaseBlendedTotal(withItem, [ana], data)).toBe(5250 + (4000 + 1000)); // Oct recorded, Nov estimate + the item
+  });
+
+  it('reads Estimate, Forecast or Actual by how far recorded actuals cover the phase (§4)', () => {
+    expect(phaseCoverage(plan())).toBe('estimate');
+    expect(phaseCoverage(plan({ '2026-10': 4000 }))).toBe('forecast');
+    expect(phaseCoverage(plan({ '2026-10': 4000, '2026-11': 3800 }))).toBe('actual');
+  });
+
+  it('is undefined until at least one month is recorded, then the actuals minus their estimates', () => {
+    expect(phaseDeviation(plan(), [ana], data)).toBeUndefined();
+    expect(phaseDeviation(plan({ '2026-10': 4500 }), [ana], data)).toBe(500); // over the estimate
+    expect(phaseDeviation(plan({ '2026-10': 4500, '2026-11': 3800 }), [ana], data)).toBe(300); // 500 - 200
   });
 });
 

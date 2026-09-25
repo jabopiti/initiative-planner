@@ -79,6 +79,9 @@ function initiativeField(rest: Path, doc: Initiative | undefined, conflict: Merg
   const phase = ctx.process.find((p) => p.id === phaseId)?.label ?? phaseId;
   if (rest.length === 3 && part === 'startDate') return { label: `${phase} start date`, format: date };
   if (rest.length === 3 && part === 'endDate') return { label: `${phase} end date`, format: date };
+  if (rest.length === 4 && part === 'actualMonths' && typeof item === 'string') {
+    return { label: `${phase} actual for ${formatMonth(item)}`, format: (v) => formatAmount(v as number, ctx.currencySymbol), unset: 'not recorded' };
+  }
   if (typeof item !== 'object' || rest.length > 5) return null;
   if (part === 'costItems') return costItemField(phase, itemAt(doc, conflict, 4) as CostItem | undefined, rest.length === 4, leaf, ctx);
   if (part !== 'allocations') return null;

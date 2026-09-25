@@ -1033,6 +1033,22 @@ export class Repository {
   }
 
   /**
+   * Record a month's actual for a phase (§7.3): the estimate confirmed as-is, or an override — either way a
+   * single act, and recordable again later to correct it (§6).
+   */
+  setActual(initiativeId: string, phaseId: string, month: string, amount: number): void {
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, actualMonths: { ...plan.actualMonths, [month]: amount } }),
+      {
+        key: `actual:${month}`,
+        text: (name, phase) => `${name}: ${phase} actual for ${formatMonth(month)} recorded (${this.brand.currencySymbol}${Math.round(amount)})`,
+      },
+    );
+  }
+
+  /**
    * What moving an initiative to another team would remove (§7.2), for the confirmation; nothing changes. Null when
    * nothing can change: an unknown initiative or team, the team it already has, or a Closed or Cancelled
    * initiative. `isLocked` is the phase-locked predicate (§8.1), replaceable so a test can supply a locked phase.

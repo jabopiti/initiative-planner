@@ -1,4 +1,4 @@
-import { monthKey, parseIso } from './dates';
+import { monthKey, monthOf, parseIso } from './dates';
 import { isActiveMember } from './teamMembers';
 import type { CostItem, Country, Membership, PhasePlan, Person, Role, Team } from './types';
 
@@ -195,6 +195,66 @@ export function phaseByMonth(plan: PhasePlan, people: Person[], data: RateData):
 /** A phase's cost: its monthly estimate summed. */
 export function phaseTotal(plan: PhasePlan, people: Person[], data: RateData): number {
   return Object.values(phaseByMonth(plan, people, data)).reduce((sum, amount) => sum + amount, 0);
+}
+
+/**
+ * Every month a phase costs something in: its period, any recorded actual that falls outside it, and any
+ * one-month cost item's month (each a warning case, not a separate range — §7.3, §6).
+ */
+export function phaseMonths(plan: PhasePlan): string[] {
+  const keys = new Set<string>(periodMonths(plan));
+  for (const key of Object.keys(plan.actualMonths ?? {})) keys.add(key);
+  for (const item of plan.costItems ?? []) if (item.timing === 'month' && item.month) keys.add(item.month);
+  return [...keys].sort();
+}
+
+/**
+ * Recorded actual where there is one, the estimate otherwise, for every month the phase costs something in
+ * (§7.3). Pass `estimateByMonth` when the caller already has it (from {@link phaseByMonth}), so it isn't
+ * walked twice.
+ */
+export function phaseBlendedByMonth(plan: PhasePlan, people: Person[], data: RateData, estimateByMonth: Record<string, number> = phaseByMonth(plan, people, data)): Record<string, number> {
+  const actuals = plan.actualMonths ?? {};
+  const out: Record<string, number> = {};
+  for (const key of phaseMonths(plan)) out[key] = actuals[key] ?? estimateByMonth[key] ?? 0;
+  return out;
+}
+
+/** The blended total (§7.3): a phase's grand estimate contribution once actuals are folded in. */
+export function phaseBlendedTotal(plan: PhasePlan, people: Person[], data: RateData, estimateByMonth?: Record<string, number>): number {
+  return Object.values(phaseBlendedByMonth(plan, people, data, estimateByMonth)).reduce((total, amount) => total + amount, 0);
+}
+
+/**
+ * A month's actual once recorded — or, once that month has closed, the estimate it defaults to until someone
+ * records one (§7.3). `undefined` for a month that hasn't closed yet, so a caller can tell "not closed yet"
+ * apart from "using the estimate". Unconditional per §7.3: an estimate of exactly 0 still defaults and
+ * displays (decided in slice 010 review, engine-audit.md).
+ */
+export function actualOrEstimate(plan: PhasePlan, month: string, today: string, estimateByMonth: Record<string, number>): number | undefined {
+  const recorded = plan.actualMonths?.[month];
+  if (recorded !== undefined) return recorded;
+  if (month >= monthOf(today)) return undefined;
+  return estimateByMonth[month] ?? 0;
+}
+
+/** Estimate / Forecast / Actual, by how far recorded actuals cover the phase's months (§4). */
+export function phaseCoverage(plan: PhasePlan): 'estimate' | 'forecast' | 'actual' {
+  const months = phaseMonths(plan);
+  const actuals = plan.actualMonths ?? {};
+  const recorded = months.filter((key) => actuals[key] !== undefined).length;
+  if (recorded === 0) return 'estimate';
+  return recorded === months.length ? 'actual' : 'forecast';
+}
+
+/** Recorded actuals minus their estimates, over the months that have one; undefined until at least one is recorded (§4). */
+export function phaseDeviation(plan: PhasePlan, people: Person[], data: RateData): number | undefined {
+  const actuals = plan.actualMonths;
+  if (!actuals || Object.keys(actuals).length === 0) return undefined;
+  const estimate = phaseByMonth(plan, people, data);
+  let total = 0;
+  for (const [month, amount] of Object.entries(actuals)) total += amount - (estimate[month] ?? 0);
+  return total;
 }
 
 /** Why a person can't be allocated to this team's initiative, or null when they can (§7.2). */
