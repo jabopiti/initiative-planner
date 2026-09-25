@@ -22,6 +22,7 @@ function openDb(): Promise<IDBDatabase> {
   if (!dbPromise) {
     dbPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
+      let settled = false;
       request.onupgradeneeded = (event) => {
         const db = request.result;
         for (const store of [FILES_STORE, META_STORE, AUTH_STORE]) {
@@ -30,10 +31,29 @@ function openDb(): Promise<IDBDatabase> {
         // Before 3, files were kept by bare path with nothing saying which repository they came from: nothing reads those now.
         if (event.oldVersion > 0 && event.oldVersion < 3) request.transaction?.objectStore(FILES_STORE).clear();
       };
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        const db = request.result;
+        // A later build upgrading the database must not wait for this tab to close.
+        db.onversionchange = () => {
+          db.close();
+          dbPromise = null;
+        };
+        if (settled) return db.close(); // opened after the caller gave up on it (blocked): nothing uses it
+        settled = true;
+        resolve(db);
+      };
       request.onerror = () => {
         dbPromise = null;
+        settled = true;
         reject(request.error);
+      };
+      // An open tab of an older build holds the old version and blocks the upgrade until it closes. The cache is only a
+      // convenience (§10.4), so the caller goes on without it rather than wait on a tab it cannot see.
+      request.onblocked = () => {
+        if (settled) return;
+        settled = true;
+        dbPromise = null;
+        reject(new Error('The browser cache is in use by an older tab.'));
       };
     });
   }
@@ -130,6 +150,9 @@ const isInitiativeFile = (path: string) => path.startsWith('initiatives/');
 export class FileCache {
   private readonly prefix: string;
   private total: number | null = null;
+  /** Writes run one after another: each works from the total the one before left, so concurrent writes cannot lose each other's bytes. */
+  private writes: Promise<unknown> = Promise.resolve();
+  private evicted = 0;
 
   constructor(
     scope: string,
@@ -151,16 +174,33 @@ export class FileCache {
     return new Map([...found].map(([key, file]) => [key.slice(this.prefix.length), file]));
   }
 
-  async set(path: string, value: { content: string; sha: string }): Promise<void> {
-    // Counted before the write, so a first write is not counted twice.
-    const before = this.total ?? (await this.size());
-    const previous = await this.get(path);
-    await set<CachedFile>(FILES_STORE, this.key(path), { ...value, at: Date.now() });
-    this.total = before - (previous?.content.length ?? 0) + value.content.length;
-    if (this.total > (await this.budget())) await this.evict(path);
+  private serially<T>(write: () => Promise<T>): Promise<T> {
+    const done = this.writes.then(write, write);
+    this.writes = done.catch(() => {});
+    return done;
   }
 
-  async delete(path: string): Promise<void> {
+  /** How many times files were dropped for the budget: a caller that saw it change knows the cache no longer holds everything it wrote. */
+  get evictions(): number {
+    return this.evicted;
+  }
+
+  set(path: string, value: { content: string; sha: string }): Promise<void> {
+    return this.serially(async () => {
+      // Counted before the write, so a first write is not counted twice.
+      const before = this.total ?? (await this.size());
+      const previous = await this.get(path);
+      await set<CachedFile>(FILES_STORE, this.key(path), { ...value, at: Date.now() });
+      this.total = before - (previous?.content.length ?? 0) + value.content.length;
+      if (this.total > (await this.budget())) await this.evict(path);
+    });
+  }
+
+  delete(path: string): Promise<void> {
+    return this.serially(() => this.remove(path));
+  }
+
+  private async remove(path: string): Promise<void> {
     const previous = await this.get(path);
     await del(FILES_STORE, this.key(path));
     if (this.total !== null && previous) this.total -= previous.content.length;
@@ -177,8 +217,9 @@ export class FileCache {
     files.sort(([pathA, a], [pathB, b]) => Number(!isInitiativeFile(pathA)) - Number(!isInitiativeFile(pathB)) || a.at - b.at);
     for (const [path] of files) {
       if ((this.total ?? 0) <= budget) break;
-      await this.delete(path);
-      await this.clearMeta();
+      await this.remove(path);
+      await del(META_STORE, this.prefix);
+      this.evicted += 1;
     }
   }
 
@@ -187,24 +228,26 @@ export class FileCache {
   }
 
   setMeta(meta: CacheMeta): Promise<void> {
-    return set(META_STORE, this.prefix, meta);
+    return this.serially(() => set(META_STORE, this.prefix, meta));
   }
 
   clearMeta(): Promise<void> {
-    return del(META_STORE, this.prefix);
+    return this.serially(() => del(META_STORE, this.prefix));
   }
 
   /** Forgets every file of this repository and branch, for a cache that cannot be trusted (§3 Damaged data). */
-  async clear(): Promise<void> {
-    for (const path of (await this.all()).keys()) await del(FILES_STORE, this.key(path));
-    await this.clearMeta();
-    this.total = 0;
+  clear(): Promise<void> {
+    return this.serially(async () => {
+      for (const path of (await this.all()).keys()) await del(FILES_STORE, this.key(path));
+      await del(META_STORE, this.prefix);
+      this.total = 0;
+    });
   }
 }
 
 /** Closes the connection, so a test can delete or upgrade the database. The next call opens it again. */
 export async function closeDatabase(): Promise<void> {
-  (await dbPromise)?.close();
+  (await dbPromise?.catch(() => null))?.close();
   dbPromise = null;
 }
 

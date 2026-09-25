@@ -25,7 +25,7 @@ import { GithubClient, parseJsonFile, type BranchHead, type GetFileResult } from
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
-import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
+import { FileWriter, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, type Path } from './merge';
 import { WriteQueue } from './WriteQueue';
 
@@ -52,6 +52,13 @@ export interface RepositoryState {
 /** The key by which a value at `path` of a data-branch file is reported as changed by others. */
 export const changeKey = (file: string, path: Path): string => `${file}#${pathKey(path)}`;
 
+/** Whether the value at `inner` is `outer` itself or lies inside it, comparing whole path segments: `phases.dev` does not cover `phases.development`. */
+export function changeCovers(outer: string, inner: string): boolean {
+  if (!inner.startsWith(outer)) return false;
+  const next = inner[outer.length];
+  return next === undefined || outer.endsWith('#') || next === '.' || next === '[';
+}
+
 /** How long a change from others stays tinted, and the indicator says "Updated by others" (§9.9: a few seconds). */
 export const CHANGE_TINT_MS = 4000;
 /** §3: a pull at least this often while the tab is visible. */
@@ -60,6 +67,8 @@ export const PULL_INTERVAL_MS = 5 * 60 * 1000;
 export const FOCUS_PULL_MIN_GAP_MS = 15 * 1000;
 /** After a failed pull, or one that had to leave a file alone, the next attempt comes this soon. */
 export const PULL_RETRY_MS = 30 * 1000;
+/** How many files a pull reads at once: a dataset of hundreds of initiatives must not fire hundreds of requests together. */
+const PULL_READS_AT_ONCE = 8;
 
 /** Everything one pull found: the files it read, and the versions on screen it compared them with. */
 interface Pulled {
@@ -301,7 +310,7 @@ export class Repository {
       this.pullFailure = null;
       if (pulled) {
         if (this.editing > 0 && this.state.status === 'ready') this.held = pulled;
-        else complete = this.finishPull(pulled);
+        else complete = this.applyPulled(pulled);
       }
     } catch (error) {
       this.pullFailure = toReadOnlyState(error, 'Something went wrong loading the dataset.');
@@ -328,9 +337,15 @@ export class Repository {
 
     const compared = this.knownShas();
     const changed = [...listing].filter(([path, sha]) => compared.get(path) !== sha).map(([path]) => path);
-    const read = await Promise.all(changed.map(async (path) => [path, await this.github.getFile({ path, branch })] as const));
     const files = new Map<string, GetFileResult>();
-    for (const [path, file] of read) if (file) files.set(path, file);
+    const waiting = [...changed];
+    const worker = async () => {
+      for (let path = waiting.shift(); path !== undefined; path = waiting.shift()) {
+        const file = await this.github.getFile({ path, branch });
+        if (file) files.set(path, file);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PULL_READS_AT_ONCE, changed.length) }, worker));
     return { head: head ?? null, files, listing, compared };
   }
 
@@ -360,6 +375,16 @@ export class Repository {
     return known;
   }
 
+  /** {@link finishPull}, but a file that cannot be applied is the read-only state, as for a failed read, rather than an exception. */
+  private applyPulled(pulled: Pulled): boolean {
+    try {
+      return this.finishPull(pulled);
+    } catch (error) {
+      this.pullFailure = toReadOnlyState(error, 'Something went wrong loading the dataset.');
+      return false;
+    }
+  }
+
   /** Puts a pull on screen and in the cache. True when every file it read was applied, so the pull is complete. */
   private finishPull(pulled: Pulled): boolean {
     const flagsFile = pulled.files.get(FILE_PATHS.datasetFlags);
@@ -377,9 +402,9 @@ export class Repository {
   private mergeIn({ files, listing, compared }: Pulled): boolean {
     let complete = true;
     const changed: string[] = [];
-    const applied = (path: string, paths: Path[] | null) => {
-      if (paths === null) complete = false;
-      else changed.push(...paths.map((p) => changeKey(path, p)));
+    const applied = (path: string, received: Received) => {
+      if ('left' in received) complete &&= received.left === 'writer';
+      else changed.push(...received.changed.map((p) => changeKey(path, p)));
     };
     const patch: Partial<RepositoryState> = {};
 
@@ -442,8 +467,10 @@ export class Repository {
   /** Keeps a pull in the cache for the next open (§10.4), and what it saw, unless a file was left alone. Failures are survivable. */
   private async remember({ files, head }: Pulled, complete: boolean): Promise<void> {
     try {
+      const evictions = this.cache.evictions;
       await Promise.all([...files].map(([path, file]) => this.cache.set(path, file)));
-      if (complete && head) {
+      // Files dropped for the budget meanwhile: the cache no longer holds the whole dataset, so it is not marked as complete.
+      if (complete && head && this.cache.evictions === evictions) {
         this.meta = { head: head.sha, etag: head.etag };
         await this.cache.setMeta(this.meta);
       } else {
@@ -480,7 +507,7 @@ export class Repository {
       if (this.editing > 0 || !this.held) return;
       const held = this.held;
       this.held = null;
-      const complete = this.finishPull(held);
+      const complete = this.applyPulled(held);
       this.publishStatus();
       this.scheduleRetry(complete && this.pullFailure === null);
     };

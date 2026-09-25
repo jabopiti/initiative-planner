@@ -56,6 +56,15 @@ describe('FileCache (§10.4)', () => {
     expect(await cache.getMeta()).toBeNull();
   });
 
+  it('holds to its budget when several files are written at the same time', async () => {
+    const cache = new FileCache('a/b@data', async () => 100);
+    await Promise.all(['a', 'b', 'c', 'd'].map((name) => cache.set(`initiatives/${name}.json`, file(40))));
+
+    const held = [...(await cache.all()).values()].reduce((sum, f) => sum + f.content.length, 0);
+    expect(held).toBeLessThanOrEqual(100);
+    expect(cache.evictions).toBeGreaterThan(0);
+  });
+
   it('a rewrite of a file counts its new size, not both', async () => {
     const cache = new FileCache('a/b@data', async () => 100);
     await cache.set('initiatives/a.json', file(60));
@@ -102,5 +111,24 @@ describe('FileCache (§10.4)', () => {
     });
     expect(left).toBe(0);
     db.close();
+  });
+
+  it('goes on without the cache, rather than wait, when an older tab blocks the upgrade', async () => {
+    await closeDatabase();
+    await new Promise((resolve) => (indexedDB.deleteDatabase('initiative-planner').onsuccess = resolve));
+    const older = await new Promise<IDBDatabase>((resolve) => {
+      const request = indexedDB.open('initiative-planner', 2);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore('files');
+        request.result.createObjectStore('auth');
+      };
+      request.onsuccess = () => resolve(request.result);
+    });
+
+    await expect(new FileCache('a/b@data').all()).rejects.toThrow('older tab');
+
+    older.close();
+    // Once the older tab is gone the cache opens again.
+    expect(await new FileCache('a/b@data').all()).toEqual(new Map());
   });
 });

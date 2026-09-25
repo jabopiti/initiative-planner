@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import type { Path } from '../sync/merge';
 import { useBrand } from './BrandContext';
-import { changeKey, Repository, type RepositoryState } from '../sync/Repository';
+import { changeCovers, changeKey, Repository, type RepositoryState } from '../sync/Repository';
 
 export const RepositoryContext = createContext<Repository | null>(null);
 
@@ -50,7 +50,7 @@ export function useIsChangedByOthers(): (file: string, path: Path) => boolean {
   return (file, path) => {
     if (changed.size === 0) return false;
     const key = changeKey(file, path);
-    return [...changed].some((other) => other.startsWith(key) || key.startsWith(other));
+    return [...changed].some((other) => changeCovers(key, other) || changeCovers(other, key));
   };
 }
 

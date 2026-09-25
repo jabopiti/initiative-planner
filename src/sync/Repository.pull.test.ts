@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { FileCache } from '../cache/db';
-import { CHANGE_TINT_MS, changeKey, FOCUS_PULL_MIN_GAP_MS, PULL_INTERVAL_MS, PULL_RETRY_MS, Repository } from './Repository';
+import { CHANGE_TINT_MS, changeCovers, changeKey, FOCUS_PULL_MIN_GAP_MS, PULL_INTERVAL_MS, PULL_RETRY_MS, Repository } from './Repository';
 import { fakeGithub, initiative, open, type Fake } from './testing/fakeGithub';
 
 const setVisibility = (state: 'visible' | 'hidden') =>
@@ -108,6 +108,32 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
 
       expect(fake.reads).toEqual(['initiatives/i1.json', 'initiatives/i2.json']);
       expect(repo.getState().initiatives.map((i) => i.name).sort()).toEqual(['Data lake', 'Payments API v2']);
+    });
+
+    it('reads a few files at a time, however many changed', async () => {
+      const repo = await reopen();
+      for (let n = 2; n < 30; n += 1) fake.seed(`initiatives/i${n}.json`, initiative({ id: `i${n}`, name: `Initiative ${n}` }));
+      let inFlight = 0;
+      let peak = 0;
+      vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+        const read = /contents\/initiatives\/i\d+\.json/.test(url) && (init?.method ?? 'GET') === 'GET';
+        if (read) {
+          inFlight += 1;
+          peak = Math.max(peak, inFlight);
+          await new Promise((resolve) => setTimeout(resolve, 2));
+        }
+        try {
+          return await fake.fetchMock(url, init);
+        } finally {
+          if (read) inFlight -= 1;
+        }
+      });
+
+      await repo.pull();
+
+      expect(repo.getState().initiatives).toHaveLength(29);
+      expect(peak).toBeGreaterThan(1);
+      expect(peak).toBeLessThanOrEqual(8);
     });
 
     it('leaves the master files alone when only an initiative changed', async () => {
@@ -268,6 +294,56 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
     });
   });
 
+  describe('what the pull leaves alone', () => {
+    it('does not retry every 30 seconds for a file whose writer has a choice open: the writer merges it when it saves', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+      const repo = await reopen();
+      const release = repo.holdWhileEditing();
+      fake.seed('initiatives/i1.json', initiative({ name: 'Theirs' }));
+      await repo.pull();
+      repo.renameInitiative('i1', 'Mine');
+      release();
+      expect(repo.getState().conflicts).toHaveLength(1);
+
+      fake.seed('initiatives/i1.json', initiative({ name: 'Theirs', ownerId: 'someone' }));
+      await repo.pull();
+      const heads = () => fake.requests().filter((r) => r.includes('/git/ref/heads/')).length;
+      const before = heads();
+      await vi.advanceTimersByTimeAsync(PULL_RETRY_MS * 3);
+
+      expect(heads()).toBe(before);
+    });
+
+    it('a file that cannot be read, arriving while the user types, is the read-only state when the field is left, not an exception', async () => {
+      const repo = await reopen();
+      const release = repo.holdWhileEditing();
+      fake.seed('initiatives/i2.json', null);
+      await repo.pull();
+
+      expect(release).not.toThrow();
+      expect(repo.getState().readOnly).not.toBeNull();
+      expect(repo.getState().initiatives.map((i) => i.id)).toEqual(['i1']);
+    });
+  });
+
+  describe('a cache over its budget', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('is not marked complete, so the next open loads what it dropped instead of trusting it', async () => {
+      const scope = 'jabopiti/initiative-planner@data';
+      await new FileCache(scope).clear();
+      for (let n = 2; n < 6; n += 1) fake.seed(`initiatives/i${n}.json`, initiative({ id: `i${n}`, name: `Initiative ${n}` }));
+      vi.stubGlobal('navigator', { storage: { estimate: async () => ({ quota: 400 }) } });
+      await reopen();
+      vi.unstubAllGlobals();
+      vi.stubGlobal('fetch', fake.fetchMock);
+
+      expect(await new FileCache(scope).getMeta()).toBeNull();
+      const again = await reopen();
+      expect(again.getState().initiatives).toHaveLength(5);
+    });
+  });
+
   describe('an edit made before the first pull finishes', () => {
     it('waits for it and is saved against the pulled data, losing nothing the pull returned', async () => {
       const first = await reopen();
@@ -322,5 +398,18 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
 
       expect(repo.getState().readOnly?.cause).toBe('unreachable');
     });
+  });
+});
+
+describe('changeCovers', () => {
+  it('compares whole path segments, so a name that starts another does not cover it', () => {
+    const at = (path: Parameters<typeof changeKey>[1]) => changeKey('initiatives/i1.json', path);
+
+    expect(changeCovers(at(['phases', 'development']), at(['phases', 'development', 'startDate']))).toBe(true);
+    expect(changeCovers(at(['phases', 'dev']), at(['phases', 'development']))).toBe(false);
+    expect(changeCovers(at(['allocation']), at(['allocationPct']))).toBe(false);
+    expect(changeCovers(at([]), at(['name']))).toBe(true);
+    expect(changeCovers(at(['items', { id: 'a' }]), at(['items', { id: 'a' }, 'pct']))).toBe(true);
+    expect(changeCovers(at(['name']), at(['name']))).toBe(true);
   });
 });

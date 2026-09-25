@@ -25,6 +25,9 @@ export interface SyncedFile<D> {
   sha: string;
 }
 
+/** What became of a pulled file: applied, with the paths that changed on screen, or left alone (see `receive`). */
+export type Received = { changed: Path[] } | { left: 'retry' | 'writer' };
+
 export interface FileWriterOptions<D> {
   path: string;
   branch: string;
@@ -133,13 +136,13 @@ export class FileWriter<D> {
   /**
    * The repository's newer version of the file, from a pull (§3). It replaces what is on screen; an edit not yet
    * saved is merged with it like a save that found the file changed (§10.5), and a clash is a conflict for the
-   * user to choose. Returns the paths that changed on screen, or null when the file was left alone because it
-   * is not the version the pull compared (a save landed since) or a save or a choice is in progress (their own
-   * re-read brings the change in).
+   * user to choose. The file is left alone, and says why, when a save is running or it is not the version the pull
+   * compared (a save landed since): `retry`, the next pull will find it changed. Or a choice is open or the last
+   * save failed: `writer`, the writer's next save re-reads the file and merges it, so a pull has nothing to retry.
    */
-  receive(file: SyncedFile<D>, replaces: string | null): Path[] | null {
-    if (this.saving || this.openConflicts.length > 0 || this.failed) return null;
-    if ((this.synced?.sha ?? null) !== replaces) return null;
+  receive(file: SyncedFile<D>, replaces: string | null): Received {
+    if (this.openConflicts.length > 0 || this.failed) return { left: 'writer' };
+    if (this.saving || (this.synced?.sha ?? null) !== replaces) return { left: 'retry' };
     const before = this.screen;
     let next = file.content;
     if (this.pending !== null || this.timer !== null) {
@@ -153,7 +156,7 @@ export class FileWriter<D> {
     this.synced = file;
     this.screen = next;
     this.options.onDocument(next);
-    return changedPaths(before, next);
+    return { changed: changedPaths(before, next) };
   }
 
   private async saveNext(): Promise<SaveResult> {
