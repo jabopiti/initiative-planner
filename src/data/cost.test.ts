@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   allocationFigures,
   allocationRefusal,
+  isOutsidePeriod,
   monthsInRange,
+  parseAmount,
+  periodMonths,
+  phaseByMonth,
   phaseTotal,
   resolveRate,
   weekdaysInMonth,
@@ -10,7 +14,7 @@ import {
   trackedYears,
   yearRecord,
 } from './cost';
-import type { Country, Membership, Person, Role, Team } from './types';
+import type { CostItem, Country, Membership, Person, Role, Team } from './types';
 
 const twenty = Array(12).fill(20);
 
@@ -185,5 +189,66 @@ describe('only a team’s members may be allocated (§7.2)', () => {
   it('refuses a person whose membership was deactivated, and one on another team only', () => {
     expect(allocationRefusal(ana, team, [{ ...member, active: false }])).not.toBeNull();
     expect(allocationRefusal(ana, team, [{ ...member, teamId: 't2' }])).not.toBeNull();
+  });
+});
+
+describe('cost items in a phase’s monthly estimate (§7.1)', () => {
+  const period = { startDate: '2026-10-16', endDate: '2026-12-10' }; // three calendar months, the first and last partial
+  const item = (extra: Partial<CostItem>): CostItem => ({ id: 'c1', label: 'Penetration test', amount: 12000, timing: 'spread', ...extra });
+  const byMonth = (p: typeof period | { startDate?: string; endDate?: string }, ...costItems: CostItem[]) => phaseByMonth({ ...p, allocations: [], costItems }, [], data);
+
+  it('puts a one-month item in full into its month and nowhere else', () => {
+    expect(byMonth(period, item({ timing: 'month', month: '2026-11' }))).toEqual({ '2026-11': 12000 });
+  });
+
+  it('spreads an item equally over every calendar month of the period, partial first and last months included', () => {
+    expect(byMonth(period, item({}))).toEqual({ '2026-10': 4000, '2026-11': 4000, '2026-12': 4000 });
+  });
+
+  it('keeps the month of a spread item without using it', () => {
+    expect(byMonth(period, item({ month: '2027-05' }))).toEqual({ '2026-10': 4000, '2026-11': 4000, '2026-12': 4000 });
+  });
+
+  it('still counts a one-month item whose month lies outside the period', () => {
+    expect(byMonth(period, item({ timing: 'month', month: '2027-03' }))).toEqual({ '2027-03': 12000 });
+  });
+
+  it('counts nothing without a valid period, and nothing for a one-month item that has no month', () => {
+    expect(byMonth({ startDate: '2026-10-01' }, item({}))).toEqual({});
+    expect(byMonth({ startDate: '2026-11-30', endDate: '2026-10-01' }, item({ timing: 'month', month: '2026-11' }))).toEqual({});
+    expect(byMonth(period, item({ timing: 'month' }))).toEqual({});
+  });
+
+  it('adds cost items to the allocation cost in the phase total', () => {
+    const plan = {
+      startDate: '2026-10-01',
+      endDate: '2026-11-30',
+      allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50 }],
+      costItems: [item({ timing: 'month', month: '2026-10' }), item({ id: 'c2', amount: 1000 })],
+    };
+    expect(phaseTotal(plan, [ana], data)).toBeCloseTo(8000 + 12000 + 1000);
+    expect(phaseByMonth(plan, [ana], data)['2026-10']).toBeCloseTo(4000 + 12000 + 500);
+    expect(phaseByMonth(plan, [ana], data)['2026-11']).toBeCloseTo(4000 + 500);
+  });
+
+  it('knows a one-month item is outside a valid period, and never for a spread item or without a period', () => {
+    const months = periodMonths(period);
+    expect(isOutsidePeriod(months, item({ timing: 'month', month: '2027-03' }))).toBe(true);
+    expect(isOutsidePeriod(months, item({ timing: 'month', month: '2026-12' }))).toBe(false);
+    expect(isOutsidePeriod(months, item({ month: '2027-03' }))).toBe(false);
+    expect(isOutsidePeriod(periodMonths({ startDate: '2026-10-01' }), item({ timing: 'month', month: '2027-03' }))).toBe(false);
+  });
+});
+
+describe('shared helpers of the cost rules', () => {
+  it('lists the months of a valid period, and none while a date is unset or the period is inverted', () => {
+    expect(periodMonths({ startDate: '2026-10-16', endDate: '2026-12-10' })).toEqual(['2026-10', '2026-11', '2026-12']);
+    expect(periodMonths({ startDate: '2026-10-16' })).toEqual([]);
+    expect(periodMonths({ startDate: '2026-12-10', endDate: '2026-10-16' })).toEqual([]);
+  });
+
+  it('reads an amount as a number of 0 or more, and nothing else', () => {
+    expect([parseAmount('0'), parseAmount(' 12.5 '), parseAmount('1e3')]).toEqual([0, 12.5, 1000]);
+    for (const text of ['', '  ', '-1', 'abc', 'Infinity', '1e999']) expect(parseAmount(text), text).toBeNull();
   });
 });

@@ -1,7 +1,8 @@
 import type { PhaseDef } from '../brand/types';
-import { formatDateField } from '../data/dates';
-import { FILE_PATHS, type Country, type Allocation, type CustomRoleYearRate, type Initiative, type Membership, type Person, type Role, type Team } from '../data/types';
+import { formatDateField, formatMonth } from '../data/dates';
+import { FILE_PATHS, type Country, type Allocation, type CostItem, type CustomRoleYearRate, type Initiative, type Membership, type Person, type Role, type Team } from '../data/types';
 import { getAtPath, type MergeConflict, type Path } from '../sync/merge';
+import { TIMING_LABELS } from './costItemTiming';
 import { formatAmount } from './formatAmount';
 
 /** What a conflict row needs to name things as the screen does. */
@@ -78,7 +79,9 @@ function initiativeField(rest: Path, doc: Initiative | undefined, conflict: Merg
   const phase = ctx.process.find((p) => p.id === phaseId)?.label ?? phaseId;
   if (rest.length === 3 && part === 'startDate') return { label: `${phase} start date`, format: date };
   if (rest.length === 3 && part === 'endDate') return { label: `${phase} end date`, format: date };
-  if (part !== 'allocations' || typeof item !== 'object' || rest.length > 5) return null;
+  if (typeof item !== 'object' || rest.length > 5) return null;
+  if (part === 'costItems') return costItemField(phase, itemAt(doc, conflict, 4) as CostItem | undefined, rest.length === 4, leaf, ctx);
+  if (part !== 'allocations') return null;
 
   const allocation = itemAt(doc, conflict, 4) as Allocation | undefined;
   const who = `${phase} · ${nameIn(ctx.people)(allocation?.personId)} allocation`;
@@ -86,6 +89,25 @@ function initiativeField(rest: Path, doc: Initiative | undefined, conflict: Merg
   if (leaf === 'allocationPct') return { label: who, format: percent };
   if (leaf === 'personId') return { label: `${phase} · allocation person`, format: nameIn(ctx.people) };
   return null;
+}
+
+/** A cost item of a phase, or one of its values: named by its label as the table shows it. */
+function costItemField(phase: string, item: CostItem | undefined, whole: boolean, leaf: unknown, ctx: ConflictContext): Field | null {
+  const what = `${phase} · ${item?.label.trim() || 'cost item'}`;
+  const amount = (value: unknown) => formatAmount(Number(value), ctx.currencySymbol);
+  if (whole) return { label: `${phase} · cost item`, format: (c) => `${(c as CostItem).label} ${amount((c as CostItem).amount)}`, unset: 'removed' };
+  switch (leaf) {
+    case 'label':
+      return { label: `${phase} · cost item label`, format: text };
+    case 'amount':
+      return { label: `${what} amount`, format: amount };
+    case 'timing':
+      return { label: `${what} timing`, format: (t) => TIMING_LABELS[t as CostItem['timing']] };
+    case 'month':
+      return { label: `${what} month`, format: (m) => formatMonth(String(m)) };
+    default:
+      return null;
+  }
 }
 
 /** The master files (§10.2): a list of records, each conflict path starting at the item's id. */

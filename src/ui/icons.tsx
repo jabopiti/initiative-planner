@@ -3,7 +3,7 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { Archive, ArchiveRestore, CalendarDays, ChartPie, Check, ChevronDown, ChevronRight, Gauge, Info, Plus, RefreshCw, Search, Trash2, TriangleAlert, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Gauge, Info, Plus, RefreshCw, Search, Trash2, TriangleAlert, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
 
 function iconWrapper(Lucide: LucideIcon) {
@@ -26,6 +26,7 @@ export const DeactivateTeamIcon = iconWrapper(Archive);
 export const ReactivateTeamIcon = iconWrapper(ArchiveRestore);
 export const CalendarIcon = iconWrapper(CalendarDays);
 export const ChevronDownIcon = iconWrapper(ChevronDown);
+export const ChevronLeftIcon = iconWrapper(ChevronLeft);
 export const ChevronRightIcon = iconWrapper(ChevronRight);
 /** The two capacity warnings each have their own icon (§9.10): the team's share of a person, and their overall ceiling. */
 export const OverTeamFteIcon = iconWrapper(ChartPie);

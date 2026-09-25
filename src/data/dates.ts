@@ -1,5 +1,10 @@
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+/** A month's number (1-12) from its name, its three-letter form or "sept"; 0 when it is none of them. */
+function monthFromWord(word: string): number {
+  return MONTH_NAMES.findIndex((name) => name === word || name.slice(0, 3) === word || (word === 'sept' && name === 'september')) + 1;
+}
 
 function isRealDate(year: number, month: number, day: number): boolean {
   if (year < FIRST_YEAR || year > LAST_YEAR) return false;
@@ -92,8 +97,8 @@ export function formatDate(isoDate: string): string {
 }
 
 /** Years a plan can sensibly name; a typo such as 1026 or 20266 is refused rather than costed month by month. */
-const FIRST_YEAR = 2000;
-const LAST_YEAR = 2100;
+export const FIRST_YEAR = 2000;
+export const LAST_YEAR = 2100;
 
 /** "26.06.2026" (or "3 Sep 2026", a longer month name, or ISO) to ISO; null when it isn't a real date in 2000 to 2100. */
 export function parseDateText(text: string): string | null {
@@ -111,8 +116,27 @@ export function parseDateText(text: string): string | null {
   const textMatch = /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/.exec(t);
   if (!textMatch) return null;
   const word = textMatch[2].toLowerCase();
-  const month = MONTH_NAMES.findIndex((name) => name === word || name.slice(0, 3) === word || (word === 'sept' && name === 'september')) + 1;
+  const month = monthFromWord(word);
   if (month === 0) return null;
   const [day, year] = [Number(textMatch[1]), Number(textMatch[3])];
   return isRealDate(year, month, day) ? iso(year, month, day) : null;
+}
+
+/** "Sep 2026" (or "September 2026", "2026-09", "09/2026", "9.2026") to a month key; null when it isn't a month in 2000 to 2100. */
+export function parseMonthText(text: string): string | null {
+  const t = text.trim();
+  const numeric = /^(\d{4})-(\d{1,2})$/.exec(t);
+  const reversed = /^(\d{1,2})[./](\d{4})$/.exec(t);
+  const words = /^([A-Za-z]+)\.?\s+(\d{4})$/.exec(t);
+  let year: number;
+  let month: number;
+  if (numeric) [year, month] = [Number(numeric[1]), Number(numeric[2])];
+  else if (reversed) [month, year] = [Number(reversed[1]), Number(reversed[2])];
+  else if (words) {
+    const word = words[1].toLowerCase();
+    month = monthFromWord(word);
+    year = Number(words[2]);
+  } else return null;
+  if (month < 1 || month > 12 || year < FIRST_YEAR || year > LAST_YEAR) return null;
+  return monthKey(year, month - 1);
 }

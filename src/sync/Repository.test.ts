@@ -459,6 +459,22 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     expect(repo.getState().initiatives[0].phases!.validation.allocations).toEqual([added.allocation]);
   });
 
+  it('adds, edits, removes and restores cost items as commits naming the phase, and restores each only once', async () => {
+    const { repo, initiative } = await repoWithInitiative();
+    const item = repo.addCostItem(initiative.id, 'validation', { label: 'Penetration test', amount: 12000, timing: 'month', month: '2026-10' })!;
+    repo.updateCostItem(initiative.id, 'validation', item.id, { amount: 9000 });
+    repo.updateCostItem(initiative.id, 'validation', item.id, { timing: 'spread' });
+    const items = () => repo.getState().initiatives[0].phases!.validation.costItems;
+    expect(items()).toEqual([{ ...item, amount: 9000, timing: 'spread' }]);
+
+    const removed = repo.removeCostItem(initiative.id, 'validation', item.id)!;
+    expect(items()).toEqual([]);
+    repo.restoreCostItem(initiative.id, 'validation', removed.item, removed.index);
+    repo.restoreCostItem(initiative.id, 'validation', removed.item, removed.index); // a second Undo, or one after a pull brought it back
+    expect(items()).toEqual([{ ...item, amount: 9000, timing: 'spread' }]);
+    expect(repo.removeCostItem(initiative.id, 'validation', 'nope')).toBeNull();
+  });
+
   describe('changing the team (§7.2)', () => {
     async function withTwoTeams() {
       const ctx = await repoWithInitiative();

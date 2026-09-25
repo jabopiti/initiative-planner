@@ -1,6 +1,6 @@
 import { monthKey, parseIso } from './dates';
 import { isActiveMember } from './teamMembers';
-import type { Country, Membership, PhasePlan, Person, Role, Team } from './types';
+import type { CostItem, Country, Membership, PhasePlan, Person, Role, Team } from './types';
 
 /**
  * The cost of an allocation (§7.1), ported from the audited prototype engine
@@ -156,17 +156,55 @@ export function allocationFigures(period: Period, person: Person, allocationPct:
   return { byMonth, personDays, cost };
 }
 
-/** A phase's labour cost: its allocations summed. An allocation whose person no longer exists adds nothing. */
-export function phaseTotal(plan: PhasePlan, people: Person[], data: RateData): number {
-  let total = 0;
+/** The calendar months of a period, or none while a date is unset or the period is inverted: a phase without months is not costed yet (§7.1). */
+export function periodMonths(period: Period): string[] {
+  return period.startDate && period.endDate ? monthsInRange(period.startDate, period.endDate) : [];
+}
+
+/**
+ * A cost item's amount by month over a period's `months` (§7.1): the full amount in its one month, or an equal share
+ * of every calendar month the period touches (the partial first and last months are not prorated). Empty without a
+ * valid period, so an item counts only once its phase is costed; a one-month item outside the period still counts.
+ */
+function spreadItem(months: string[], item: CostItem): Record<string, number> {
+  if (months.length === 0) return {};
+  if (item.timing === 'month') return item.month ? { [item.month]: item.amount } : {};
+  return Object.fromEntries(months.map((key) => [key, item.amount / months.length]));
+}
+
+/** Whether a one-month item lies outside a valid period's `months` (§6): it stays and counts, and the phase warns. */
+export function isOutsidePeriod(months: string[], item: CostItem): boolean {
+  return item.timing === 'month' && Boolean(item.month) && months.length > 0 && !months.includes(item.month!);
+}
+
+/** A phase's monthly estimate (§7.1): its allocations' cost and its cost items, month by month. An allocation whose person no longer exists adds nothing. */
+export function phaseByMonth(plan: PhasePlan, people: Person[], data: RateData): Record<string, number> {
+  const byMonth: Record<string, number> = {};
+  const add = (amounts: Record<string, number>) => {
+    for (const [key, amount] of Object.entries(amounts)) byMonth[key] = (byMonth[key] ?? 0) + amount;
+  };
   for (const allocation of plan.allocations) {
     const person = people.find((p) => p.id === allocation.personId);
-    if (person) total += allocationFigures(plan, person, allocation.allocationPct, data).cost;
+    if (person) add(allocationFigures(plan, person, allocation.allocationPct, data).byMonth);
   }
-  return total;
+  const months = periodMonths(plan);
+  for (const item of plan.costItems ?? []) add(spreadItem(months, item));
+  return byMonth;
+}
+
+/** A phase's cost: its monthly estimate summed. */
+export function phaseTotal(plan: PhasePlan, people: Person[], data: RateData): number {
+  return Object.values(phaseByMonth(plan, people, data)).reduce((sum, amount) => sum + amount, 0);
 }
 
 /** Why a person can't be allocated to this team's initiative, or null when they can (§7.2). */
 export function allocationRefusal(person: Person, team: Team, memberships: Membership[]): string | null {
   return isActiveMember(person, team.id, memberships) ? null : `${person.name} isn't a member of ${team.name}. Only team members can be allocated.`;
+}
+
+/** The parse every amount and rate field shares: blank, not a number or negative is rejected. */
+export function parseAmount(text: string): number | null {
+  if (text.trim() === '') return null;
+  const value = Number(text);
+  return Number.isFinite(value) && value >= 0 ? value : null;
 }
