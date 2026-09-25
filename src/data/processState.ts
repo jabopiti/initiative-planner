@@ -3,13 +3,15 @@ import { monthKey, parseIso } from './dates';
 import type { Initiative } from './types';
 
 /**
- * An initiative's current phase (§6: "Derived — position in the process").
- * Slice 003 has no gate records yet (passing a gate is slice 008), so every
- * initiative is in the process's first phase — this needs to read gate
- * records once that exists.
+ * An initiative's current phase (§4, §6: "Derived — position in the process"): the first phase in process order
+ * whose exit gate has no record yet. Once every phase's gate is recorded, the initiative is at its last phase
+ * (Closed, its final gate having been passed) — the same rule §8.3 Reopening uses in reverse.
  */
-export function currentPhaseId(_initiative: Initiative, process: PhaseDef[]): string {
-  return process[0].id;
+export function currentPhaseId(initiative: Initiative, process: PhaseDef[]): string {
+  for (const phase of process) {
+    if (!initiative.gates?.[phase.id]) return phase.id;
+  }
+  return process[process.length - 1].id;
 }
 
 /** `YYYY-MM` of the calendar month after the one `isoDate` falls in. */

@@ -1,6 +1,7 @@
+import type { ApprovalTrackDef, PhaseDef } from '../brand/types';
 import { monthKey, monthOf, parseIso } from './dates';
 import { isActiveMember } from './teamMembers';
-import type { CostItem, Country, Membership, PhasePlan, Person, Role, Team } from './types';
+import type { CostItem, Country, FrozenPhaseSnapshot, Initiative, Membership, PhasePlan, Person, Role, Team } from './types';
 
 /**
  * The cost of an allocation (§7.1), ported from the audited prototype engine
@@ -267,4 +268,48 @@ export function parseAmount(text: string): number | null {
   if (text.trim() === '') return null;
   const value = Number(text);
   return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+/** A frozen phase's months, for the same reasons {@link phaseMonths} gives a live one's: its period, and any recorded actual or one-month item outside it. */
+export function frozenPhaseMonths(snapshot: FrozenPhaseSnapshot, actualMonths: Record<string, number> | undefined): string[] {
+  return phaseMonths({ startDate: snapshot.startDate, endDate: snapshot.endDate, allocations: [], costItems: snapshot.costItems, actualMonths });
+}
+
+/**
+ * A frozen phase's blended total (§7.3, §8.1): the snapshot's monthly estimate, with any actuals recorded since
+ * folded in, never recalculated from live people or rate data — the whole point of freezing.
+ */
+export function frozenBlendedTotal(snapshot: FrozenPhaseSnapshot, actualMonths: Record<string, number> | undefined): number {
+  const actuals = actualMonths ?? {};
+  return frozenPhaseMonths(snapshot, actualMonths).reduce((total, month) => total + (actuals[month] ?? snapshot.estimateByMonth[month] ?? 0), 0);
+}
+
+/**
+ * An initiative's grand estimate (§4): the blended total of every costed phase, using each phase's frozen
+ * snapshot once its gate has passed (so a later master-data change can never move it) and its live plan
+ * otherwise. A costed phase never planned yet (no plan at all) costs nothing.
+ */
+export function grandEstimate(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): number {
+  let total = 0;
+  for (const phase of process) {
+    if (!phase.costed) continue;
+    const snapshot = initiative.gates?.[phase.id]?.frozenSnapshot;
+    if (snapshot) {
+      total += frozenBlendedTotal(snapshot, initiative.phases?.[phase.id]?.actualMonths);
+      continue;
+    }
+    const plan = initiative.phases?.[phase.id];
+    if (plan) total += phaseBlendedTotal(plan, people, data);
+  }
+  return total;
+}
+
+/** The approval track a total resolves to (§7.4): bounds lower-inclusive, upper-exclusive; `null` when no band covers it. */
+export function resolveApprovalTrack(tracks: ApprovalTrackDef[], total: number): ApprovalTrackDef | null {
+  for (const track of tracks) {
+    const aboveLower = total >= track.lowerBound;
+    const belowUpper = track.upperBound === undefined || total < track.upperBound;
+    if (aboveLower && belowUpper) return track;
+  }
+  return null;
 }
