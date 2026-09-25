@@ -1,4 +1,5 @@
-import { useRepository, useRepositoryState } from '../state/DataContext';
+import { FILE_PATHS } from '../data/types';
+import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { CommitInput } from './CommitInput';
 import { InitiativeTeamRow } from './InitiativeTeamRow';
 import { PhasesSection } from './PhasesSection';
@@ -10,6 +11,7 @@ import { PhasesSection } from './PhasesSection';
  */
 export function InitiativeDetail({ id }: { id: string }) {
   const repository = useRepository();
+  const changed = useIsChangedByOthers();
   const { initiatives, teams } = useRepositoryState();
   const initiative = initiatives.find((i) => i.id === id);
   const team = initiative ? teams.find((t) => t.id === initiative.teamId) : undefined;
@@ -28,6 +30,7 @@ export function InitiativeDetail({ id }: { id: string }) {
         <CommitInput
           className="h-auto border-transparent bg-transparent px-3 py-1.5 text-2xl font-semibold shadow-none hover:border-border-default md:text-2xl"
           aria-label="Initiative name"
+          changed={changed(FILE_PATHS.initiative(initiative.id), ['name'])}
           value={initiative.name}
           onCommit={(text) => repository.renameInitiative(initiative.id, text)}
         />

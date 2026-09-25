@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { frozenPaths } from '../data/frozen';
 import type { Allocation, Initiative, PhasePlan, Team } from '../data/types';
-import { getAtPath, mergeDocument, pathKey, setAtPath, type MergeConflict } from './merge';
+import { changedPaths, getAtPath, mergeDocument, pathKey, setAtPath, type MergeConflict } from './merge';
 
 const keys = (conflicts: MergeConflict[]) => conflicts.map((c) => pathKey(c.path));
 
@@ -257,5 +257,24 @@ describe('master files merge by the same function', () => {
     );
     expect(merged).toEqual([{ id: 'p1', name: 'Ana Silva', capacityPct: 90, active: false }]);
     expect(conflicts).toEqual([{ path: [{ id: 'p1' }, 'capacityPct'], base: 100, mine: 80, theirs: 90 }]);
+  });
+});
+
+describe('changedPaths', () => {
+  it('names the changed value, and an added list item at the item', () => {
+    const before = { name: 'A', phases: [{ id: 'p1', end: '2027-03-31', allocations: [] }] };
+    const after = { name: 'A', phases: [{ id: 'p1', end: '2027-04-30', allocations: [{ id: 'a1', pct: 50 }] }] };
+
+    expect(changedPaths(before, after).map(pathKey)).toEqual(['phases[p1].end', 'phases[p1].allocations[a1]']);
+  });
+
+  it('lists nothing for what was removed, or for equal documents', () => {
+    expect(changedPaths({ a: 1, b: 2 }, { a: 1 })).toEqual([]);
+    expect(changedPaths([{ id: 'x' }], [])).toEqual([]);
+    expect(changedPaths({ a: [1, 2] }, { a: [1, 2] })).toEqual([]);
+  });
+
+  it('treats a list that is not made of identified items as one value', () => {
+    expect(changedPaths({ tags: ['a'] }, { tags: ['a', 'b'] }).map(pathKey)).toEqual(['tags']);
   });
 });

@@ -15,6 +15,7 @@ export function PercentInput({
   label,
   disabled,
   flat,
+  changed,
   onChange,
 }: {
   value: number;
@@ -23,6 +24,8 @@ export function PercentInput({
   disabled?: boolean;
   /** Lays the field and its message out as items of the parent flex-wrap row; the message wraps below it. */
   flat?: boolean;
+  /** Another user's change just updated this value (§9.9). */
+  changed?: boolean;
   onChange: (value: number) => void;
 }) {
   const [over, setOver] = useState(false);
@@ -34,6 +37,7 @@ export function PercentInput({
   return (
     <div className={flat ? 'contents' : 'flex flex-wrap items-center gap-x-1'}>
       <CommitInput
+        changed={changed}
         type="number"
         inputMode="numeric"
         min={0}

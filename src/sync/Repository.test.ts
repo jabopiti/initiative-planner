@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Initiative } from '../data/types';
 import { Repository } from './Repository';
+import { rootListing } from './testing/rootListing';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
@@ -44,6 +45,7 @@ function routingFetchMock(
       return jsonResponse({ ref: 'refs/heads/data' }, 201);
     }
 
+    if (method === 'GET' && new URL(url).pathname.endsWith('/contents/')) return exists ? rootListing() : jsonResponse({ message: 'Not Found' }, 404);
     if (method === 'GET' && url.includes('/contents/dataset.json')) {
       if (!exists) return jsonResponse({ message: 'Not Found' }, 404);
       return contentsResponse(

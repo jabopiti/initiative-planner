@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { useHoldWhileEditing } from '../state/DataContext';
 import { formatDateField, localIso, localToday, parseDateText, parseIso } from '../data/dates';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
@@ -21,6 +22,7 @@ export function DateInput({
   label,
   openOn,
   highlight,
+  changed,
   onChange,
 }: {
   value: string | undefined;
@@ -29,6 +31,8 @@ export function DateInput({
   openOn?: string;
   /** Marks the field as the next thing to fill in. */
   highlight?: boolean;
+  /** Another user's change just updated this date (§9.9). */
+  changed?: boolean;
   onChange: (value: string | undefined) => void;
 }) {
   const [draft, setDraft] = useState(value ? formatDateField(value) : '');
@@ -36,6 +40,7 @@ export function DateInput({
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState<Date>(() => fromIso(value ?? openOn ?? localToday()));
   const errorId = useId();
+  useHoldWhileEditing(draft !== (value ? formatDateField(value) : ''));
   const inputRef = useRef<HTMLInputElement>(null);
   const calendarRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -74,7 +79,7 @@ export function DateInput({
             <Input
               ref={inputRef}
               type="text"
-              className={`w-full pr-9 ${highlight ? 'border-brand-accent bg-brand-accent-tint' : ''}`}
+              className={`w-full pr-9 transition-colors duration-500 ${highlight ? 'border-brand-accent bg-brand-accent-tint' : changed ? 'bg-met-tint' : ''}`}
               aria-label={label}
               aria-invalid={unreadable || undefined}
               aria-describedby={unreadable ? errorId : undefined}

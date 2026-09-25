@@ -8,6 +8,7 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
+import { rootListing } from '../sync/testing/rootListing';
 
 // One country: €500/day, 20 working days every month of 2026. One role, factor 0.8: 100% for a month costs €8,000.
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
@@ -56,6 +57,7 @@ beforeAll(() => {
         puts.push({ message: body.message, content: JSON.parse(atob(body.content)) });
         return json({ content: { sha: 'next' } });
       }
+      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
       if (url.includes('/contents/roles.json')) return file(roles, 'r');
       if (url.includes('/contents/countries.json')) return file(countries, 'c');
@@ -63,7 +65,7 @@ beforeAll(() => {
       if (url.includes('/contents/people.json')) return file([ana, cai, dev], 'p');
       if (url.includes('/contents/memberships.json')) return file(members, 'm');
       if (url.endsWith('/contents/initiatives.json') || url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json' }]);
+      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
       return json({ message: 'Not Found' }, 404);
     }),
   );
