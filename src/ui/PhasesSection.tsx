@@ -149,7 +149,7 @@ function CostedPhase({
   const previousEnd = previous && initiative.phases?.[previous.id]?.endDate;
   const overlap = previous && previousEnd && plan.startDate && plan.startDate <= previousEnd ? `Starts before ${previous.label} ends (${formatDate(previousEnd)}). The two phases overlap.` : null;
   const estimateByMonth = frozen && snapshot ? snapshot.estimateByMonth : phaseByMonth(plan, people, rateData);
-  const total = phaseEffectiveTotal(initiative, phase.id, people, rateData);
+  const total = phaseEffectiveTotal(initiative, phase.id, people, rateData, estimateByMonth);
   const hasCost = plan.allocations.length > 0 || (plan.costItems?.length ?? 0) > 0 || Object.keys(plan.actualMonths ?? {}).length > 0;
   const coverage = phaseCoverage(plan);
   const coverageLabel = frozen ? 'Frozen' : coverage === 'actual' ? 'Actual' : coverage === 'forecast' ? 'Forecast' : 'Estimate';

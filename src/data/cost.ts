@@ -292,12 +292,15 @@ export function frozenBlendedTotal(snapshot: FrozenPhaseSnapshot, actualMonths: 
 
 /**
  * A costed phase's blended total (§7.3, §8.1): its frozen snapshot's once its own gate has passed — so a later
- * master-data change can never move it — and its live plan's otherwise. Zero for a phase never planned yet.
+ * master-data change can never move it — and its live plan's otherwise. Zero for a phase never planned yet, or
+ * for a non-costed phase's passed gate (which has no snapshot to freeze). Pass `estimateByMonth` when the
+ * caller already has the live phase's monthly estimate, so it isn't walked twice.
  */
-export function phaseEffectiveTotal(initiative: Initiative, phaseId: string, people: Person[], data: RateData): number {
+export function phaseEffectiveTotal(initiative: Initiative, phaseId: string, people: Person[], data: RateData, estimateByMonth?: Record<string, number>): number {
   const plan = initiative.phases?.[phaseId];
-  if (isPhaseFrozen(initiative, phaseId)) return frozenBlendedTotal(initiative.gates![phaseId].frozenSnapshot!, plan?.actualMonths);
-  return plan ? phaseBlendedTotal(plan, people, data) : 0;
+  const snapshot = isPhaseFrozen(initiative, phaseId) ? initiative.gates![phaseId].frozenSnapshot : undefined;
+  if (snapshot) return frozenBlendedTotal(snapshot, plan?.actualMonths);
+  return plan ? phaseBlendedTotal(plan, people, data, estimateByMonth) : 0;
 }
 
 /**
