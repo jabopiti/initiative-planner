@@ -1,6 +1,6 @@
 import { monthKey, monthOf, parseIso } from './dates';
 import { isActiveMember } from './teamMembers';
-import type { Country, Membership, PhasePlan, Person, Role, Team } from './types';
+import type { CostItem, Country, Membership, PhasePlan, Person, Role, Team } from './types';
 
 /**
  * The cost of an allocation (§7.1), ported from the audited prototype engine
@@ -156,56 +156,64 @@ export function allocationFigures(period: Period, person: Person, allocationPct:
   return { byMonth, personDays, cost };
 }
 
-/** A phase's labour cost: its allocations summed. An allocation whose person no longer exists adds nothing. */
+/** The calendar months of a period, or none while a date is unset or the period is inverted: a phase without months is not costed yet (§7.1). */
+export function periodMonths(period: Period): string[] {
+  return period.startDate && period.endDate ? monthsInRange(period.startDate, period.endDate) : [];
+}
+
+/**
+ * A cost item's amount by month over a period's `months` (§7.1): the full amount in its one month, or an equal share
+ * of every calendar month the period touches (the partial first and last months are not prorated). Empty without a
+ * valid period, so an item counts only once its phase is costed; a one-month item outside the period still counts.
+ */
+function spreadItem(months: string[], item: CostItem): Record<string, number> {
+  if (months.length === 0) return {};
+  if (item.timing === 'month') return item.month ? { [item.month]: item.amount } : {};
+  return Object.fromEntries(months.map((key) => [key, item.amount / months.length]));
+}
+
+/** Whether a one-month item lies outside a valid period's `months` (§6): it stays and counts, and the phase warns. */
+export function isOutsidePeriod(months: string[], item: CostItem): boolean {
+  return item.timing === 'month' && Boolean(item.month) && months.length > 0 && !months.includes(item.month!);
+}
+
+/** A phase's monthly estimate (§7.1): its allocations' cost and its cost items, month by month. An allocation whose person no longer exists adds nothing. */
+export function phaseByMonth(plan: PhasePlan, people: Person[], data: RateData): Record<string, number> {
+  const byMonth: Record<string, number> = {};
+  const add = (amounts: Record<string, number>) => {
+    for (const [key, amount] of Object.entries(amounts)) byMonth[key] = (byMonth[key] ?? 0) + amount;
+  };
+  for (const allocation of plan.allocations) {
+    const person = people.find((p) => p.id === allocation.personId);
+    if (person) add(allocationFigures(plan, person, allocation.allocationPct, data).byMonth);
+  }
+  const months = periodMonths(plan);
+  for (const item of plan.costItems ?? []) add(spreadItem(months, item));
+  return byMonth;
+}
+
+/** A phase's cost: its monthly estimate summed. */
 export function phaseTotal(plan: PhasePlan, people: Person[], data: RateData): number {
-  let total = 0;
-  for (const allocation of plan.allocations) {
-    const person = people.find((p) => p.id === allocation.personId);
-    if (person) total += allocationFigures(plan, person, allocation.allocationPct, data).cost;
-  }
-  return total;
-}
-
-/** A phase's labour cost, month by month: its allocations' monthly figures summed (§7.1). */
-export function phaseLabourByMonth(plan: PhasePlan, people: Person[], data: RateData): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const allocation of plan.allocations) {
-    const person = people.find((p) => p.id === allocation.personId);
-    if (!person) continue;
-    for (const [key, amount] of Object.entries(allocationFigures(plan, person, allocation.allocationPct, data).byMonth)) {
-      out[key] = (out[key] ?? 0) + amount;
-    }
-  }
-  return out;
+  return Object.values(phaseByMonth(plan, people, data)).reduce((sum, amount) => sum + amount, 0);
 }
 
 /**
- * A phase's estimated cost, month by month: labour today, plus cost items once slice 007 adds them to the
- * data model (§6, §7.1).
+ * Every month a phase costs something in: its period, any recorded actual that falls outside it, and any
+ * one-month cost item's month (each a warning case, not a separate range — §7.3, §6).
  */
-export function phaseEstimateByMonth(plan: PhasePlan, people: Person[], data: RateData): Record<string, number> {
-  return phaseLabourByMonth(plan, people, data);
-}
-
-/**
- * Every month a phase costs something in: its period, plus any recorded actual that falls outside it (a
- * warning case, not a separate range — §7.3, §6). Cost-item months join this once slice 007 lands.
- */
-export function phaseMonths(period: Period, actualMonths?: Record<string, number>): string[] {
-  const keys = new Set<string>();
-  if (period.startDate && period.endDate) {
-    for (const key of monthsInRange(period.startDate, period.endDate)) keys.add(key);
-  }
-  for (const key of Object.keys(actualMonths ?? {})) keys.add(key);
+export function phaseMonths(plan: PhasePlan): string[] {
+  const keys = new Set<string>(periodMonths(plan));
+  for (const key of Object.keys(plan.actualMonths ?? {})) keys.add(key);
+  for (const item of plan.costItems ?? []) if (item.timing === 'month' && item.month) keys.add(item.month);
   return [...keys].sort();
 }
 
 /** Recorded actual where there is one, the estimate otherwise, for every month the phase costs something in (§7.3). */
 export function phaseBlendedByMonth(plan: PhasePlan, people: Person[], data: RateData): Record<string, number> {
-  const estimate = phaseEstimateByMonth(plan, people, data);
+  const estimate = phaseByMonth(plan, people, data);
   const actuals = plan.actualMonths ?? {};
   const out: Record<string, number> = {};
-  for (const key of phaseMonths(plan, plan.actualMonths)) out[key] = actuals[key] ?? estimate[key] ?? 0;
+  for (const key of phaseMonths(plan)) out[key] = actuals[key] ?? estimate[key] ?? 0;
   return out;
 }
 
@@ -229,7 +237,7 @@ export function actualOrEstimate(plan: PhasePlan, month: string, today: string, 
 
 /** Estimate / Forecast / Actual, by how far recorded actuals cover the phase's months (§4). */
 export function phaseCoverage(plan: PhasePlan): 'estimate' | 'forecast' | 'actual' {
-  const months = phaseMonths(plan, plan.actualMonths);
+  const months = phaseMonths(plan);
   const actuals = plan.actualMonths ?? {};
   const recorded = months.filter((key) => actuals[key] !== undefined).length;
   if (recorded === 0) return 'estimate';
@@ -240,7 +248,7 @@ export function phaseCoverage(plan: PhasePlan): 'estimate' | 'forecast' | 'actua
 export function phaseDeviation(plan: PhasePlan, people: Person[], data: RateData): number | undefined {
   const actuals = plan.actualMonths;
   if (!actuals || Object.keys(actuals).length === 0) return undefined;
-  const estimate = phaseEstimateByMonth(plan, people, data);
+  const estimate = phaseByMonth(plan, people, data);
   let total = 0;
   for (const [month, amount] of Object.entries(actuals)) total += amount - (estimate[month] ?? 0);
   return total;
@@ -249,4 +257,11 @@ export function phaseDeviation(plan: PhasePlan, people: Person[], data: RateData
 /** Why a person can't be allocated to this team's initiative, or null when they can (§7.2). */
 export function allocationRefusal(person: Person, team: Team, memberships: Membership[]): string | null {
   return isActiveMember(person, team.id, memberships) ? null : `${person.name} isn't a member of ${team.name}. Only team members can be allocated.`;
+}
+
+/** The parse every amount and rate field shares: blank, not a number or negative is rejected. */
+export function parseAmount(text: string): number | null {
+  if (text.trim() === '') return null;
+  const value = Number(text);
+  return Number.isFinite(value) && value >= 0 ? value : null;
 }

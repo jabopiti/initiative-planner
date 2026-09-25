@@ -1,6 +1,15 @@
-import { useEffect, useId, useState, type ComponentProps } from 'react';
+import { useEffect, useId, useState, type ComponentProps, type ReactNode } from 'react';
 import { useHoldWhileEditing } from '../state/DataContext';
 import { Input } from '@/components/ui/input';
+
+/** The message under a field that refused its text (§9.9), announced when it appears. */
+export function Refusal({ id, className = '', children }: { id?: string; className?: string; children: ReactNode }) {
+  return (
+    <p id={id} role="alert" className={`m-0 flex items-center gap-1 rounded-md bg-alarm-tint px-2 py-1 text-xs text-alarm-text ${className}`}>
+      {children}
+    </p>
+  );
+}
 
 /**
  * A text or number field that commits when it loses focus or Enter is pressed, never on each keystroke
@@ -78,9 +87,9 @@ export function CommitInput({
         }}
       />
       {error && (
-        <p id={errorId} role="alert" className={`m-0 flex items-center gap-1 rounded-md bg-alarm-tint px-2 py-1 text-xs text-alarm-text ${errorClassName}`}>
+        <Refusal id={errorId} className={errorClassName}>
           {error}
-        </p>
+        </Refusal>
       )}
     </>
   );

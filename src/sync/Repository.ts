@@ -6,6 +6,7 @@ import {
   FILE_PATHS,
   SCHEMA_VERSION,
   type Allocation,
+  type CostItem,
   type Country,
   type DatasetFlags,
   type Initiative,
@@ -117,12 +118,21 @@ export interface TeamChange {
   removed: RemovedAllocation[];
 }
 
-/** `allocation` put at `index` of `allocations`, or at the end when the list has since become shorter. */
-function insertAllocation(allocations: Allocation[], allocation: Allocation, index: number): Allocation[] {
-  const next = [...allocations];
-  next.splice(Math.min(index, next.length), 0, allocation);
+/** `item` put back at `index` (or last, when the list has since shrunk): where an Undo restores a removed list item. */
+function insertAt<T>(list: T[], item: T, index: number): T[] {
+  const next = [...list];
+  next.splice(Math.min(index, next.length), 0, item);
   return next;
 }
+
+/** One change to a cost item, of the one field the commit note names. */
+export type CostItemChange = { label: string } | { amount: number } | { timing: 'spread' } | { timing: 'month'; month: string } | { month: string };
+
+/** The phase lists whose items are removed with an Undo (§5.11). */
+type PhaseList = 'allocations' | 'costItems';
+
+/** A phase list's items as the caller knows them; `list` says which, so the one cast is here. */
+const itemsOf = <T extends { id: string }>(plan: PhasePlan | undefined, list: PhaseList): T[] => (plan?.[list] ?? []) as unknown as T[];
 
 type Listener = () => void;
 
@@ -928,29 +938,98 @@ export class Repository {
     );
   }
 
-  /** Remove an allocation; the position comes back so an Undo can put it where it was (§5.11). */
-  removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
-    const allocations = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.allocations ?? [];
-    const index = allocations.findIndex((a) => a.id === allocationId);
+  /**
+   * Remove an item from a phase's list; its position comes back so an Undo can put it where it was (§5.11).
+   * `removed` and `restored` finish the commit note, after "<initiative>: <phase> ".
+   */
+  private removeFromList<T extends { id: string }>(
+    list: PhaseList,
+    initiativeId: string,
+    phaseId: string,
+    itemId: string,
+    removed: (item: T) => string,
+  ): { item: T; index: number } | null {
+    const items = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
+    const index = items.findIndex((item) => item.id === itemId);
     if (index < 0) return null;
-    const allocation = allocations[index];
+    const item = items[index];
     this.editPhase(
       initiativeId,
       phaseId,
-      (plan) => ({ ...plan, allocations: plan.allocations.filter((a) => a.id !== allocationId) }),
-      { key: allocationId, text: (name, phase) => `${name}: ${phase} allocation removed (${this.personName(allocation.personId)})` },
+      (plan) => ({ ...plan, [list]: itemsOf<T>(plan, list).filter((other) => other.id !== itemId) }),
+      { key: itemId, text: (name, phase) => `${name}: ${phase} ${removed(item)}` },
     );
-    return { allocation, index };
+    return { item, index };
+  }
+
+  /** Undo of {@link removeFromList}: the same item, same id, back in its place, as a normal edit. Nothing happens when it is already there again. */
+  private restoreToList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, item: T, index: number, restored: string): void {
+    const present = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
+    if (present.some((other) => other.id === item.id)) return;
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, [list]: insertAt(itemsOf<T>(plan, list), item, index) }),
+      { key: item.id, text: (name, phase) => `${name}: ${phase} ${restored}` },
+    );
+  }
+
+  /** Remove an allocation; the position comes back so an Undo can put it where it was (§5.11). */
+  removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
+    const removed = this.removeFromList<Allocation>('allocations', initiativeId, phaseId, allocationId, (a) => `allocation removed (${this.personName(a.personId)})`);
+    return removed && { allocation: removed.item, index: removed.index };
   }
 
   /** Undo of {@link removeAllocation}: the same allocation, same id, back in its place, as a normal edit. */
   restoreAllocation(initiativeId: string, phaseId: string, allocation: Allocation, index: number): void {
+    this.restoreToList('allocations', initiativeId, phaseId, allocation, index, `allocation restored (${this.personName(allocation.personId)})`);
+  }
+
+  /** An amount as a commit message reads it, in the deployment's currency (§9.7). */
+  private money(amount: number): string {
+    return `${this.brand.currencySymbol}${amount.toLocaleString('en', { maximumFractionDigits: 2 })}`;
+  }
+
+  /** Add a cost item to a phase (§5.4); it is one commit, made once the draft row is complete. */
+  addCostItem(initiativeId: string, phaseId: string, draft: Omit<CostItem, 'id'>): CostItem | null {
+    const item: CostItem = { id: newId(), ...draft };
+    const added = this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, costItems: [...(plan.costItems ?? []), item] }),
+      { key: item.id, text: (name, phase) => `${name}: ${phase} cost item added (${item.label}, ${this.money(item.amount)})` },
+    );
+    return added ? item : null;
+  }
+
+  /** Change a cost item's label, amount or timing; the commit note names the one field changed. */
+  updateCostItem(initiativeId: string, phaseId: string, itemId: string, change: CostItemChange): void {
+    const item = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.costItems?.find((c) => c.id === itemId);
+    if (!item) return;
+    const what =
+      'label' in change
+        ? `renamed to ${change.label}`
+        : 'amount' in change
+          ? `${item.label} amount set to ${this.money(change.amount)}`
+          : 'timing' in change && change.timing === 'spread'
+            ? `${item.label} spread over the phase`
+            : `${item.label} timed to ${formatMonth(change.month)}`;
     this.editPhase(
       initiativeId,
       phaseId,
-      (plan) => ({ ...plan, allocations: insertAllocation(plan.allocations, allocation, index) }),
-      { key: allocation.id, text: (name, phase) => `${name}: ${phase} allocation restored (${this.personName(allocation.personId)})` },
+      (plan) => ({ ...plan, costItems: (plan.costItems ?? []).map((c) => (c.id === itemId ? { ...c, ...change } : c)) }),
+      { key: `${itemId}:${Object.keys(change).join(',')}`, text: (name, phase) => `${name}: ${phase} cost item ${what}` },
     );
+  }
+
+  /** Remove a cost item; the position comes back so an Undo can put it where it was (§5.11). */
+  removeCostItem(initiativeId: string, phaseId: string, itemId: string): { item: CostItem; index: number } | null {
+    return this.removeFromList<CostItem>('costItems', initiativeId, phaseId, itemId, (item) => `cost item removed (${item.label})`);
+  }
+
+  /** Undo of {@link removeCostItem}. */
+  restoreCostItem(initiativeId: string, phaseId: string, item: CostItem, index: number): void {
+    this.restoreToList('costItems', initiativeId, phaseId, item, index, `cost item restored (${item.label})`);
   }
 
   /**
@@ -1030,7 +1109,7 @@ export class Repository {
     for (const { phaseId, allocation, index } of [...change.removed].sort((a, b) => a.index - b.index)) {
       const plan = phases[phaseId];
       if (!plan || locked(phaseId) || plan.allocations.some((a) => a.id === allocation.id)) continue;
-      phases[phaseId] = { ...plan, allocations: insertAllocation(plan.allocations, allocation, index) };
+      phases[phaseId] = { ...plan, allocations: insertAt(plan.allocations, allocation, index) };
       restored += 1;
     }
     const next: Initiative = { ...initiative, teamId: change.fromTeamId, ...(initiative.phases && { phases }) };

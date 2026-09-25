@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import type { Allocation, CustomRole, Initiative, Membership, Person, PhasePlan, Team } from '../data/types';
+import type { Allocation, CostItem, CustomRole, Initiative, Membership, Person, PhasePlan, Team } from '../data/types';
 import { getAtPath, type Path } from '../sync/merge';
 import { describeConflict, type ConflictContext } from './describeConflict';
 
 // Every field filled: a field added to a type must be added here too, and then needs a banner label.
 const allocation: Required<Allocation> = { id: 'a1', personId: 'ana', allocationPct: 50 };
-const phase: Required<PhasePlan> = { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [allocation], actualMonths: { '2026-10': 14200 } };
+const costItem: Required<CostItem> = { id: 'c1', label: 'Penetration test', amount: 12000, timing: 'month', month: '2026-10' };
+const phase: Required<PhasePlan> = {
+  startDate: '2026-10-01',
+  endDate: '2026-11-30',
+  allocations: [allocation],
+  costItems: [costItem],
+  actualMonths: { '2026-10': 14200 },
+};
 const initiative: Required<Initiative> = {
   id: 'i1',
   name: 'Payments API',
@@ -84,6 +91,15 @@ describe('conflict rows name every field in words (§3, §9.9)', () => {
     expect([r.field, r.mine, r.theirs]).toEqual(['Validation · Ana Silva allocation', 'removed', '50%']);
   });
 
+  it('names a cost item by its label, its values as the table shows them, and a removed one as removed', () => {
+    const at = (leaf: string, mine: unknown, theirs: unknown) => row('initiatives/i1.json', ['phases', 'validation', 'costItems', { id: 'c1' }, leaf], mine, theirs);
+    expect([at('amount', 12000, 15000).field, at('amount', 12000, 15000).mine, at('amount', 12000, 15000).theirs]).toEqual(['Validation · Penetration test amount', '€12,000', '€15,000']);
+    expect([at('timing', 'month', 'spread').mine, at('timing', 'month', 'spread').theirs]).toEqual(['One month', 'Spread over the phase']);
+    expect([at('month', '2026-10', '2026-12').field, at('month', '2026-10', '2026-12').theirs]).toEqual(['Validation · Penetration test month', 'Dec 2026']);
+    const removed = row('initiatives/i1.json', ['phases', 'validation', 'costItems', { id: 'c1' }], undefined, costItem);
+    expect([removed.field, removed.mine, removed.theirs]).toEqual(['Validation · cost item', 'removed', 'Penetration test €12,000']);
+  });
+
   it('reads an unset value as not set, and references by name', () => {
     const r = row('initiatives/i1.json', ['ownerId'], undefined, 'ana');
     expect([r.field, r.mine, r.theirs]).toEqual(['Owner', 'not set', 'Ana Silva']);
@@ -104,6 +120,6 @@ describe('conflict rows name every field in words (§3, §9.9)', () => {
       theirs: '5',
       labelled: false,
     });
-    expect(row('initiatives/i1.json', ['phases', 'validation', 'costItems', { id: 'c1' }], { id: 'c1' }, undefined)).toMatchObject({ mine: 'set', theirs: 'not set' });
+    expect(row('initiatives/i1.json', ['phases', 'validation', 'actuals'], { '2026-10': 5 }, undefined)).toMatchObject({ mine: 'set', theirs: 'not set' });
   });
 });

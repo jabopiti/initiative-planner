@@ -1,22 +1,23 @@
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { useBrand } from '../state/BrandContext';
 import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
-import { actualOrEstimate, allocationFigures, phaseBlendedTotal, phaseCoverage, phaseEstimateByMonth, phaseMonths } from '../data/cost';
+import { actualOrEstimate, allocationFigures, phaseBlendedTotal, phaseByMonth, phaseCoverage, phaseMonths } from '../data/cost';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { freeCapacityByPerson } from '../data/personLoad';
 import { roleLabel } from '../data/roleLabel';
 import { activeMembers } from '../data/teamMembers';
 import { FILE_PATHS, type Initiative, type PhasePlan, type Team } from '../data/types';
 import { AmountInput } from './AmountInput';
+import { CostItemsTable } from './CostItemsTable';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, InfoIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
 import { sortRows } from './tableSort';
 import { PercentInput } from './PercentInput';
+import { undoToast } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -131,11 +132,11 @@ function CostedPhase({
   const previousEnd = previous && initiative.phases?.[previous.id]?.endDate;
   const overlap = previous && previousEnd && plan.startDate && plan.startDate <= previousEnd ? `Starts before ${previous.label} ends (${formatDate(previousEnd)}). The two phases overlap.` : null;
   const total = phaseBlendedTotal(plan, people, rateData);
-  const hasCost = plan.allocations.length > 0 || Object.keys(plan.actualMonths ?? {}).length > 0;
+  const hasCost = plan.allocations.length > 0 || (plan.costItems?.length ?? 0) > 0 || Object.keys(plan.actualMonths ?? {}).length > 0;
   const coverage = phaseCoverage(plan);
   const coverageLabel = coverage === 'actual' ? 'Actual' : coverage === 'forecast' ? 'Forecast' : 'Estimate';
-  const estimateByMonth = phaseEstimateByMonth(plan, people, rateData);
-  const months = costed ? phaseMonths(plan, plan.actualMonths) : [];
+  const estimateByMonth = phaseByMonth(plan, people, rateData);
+  const months = costed ? phaseMonths(plan) : [];
 
   // Who can still be added, and what each has free for the phase's months (§5.11), most free first. Free capacity
   // is undefined without a valid period (the list is then by name) and while the phase is closed: only the open
@@ -325,13 +326,7 @@ function CostedPhase({
                           onClick={() => {
                             const removed = repository.removeAllocation(initiative.id, phase.id, allocation.id);
                             if (!removed) return;
-                            toast('Removed.', {
-                              duration: 10_000,
-                              action: {
-                                label: 'Undo',
-                                onClick: () => repository.restoreAllocation(initiative.id, phase.id, removed.allocation, removed.index),
-                              },
-                            });
+                            undoToast(() => repository.restoreAllocation(initiative.id, phase.id, removed.allocation, removed.index));
                           }}
                         >
                           <RemoveIcon />
@@ -351,6 +346,8 @@ function CostedPhase({
               {refusal}
             </p>
           )}
+
+          <CostItemsTable initiativeId={initiative.id} phase={phase} plan={plan} />
 
           {costed && months.length > 0 && (
             <div className="flex flex-col gap-2">

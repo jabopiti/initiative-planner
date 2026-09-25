@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateField, formatMonth, formatMonthRanges, formatMonthShort, formatPeriod, nextMonth, parseDateText } from './dates';
+import { formatDate, formatDateField, formatMonth, formatMonthRanges, formatMonthShort, formatPeriod, nextMonth, parseDateText, parseMonthText } from './dates';
 
 describe('date text (§9.11 date input)', () => {
   it('formats an ISO date for the field as dd.mm.yyyy, and for headlines as "3 Sep 2026"', () => {
@@ -48,5 +48,19 @@ describe('month helpers', () => {
     expect(formatMonthRanges(['2026-11', '2026-12', '2027-01'])).toBe('Nov 2026 – Jan 2027');
     expect(formatMonthRanges(['2026-09', '2026-11', '2026-12'])).toBe('Sep 2026, Nov – Dec 2026');
     expect(formatMonthRanges(['2026-09'])).toBe('Sep 2026');
+  });
+});
+
+describe('month text (§9.11 month input)', () => {
+  it('reads "Sep 2026" and the other spellings of a month', () => {
+    for (const text of ['Sep 2026', 'september 2026', 'Sept 2026', '2026-09', '09/2026', '9.2026', ' Sep  2026 ']) {
+      expect(parseMonthText(text), text).toBe('2026-09');
+    }
+  });
+
+  it('refuses what is not a month, or a year nobody plans in', () => {
+    for (const text of ['', 'Sep', '2026', 'Foo 2026', '13/2026', '0/2026', 'Sep 1026', 'Sep 20266']) {
+      expect(parseMonthText(text), text).toBeNull();
+    }
   });
 });
