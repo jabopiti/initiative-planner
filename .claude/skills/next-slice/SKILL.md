@@ -1,119 +1,68 @@
 ---
 name: next-slice
-description: Pick up the next backlog slice — lists the slices whose dependencies are done, asks the user to pick one, then reviews it for gaps, questions and open decisions (copy and UI above all, UI with mockups) and settles them with the user before any implementation. Use when the user asks what's next, says to pick up the next slice, or starts backlog work, named slice or not.
+description: Pick up the next backlog slice — the user picks from the eligible slices, then every open decision (copy and UI above all) is settled with them before implementation. Use when the user asks what's next, to pick up a slice, or starts backlog work.
 argument-hint: "[slice id]"
 allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/find-eligible.sh) Bash(.claude/skills/spec-section/scripts/extract.sh *)
 ---
 
 # next-slice
 
-Two phases: **pick** a slice with the user, then **review** it with the
-user until nothing is open. Implementation starts only after that.
+Goal: the user picks the slice, and nothing about it is left to guess
+before code is written — every decision that's theirs is settled,
+recorded in the slice file and committed first.
 
 ## Eligible slices
 
 !`${CLAUDE_SKILL_DIR}/scripts/find-eligible.sh`
 
-(`status: valid`, not superseded, every `depends_on` done. "Done" = a
-commit subject starting `Slice <id>:`. A `type: spike` can ship without
-one — if a spike is listed but a slice depending on it is clearly done,
-treat the spike as done.)
+A spike can ship without a `Slice <id>:` commit: once a slice depending
+on it is done, treat the spike as done.
 
-## 1. Pick
+## Pick
 
-- Requested slice id: $ARGUMENTS — if one is given, use it (warn if it
-  isn't eligible) and skip to step 2.
-- None eligible → say so and stop.
-- Otherwise ask with AskUserQuestion, one option per eligible slice
-  (label: id and title; description: what it delivers in one line, and
-  its `recommended_model`). Put your recommendation first, marked
-  "(Recommended)", using `backlog/slices-overview.md`'s order and what
-  the finished slices unblock. With exactly one, still ask: that slice,
-  or stop.
-- Report the pick: id, title, `depends_on`, `spec_sections`, and
-  `recommended_model` + `model_rationale` (the user switches models with
-  `/model` — never switch it yourself).
+If `$ARGUMENTS` names a slice, take it (say if it isn't eligible).
+Otherwise the user picks — even when only one is eligible — with your
+recommendation from `backlog/slices-overview.md`. Mention the slice's
+`recommended_model` so they can switch; don't switch it yourself.
 
-## 2. Load
+## Review
 
-- The slice file, in full. Its "Decided in review" bullets and
-  `change_summary` are settled — don't reopen them.
-- Each cited spec section, one call each:
-  `.claude/skills/spec-section/scripts/extract.sh 5.8`. Always add §9.2
-  Copy, and for visible UI also §9.4 Empty states, §9.5 Accessibility,
-  §9.8 Visual design, §9.9 Interface states and §9.10 Icons.
-- The code the slice touches, and the screens nearest to it for existing
-  patterns and wording. If that means reading many files, have an Explore
-  subagent do it and report back.
-- `backlog/example-data.md` for realistic names and figures.
+Read the slice, its cited spec sections, §9.2 Copy and — for visible UI
+— §9.4, §9.5, §9.8, §9.9 and §9.10, and the code it touches. The slice's
+"Decided in review" bullets and `change_summary` are settled.
 
-## 3. Review
+Find everything implementation would otherwise have to guess:
+- conflicts between slice, spec and built code;
+- undefined behaviour: empty, error, conflict, inactive or deleted
+  entities, other slices, data-file shape;
+- acceptance criteria that can't be tested, or scope with none;
+- every new user-visible string, against §9.2 and the wording on
+  neighbouring screens;
+- every UI choice: placement, component, states, keyboard, icon, colour;
+- technical or architectural choices that fundamentally change things —
+  a new dependency, how data is stored, loaded or written to GitHub, a
+  new shared pattern later slices will follow, anything hard to reverse.
 
-Look for:
+What you can decide sensibly and change cheaply is an assumption: state
+it, don't ask. Other implementation details stay out.
 
-- **Conflicts** — slice vs spec, spec vs spec, spec vs built code; any
-  rule with two readings that would lead to different code.
-- **Gaps** — behaviour the slice needs that nobody has defined: empty,
-  error, conflict and inactive/deleted-entity cases; interaction with
-  finished and pending slices; data-file shape changes (a spec decision,
-  not an implementation detail).
-- **Acceptance criteria** — any that can't be tested as written, or a
-  scope item with no criterion.
-- **Copy** — every new user-visible string: headings, labels, buttons,
-  empty states, warnings, errors, tooltips, confirmations, Copy output.
-  Check each against §9.2 and the wording already on neighbouring
-  screens.
-- **UI** — placement, layout, component (shadcn first), states (empty,
-  loading, warning, error), focus and keyboard, icon, colour.
+## Settle
 
-Sort each finding into one of:
+Ask until nothing is open, recommending an option each time.
+- Copy options quote the exact text, in its place, and name the §9.2
+  rule they follow.
+- UI options are always shown as a visual in the chat before the
+  question: one per decision, options side by side and named as in the
+  question, in the app's look (`src/index.css` tokens, shadcn, §9.10
+  icons), with names and figures from `backlog/example-data.md`, in the
+  state being decided. No inline visual tool: ASCII in the option preview.
 
-- **Decision** — more than one reasonable answer, and the user's to make.
-- **Question** — a fact only the user has.
-- **Assumption** — you can decide it sensibly and it's cheap to change;
-  state it so the user can veto it.
+Nothing to decide: say so, list the assumptions, ask to go ahead.
 
-Pure implementation details stay out unless they change behaviour or
-the data format.
+## Record
 
-## 4. Settle with the user
-
-1. Give an overview first: the numbered list of decisions, questions and
-   assumptions, one line each — so the user sees the size of it.
-2. Ask the decisions and questions with AskUserQuestion: up to 4 per
-   call, 2–4 options each, your recommendation first marked
-   "(Recommended)", and in each option's description the trade-off and
-   why you would or wouldn't pick it.
-3. **Copy decisions:** each option quotes the exact text as it would
-   appear, in its place (e.g. the button with the heading above it), and
-   says which §9.2 rule it follows.
-4. **UI decisions always come with a mockup of every option, rendered
-   as a visual in the chat** (the inline visual tool, `show_widget`; load
-   its `read_me` once per session first), before the question that asks
-   for the choice:
-   - One visual per decision, the options side by side, each labelled
-     with the same name as its AskUserQuestion option.
-   - At the real layout, with the app's look (tokens from
-     `src/index.css`, shadcn components, the §9.10 icons), the real copy,
-     and names and figures from `backlog/example-data.md`.
-   - Showing the state the decision is about (the warning, the empty
-     state, the open detail), not just the default state.
-   - Only if the session has no inline visual tool: an ASCII wireframe in
-     each option's `preview` instead.
-5. Follow-up questions an answer opens go in the next round. Keep going
-   until every decision and question is answered and the user has seen
-   the assumptions.
-6. If the review finds nothing to decide, say so, list the assumptions,
-   and ask to go ahead.
-
-## 5. Record, then implement
-
-- Write the outcome into the slice file: add bullets to "Decided in
-  review (pre-implementation)" under Scope (create it if missing), update
-  `change_summary`, and amend acceptance criteria any decision changes.
-  A decision that changes behaviour the spec describes goes into
-  `docs/spec.md` too.
-- Commit as `Slice <id> spec: <the decisions in plain words>` — never
-  `Slice <id>:`, which marks the slice done.
-- Then implement per AGENTS.md's Order of work, and verify every
-  acceptance criterion before marking the slice complete.
+Put the outcome in the slice file ("Decided in review
+(pre-implementation)" under Scope, `change_summary`, changed criteria)
+and in `docs/spec.md` where it changes specified behaviour. Commit as
+`Slice <id> spec: …` — never `Slice <id>:`, which marks it done. Then
+implement.
