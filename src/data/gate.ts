@@ -1,5 +1,5 @@
 import type { ApprovalTrackDef, GateDef, PhaseDef } from '../brand/types';
-import { allocationFigures, grandEstimate, phaseByMonth, resolveApprovalTrack, type RateData } from './cost';
+import { allocationFigures, grandEstimate, hasValidPeriod, phaseByMonth, resolveApprovalTrack, type RateData } from './cost';
 import { currentPhaseId } from './processState';
 import type { ChecklistItemRecord, ChecklistItemState, ChecklistStatus, FrozenAllocation, FrozenPhaseSnapshot, GateRecord, Initiative, Person } from './types';
 
@@ -52,8 +52,7 @@ export function carriedForwardItems(process: PhaseDef[], initiative: Initiative,
 /** A costed phase counts as estimated once it has a valid period and at least one allocation or cost item (§8.1). */
 function phaseIsEstimated(initiative: Initiative, phase: PhaseDef): boolean {
   const plan = initiative.phases?.[phase.id];
-  const hasPeriod = Boolean(plan?.startDate && plan.endDate && plan.startDate <= plan.endDate);
-  return hasPeriod && (plan!.allocations.length > 0 || (plan!.costItems?.length ?? 0) > 0);
+  return Boolean(plan && hasValidPeriod(plan) && (plan.allocations.length > 0 || (plan.costItems?.length ?? 0) > 0));
 }
 
 /** Costed phases from `fromPhaseId` onward (inclusive) that are not estimated yet (§8.1): the phase behind the gate and every costed phase still ahead. */
@@ -209,15 +208,15 @@ export interface ReopenGateResult {
   phase: PhaseDef;
 }
 
+/** The phase behind the gate before the current one, or null when the current phase is first (§8.3). */
+function previousPhaseId(process: PhaseDef[], initiative: Initiative): string | null {
+  const index = process.findIndex((p) => p.id === currentPhaseId(initiative, process));
+  return index > 0 ? process[index - 1].id : null;
+}
+
 /** Reverse exactly the most recent transition (§8.3): clears that gate's record and discards its frozen snapshot; checklist statuses and notes are kept. Null when there is none to reverse. */
 export function reopenGate(process: PhaseDef[], initiative: Initiative): ReopenGateResult | null {
-  const phaseId =
-    initiative.status === 'Closed'
-      ? process[process.length - 1].id
-      : (() => {
-          const index = process.findIndex((p) => p.id === currentPhaseId(initiative, process));
-          return index > 0 ? process[index - 1].id : null;
-        })();
+  const phaseId = initiative.status === 'Closed' ? process[process.length - 1].id : previousPhaseId(process, initiative);
   if (phaseId === null || !initiative.gates?.[phaseId]) return null;
 
   const phase = process.find((p) => p.id === phaseId)!;

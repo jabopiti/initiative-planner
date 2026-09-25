@@ -3,7 +3,7 @@ import { useBrand } from '../state/BrandContext';
 import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
-import { actualOrEstimate, allocationFigures, frozenBlendedTotal, phaseBlendedTotal, phaseByMonth, phaseCoverage, phaseMonths } from '../data/cost';
+import { actualOrEstimate, allocationFigures, hasValidPeriod, phaseByMonth, phaseCoverage, phaseEffectiveTotal, phaseMonths } from '../data/cost';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { currentPhaseId } from '../data/gate';
 import { isPhaseFrozen } from '../data/frozen';
@@ -49,7 +49,7 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
   // One next step at a time: the first costed phase still missing its period or its people.
   const isPlanned = (phase: PhaseDef) => {
     const plan = initiative.phases?.[phase.id];
-    return Boolean(plan?.startDate && plan.endDate && plan.startDate <= plan.endDate) && plan!.allocations.length > 0;
+    return Boolean(plan && hasValidPeriod(plan) && plan.allocations.length > 0);
   };
   const nextStepId = costedPhases.find((p) => !isPlanned(p))?.id;
   const currentId = currentPhaseId(initiative, process);
@@ -149,7 +149,7 @@ function CostedPhase({
   const previousEnd = previous && initiative.phases?.[previous.id]?.endDate;
   const overlap = previous && previousEnd && plan.startDate && plan.startDate <= previousEnd ? `Starts before ${previous.label} ends (${formatDate(previousEnd)}). The two phases overlap.` : null;
   const estimateByMonth = frozen && snapshot ? snapshot.estimateByMonth : phaseByMonth(plan, people, rateData);
-  const total = frozen && snapshot ? frozenBlendedTotal(snapshot, plan.actualMonths) : phaseBlendedTotal(plan, people, rateData, estimateByMonth);
+  const total = phaseEffectiveTotal(initiative, phase.id, people, rateData);
   const hasCost = plan.allocations.length > 0 || (plan.costItems?.length ?? 0) > 0 || Object.keys(plan.actualMonths ?? {}).length > 0;
   const coverage = phaseCoverage(plan);
   const coverageLabel = frozen ? 'Frozen' : coverage === 'actual' ? 'Actual' : coverage === 'forecast' ? 'Forecast' : 'Estimate';

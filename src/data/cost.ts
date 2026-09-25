@@ -1,5 +1,6 @@
 import type { ApprovalTrackDef, PhaseDef } from '../brand/types';
 import { monthKey, monthOf, parseIso } from './dates';
+import { isPhaseFrozen } from './frozen';
 import { isActiveMember } from './teamMembers';
 import type { CostItem, Country, FrozenPhaseSnapshot, Initiative, Membership, PhasePlan, Person, Role, Team } from './types';
 
@@ -19,6 +20,11 @@ export interface RateData {
 export interface Period {
   startDate?: string;
   endDate?: string;
+}
+
+/** Whether a period has both dates set and isn't inverted (§7.1) — the period-validity rule every "is this phase costed/estimated/planned" check starts from. */
+export function hasValidPeriod(period: Period): boolean {
+  return Boolean(period.startDate && period.endDate && period.startDate <= period.endDate);
 }
 
 function parseDate(isoDate: string): Date {
@@ -285,21 +291,22 @@ export function frozenBlendedTotal(snapshot: FrozenPhaseSnapshot, actualMonths: 
 }
 
 /**
- * An initiative's grand estimate (§4): the blended total of every costed phase, using each phase's frozen
- * snapshot once its gate has passed (so a later master-data change can never move it) and its live plan
- * otherwise. A costed phase never planned yet (no plan at all) costs nothing.
+ * A costed phase's blended total (§7.3, §8.1): its frozen snapshot's once its own gate has passed — so a later
+ * master-data change can never move it — and its live plan's otherwise. Zero for a phase never planned yet.
+ */
+export function phaseEffectiveTotal(initiative: Initiative, phaseId: string, people: Person[], data: RateData): number {
+  const plan = initiative.phases?.[phaseId];
+  if (isPhaseFrozen(initiative, phaseId)) return frozenBlendedTotal(initiative.gates![phaseId].frozenSnapshot!, plan?.actualMonths);
+  return plan ? phaseBlendedTotal(plan, people, data) : 0;
+}
+
+/**
+ * An initiative's grand estimate (§4): the blended total of every costed phase (see {@link phaseEffectiveTotal}).
  */
 export function grandEstimate(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): number {
   let total = 0;
   for (const phase of process) {
-    if (!phase.costed) continue;
-    const snapshot = initiative.gates?.[phase.id]?.frozenSnapshot;
-    if (snapshot) {
-      total += frozenBlendedTotal(snapshot, initiative.phases?.[phase.id]?.actualMonths);
-      continue;
-    }
-    const plan = initiative.phases?.[phase.id];
-    if (plan) total += phaseBlendedTotal(plan, people, data);
+    if (phase.costed) total += phaseEffectiveTotal(initiative, phase.id, people, data);
   }
   return total;
 }
@@ -315,8 +322,8 @@ export function grandDeviation(initiative: Initiative, process: PhaseDef[], peop
     if (!phase.costed) continue;
     const plan = initiative.phases?.[phase.id];
     if (!plan) continue;
-    const snapshot = initiative.gates?.[phase.id]?.frozenSnapshot;
-    if (snapshot) {
+    if (isPhaseFrozen(initiative, phase.id)) {
+      const snapshot = initiative.gates![phase.id].frozenSnapshot!;
       for (const [month, amount] of Object.entries(plan.actualMonths ?? {})) total += amount - (snapshot.estimateByMonth[month] ?? 0);
       continue;
     }

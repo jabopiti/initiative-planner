@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import type { PhaseDef } from '../brand/types';
-import { carriedForwardItems, checklistItems, gateProgress, gateRequirements, type ChecklistItemView } from '../data/gate';
+import { gateProgress, gateRequirements, type ChecklistItemView, type ChecklistRequirement } from '../data/gate';
 import { useBrand } from '../state/BrandContext';
 import { useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { FILE_PATHS, type ChecklistStatus, type Initiative } from '../data/types';
@@ -16,13 +16,19 @@ const STATUS_LABEL: Record<ChecklistStatus, string> = { incomplete: 'Incomplete'
 /** The panel's row anchor, for the magic bar's "jump to the first open item" (§5.4). */
 export const checklistItemAnchor = (writePhaseId: string, itemId: string) => `checklist-${writePhaseId}-${itemId}`;
 
+/** A checklist requirement reshaped for the row component, which only needs the item's own fields, not the blocker-facing `state`/`text`. */
+function toItemView(requirement: ChecklistRequirement): ChecklistItemView {
+  return { id: requirement.itemId, name: requirement.name, description: requirement.description, status: requirement.status, note: requirement.note };
+}
+
 /** The current gate's checklist panel (§5.4, §8.1): the exit gate's requirements, read as "X of Y complete". */
 export function GateChecklistPanel({ initiative, phase }: { initiative: Initiative; phase: PhaseDef }) {
   const { process } = useBrand();
   const requirements = gateRequirements(process, initiative, phase.id);
   const { complete, total } = gateProgress(requirements);
-  const items = checklistItems(initiative, phase.id, phase.exitGate);
-  const carried = carriedForwardItems(process, initiative, phase.id);
+  const checklistRequirements = requirements.filter((r): r is ChecklistRequirement => r.kind === 'checklist');
+  const items = checklistRequirements.filter((r) => !r.carried);
+  const carried = checklistRequirements.filter((r) => r.carried);
 
   if (items.length === 0 && carried.length === 0) return null;
 
@@ -36,7 +42,7 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
       </div>
       <ol className="m-0 flex list-none flex-col p-0">
         {items.map((item) => (
-          <ChecklistItemRow key={item.id} item={item} initiativeId={initiative.id} writePhaseId={phase.id} />
+          <ChecklistItemRow key={item.itemId} item={toItemView(item)} initiativeId={initiative.id} writePhaseId={phase.id} />
         ))}
       </ol>
       {carried.length > 0 && (
@@ -44,7 +50,13 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
           <h3 className="m-0 text-sm font-medium text-text-secondary">Carried forward</h3>
           <ol className="m-0 flex list-none flex-col p-0">
             {carried.map((item) => (
-              <ChecklistItemRow key={item.id} item={item} initiativeId={initiative.id} writePhaseId={item.originPhaseId} originGateLabel={item.originGateLabel} />
+              <ChecklistItemRow
+                key={item.itemId}
+                item={toItemView(item)}
+                initiativeId={initiative.id}
+                writePhaseId={item.carried!.originPhaseId}
+                originGateLabel={item.carried!.originGateLabel}
+              />
             ))}
           </ol>
         </div>

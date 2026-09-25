@@ -1,4 +1,4 @@
-import { grandDeviation, grandEstimate, phaseBlendedTotal, frozenBlendedTotal } from '../data/cost';
+import { grandDeviation, grandEstimate, phaseEffectiveTotal } from '../data/cost';
 import { lastCostedPassedGate } from '../data/gate';
 import { useBrand } from '../state/BrandContext';
 import { useRepositoryState } from '../state/DataContext';
@@ -45,10 +45,7 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
     }
     rows.push(['Deviation', formatSigned(deviation, currencySymbol)]);
     for (const phase of costedPhases) {
-      const snapshot = initiative.gates?.[phase.id]?.frozenSnapshot;
-      const plan = initiative.phases?.[phase.id];
-      const total = snapshot ? frozenBlendedTotal(snapshot, plan?.actualMonths) : plan ? phaseBlendedTotal(plan, people, data) : 0;
-      rows.push([phase.label, formatAmount(total, currencySymbol)]);
+      rows.push([phase.label, formatAmount(phaseEffectiveTotal(initiative, phase.id, people, data), currencySymbol)]);
     }
     return { headers: ['Metric', 'Amount'], rows };
   };
