@@ -1,3 +1,4 @@
+import { parseAmount } from '../data/cost';
 import { CommitInput } from './CommitInput';
 
 const REFUSAL = 'Enter an amount, 0 or more.';
@@ -22,8 +23,6 @@ export function AmountInput({
   changed?: boolean;
   onChange: (value: number) => void;
 }) {
-  const parse = (text: string) => (text.trim() === '' ? NaN : Number(text));
-
   return (
     <div className="flex items-center gap-1">
       <span className="text-sm text-text-secondary">{currencySymbol}</span>
@@ -38,8 +37,8 @@ export function AmountInput({
         placeholder={placeholder}
         value={value === undefined ? '' : String(value)}
         onCommit={(text) => {
-          const parsed = parse(text);
-          if (Number.isNaN(parsed) || parsed < 0) return REFUSAL;
+          const parsed = parseAmount(text);
+          if (parsed === null) return REFUSAL;
           if (parsed === value) return false;
           onChange(parsed);
         }}

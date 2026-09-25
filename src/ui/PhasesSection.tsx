@@ -131,11 +131,11 @@ function CostedPhase({
   const needsPeople = isNextStep && hasPeriod && plan.allocations.length === 0;
   const previousEnd = previous && initiative.phases?.[previous.id]?.endDate;
   const overlap = previous && previousEnd && plan.startDate && plan.startDate <= previousEnd ? `Starts before ${previous.label} ends (${formatDate(previousEnd)}). The two phases overlap.` : null;
-  const total = phaseBlendedTotal(plan, people, rateData);
+  const estimateByMonth = phaseByMonth(plan, people, rateData);
+  const total = phaseBlendedTotal(plan, people, rateData, estimateByMonth);
   const hasCost = plan.allocations.length > 0 || (plan.costItems?.length ?? 0) > 0 || Object.keys(plan.actualMonths ?? {}).length > 0;
   const coverage = phaseCoverage(plan);
   const coverageLabel = coverage === 'actual' ? 'Actual' : coverage === 'forecast' ? 'Forecast' : 'Estimate';
-  const estimateByMonth = phaseByMonth(plan, people, rateData);
   const months = costed ? phaseMonths(plan) : [];
 
   // Who can still be added, and what each has free for the phase's months (§5.11), most free first. Free capacity
@@ -362,53 +362,23 @@ function CostedPhase({
                   </tr>
                 </thead>
                 <tbody>
-                  {months.map((month) => {
-                    const estimate = estimateByMonth[month] ?? 0;
-                    const recorded = plan.actualMonths?.[month];
-                    const defaulted = actualOrEstimate(plan, month, today, estimateByMonth);
-                    return (
-                      <tr key={month} className="border-t border-border-default">
-                        <td className="py-1.5 pr-2">{formatMonth(month)}</td>
-                        <td className="py-1.5 pr-2 text-right tabular-nums">{formatAmount(estimate, currencySymbol)}</td>
-                        <td className="py-1.5 pr-2">
-                          {recorded !== undefined ? (
-                            <div className="flex justify-end">
-                              <AmountInput
-                                label={`Actual for ${phase.label} ${formatMonth(month)}`}
-                                currencySymbol={currencySymbol}
-                                value={recorded}
-                                changed={changed(file, ['phases', phase.id, 'actualMonths', month])}
-                                onChange={(amount) => repository.setActual(initiative.id, phase.id, month, amount)}
-                              />
-                            </div>
-                          ) : defaulted !== undefined ? (
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                aria-label={`Record the estimate as the actual for ${phase.label} ${formatMonth(month)}`}
-                                onClick={() => repository.setActual(initiative.id, phase.id, month, defaulted)}
-                              >
-                                <CheckIcon />
-                              </Button>
-                              <span className="text-text-muted">{formatAmount(defaulted, currencySymbol)} · using the estimate</span>
-                              <AmountInput
-                                label={`Override the actual for ${phase.label} ${formatMonth(month)}`}
-                                currencySymbol={currencySymbol}
-                                value={undefined}
-                                placeholder="Enter amount"
-                                changed={changed(file, ['phases', phase.id, 'actualMonths', month])}
-                                onChange={(amount) => repository.setActual(initiative.id, phase.id, month, amount)}
-                              />
-                            </div>
-                          ) : (
-                            <span className="flex justify-end text-text-secondary">not closed yet</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {months.map((month) => (
+                    <tr key={month} className="border-t border-border-default">
+                      <td className="py-1.5 pr-2">{formatMonth(month)}</td>
+                      <td className="py-1.5 pr-2 text-right tabular-nums">{formatAmount(estimateByMonth[month] ?? 0, currencySymbol)}</td>
+                      <td className="py-1.5 pr-2">
+                        <ActualCell
+                          phase={phase}
+                          month={month}
+                          recorded={plan.actualMonths?.[month]}
+                          defaulted={actualOrEstimate(plan, month, today, estimateByMonth)}
+                          currencySymbol={currencySymbol}
+                          changed={changed(file, ['phases', phase.id, 'actualMonths', month])}
+                          onChange={(amount) => repository.setActual(initiative.id, phase.id, month, amount)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -417,4 +387,58 @@ function CostedPhase({
       )}
     </>
   );
+}
+
+/** One actuals-table cell (§7.3): a recorded actual, a defaulted estimate with the confirm check, or "not closed yet". */
+function ActualCell({
+  phase,
+  month,
+  recorded,
+  defaulted,
+  currencySymbol,
+  changed,
+  onChange,
+}: {
+  phase: PhaseDef;
+  month: string;
+  /** The recorded actual, if any. */
+  recorded: number | undefined;
+  /** What §7.3 defaults an unrecorded, closed month to; `undefined` while the month hasn't closed yet. */
+  defaulted: number | undefined;
+  currencySymbol: string;
+  changed: boolean;
+  onChange: (amount: number) => void;
+}) {
+  if (recorded !== undefined) {
+    return (
+      <div className="flex justify-end">
+        <AmountInput label={`Actual for ${phase.label} ${formatMonth(month)}`} currencySymbol={currencySymbol} value={recorded} changed={changed} onChange={onChange} />
+      </div>
+    );
+  }
+  if (defaulted !== undefined) {
+    return (
+      <div className="flex items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Record the estimate as the actual for ${phase.label} ${formatMonth(month)}`}
+          onClick={() => onChange(defaulted)}
+        >
+          <CheckIcon />
+        </Button>
+        <span className="text-text-muted">{formatAmount(defaulted, currencySymbol)} · using the estimate</span>
+        <AmountInput
+          label={`Override the actual for ${phase.label} ${formatMonth(month)}`}
+          currencySymbol={currencySymbol}
+          value={undefined}
+          placeholder="Enter amount"
+          changed={changed}
+          onChange={onChange}
+        />
+      </div>
+    );
+  }
+  return <span className="flex justify-end text-text-secondary">not closed yet</span>;
 }

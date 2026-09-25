@@ -208,18 +208,21 @@ export function phaseMonths(plan: PhasePlan): string[] {
   return [...keys].sort();
 }
 
-/** Recorded actual where there is one, the estimate otherwise, for every month the phase costs something in (§7.3). */
-export function phaseBlendedByMonth(plan: PhasePlan, people: Person[], data: RateData): Record<string, number> {
-  const estimate = phaseByMonth(plan, people, data);
+/**
+ * Recorded actual where there is one, the estimate otherwise, for every month the phase costs something in
+ * (§7.3). Pass `estimateByMonth` when the caller already has it (from {@link phaseByMonth}), so it isn't
+ * walked twice.
+ */
+export function phaseBlendedByMonth(plan: PhasePlan, people: Person[], data: RateData, estimateByMonth: Record<string, number> = phaseByMonth(plan, people, data)): Record<string, number> {
   const actuals = plan.actualMonths ?? {};
   const out: Record<string, number> = {};
-  for (const key of phaseMonths(plan)) out[key] = actuals[key] ?? estimate[key] ?? 0;
+  for (const key of phaseMonths(plan)) out[key] = actuals[key] ?? estimateByMonth[key] ?? 0;
   return out;
 }
 
 /** The blended total (§7.3): a phase's grand estimate contribution once actuals are folded in. */
-export function phaseBlendedTotal(plan: PhasePlan, people: Person[], data: RateData): number {
-  return Object.values(phaseBlendedByMonth(plan, people, data)).reduce((total, amount) => total + amount, 0);
+export function phaseBlendedTotal(plan: PhasePlan, people: Person[], data: RateData, estimateByMonth?: Record<string, number>): number {
+  return Object.values(phaseBlendedByMonth(plan, people, data, estimateByMonth)).reduce((total, amount) => total + amount, 0);
 }
 
 /**
