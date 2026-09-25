@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import { FileCache } from '../cache/db';
+import { cacheScope, FileCache } from '../cache/db';
 import { CHANGE_TINT_MS, changeCovers, changeKey, FOCUS_PULL_MIN_GAP_MS, PULL_INTERVAL_MS, PULL_RETRY_MS, Repository } from './Repository';
-import { fakeGithub, initiative, open, type Fake } from './testing/fakeGithub';
+import { fakeGithub, holdNetwork, initiative, open, type Fake } from './testing/fakeGithub';
 
 const setVisibility = (state: 'visible' | 'hidden') =>
   Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
@@ -14,15 +14,6 @@ async function reopen({ settled = true } = {}) {
   if (settled) await repo.whenPulled();
   return repo;
 }
-
-/** Every request waits for `release()`, so what shows before the network answers can be told from what shows after. */
-function holdNetwork(fake: Fake, only: (url: string, init?: RequestInit) => boolean = () => true) {
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => (release = resolve));
-  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => (only(url, init) ? gate.then(() => fake.fetchMock(url, init)) : fake.fetchMock(url, init)));
-  return release;
-}
-
 
 describe('slice 005i: opening from the cache and pulling others’ changes (§3, §9.9)', () => {
   let fake: Fake;
@@ -70,7 +61,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
     });
 
     it('a first visit, with no cache, waits for the pull', async () => {
-      await FileCache.prototype.clear.call(new FileCache('jabopiti/initiative-planner@data'));
+      await FileCache.prototype.clear.call(new FileCache(cacheScope(defaultBrandPack.github)));
       const repo = await reopen();
 
       expect(repo.getState().status).toBe('ready');
@@ -78,7 +69,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
     });
 
     it('discards a cache that cannot be read and loads from the repository', async () => {
-      const cache = new FileCache('jabopiti/initiative-planner@data');
+      const cache = new FileCache(cacheScope(defaultBrandPack.github));
       await cache.set('teams.json', { content: '{not json', sha: 'x' });
       const repo = await reopen();
 
@@ -87,7 +78,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
     });
 
     it('discards a cache of another process', async () => {
-      const cache = new FileCache('jabopiti/initiative-planner@data');
+      const cache = new FileCache(cacheScope(defaultBrandPack.github));
       await cache.set('dataset.json', { content: JSON.stringify({ schemaVersion: 1, processIdentity: { id: 'other' } }), sha: 'x' });
       const repo = await reopen();
 
@@ -330,7 +321,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
     afterEach(() => vi.unstubAllGlobals());
 
     it('is not marked complete, so the next open loads what it dropped instead of trusting it', async () => {
-      const scope = 'jabopiti/initiative-planner@data';
+      const scope = cacheScope(defaultBrandPack.github);
       await new FileCache(scope).clear();
       for (let n = 2; n < 6; n += 1) fake.seed(`initiatives/i${n}.json`, initiative({ id: `i${n}`, name: `Initiative ${n}` }));
       vi.stubGlobal('navigator', { storage: { estimate: async () => ({ quota: 400 }) } });

@@ -1,5 +1,5 @@
 import type { BrandPack } from '../brand/types';
-import { FileCache, type CacheMeta } from '../cache/db';
+import { cacheScope, FileCache, type CacheMeta } from '../cache/db';
 import { buildBaselineDataset } from '../data/baseline';
 import { newId } from '../data/ids';
 import {
@@ -21,7 +21,7 @@ import { localToday } from '../data/dates';
 import { buildDefaultPlan } from '../data/defaultPlan';
 import { frozenPaths, isPhaseFrozen } from '../data/frozen';
 import { toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { GithubClient, parseJsonFile, type BranchHead, type GetFileResult } from '../github/client';
+import { GithubClient, type BranchHead } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
@@ -70,10 +70,19 @@ export const PULL_RETRY_MS = 30 * 1000;
 /** How many files a pull reads at once: a dataset of hundreds of initiatives must not fire hundreds of requests together. */
 const PULL_READS_AT_ONCE = 8;
 
+/** A file a pull read: its text, which the cache keeps, and what it says, parsed once. A file that is not JSON fails the read. */
+interface PulledFile {
+  raw: string;
+  sha: string;
+  value: unknown;
+}
+
+const pulledFile = ({ content, sha }: { content: string; sha: string }): PulledFile => ({ raw: content, sha, value: JSON.parse(content) });
+
 /** Everything one pull found: the files it read, and the versions on screen it compared them with. */
 interface Pulled {
   head: BranchHead | null;
-  files: Map<string, GetFileResult>;
+  files: Map<string, PulledFile>;
   /** Which paths the repository lists, with their versions: an initiative not in it has been removed. */
   listing: Map<string, string>;
   /** The version each path had on screen when the pull compared, so a save that lands meanwhile is not undone. */
@@ -152,7 +161,6 @@ export class Repository {
   /** What the last complete pull saw; null when a file was left alone or the cache lost one, so the next pull compares everything. */
   private meta: CacheMeta | null = null;
   private pulling: Promise<void> | null = null;
-  private remembering: Promise<void> = Promise.resolve();
   private lastPullAt = 0;
   /** The first pull is still running: the sync indicator shows syncing until then (§9.9 Opening). */
   private opening = true;
@@ -171,8 +179,7 @@ export class Repository {
     token: string,
   ) {
     this.github = new GithubClient(brand.github, () => token);
-    const { owner, repo, dataBranch } = brand.github;
-    this.cache = new FileCache(`${owner}/${repo}@${dataBranch}`);
+    this.cache = new FileCache(cacheScope(brand.github));
   }
 
   // Arrow properties, so React's useSyncExternalStore gets the same functions on every render and never resubscribes.
@@ -214,7 +221,7 @@ export class Repository {
   /** Resolves when the pull that is running, if any, has finished and its cache writes have. */
   async whenPulled(): Promise<void> {
     await this.pulling;
-    await this.remembering;
+    await this.cache.idle();
   }
 
   /** The cached dataset, or null when there is none to trust: never pulled completely, foreign, or damaged (§3 Damaged data). */
@@ -222,12 +229,9 @@ export class Repository {
     try {
       const [cached, meta] = await Promise.all([this.cache.all(), this.cache.getMeta()]);
       if (!meta || !cached.has(FILE_PATHS.datasetFlags)) return null;
-      const files = new Map<string, GetFileResult>();
-      for (const [path, file] of cached) {
-        JSON.parse(file.content); // a file that cannot be read makes the whole cache untrustworthy
-        files.set(path, { content: file.content, sha: file.sha });
-      }
-      const flags = JSON.parse(files.get(FILE_PATHS.datasetFlags)!.content) as DatasetFlags;
+      // A file that cannot be read makes the whole cache untrustworthy.
+      const files = new Map([...cached].map(([path, file]) => [path, pulledFile(file)]));
+      const flags = files.get(FILE_PATHS.datasetFlags)!.value as DatasetFlags;
       if (flags.processIdentity.id !== this.brand.processIdentity.id || flags.schemaVersion !== SCHEMA_VERSION) {
         throw new Error('The cache is from another dataset.');
       }
@@ -251,7 +255,8 @@ export class Repository {
   /** The dataset from what was read: every file, with a writer for each that can be saved. */
   private build({ files }: Pulled): void {
     const branch = this.brand.github.dataBranch;
-    const parsed = <T>(path: string, fallback: T): T => parseJsonFile(files.get(path) ?? null, fallback);
+    /** What a file says, or `fallback` when it does not exist (§10.2: a missing master file means "empty"). */
+    const parsed = <T>(path: string, fallback: T): T => (files.has(path) ? (files.get(path)!.value as T) : fallback);
     for (const path of [FILE_PATHS.datasetFlags, FILE_PATHS.roles, FILE_PATHS.countries]) {
       const file = files.get(path);
       if (file) this.shas.set(path, file.sha);
@@ -259,7 +264,7 @@ export class Repository {
     const initiatives: Initiative[] = [];
     for (const [path, file] of files) {
       if (!path.startsWith('initiatives/')) continue;
-      const initiative = JSON.parse(file.content) as Initiative;
+      const initiative = file.value as Initiative;
       initiatives.push(initiative);
       this.createInitiativeWriter(initiative, file.sha);
     }
@@ -336,12 +341,12 @@ export class Repository {
 
     const compared = this.knownShas();
     const changed = [...listing].filter(([path, sha]) => compared.get(path) !== sha).map(([path]) => path);
-    const files = new Map<string, GetFileResult>();
+    const files = new Map<string, PulledFile>();
     const waiting = [...changed];
     const worker = async () => {
       for (let path = waiting.shift(); path !== undefined; path = waiting.shift()) {
         const file = await this.github.getFile({ path, branch });
-        if (file) files.set(path, file);
+        if (file) files.set(path, pulledFile(file));
       }
     };
     await Promise.all(Array.from({ length: Math.min(PULL_READS_AT_ONCE, changed.length) }, worker));
@@ -392,13 +397,13 @@ export class Repository {
   /** Puts a pull on screen and in the cache. True when every file it read was applied, so the pull is complete. */
   private finishPull(pulled: Pulled): boolean {
     const flagsFile = pulled.files.get(FILE_PATHS.datasetFlags);
-    const refusal = flagsFile ? this.refusal(JSON.parse(flagsFile.content) as DatasetFlags) : null;
+    const refusal = flagsFile ? this.refusal(flagsFile.value as DatasetFlags) : null;
     if (refusal) {
       this.pullFailure = { cause: 'unknown', message: refusal };
       return false;
     }
     const complete = this.state.status === 'ready' ? this.mergeIn(pulled) : (this.build(pulled), true);
-    this.remembering = this.remembering.then(() => this.remember(pulled, complete));
+    this.remember(pulled, complete);
     return complete;
   }
 
@@ -419,7 +424,7 @@ export class Repository {
     ] as const) {
       const file = files.get(path);
       if (!file) continue;
-      (patch as Record<string, unknown>)[key] = JSON.parse(file.content);
+      (patch as Record<string, unknown>)[key] = file.value;
       this.shas.set(path, file.sha);
       if (path !== FILE_PATHS.datasetFlags) changed.push(changeKey(path, []));
     }
@@ -427,13 +432,14 @@ export class Repository {
 
     for (const [path, writer] of this.masterWriters()) {
       const file = files.get(path);
-      if (file && writer) applied(path, writer.receive({ content: JSON.parse(file.content), sha: file.sha }, compared.get(path) ?? null));
+      // Each writer takes its own file's type; the paths pair them up, which the union of writers cannot say.
+      if (file && writer) applied(path, writer.receive({ content: file.value as never, sha: file.sha }, compared.get(path) ?? null));
     }
 
     const added: Initiative[] = [];
     for (const [path, file] of files) {
       if (!path.startsWith('initiatives/')) continue;
-      const initiative = JSON.parse(file.content) as Initiative;
+      const initiative = file.value as Initiative;
       const writer = this.initiativeWriters.get(initiative.id);
       if (writer) {
         applied(path, writer.receive({ content: initiative, sha: file.sha }, compared.get(path) ?? null));
@@ -465,21 +471,17 @@ export class Repository {
   }
 
   /** Keeps a pull in the cache for the next open (§10.4), and what it saw, unless a file was left alone. Failures are survivable. */
-  private async remember({ files, head }: Pulled, complete: boolean): Promise<void> {
-    try {
-      const evictions = this.cache.evictions;
-      await Promise.all([...files].map(([path, file]) => this.cache.set(path, file)));
-      // Files dropped for the budget meanwhile: the cache no longer holds the whole dataset, so it is not marked as complete.
-      if (complete && head && this.cache.evictions === evictions) {
-        this.meta = { head: head.sha, etag: head.etag };
-        await this.cache.setMeta(this.meta);
-      } else {
-        this.meta = null;
-        await this.cache.clearMeta();
-      }
-    } catch {
-      // The cache is a local convenience: losing it only means the next open pulls everything.
-    }
+  private remember({ files, head }: Pulled, complete: boolean): void {
+    const meta = complete && head ? { head: head.sha, etag: head.etag } : null;
+    const kept = [...files].map(([path, file]): [string, { content: string; sha: string }] => [path, { content: file.raw, sha: file.sha }]);
+    this.cache.commitPull(kept, meta).then(
+      (recorded) => {
+        this.meta = recorded ? meta : null;
+      },
+      () => {
+        // The cache is a local convenience: losing it only means the next open pulls everything.
+      },
+    );
   }
 
   /** Values changed by others are tinted, and the indicator says so, for a few seconds (§9.9). */

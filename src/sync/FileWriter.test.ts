@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
-import { FileCache } from '../cache/db';
+import { cacheScope, FileCache } from '../cache/db';
 import { GithubClient } from '../github/client';
 import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey } from './merge';
@@ -25,7 +25,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-merge', () => {
-  const cache = new FileCache('jabopiti/initiative-planner@data');
+  const cache = new FileCache(cacheScope(location));
   let fetchMock: ReturnType<typeof vi.fn>;
   let github: GithubClient;
   let statuses: WriteStatus[];

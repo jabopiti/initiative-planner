@@ -62,8 +62,8 @@ describe('FileCache (§10.4)', () => {
   it('keeps the token when it drops files, and forgets that the cache was complete', async () => {
     await tokenCache.set('a-token');
     const cache = new FileCache('a/b@data', async () => 50);
-    await cache.setMeta({ head: 'h1', etag: null });
-    await cache.set('initiatives/a.json', file(40));
+    await cache.commitPull([['initiatives/a.json', file(40)]], { head: 'h1', etag: null });
+    expect(await cache.getMeta()).not.toBeNull();
     await cache.set('initiatives/b.json', file(40));
 
     expect(await tokenCache.get()).toBe('a-token');
@@ -76,7 +76,29 @@ describe('FileCache (§10.4)', () => {
 
     const held = [...(await cache.all()).values()].reduce((sum, f) => sum + f.content.length, 0);
     expect(held).toBeLessThanOrEqual(100);
-    expect(cache.evictions).toBeGreaterThan(0);
+    expect([...(await cache.all()).keys()]).not.toHaveLength(4);
+  });
+
+  it('records what a pull saw with its files, once all of them are in', async () => {
+    const cache = new FileCache('a/b@data');
+    const recorded = await cache.commitPull([['teams.json', file(3, 'v1')], ['initiatives/a.json', file(3, 'v2')]], { head: 'h1', etag: 'e1' });
+
+    expect(recorded).toBe(true);
+    expect(await cache.getMeta()).toEqual({ head: 'h1', etag: 'e1' });
+    expect([...(await cache.all()).keys()].sort()).toEqual(['initiatives/a.json', 'teams.json']);
+  });
+
+  it('does not record a pull that made it drop files, nor any later one: it no longer holds the whole dataset', async () => {
+    const cache = new FileCache('a/b@data', async () => 100);
+    expect(await cache.commitPull([['initiatives/a.json', file(60)], ['initiatives/b.json', file(60)]], { head: 'h1', etag: null })).toBe(false);
+    expect(await cache.getMeta()).toBeNull();
+
+    // A later pull that only adds a small file would otherwise mark the cache complete, with the dropped file still missing.
+    expect(await cache.commitPull([['teams.json', file(1)]], { head: 'h2', etag: null })).toBe(false);
+    expect(await cache.getMeta()).toBeNull();
+
+    await cache.clear();
+    expect(await cache.commitPull([['teams.json', file(1)]], { head: 'h3', etag: null })).toBe(true);
   });
 
   it('a rewrite of a file counts its new size, not both', async () => {

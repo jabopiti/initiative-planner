@@ -140,6 +140,14 @@ export function fakeGithub() {
 
 export type Fake = ReturnType<typeof fakeGithub>;
 
+/** Every request waits for the returned `release()` (or only those `only` picks), so what shows before the network answers can be told from what shows after. */
+export function holdNetwork(fake: Fake, only: (url: string, init?: RequestInit) => boolean = () => true) {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => (only(url, init) ? gate.then(() => fake.fetchMock(url, init)) : fake.fetchMock(url, init)));
+  return release;
+}
+
 export async function open(fake: Fake, seeded: { teams?: Team[]; people?: Person[]; initiatives?: Initiative[] } = {}) {
   fake.seed('dataset.json', { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: false });
   fake.seed('roles.json', []);

@@ -5,7 +5,7 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider, useRepository } from '../state/DataContext';
 import { CHANGE_TINT_MS } from '../sync/Repository';
-import { fakeGithub, initiative, open, type Fake } from '../sync/testing/fakeGithub';
+import { fakeGithub, holdNetwork, initiative, open, type Fake } from '../sync/testing/fakeGithub';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { InitiativeDetail } from './InitiativeDetail';
 import { SyncIndicator } from './SyncIndicator';
@@ -58,9 +58,7 @@ describe('Others’ changes on screen (§3, §9.9)', () => {
   });
 
   it('opens from the cache: the page shows before the pull answers, and the indicator says "Syncing…" until it does', async () => {
-    let release!: () => void;
-    const gate = new Promise<void>((resolve) => (release = resolve));
-    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => gate.then(() => fake.fetchMock(url, init)));
+    const release = holdNetwork(fake);
     renderPage();
 
     expect(await screen.findByRole('textbox', { name: 'Initiative name' })).toHaveValue('Payments API');

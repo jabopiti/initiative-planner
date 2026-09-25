@@ -140,6 +140,10 @@ export async function defaultBudget(): Promise<number> {
   return quota / 2;
 }
 
+/** The key of one repository's and branch's files in the cache. */
+export const cacheScope = ({ owner, repo, dataBranch }: { owner: string; repo: string; dataBranch: string }): string =>
+  `${owner}/${repo}@${dataBranch}`;
+
 const isInitiativeFile = (path: string) => path.startsWith('initiatives/');
 
 /**
@@ -152,7 +156,8 @@ export class FileCache {
   private total: number | null = null;
   /** Writes run one after another: each works from the total the one before left, so concurrent writes cannot lose each other's bytes. */
   private writes: Promise<unknown> = Promise.resolve();
-  private evicted = 0;
+  /** Set when files are dropped for the budget: the cache no longer holds the whole dataset, so it is not marked complete again until cleared. */
+  private incomplete = false;
 
   constructor(
     scope: string,
@@ -180,21 +185,40 @@ export class FileCache {
     return done;
   }
 
-  /** How many times files were dropped for the budget: a caller that saw it change knows the cache no longer holds everything it wrote. */
-  get evictions(): number {
-    return this.evicted;
+  set(path: string, value: { content: string; sha: string }): Promise<void> {
+    return this.serially(() => this.put(path, value));
   }
 
-  set(path: string, value: { content: string; sha: string }): Promise<void> {
+  private async put(path: string, value: { content: string; sha: string }): Promise<void> {
+    // Counted before the write, so a first write is not counted twice.
+    const before = this.total ?? (await this.size());
+    const previous = await this.get(path);
+    await set<CachedFile>(FILES_STORE, this.key(path), { ...value, at: Date.now() });
+    this.total = before - (previous?.content.length ?? 0) + value.content.length;
+    const budget = await this.budget();
+    if (this.total > budget) await this.evict(path, budget);
+  }
+
+  /**
+   * Keeps the files of a pull and, with them, what the pull saw (§10.4), as one step: `meta` is recorded only when it
+   * is given and the cache holds the whole dataset, that is, nothing was ever dropped for the budget. Resolves to
+   * whether it was recorded. A cache without it is loaded from scratch on the next open.
+   */
+  commitPull(files: Iterable<[string, { content: string; sha: string }]>, meta: CacheMeta | null): Promise<boolean> {
     return this.serially(async () => {
-      // Counted before the write, so a first write is not counted twice.
-      const before = this.total ?? (await this.size());
-      const previous = await this.get(path);
-      await set<CachedFile>(FILES_STORE, this.key(path), { ...value, at: Date.now() });
-      this.total = before - (previous?.content.length ?? 0) + value.content.length;
-      const budget = await this.budget();
-      if (this.total > budget) await this.evict(path, budget);
+      for (const [path, file] of files) await this.put(path, file);
+      if (!meta || this.incomplete) {
+        await del(META_STORE, this.prefix);
+        return false;
+      }
+      await set(META_STORE, this.prefix, meta);
+      return true;
     });
+  }
+
+  /** Resolves when the writes asked for so far are done. */
+  idle(): Promise<void> {
+    return this.writes.then(() => {});
   }
 
   delete(path: string): Promise<void> {
@@ -215,25 +239,19 @@ export class FileCache {
   private async evict(keep: string, budget: number): Promise<void> {
     const files = [...(await this.all())].filter(([path]) => path !== keep);
     files.sort(([pathA, a], [pathB, b]) => Number(!isInitiativeFile(pathA)) - Number(!isInitiativeFile(pathB)) || a.at - b.at);
-    if (files.length > 0) await del(META_STORE, this.prefix);
     for (const [path, file] of files) {
       if ((this.total ?? 0) <= budget) break;
+      if (!this.incomplete) {
+        this.incomplete = true;
+        await del(META_STORE, this.prefix);
+      }
       await del(FILES_STORE, this.key(path));
       this.total = (this.total ?? 0) - file.content.length;
-      this.evicted += 1;
     }
   }
 
   getMeta(): Promise<CacheMeta | null> {
     return get<CacheMeta>(META_STORE, this.prefix);
-  }
-
-  setMeta(meta: CacheMeta): Promise<void> {
-    return this.serially(() => set(META_STORE, this.prefix, meta));
-  }
-
-  clearMeta(): Promise<void> {
-    return this.serially(() => del(META_STORE, this.prefix));
   }
 
   /** Forgets every file of this repository and branch, for a cache that cannot be trusted (§3 Damaged data). */
@@ -242,6 +260,7 @@ export class FileCache {
       for (const path of (await this.all()).keys()) await del(FILES_STORE, this.key(path));
       await del(META_STORE, this.prefix);
       this.total = 0;
+      this.incomplete = false;
     });
   }
 }
