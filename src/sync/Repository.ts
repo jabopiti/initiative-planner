@@ -119,17 +119,21 @@ export interface TeamChange {
 }
 
 /** `allocation` put at `index` of `allocations`, or at the end when the list has since become shorter. */
-function insertAllocation(allocations: Allocation[], allocation: Allocation, index: number): Allocation[] {
-  const next = [...allocations];
-  next.splice(Math.min(index, next.length), 0, allocation);
-  return next;
-}
-
-function insertCostItem(items: CostItem[], item: CostItem, index: number): CostItem[] {
-  const next = [...items];
+/** `item` put back at `index` (or last, when the list has since shrunk): where an Undo restores a removed list item. */
+function insertAt<T>(list: T[], item: T, index: number): T[] {
+  const next = [...list];
   next.splice(Math.min(index, next.length), 0, item);
   return next;
 }
+
+/** One change to a cost item, of the one field the commit note names. */
+export type CostItemChange = { label: string } | { amount: number } | { timing: 'spread' } | { timing: 'month'; month: string } | { month: string };
+
+/** The phase lists whose items are removed with an Undo (§5.11). */
+type PhaseList = 'allocations' | 'costItems';
+
+/** A phase list's items as the caller knows them; `list` says which, so the one cast is here. */
+const itemsOf = <T extends { id: string }>(plan: PhasePlan | undefined, list: PhaseList): T[] => (plan?.[list] ?? []) as unknown as T[];
 
 type Listener = () => void;
 
@@ -935,29 +939,47 @@ export class Repository {
     );
   }
 
-  /** Remove an allocation; the position comes back so an Undo can put it where it was (§5.11). */
-  removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
-    const allocations = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.allocations ?? [];
-    const index = allocations.findIndex((a) => a.id === allocationId);
+  /**
+   * Remove an item from a phase's list; its position comes back so an Undo can put it where it was (§5.11).
+   * `removed` and `restored` finish the commit note, after "<initiative>: <phase> ".
+   */
+  private removeFromList<T extends { id: string }>(
+    list: PhaseList,
+    initiativeId: string,
+    phaseId: string,
+    itemId: string,
+    removed: (item: T) => string,
+  ): { item: T; index: number } | null {
+    const items = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
+    const index = items.findIndex((item) => item.id === itemId);
     if (index < 0) return null;
-    const allocation = allocations[index];
+    const item = items[index];
     this.editPhase(
       initiativeId,
       phaseId,
-      (plan) => ({ ...plan, allocations: plan.allocations.filter((a) => a.id !== allocationId) }),
-      { key: allocationId, text: (name, phase) => `${name}: ${phase} allocation removed (${this.personName(allocation.personId)})` },
+      (plan) => ({ ...plan, [list]: itemsOf<T>(plan, list).filter((other) => other.id !== itemId) }),
+      { key: itemId, text: (name, phase) => `${name}: ${phase} ${removed(item)}` },
     );
-    return { allocation, index };
+    return { item, index };
   }
 
-  /** Undo of {@link removeAllocation}: the same allocation, same id, back in its place, as a normal edit. */
-  restoreAllocation(initiativeId: string, phaseId: string, allocation: Allocation, index: number): void {
+  /** Undo of {@link removeFromList}: the same item, same id, back in its place, as a normal edit. */
+  private restoreToList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, item: T, index: number, restored: string): void {
     this.editPhase(
       initiativeId,
       phaseId,
-      (plan) => ({ ...plan, allocations: insertAllocation(plan.allocations, allocation, index) }),
-      { key: allocation.id, text: (name, phase) => `${name}: ${phase} allocation restored (${this.personName(allocation.personId)})` },
+      (plan) => ({ ...plan, [list]: insertAt(itemsOf<T>(plan, list), item, index) }),
+      { key: item.id, text: (name, phase) => `${name}: ${phase} ${restored}` },
     );
+  }
+
+  removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
+    const removed = this.removeFromList<Allocation>('allocations', initiativeId, phaseId, allocationId, (a) => `allocation removed (${this.personName(a.personId)})`);
+    return removed && { allocation: removed.item, index: removed.index };
+  }
+
+  restoreAllocation(initiativeId: string, phaseId: string, allocation: Allocation, index: number): void {
+    this.restoreToList('allocations', initiativeId, phaseId, allocation, index, `allocation restored (${this.personName(allocation.personId)})`);
   }
 
   /** An amount as a commit message reads it, in the deployment's currency (§9.7). */
@@ -977,18 +999,18 @@ export class Repository {
     return added ? item : null;
   }
 
-  /** Change a cost item's label, amount or timing; one commit note per changed field. */
-  updateCostItem(initiativeId: string, phaseId: string, itemId: string, change: Partial<Omit<CostItem, 'id'>>): void {
+  /** Change a cost item's label, amount or timing; the commit note names the one field changed. */
+  updateCostItem(initiativeId: string, phaseId: string, itemId: string, change: CostItemChange): void {
     const item = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.costItems?.find((c) => c.id === itemId);
     if (!item) return;
     const what =
-      change.label !== undefined
+      'label' in change
         ? `${item.label} renamed to ${change.label}`
-        : change.amount !== undefined
+        : 'amount' in change
           ? `${item.label} amount set to ${this.money(change.amount)}`
-          : change.timing === 'spread'
+          : 'timing' in change && change.timing === 'spread'
             ? `${item.label} spread over the phase`
-            : `${item.label} timed to ${formatMonth(change.month ?? item.month ?? '')}`;
+            : `${item.label} timed to ${formatMonth(change.month)}`;
     this.editPhase(
       initiativeId,
       phaseId,
@@ -997,29 +1019,12 @@ export class Repository {
     );
   }
 
-  /** Remove a cost item; the position comes back so an Undo can put it where it was (§5.11). */
   removeCostItem(initiativeId: string, phaseId: string, itemId: string): { item: CostItem; index: number } | null {
-    const items = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.costItems ?? [];
-    const index = items.findIndex((c) => c.id === itemId);
-    if (index < 0) return null;
-    const item = items[index];
-    this.editPhase(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, costItems: (plan.costItems ?? []).filter((c) => c.id !== itemId) }),
-      { key: itemId, text: (name, phase) => `${name}: ${phase} cost item removed (${item.label})` },
-    );
-    return { item, index };
+    return this.removeFromList<CostItem>('costItems', initiativeId, phaseId, itemId, (item) => `cost item removed (${item.label})`);
   }
 
-  /** Undo of {@link removeCostItem}: the same item, same id, back in its place, as a normal edit. */
   restoreCostItem(initiativeId: string, phaseId: string, item: CostItem, index: number): void {
-    this.editPhase(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, costItems: insertCostItem(plan.costItems ?? [], item, index) }),
-      { key: item.id, text: (name, phase) => `${name}: ${phase} cost item restored (${item.label})` },
-    );
+    this.restoreToList('costItems', initiativeId, phaseId, item, index, `cost item restored (${item.label})`);
   }
 
   /**
@@ -1083,7 +1088,7 @@ export class Repository {
     for (const { phaseId, allocation, index } of [...change.removed].sort((a, b) => a.index - b.index)) {
       const plan = phases[phaseId];
       if (!plan || locked(phaseId) || plan.allocations.some((a) => a.id === allocation.id)) continue;
-      phases[phaseId] = { ...plan, allocations: insertAllocation(plan.allocations, allocation, index) };
+      phases[phaseId] = { ...plan, allocations: insertAt(plan.allocations, allocation, index) };
       restored += 1;
     }
     const next: Initiative = { ...initiative, teamId: change.fromTeamId, ...(initiative.phases && { phases }) };

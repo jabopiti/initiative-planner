@@ -156,22 +156,31 @@ export function allocationFigures(period: Period, person: Person, allocationPct:
   return { byMonth, personDays, cost };
 }
 
-/**
- * What a cost item adds to each month of a phase (§7.1): the full amount in its one month, or an equal share in
- * every calendar month the period touches (the partial first and last months are not prorated). Empty without a
- * valid period, so an item counts only once its phase is costed; a one-month item outside the period still counts.
- */
-export function costItemByMonth(period: Period, item: CostItem): Record<string, number> {
-  const months = period.startDate && period.endDate ? monthsInRange(period.startDate, period.endDate) : [];
+/** The calendar months of a period, or none while a date is unset or the period is inverted: a phase without months is not costed yet (§7.1). */
+export function periodMonths(period: Period): string[] {
+  return period.startDate && period.endDate ? monthsInRange(period.startDate, period.endDate) : [];
+}
+
+/** A cost item's amount by month over a period's `months` (§7.1): the full amount in its one month, or an equal share of every month. */
+function spreadItem(months: string[], item: CostItem): Record<string, number> {
   if (months.length === 0) return {};
   if (item.timing === 'month') return item.month ? { [item.month]: item.amount } : {};
   return Object.fromEntries(months.map((key) => [key, item.amount / months.length]));
 }
 
+/**
+ * What a cost item adds to each month of a phase (§7.1). An equal share goes into every calendar month the
+ * period touches (the partial first and last months are not prorated). Empty without a valid period, so an item
+ * counts only once its phase is costed; a one-month item outside the period still counts.
+ */
+export function costItemByMonth(period: Period, item: CostItem): Record<string, number> {
+  return spreadItem(periodMonths(period), item);
+}
+
 /** Whether a one-month item lies outside a valid period (§6): it stays and counts, and the phase warns. */
 export function isOutsidePeriod(period: Period, item: CostItem): boolean {
-  if (item.timing !== 'month' || !item.month || !period.startDate || !period.endDate) return false;
-  const months = monthsInRange(period.startDate, period.endDate);
+  if (item.timing !== 'month' || !item.month) return false;
+  const months = periodMonths(period);
   return months.length > 0 && !months.includes(item.month);
 }
 
@@ -185,7 +194,8 @@ export function phaseByMonth(plan: PhasePlan, people: Person[], data: RateData):
     const person = people.find((p) => p.id === allocation.personId);
     if (person) add(allocationFigures(plan, person, allocation.allocationPct, data).byMonth);
   }
-  for (const item of plan.costItems ?? []) add(costItemByMonth(plan, item));
+  const months = periodMonths(plan);
+  for (const item of plan.costItems ?? []) add(spreadItem(months, item));
   return byMonth;
 }
 
@@ -197,4 +207,11 @@ export function phaseTotal(plan: PhasePlan, people: Person[], data: RateData): n
 /** Why a person can't be allocated to this team's initiative, or null when they can (§7.2). */
 export function allocationRefusal(person: Person, team: Team, memberships: Membership[]): string | null {
   return isActiveMember(person, team.id, memberships) ? null : `${person.name} isn't a member of ${team.name}. Only team members can be allocated.`;
+}
+
+/** The parse every amount and rate field shares: blank, not a number or negative is rejected. */
+export function parseAmount(text: string): number | null {
+  if (text.trim() === '') return null;
+  const value = Number(text);
+  return Number.isFinite(value) && value >= 0 ? value : null;
 }

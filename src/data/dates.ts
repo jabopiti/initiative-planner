@@ -1,5 +1,10 @@
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+
+/** A month's number (1-12) from its name, its three-letter form or "sept"; 0 when it is none of them. */
+function monthFromWord(word: string): number {
+  return MONTH_NAMES.findIndex((name) => name === word || name.slice(0, 3) === word || (word === 'sept' && name === 'september')) + 1;
+}
 
 function isRealDate(year: number, month: number, day: number): boolean {
   if (year < FIRST_YEAR || year > LAST_YEAR) return false;
@@ -111,7 +116,7 @@ export function parseDateText(text: string): string | null {
   const textMatch = /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/.exec(t);
   if (!textMatch) return null;
   const word = textMatch[2].toLowerCase();
-  const month = MONTH_NAMES.findIndex((name) => name === word || name.slice(0, 3) === word || (word === 'sept' && name === 'september')) + 1;
+  const month = monthFromWord(word);
   if (month === 0) return null;
   const [day, year] = [Number(textMatch[1]), Number(textMatch[3])];
   return isRealDate(year, month, day) ? iso(year, month, day) : null;
@@ -129,12 +134,9 @@ export function parseMonthText(text: string): string | null {
   else if (reversed) [month, year] = [Number(reversed[1]), Number(reversed[2])];
   else if (words) {
     const word = words[1].toLowerCase();
-    month = MONTH_NAMES.findIndex((name) => name === word || name.slice(0, 3) === word || (word === 'sept' && name === 'september')) + 1;
+    month = monthFromWord(word);
     year = Number(words[2]);
   } else return null;
   if (month < 1 || month > 12 || year < FIRST_YEAR || year > LAST_YEAR) return null;
   return monthKey(year, month - 1);
 }
-
-/** The month names as the month popover lists them: "Jan" to "Dec". */
-export const MONTH_ABBREVIATIONS: readonly string[] = MONTHS;

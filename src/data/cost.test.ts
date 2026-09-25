@@ -5,6 +5,8 @@ import {
   costItemByMonth,
   isOutsidePeriod,
   monthsInRange,
+  parseAmount,
+  periodMonths,
   phaseByMonth,
   phaseTotal,
   resolveRate,
@@ -237,5 +239,18 @@ describe('cost items in a phase’s monthly estimate (§7.1)', () => {
     expect(isOutsidePeriod(period, item({ timing: 'month', month: '2026-12' }))).toBe(false);
     expect(isOutsidePeriod(period, item({ month: '2027-03' }))).toBe(false);
     expect(isOutsidePeriod({ startDate: '2026-10-01' }, item({ timing: 'month', month: '2027-03' }))).toBe(false);
+  });
+});
+
+describe('shared helpers of the cost rules', () => {
+  it('lists the months of a valid period, and none while a date is unset or the period is inverted', () => {
+    expect(periodMonths({ startDate: '2026-10-16', endDate: '2026-12-10' })).toEqual(['2026-10', '2026-11', '2026-12']);
+    expect(periodMonths({ startDate: '2026-10-16' })).toEqual([]);
+    expect(periodMonths({ startDate: '2026-12-10', endDate: '2026-10-16' })).toEqual([]);
+  });
+
+  it('reads an amount as a number of 0 or more, and nothing else', () => {
+    expect([parseAmount('0'), parseAmount(' 12.5 '), parseAmount('1e3')]).toEqual([0, 12.5, 1000]);
+    for (const text of ['', '  ', '-1', 'abc', 'Infinity', '1e999']) expect(parseAmount(text), text).toBeNull();
   });
 });

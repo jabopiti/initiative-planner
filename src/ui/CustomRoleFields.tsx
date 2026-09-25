@@ -1,4 +1,4 @@
-import { trackedYears, yearRecord } from '../data/cost';
+import { parseAmount, trackedYears, yearRecord } from '../data/cost';
 import type { CustomRole, Person } from '../data/types';
 import { FILE_PATHS } from '../data/types';
 import { useBrand } from '../state/BrandContext';
@@ -6,13 +6,6 @@ import { useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { Label } from '@/components/ui/label';
 import { CommitInput } from './CommitInput';
 import { InlineWarning } from './InlineWarning';
-
-/** The parse every number field here shares: blank or not a non-negative number is rejected. */
-function parseAmount(text: string): number | null {
-  if (text.trim() === '') return null;
-  const value = Number(text);
-  return Number.isNaN(value) || value < 0 ? null : value;
-}
 
 /**
  * A person's custom role (§5.6, §6): label, cost factor and a day rate per tracked year. A year with

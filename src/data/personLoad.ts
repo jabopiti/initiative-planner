@@ -1,6 +1,6 @@
 import type { PhaseDef } from '../brand/types';
 import { countsTowardCapacity } from './capacity';
-import { monthsInRange, type Period } from './cost';
+import { monthsInRange, periodMonths, type Period } from './cost';
 import { currentPhaseId, isPhaseConfirmed } from './processState';
 import { activeMembership } from './teamMembers';
 import type { Initiative, Membership, Person, Team } from './types';
@@ -39,7 +39,7 @@ export function freeCapacityByPerson({
   process: PhaseDef[];
   today: string;
 }): Map<string, number> | undefined {
-  const months = period.startDate && period.endDate ? monthsInRange(period.startDate, period.endDate) : [];
+  const months = periodMonths(period);
   if (months.length === 0) return undefined;
   const inPeriod = new Set(months);
   const wanted = new Set(people.map((p) => p.id));

@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
 import { useBrand } from '../state/BrandContext';
 import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
@@ -17,6 +16,7 @@ import { ChevronDownIcon, ChevronRightIcon, InfoIcon, OverCapacityIcon, OverTeam
 import { InlineWarning } from './InlineWarning';
 import { sortRows } from './tableSort';
 import { PercentInput } from './PercentInput';
+import { undoToast } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -322,13 +322,7 @@ function CostedPhase({
                           onClick={() => {
                             const removed = repository.removeAllocation(initiative.id, phase.id, allocation.id);
                             if (!removed) return;
-                            toast('Removed.', {
-                              duration: 10_000,
-                              action: {
-                                label: 'Undo',
-                                onClick: () => repository.restoreAllocation(initiative.id, phase.id, removed.allocation, removed.index),
-                              },
-                            });
+                            undoToast(() => repository.restoreAllocation(initiative.id, phase.id, removed.allocation, removed.index));
                           }}
                         >
                           <RemoveIcon />
