@@ -87,15 +87,19 @@ the data format.
 3. **Copy decisions:** each option quotes the exact text as it would
    appear, in its place (e.g. the button with the heading above it), and
    says which §9.2 rule it follows.
-4. **UI decisions always come with a mockup of every option:**
-   - An ASCII wireframe in each option's `preview` — at the real layout,
-     with the real copy and names from `backlog/example-data.md`, showing
-     the state the decision is about (the warning, the empty state, the
-     open detail), not just the default state.
-   - When the choice turns on something a wireframe can't show (colour,
-     weight, density, icon), also render the options side by side as a
-     visual (HTML using the app's tokens from `src/index.css`) before
-     asking.
+4. **UI decisions always come with a mockup of every option, rendered
+   as a visual in the chat** (the inline visual tool, `show_widget`; load
+   its `read_me` once per session first), before the question that asks
+   for the choice:
+   - One visual per decision, the options side by side, each labelled
+     with the same name as its AskUserQuestion option.
+   - At the real layout, with the app's look (tokens from
+     `src/index.css`, shadcn components, the §9.10 icons), the real copy,
+     and names and figures from `backlog/example-data.md`.
+   - Showing the state the decision is about (the warning, the empty
+     state, the open detail), not just the default state.
+   - Only if the session has no inline visual tool: an ASCII wireframe in
+     each option's `preview` instead.
 5. Follow-up questions an answer opens go in the next round. Keep going
    until every decision and question is answered and the user has seen
    the assumptions.
