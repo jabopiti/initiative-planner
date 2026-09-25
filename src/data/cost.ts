@@ -304,6 +304,27 @@ export function grandEstimate(initiative: Initiative, process: PhaseDef[], peopl
   return total;
 }
 
+/**
+ * An initiative's deviation (§4): recorded actuals minus their estimates, summed over every costed phase and
+ * every month that has one. A frozen phase compares against its own frozen estimate, never a live recompute,
+ * for the same reason {@link grandEstimate} does. Zero, not undefined, when nothing has been recorded yet.
+ */
+export function grandDeviation(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): number {
+  let total = 0;
+  for (const phase of process) {
+    if (!phase.costed) continue;
+    const plan = initiative.phases?.[phase.id];
+    if (!plan) continue;
+    const snapshot = initiative.gates?.[phase.id]?.frozenSnapshot;
+    if (snapshot) {
+      for (const [month, amount] of Object.entries(plan.actualMonths ?? {})) total += amount - (snapshot.estimateByMonth[month] ?? 0);
+      continue;
+    }
+    total += phaseDeviation(plan, people, data) ?? 0;
+  }
+  return total;
+}
+
 /** The approval track a total resolves to (§7.4): bounds lower-inclusive, upper-exclusive; `null` when no band covers it. */
 export function resolveApprovalTrack(tracks: ApprovalTrackDef[], total: number): ApprovalTrackDef | null {
   for (const track of tracks) {

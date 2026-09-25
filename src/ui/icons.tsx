@@ -3,7 +3,7 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { Archive, ArchiveRestore, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Gauge, Info, Plus, RefreshCw, Search, Trash2, TriangleAlert, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, CircleDashed, Flame, Gauge, Info, Lock, Plus, RefreshCw, Search, Trash2, TriangleAlert, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
 
 function iconWrapper(Lucide: LucideIcon) {
@@ -31,6 +31,14 @@ export const ChevronRightIcon = iconWrapper(ChevronRight);
 /** The two capacity warnings each have their own icon (§9.10): the team's share of a person, and their overall ceiling. */
 export const OverTeamFteIcon = iconWrapper(ChartPie);
 export const OverCapacityIcon = iconWrapper(Gauge);
+/** A checklist item's three statuses (§5.4, §8.1): distinct icons, never colour alone (§9.5). */
+export const IncompleteIcon = iconWrapper(Circle);
+export const TentativeIcon = iconWrapper(CircleDashed);
+export const CompleteIcon = iconWrapper(CircleCheck);
+/** A frozen phase, and a Closed or Cancelled initiative (§9.9, §9.10). */
+export const FrozenIcon = iconWrapper(Lock);
+/** The one thing worth real alarm colour (§8.1, §9.8): the phase behind the current gate running past its own estimated end date. */
+export const OverrunIcon = iconWrapper(Flame);
 
 export function LogoMark(props: SVGProps<SVGSVGElement>) {
   return (

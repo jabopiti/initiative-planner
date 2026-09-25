@@ -228,11 +228,11 @@ export function reopenGate(process: PhaseDef[], initiative: Initiative): ReopenG
 }
 
 /** The gate record that sets the escalation baseline (§7.4): the last *passed* gate whose exited phase was costed — a skipped gate, or one behind a non-costed phase, was never approved at a figure. */
-export function lastCostedPassedGate(process: PhaseDef[], initiative: Initiative): GateRecord | null {
+export function lastCostedPassedGate(process: PhaseDef[], initiative: Initiative): { phase: PhaseDef; record: GateRecord } | null {
   for (const phase of [...process].reverse()) {
     if (!phase.costed) continue;
     const record = initiative.gates?.[phase.id];
-    if (record?.outcome === 'passed') return record;
+    if (record?.outcome === 'passed') return { phase, record };
   }
   return null;
 }

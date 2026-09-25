@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateField, formatMonth, formatMonthRanges, formatMonthShort, formatPeriod, nextMonth, parseDateText, parseMonthText } from './dates';
+import { daysBetween, formatDate, formatDateField, formatMonth, formatMonthRanges, formatMonthShort, formatPeriod, nextMonth, parseDateText, parseMonthText } from './dates';
+
+describe('daysBetween (§8.1 Overrun)', () => {
+  it('counts whole calendar days, negative when the second date comes first', () => {
+    expect(daysBetween('2026-01-01', '2026-01-13')).toBe(12);
+    expect(daysBetween('2026-01-13', '2026-01-01')).toBe(-12);
+    expect(daysBetween('2026-01-01', '2026-01-01')).toBe(0);
+  });
+
+  it('crosses a month and year boundary', () => {
+    expect(daysBetween('2026-01-28', '2026-02-02')).toBe(5);
+    expect(daysBetween('2026-12-30', '2027-01-02')).toBe(3);
+  });
+});
 
 describe('date text (§9.11 date input)', () => {
   it('formats an ISO date for the field as dd.mm.yyyy, and for headlines as "3 Sep 2026"', () => {

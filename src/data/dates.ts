@@ -32,6 +32,15 @@ export const localIso = (d: Date) => iso(d.getFullYear(), d.getMonth() + 1, d.ge
 /** Today's calendar date in the user's local time (§7.1, §5.11), as `YYYY-MM-DD`. */
 export const localToday = (now: Date = new Date()) => localIso(now);
 
+/** Whole calendar days from one ISO date to a later one (§8.1 Overrun); negative when `toIso` comes first. */
+export function daysBetween(fromIso: string, toIso: string): number {
+  const [fy, fm, fd] = parseIso(fromIso);
+  const [ty, tm, td] = parseIso(toIso);
+  const from = Date.UTC(fy, fm - 1, fd);
+  const to = Date.UTC(ty, tm - 1, td);
+  return Math.round((to - from) / 86_400_000);
+}
+
 /** An ISO `YYYY-MM-DD` date as the date input shows it: "26.06.2026". */
 export function formatDateField(isoDate: string): string {
   const [y, m, d] = isoDate.split('-');

@@ -257,6 +257,8 @@ describe('lastCostedPassedGate (§7.4)', () => {
       alpha: { outcome: 'passed' as const, passedOn: '2026-01-01', checklist: [], recordedGrandEstimate: 20_000 },
       beta: { outcome: 'skipped' as const, skipReason: 'later', checklist: [] },
     };
-    expect(lastCostedPassedGate(process, planned({ gates }))?.recordedGrandEstimate).toBe(20_000);
+    const found = lastCostedPassedGate(process, planned({ gates }));
+    expect(found?.phase.id).toBe('alpha');
+    expect(found?.record.recordedGrandEstimate).toBe(20_000);
   });
 });

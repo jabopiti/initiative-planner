@@ -6,6 +6,7 @@ import {
   allocationRefusal,
   frozenBlendedTotal,
   frozenPhaseMonths,
+  grandDeviation,
   grandEstimate,
   isOutsidePeriod,
   monthsInRange,
@@ -402,5 +403,33 @@ describe('grandEstimate (§4, §8.1)', () => {
     // Development, still live: 20 days × 100% × 500 × 0.8 (this file's fixture rate/factor) = 8000.
     const rateChanged: Country[] = countries.map((c) => ({ ...c, ratesByYear: c.ratesByYear.map((r) => ({ ...r, dayRate: r.dayRate * 10 })) }));
     expect(grandEstimate(initiative, process, [ana], { ...data, countries: rateChanged })).toBe(8000 + 80_000);
+  });
+});
+
+describe('grandDeviation (§4)', () => {
+  const process: PhaseDef[] = [
+    { id: 'validation', label: 'Validation', description: '', costed: true, exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: true, skippable: true, checklistItems: [] } },
+    { id: 'development', label: 'Development', description: '', costed: true, exitGate: { id: 'g2', label: 'G2', description: '', requiresEstimates: true, skippable: false, checklistItems: [] } },
+  ];
+
+  it('is zero when nothing has a recorded actual', () => {
+    const initiative: Initiative = { id: 'i1', name: 'Checkout', teamId: 't1', status: 'Active', phases: { validation: { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50 }] } } };
+    expect(grandDeviation(initiative, process, [ana], data)).toBe(0);
+  });
+
+  it('sums live and frozen phases’ deviation, the frozen one against its own snapshot', () => {
+    const frozenSnapshot: FrozenPhaseSnapshot = { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [], costItems: [], estimateByMonth: { '2026-10': 4000, '2026-11': 4000 } };
+    const initiative: Initiative = {
+      id: 'i1',
+      name: 'Checkout',
+      teamId: 't1',
+      status: 'Active',
+      phases: {
+        validation: { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [], actualMonths: { '2026-10': 4500 } }, // +500 over the frozen estimate
+        development: { startDate: '2026-12-01', endDate: '2026-12-31', allocations: [{ id: 'a2', personId: 'ana', allocationPct: 100 }], actualMonths: { '2026-12': 7500 } }, // 8000 estimate, -500
+      },
+      gates: { validation: { outcome: 'passed', passedOn: '2026-11-30', frozenSnapshot, checklist: [] } },
+    };
+    expect(grandDeviation(initiative, process, [ana], data)).toBe(500 - 500);
   });
 });
