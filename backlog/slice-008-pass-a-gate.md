@@ -114,17 +114,17 @@ historical work, built next once passing works.
 
 ## Acceptance criteria
 
-- [ ] Given a checklist item is Incomplete, when Pass gate is attempted,
+- [x] Given a checklist item is Incomplete, when Pass gate is attempted,
       then it is refused and the item is named as the blocker.
-- [ ] Given a costed phase still ahead has no period or allocation/cost
+- [x] Given a costed phase still ahead has no period or allocation/cost
       item, when Pass gate is attempted, then it is refused for that
       reason.
-- [ ] Given every requirement is met, when Pass gate is clicked, then the
+- [x] Given every requirement is met, when Pass gate is clicked, then the
       gate passes in one click with no confirmation step.
-- [ ] Given a gate has just passed, when the initiative page is viewed,
+- [x] Given a gate has just passed, when the initiative page is viewed,
       then the exited phase shows as frozen, and the cost summary shows
       the recorded grand estimate and approval track as "approved at".
-- [ ] Given a passed gate, when Reopen is used, then the gate record is
+- [x] Given a passed gate, when Reopen is used, then the gate record is
       cleared, the frozen snapshot is discarded, and checklist statuses
       and notes are kept.
 
