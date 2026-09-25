@@ -116,3 +116,25 @@ export function parseDateText(text: string): string | null {
   const [day, year] = [Number(textMatch[1]), Number(textMatch[3])];
   return isRealDate(year, month, day) ? iso(year, month, day) : null;
 }
+
+/** "Sep 2026" (or "September 2026", "2026-09", "09/2026", "9.2026") to a month key; null when it isn't a month in 2000 to 2100. */
+export function parseMonthText(text: string): string | null {
+  const t = text.trim();
+  const numeric = /^(\d{4})-(\d{1,2})$/.exec(t);
+  const reversed = /^(\d{1,2})[./](\d{4})$/.exec(t);
+  const words = /^([A-Za-z]+)\.?\s+(\d{4})$/.exec(t);
+  let year: number;
+  let month: number;
+  if (numeric) [year, month] = [Number(numeric[1]), Number(numeric[2])];
+  else if (reversed) [month, year] = [Number(reversed[1]), Number(reversed[2])];
+  else if (words) {
+    const word = words[1].toLowerCase();
+    month = MONTH_NAMES.findIndex((name) => name === word || name.slice(0, 3) === word || (word === 'sept' && name === 'september')) + 1;
+    year = Number(words[2]);
+  } else return null;
+  if (month < 1 || month > 12 || year < FIRST_YEAR || year > LAST_YEAR) return null;
+  return monthKey(year, month - 1);
+}
+
+/** The month names as the month popover lists them: "Jan" to "Dec". */
+export const MONTH_ABBREVIATIONS: readonly string[] = MONTHS;

@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   allocationFigures,
   allocationRefusal,
+  costItemByMonth,
+  isOutsidePeriod,
   monthsInRange,
+  phaseByMonth,
   phaseTotal,
   resolveRate,
   weekdaysInMonth,
@@ -10,7 +13,7 @@ import {
   trackedYears,
   yearRecord,
 } from './cost';
-import type { Country, Membership, Person, Role, Team } from './types';
+import type { CostItem, Country, Membership, Person, Role, Team } from './types';
 
 const twenty = Array(12).fill(20);
 
@@ -185,5 +188,54 @@ describe('only a team’s members may be allocated (§7.2)', () => {
   it('refuses a person whose membership was deactivated, and one on another team only', () => {
     expect(allocationRefusal(ana, team, [{ ...member, active: false }])).not.toBeNull();
     expect(allocationRefusal(ana, team, [{ ...member, teamId: 't2' }])).not.toBeNull();
+  });
+});
+
+describe('cost items in a phase’s monthly estimate (§7.1)', () => {
+  const period = { startDate: '2026-10-16', endDate: '2026-12-10' }; // three calendar months, the first and last partial
+  const item = (extra: Partial<CostItem>): CostItem => ({ id: 'c1', label: 'Penetration test', amount: 12000, timing: 'spread', ...extra });
+
+  it('puts a one-month item in full into its month and nowhere else', () => {
+    expect(costItemByMonth(period, item({ timing: 'month', month: '2026-11' }))).toEqual({ '2026-11': 12000 });
+    const byMonth = phaseByMonth({ ...period, allocations: [], costItems: [item({ timing: 'month', month: '2026-11' })] }, [], data);
+    expect(byMonth['2026-11']).toBe(12000);
+    expect(byMonth['2026-10']).toBeUndefined();
+  });
+
+  it('spreads an item equally over every calendar month of the period, partial first and last months included', () => {
+    expect(costItemByMonth(period, item({}))).toEqual({ '2026-10': 4000, '2026-11': 4000, '2026-12': 4000 });
+  });
+
+  it('keeps the month of a spread item without using it', () => {
+    expect(costItemByMonth(period, item({ month: '2027-05' }))).toEqual({ '2026-10': 4000, '2026-11': 4000, '2026-12': 4000 });
+  });
+
+  it('still counts a one-month item whose month lies outside the period', () => {
+    expect(costItemByMonth(period, item({ timing: 'month', month: '2027-03' }))).toEqual({ '2027-03': 12000 });
+  });
+
+  it('counts nothing without a valid period, and nothing for a one-month item that has no month', () => {
+    expect(costItemByMonth({ startDate: '2026-10-01' }, item({}))).toEqual({});
+    expect(costItemByMonth({ startDate: '2026-11-30', endDate: '2026-10-01' }, item({ timing: 'month', month: '2026-11' }))).toEqual({});
+    expect(costItemByMonth(period, item({ timing: 'month' }))).toEqual({});
+  });
+
+  it('adds cost items to the allocation cost in the phase total', () => {
+    const plan = {
+      startDate: '2026-10-01',
+      endDate: '2026-11-30',
+      allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50 }],
+      costItems: [item({ timing: 'month', month: '2026-10' }), item({ id: 'c2', amount: 1000 })],
+    };
+    expect(phaseTotal(plan, [ana], data)).toBeCloseTo(8000 + 12000 + 1000);
+    expect(phaseByMonth(plan, [ana], data)['2026-10']).toBeCloseTo(4000 + 12000 + 500);
+    expect(phaseByMonth(plan, [ana], data)['2026-11']).toBeCloseTo(4000 + 500);
+  });
+
+  it('knows a one-month item is outside a valid period, and never for a spread item or without a period', () => {
+    expect(isOutsidePeriod(period, item({ timing: 'month', month: '2027-03' }))).toBe(true);
+    expect(isOutsidePeriod(period, item({ timing: 'month', month: '2026-12' }))).toBe(false);
+    expect(isOutsidePeriod(period, item({ month: '2027-03' }))).toBe(false);
+    expect(isOutsidePeriod({ startDate: '2026-10-01' }, item({ timing: 'month', month: '2027-03' }))).toBe(false);
   });
 });

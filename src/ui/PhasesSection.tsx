@@ -10,6 +10,7 @@ import { freeCapacityByPerson } from '../data/personLoad';
 import { roleLabel } from '../data/roleLabel';
 import { activeMembers } from '../data/teamMembers';
 import { FILE_PATHS, type Initiative, type PhasePlan, type Team } from '../data/types';
+import { CostItemsTable } from './CostItemsTable';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
@@ -210,7 +211,7 @@ function CostedPhase({
           <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>· Add people</span>
         )}
         <span className="ml-auto font-medium tabular-nums">
-          {costed && plan.allocations.length > 0 ? formatAmount(total, currencySymbol) : '—'}
+          {costed && (plan.allocations.length > 0 || (plan.costItems?.length ?? 0) > 0) ? formatAmount(total, currencySymbol) : '—'}
         </span>
         <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary">Estimate</span>
       </button>
@@ -347,6 +348,8 @@ function CostedPhase({
               {refusal}
             </p>
           )}
+
+          <CostItemsTable initiativeId={initiative.id} phase={phase} plan={plan} />
         </div>
       )}
     </>

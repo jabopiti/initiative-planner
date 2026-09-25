@@ -1,6 +1,6 @@
 /**
  * Dataset shapes (spec §6), scoped to the fields the built slices read or write.
- * Cost items, actuals and gate records arrive with their own slices.
+ * Actuals and gate records arrive with their own slices.
  */
 
 export type InitiativeStatus = 'Active' | 'On Hold' | 'Cancelled' | 'Closed';
@@ -61,11 +61,25 @@ export interface Allocation {
   allocationPct: number;
 }
 
+/**
+ * A priced cost that is not people time (§4, §6): the full amount in one month of the phase, or an equal share in
+ * every month of its period. `month` (`YYYY-MM`) is kept while the timing is `spread`, so switching back restores it.
+ */
+export interface CostItem {
+  id: string;
+  label: string;
+  amount: number;
+  timing: 'month' | 'spread';
+  month?: string;
+}
+
 /** A costed phase's plan (§6 "Phase data"). Dates are ISO `YYYY-MM-DD`; either may be unset while planning. */
 export interface PhasePlan {
   startDate?: string;
   endDate?: string;
   allocations: Allocation[];
+  /** Absent until the first item is added, so files written before cost items existed need no migration. */
+  costItems?: CostItem[];
 }
 
 export interface Initiative {

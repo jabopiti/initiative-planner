@@ -6,6 +6,7 @@ import {
   FILE_PATHS,
   SCHEMA_VERSION,
   type Allocation,
+  type CostItem,
   type Country,
   type DatasetFlags,
   type Initiative,
@@ -16,7 +17,7 @@ import {
   type Team,
 } from '../data/types';
 import { allocationRefusal } from '../data/cost';
-import { formatDate } from '../data/dates';
+import { formatDate, formatMonth } from '../data/dates';
 import { localToday } from '../data/dates';
 import { buildDefaultPlan } from '../data/defaultPlan';
 import { frozenPaths, isPhaseFrozen } from '../data/frozen';
@@ -121,6 +122,12 @@ export interface TeamChange {
 function insertAllocation(allocations: Allocation[], allocation: Allocation, index: number): Allocation[] {
   const next = [...allocations];
   next.splice(Math.min(index, next.length), 0, allocation);
+  return next;
+}
+
+function insertCostItem(items: CostItem[], item: CostItem, index: number): CostItem[] {
+  const next = [...items];
+  next.splice(Math.min(index, next.length), 0, item);
   return next;
 }
 
@@ -950,6 +957,68 @@ export class Repository {
       phaseId,
       (plan) => ({ ...plan, allocations: insertAllocation(plan.allocations, allocation, index) }),
       { key: allocation.id, text: (name, phase) => `${name}: ${phase} allocation restored (${this.personName(allocation.personId)})` },
+    );
+  }
+
+  /** An amount as a commit message reads it, in the deployment's currency (§9.7). */
+  private money(amount: number): string {
+    return `${this.brand.currencySymbol}${amount.toLocaleString('en', { maximumFractionDigits: 2 })}`;
+  }
+
+  /** Add a cost item to a phase (§5.4); it is one commit, made once the draft row is complete. */
+  addCostItem(initiativeId: string, phaseId: string, draft: Omit<CostItem, 'id'>): CostItem | null {
+    const item: CostItem = { id: newId(), ...draft };
+    const added = this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, costItems: [...(plan.costItems ?? []), item] }),
+      { key: item.id, text: (name, phase) => `${name}: ${phase} cost item added (${item.label}, ${this.money(item.amount)})` },
+    );
+    return added ? item : null;
+  }
+
+  /** Change a cost item's label, amount or timing; one commit note per changed field. */
+  updateCostItem(initiativeId: string, phaseId: string, itemId: string, change: Partial<Omit<CostItem, 'id'>>): void {
+    const item = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.costItems?.find((c) => c.id === itemId);
+    if (!item) return;
+    const what =
+      change.label !== undefined
+        ? `${item.label} renamed to ${change.label}`
+        : change.amount !== undefined
+          ? `${item.label} amount set to ${this.money(change.amount)}`
+          : change.timing === 'spread'
+            ? `${item.label} spread over the phase`
+            : `${item.label} timed to ${formatMonth(change.month ?? item.month ?? '')}`;
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, costItems: (plan.costItems ?? []).map((c) => (c.id === itemId ? { ...c, ...change } : c)) }),
+      { key: `${itemId}:${Object.keys(change).join(',')}`, text: (name, phase) => `${name}: ${phase} cost item ${what}` },
+    );
+  }
+
+  /** Remove a cost item; the position comes back so an Undo can put it where it was (§5.11). */
+  removeCostItem(initiativeId: string, phaseId: string, itemId: string): { item: CostItem; index: number } | null {
+    const items = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.costItems ?? [];
+    const index = items.findIndex((c) => c.id === itemId);
+    if (index < 0) return null;
+    const item = items[index];
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, costItems: (plan.costItems ?? []).filter((c) => c.id !== itemId) }),
+      { key: itemId, text: (name, phase) => `${name}: ${phase} cost item removed (${item.label})` },
+    );
+    return { item, index };
+  }
+
+  /** Undo of {@link removeCostItem}: the same item, same id, back in its place, as a normal edit. */
+  restoreCostItem(initiativeId: string, phaseId: string, item: CostItem, index: number): void {
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, costItems: insertCostItem(plan.costItems ?? [], item, index) }),
+      { key: item.id, text: (name, phase) => `${name}: ${phase} cost item restored (${item.label})` },
     );
   }
 

@@ -1,5 +1,6 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { toast } from 'sonner';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, Initiative, Membership, Person, Role } from '../data/types';
@@ -557,5 +558,201 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
     await openPicker(user);
     expect(screen.getByText('Set the period to see who has room.')).toBeInTheDocument();
     expect(optionTexts()).toEqual(['Ana Ruiz · Developer', 'Cai Wu · Fractional CTO']);
+  });
+});
+
+describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)', () => {
+  const id = defaultBrandPack.process[1].id; // Validation, the open phase
+  const planned = (costItems: CostItemFixture[] = [], period: { startDate?: string; endDate?: string } = { startDate: '2026-10-01', endDate: '2026-11-30' }) => {
+    initiative = { ...initiative, phases: { [id]: { ...period, allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50 }], costItems } } };
+  };
+  type CostItemFixture = NonNullable<Initiative['phases']>[string]['costItems'] extends (infer T)[] | undefined ? T : never;
+  const pen: CostItemFixture = { id: 'c1', label: 'Penetration test', amount: 12000, timing: 'month', month: '2026-10' };
+  const licence: CostItemFixture = { id: 'c2', label: 'Load-testing licence', amount: 6000, timing: 'spread' };
+  // An earlier test's Undo toast would otherwise still be on screen.
+  beforeEach(() => void toast.dismiss());
+  // A person costs €8,000 (40 days × 50% × 500 × 0.8) over the period.
+  const added = () => puts.find((p) => p.message.includes('cost item added'));
+
+  async function openDraft(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: 'Add cost item to Validation' }));
+    return screen.getByRole('group', { name: 'New cost item for Validation' });
+  }
+
+  it('says a phase has none, with the one action', async () => {
+    planned();
+    renderPage();
+    expect(await screen.findByRole('heading', { name: 'Cost items' })).toBeInTheDocument();
+    expect(screen.getByText('No cost items yet —')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add cost item to Validation' })).toBeInTheDocument();
+  });
+
+  it('adds a one-month item in one commit, and the phase total includes it', async () => {
+    const user = userEvent.setup();
+    planned();
+    renderPage();
+    const draft = await openDraft(user);
+    await user.type(within(draft).getByRole('textbox', { name: 'Label' }), 'Penetration test');
+    await user.type(within(draft).getByRole('spinbutton', { name: 'Amount' }), '12000');
+    await user.click(within(draft).getByRole('radio', { name: 'One month' }));
+    const month = within(draft).getByRole('textbox', { name: 'Month' });
+    expect(month).toHaveValue('Oct 2026'); // the phase's first month
+    await user.clear(month);
+    await user.type(month, 'Nov 2026{Enter}');
+    expect(puts.some((p) => p.message.includes('cost item added'))).toBe(false); // nothing saved before Add
+    await user.click(within(draft).getByRole('button', { name: 'Add' }));
+
+    const row = screen.getByRole('row', { name: /Penetration test/ });
+    expect(within(row).getByLabelText('Amount for Penetration test')).toHaveValue(12000);
+    expect(within(row).getByRole('radio', { name: 'One month' })).toBeChecked();
+    expect(within(row).getByLabelText('Month for Penetration test')).toHaveValue('Nov 2026');
+    expect(screen.queryByRole('group', { name: 'New cost item for Validation' })).not.toBeInTheDocument();
+    expect(validationRow()).toHaveTextContent('€20,000'); // 8,000 people + 12,000 item
+
+    await vi.waitFor(() => expect(added()).toBeDefined(), { timeout: 3000 });
+    expect(added()!.message).toBe('Payments API: Validation cost item added (Penetration test, €12,000)');
+    expect(added()!.content.phases![id].costItems).toEqual([{ id: expect.any(String), label: 'Penetration test', amount: 12000, timing: 'month', month: '2026-11' }]);
+  });
+
+  it('adds a spread item by default, needing only a label and an amount', async () => {
+    const user = userEvent.setup();
+    planned();
+    renderPage();
+    const draft = await openDraft(user);
+    expect(within(draft).getByRole('radio', { name: 'Spread over the phase' })).toBeChecked();
+    expect(within(draft).queryByRole('textbox', { name: 'Month' })).not.toBeInTheDocument();
+    await user.type(within(draft).getByRole('textbox', { name: 'Label' }), 'Load-testing licence');
+    await user.type(within(draft).getByRole('spinbutton', { name: 'Amount' }), '6000{Enter}');
+    expect(screen.getByRole('row', { name: /Load-testing licence/ })).toBeInTheDocument();
+    expect(validationRow()).toHaveTextContent('€14,000');
+  });
+
+  it.each([
+    ['no label and no amount', '', '', ['Enter a label.', 'Enter an amount of 0 or more.']],
+    ['a label and a negative amount', 'Penetration test', '-5', ['Enter an amount of 0 or more.']],
+    ['a label and an empty amount', 'Penetration test', '', ['Enter an amount of 0 or more.']],
+    ['an amount and a blank label', '   ', '100', ['Enter a label.']],
+  ])('refuses %s inline and saves nothing', async (_name, label, amount, messages) => {
+    const user = userEvent.setup();
+    planned();
+    renderPage();
+    const draft = await openDraft(user);
+    if (label) await user.type(within(draft).getByRole('textbox', { name: 'Label' }), label);
+    if (amount) await user.type(within(draft).getByRole('spinbutton', { name: 'Amount' }), amount);
+    await user.click(within(draft).getByRole('button', { name: 'Add' }));
+    expect(within(draft).getAllByRole('alert').map((a) => a.textContent)).toEqual(messages);
+    expect(screen.queryByRole('table', { name: 'Validation cost items' })).not.toBeInTheDocument();
+    expect(added()).toBeUndefined();
+  });
+
+  it('closes the draft on Cancel and on Esc without saving', async () => {
+    const user = userEvent.setup();
+    planned();
+    renderPage();
+    const draft = await openDraft(user);
+    await user.type(within(draft).getByRole('textbox', { name: 'Label' }), 'Penetration');
+    await user.click(within(draft).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('group', { name: 'New cost item for Validation' })).not.toBeInTheDocument();
+    await openDraft(user);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('group', { name: 'New cost item for Validation' })).not.toBeInTheDocument();
+    expect(added()).toBeUndefined();
+  });
+
+  it('edits an item in place: label and amount on Enter, with refusals', async () => {
+    const user = userEvent.setup();
+    planned([licence]);
+    renderPage();
+    const row = await screen.findByRole('row', { name: /Load-testing licence/ });
+    const amount = within(row).getByLabelText('Amount for Load-testing licence');
+    await user.clear(amount);
+    await user.type(amount, '-1{Enter}');
+    expect(within(row).getByRole('alert')).toHaveTextContent('Enter an amount of 0 or more.');
+    await user.clear(amount);
+    await user.type(amount, '9000{Enter}');
+    expect(within(row).queryByRole('alert')).not.toBeInTheDocument();
+    expect(validationRow()).toHaveTextContent('€17,000');
+
+    const label = within(row).getByLabelText('Label of Load-testing licence');
+    await user.clear(label);
+    await user.type(label, '{Enter}');
+    expect(within(row).getByRole('alert')).toHaveTextContent('Enter a label.');
+    await user.type(label, 'Licence{Enter}');
+    expect(screen.getByLabelText('Label of Licence')).toBeInTheDocument();
+    const set = () => puts.find((p) => p.message.includes('amount set'));
+    await vi.waitFor(() => expect(set()).toBeDefined(), { timeout: 3000 });
+    // The two edits landed in one commit, each named.
+    expect(set()!.message).toBe('Payments API: Validation cost item Load-testing licence amount set to €9,000; Payments API: Validation cost item Load-testing licence renamed to Licence');
+  });
+
+  it('switches an item between one month and spread, keeping its month', async () => {
+    const user = userEvent.setup();
+    planned([pen]);
+    renderPage();
+    const row = await screen.findByRole('row', { name: /Penetration test/ });
+    await user.click(within(row).getByRole('radio', { name: 'Spread over the phase' }));
+    expect(within(row).queryByRole('textbox', { name: /^Month for/ })).not.toBeInTheDocument();
+    await user.click(within(row).getByRole('radio', { name: 'One month' }));
+    expect(within(row).getByLabelText('Month for Penetration test')).toHaveValue('Oct 2026');
+  });
+
+  it('picks a month from the popover and refuses text that is not a month', async () => {
+    const user = userEvent.setup();
+    planned([pen]);
+    renderPage();
+    const row = await screen.findByRole('row', { name: /Penetration test/ });
+    const month = within(row).getByLabelText('Month for Penetration test');
+    await user.click(month);
+    await user.click(await screen.findByRole('button', { name: 'Next year' }));
+    await user.click(screen.getByRole('button', { name: 'Jan 2027' }));
+    expect(month).toHaveValue('Jan 2027');
+    expect(within(row).getByText("Jan 2027 is outside the phase's period. It still counts.")).toBeInTheDocument();
+
+    await user.clear(month);
+    await user.type(month, 'soon{Enter}');
+    expect(within(row).getByRole('alert')).toHaveTextContent('Enter a month such as Sep 2026.');
+    expect(month).toHaveValue('soon');
+  });
+
+  it('keeps counting an item whose month lies outside the period, and warns', async () => {
+    planned([{ ...pen, month: '2027-03' }, licence]);
+    renderPage();
+    const row = await screen.findByRole('row', { name: /Penetration test/ });
+    expect(within(row).getByText("Mar 2027 is outside the phase's period. It still counts.")).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Load-testing licence/ })).not.toHaveTextContent('outside');
+    expect(validationRow()).toHaveTextContent('€26,000'); // 8,000 + 12,000 + 6,000
+  });
+
+  it('warns once the period is shortened past an item’s month', async () => {
+    const user = userEvent.setup();
+    planned([pen]);
+    renderPage();
+    const row = await screen.findByRole('row', { name: /Penetration test/ });
+    expect(within(row).queryByText(/outside the phase/)).not.toBeInTheDocument();
+    await typeDate(user, 'Validation start date', '01.11.2026');
+    expect(within(row).getByText("Oct 2026 is outside the phase's period. It still counts.")).toBeInTheDocument();
+    expect(validationRow()).toHaveTextContent('€16,000'); // 4,000 people (November only) + 12,000
+  });
+
+  it('lists items without a period but costs nothing and does not warn', async () => {
+    planned([pen, licence], {});
+    renderPage();
+    expect(await screen.findByRole('row', { name: /Penetration test/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Load-testing licence/ })).toBeInTheDocument();
+    expect(validationRow()).toHaveTextContent('—');
+    expect(screen.queryByText(/outside the phase/)).not.toBeInTheDocument();
+  });
+
+  it('removes an item and puts it back where it was with Undo', async () => {
+    const user = userEvent.setup();
+    planned([pen, licence]);
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Remove Penetration test from Validation' }));
+    expect(screen.queryByRole('row', { name: /Penetration test/ })).not.toBeInTheDocument();
+    expect(validationRow()).toHaveTextContent('€14,000');
+    await user.click(await screen.findByRole('button', { name: 'Undo' }));
+    await screen.findByLabelText('Label of Penetration test');
+    expect(screen.getAllByLabelText(/^Label of /).map((field) => (field as HTMLInputElement).value)).toEqual(['Penetration test', 'Load-testing licence']);
+    expect(validationRow()).toHaveTextContent('€26,000');
   });
 });

@@ -103,26 +103,26 @@ later without changing this slice's core behaviour.
 
 ## Acceptance criteria
 
-- [ ] Given a phase with a cost item timed to one month, when the phase
+- [x] Given a phase with a cost item timed to one month, when the phase
       total is viewed, then that month's estimate includes the full item
       amount and other months do not.
-- [ ] Given a phase with a cost item spread over the phase, when the
+- [x] Given a phase with a cost item spread over the phase, when the
       phase total is viewed, then each month of the period includes an
       equal share of the item's amount.
-- [ ] Given a phase's period is later shortened past a cost item's month,
+- [x] Given a phase's period is later shortened past a cost item's month,
       when the phase is viewed, then the item still counts and a warning
       is shown.
 
-- [ ] Given a phase without a valid period, when a cost item is added, then
+- [x] Given a phase without a valid period, when a cost item is added, then
       it is listed and editable, the phase total stays "—", and no
       outside-the-period warning shows.
-- [ ] Given the draft row, when Add is pressed with no label or with an amount
+- [x] Given the draft row, when Add is pressed with no label or with an amount
       that is empty, text or negative, then nothing is saved and the refusal
       is shown inline; with both valid, one item is committed and the draft
       closes.
-- [ ] Given a cost item, when it is removed, then "Removed." with Undo shows,
+- [x] Given a cost item, when it is removed, then "Removed." with Undo shows,
       and Undo restores it at its old position.
-- [ ] Given a phase with no cost items, then it reads "No cost items yet" with
+- [x] Given a phase with no cost items, then it reads "No cost items yet" with
       the Add cost item action.
 
 ## Delivery gate
