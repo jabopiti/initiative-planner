@@ -3,6 +3,20 @@ import { clearAllFileCaches, closeDatabase, defaultBudget, FileCache, tokenCache
 
 const file = (size: number, sha = 'sha') => ({ content: 'x'.repeat(size), sha });
 
+/** An open connection at version 2, as the build before this one left it, on a database deleted first. */
+async function openVersion2Database(): Promise<IDBDatabase> {
+  await closeDatabase();
+  await new Promise((resolve) => (indexedDB.deleteDatabase('initiative-planner').onsuccess = resolve));
+  return new Promise((resolve) => {
+    const request = indexedDB.open('initiative-planner', 2);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore('files');
+      request.result.createObjectStore('auth');
+    };
+    request.onsuccess = () => resolve(request.result);
+  });
+}
+
 describe('FileCache (§10.4)', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -81,16 +95,7 @@ describe('FileCache (§10.4)', () => {
   });
 
   it('drops the files an earlier build kept by bare path when the database is upgraded', async () => {
-    await closeDatabase();
-    await new Promise((resolve) => (indexedDB.deleteDatabase('initiative-planner').onsuccess = resolve));
-    const old = await new Promise<IDBDatabase>((resolve) => {
-      const request = indexedDB.open('initiative-planner', 2);
-      request.onupgradeneeded = () => {
-        request.result.createObjectStore('files');
-        request.result.createObjectStore('auth');
-      };
-      request.onsuccess = () => resolve(request.result);
-    });
+    const old = await openVersion2Database();
     await new Promise<void>((resolve) => {
       const tx = old.transaction('files', 'readwrite');
       tx.objectStore('files').put({ content: '[]', sha: 'old' }, 'teams.json');
@@ -114,16 +119,7 @@ describe('FileCache (§10.4)', () => {
   });
 
   it('goes on without the cache, rather than wait, when an older tab blocks the upgrade', async () => {
-    await closeDatabase();
-    await new Promise((resolve) => (indexedDB.deleteDatabase('initiative-planner').onsuccess = resolve));
-    const older = await new Promise<IDBDatabase>((resolve) => {
-      const request = indexedDB.open('initiative-planner', 2);
-      request.onupgradeneeded = () => {
-        request.result.createObjectStore('files');
-        request.result.createObjectStore('auth');
-      };
-      request.onsuccess = () => resolve(request.result);
-    });
+    const older = await openVersion2Database();
 
     await expect(new FileCache('a/b@data').all()).rejects.toThrow('older tab');
 

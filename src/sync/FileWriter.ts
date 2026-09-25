@@ -147,7 +147,7 @@ export class FileWriter<D> {
     let next = file.content;
     if (this.pending !== null || this.timer !== null) {
       const mine = this.pending ?? (this.screen as D);
-      const message = this.notes.size > 0 ? [...this.notes.values()].join('; ') : `${this.options.path}: update`;
+      const message = this.commitMessage();
       const outcome = this.options.merge(this.synced?.content ?? file.content, mine, file.content);
       this.raise(outcome.conflicts, message);
       next = outcome.merged;
@@ -159,6 +159,10 @@ export class FileWriter<D> {
     return { changed: changedPaths(before, next) };
   }
 
+  private commitMessage(): string {
+    return this.notes.size > 0 ? [...this.notes.values()].join('; ') : `${this.options.path}: update`;
+  }
+
   private async saveNext(): Promise<SaveResult> {
     await this.options.gate?.();
     if (this.pending === null) {
@@ -167,7 +171,7 @@ export class FileWriter<D> {
     }
     const mine = this.pending;
     this.pending = null;
-    const message = this.notes.size > 0 ? [...this.notes.values()].join('; ') : `${this.options.path}: update`;
+    const message = this.commitMessage();
     this.notes.clear();
     this.saving = true;
     try {

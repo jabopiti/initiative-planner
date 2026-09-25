@@ -1,5 +1,6 @@
 import { trackedYears, yearRecord } from '../data/cost';
 import type { CustomRole, Person } from '../data/types';
+import { FILE_PATHS } from '../data/types';
 import { useBrand } from '../state/BrandContext';
 import { useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { Label } from '@/components/ui/label';
@@ -45,7 +46,7 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
         <Label htmlFor="person-custom-label">Custom role label</Label>
         <CommitInput
           id="person-custom-label"
-          changed={changed('people.json', customPath('label'))}
+          changed={changed(FILE_PATHS.people, customPath('label'))}
           placeholder="e.g. Fractional CTO"
           value={customRole.label}
           onCommit={(text) => {
@@ -59,7 +60,7 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
         <Label htmlFor="person-custom-factor">Cost factor</Label>
         <CommitInput
           id="person-custom-factor"
-          changed={changed('people.json', customPath('costFactor'))}
+          changed={changed(FILE_PATHS.people, customPath('costFactor'))}
           type="number"
           step="any"
           min={0}
@@ -88,7 +89,7 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
                 min={0}
                 className="w-28"
                 aria-label={`Day rate ${year}`}
-                changed={changed('people.json', customPath('dayRatesByYear'))}
+                changed={changed(FILE_PATHS.people, customPath('dayRatesByYear'))}
                 disabled={year < tracked[0]}
                 placeholder={inherited ? String(inherited.dayRate) : undefined}
                 value={entered ? String(entered.dayRate) : ''}

@@ -15,6 +15,7 @@ import { sortRows, useTableSort, type SortValue } from './tableSort';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { FILE_PATHS } from '../data/types';
 
 /** Teams overview (§5.7): name, size, per-phase initiative counts, and New team. */
 export function TeamsOverview() {
@@ -139,7 +140,7 @@ export function TeamsOverview() {
           {sorted.map(({ team, members, counts, capacityWarning }) => (
             <tr
               key={team.id}
-              className={`cursor-pointer border-b border-border-default transition-colors duration-500 ${changed('teams.json', [{ id: team.id }]) ? 'bg-met-tint' : ''} ${team.active ? '' : 'text-text-secondary'}`}
+              className={`cursor-pointer border-b border-border-default transition-colors duration-500 ${changed(FILE_PATHS.teams, [{ id: team.id }]) ? 'bg-met-tint' : ''} ${team.active ? '' : 'text-text-secondary'}`}
               onClick={(e) => {
                 // A click on the name link is the link's own (Cmd-click opens a new tab, without also leaving this one); the warning marker only shows its tooltip.
                 if (!(e.target as HTMLElement).closest('a, [data-row-action]')) navigate(`/teams/${team.id}`);

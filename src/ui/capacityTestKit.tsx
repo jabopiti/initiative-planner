@@ -11,6 +11,7 @@ import { buildBaselineDataset } from '../data/baseline';
 import type { Initiative, Membership, Person, Team } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
+import { rootListing } from '../sync/testing/rootListing';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -77,8 +78,7 @@ export function installCapacityFixture() {
         if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
         if (url.includes('/git/ref/heads/')) return json({ message: 'Not Found' }, 404);
         if (new URL(url).pathname.endsWith('/contents/')) {
-          const masters = { 'dataset.json': 'd', 'roles.json': 'r', 'countries.json': 'c', 'teams.json': 't', 'people.json': 'p', 'memberships.json': 'm' };
-          return json(Object.entries(masters).map(([name, sha]) => ({ name, path: name, sha, type: 'file' })));
+          return rootListing({ 'dataset.json': 'd', 'roles.json': 'r', 'countries.json': 'c', 'teams.json': 't', 'people.json': 'p', 'memberships.json': 'm' });
         }
         if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
         if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');

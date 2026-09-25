@@ -13,6 +13,7 @@ import { sortRows, useTableSort } from './tableSort';
 import { DeactivateIcon, DeactivateTeamIcon, ReactivateIcon, ReactivateTeamIcon, RemoveIcon, WarningIcon } from './icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FILE_PATHS } from '../data/types';
 
 /** Team detail (§5.8): the Members list and the Capacity view. */
 export function TeamDetail({ id }: { id: string }) {
@@ -206,7 +207,7 @@ export function TeamDetail({ id }: { id: string }) {
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
                         <PercentInput
-                          changed={changed('memberships.json', [{ id: m.id }, 'teamFtePct'])}
+                          changed={changed(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
                           label={`Team FTE % for ${person.name}`}
                           value={m.teamFtePct}
                           disabled={!m.active || !person.active}

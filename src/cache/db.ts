@@ -192,7 +192,8 @@ export class FileCache {
       const previous = await this.get(path);
       await set<CachedFile>(FILES_STORE, this.key(path), { ...value, at: Date.now() });
       this.total = before - (previous?.content.length ?? 0) + value.content.length;
-      if (this.total > (await this.budget())) await this.evict(path);
+      const budget = await this.budget();
+      if (this.total > budget) await this.evict(path, budget);
     });
   }
 
@@ -210,15 +211,15 @@ export class FileCache {
     return [...(await this.all()).values()].reduce((sum, file) => sum + file.content.length, 0);
   }
 
-  /** Drops the oldest files until the cache fits its budget, and forgets that the cache is complete. */
-  private async evict(keep: string): Promise<void> {
-    const budget = await this.budget();
+  /** Drops the oldest files until the cache fits `budget`, and forgets that the cache is complete. */
+  private async evict(keep: string, budget: number): Promise<void> {
     const files = [...(await this.all())].filter(([path]) => path !== keep);
     files.sort(([pathA, a], [pathB, b]) => Number(!isInitiativeFile(pathA)) - Number(!isInitiativeFile(pathB)) || a.at - b.at);
-    for (const [path] of files) {
+    if (files.length > 0) await del(META_STORE, this.prefix);
+    for (const [path, file] of files) {
       if ((this.total ?? 0) <= budget) break;
-      await this.remove(path);
-      await del(META_STORE, this.prefix);
+      await del(FILES_STORE, this.key(path));
+      this.total = (this.total ?? 0) - file.content.length;
       this.evicted += 1;
     }
   }

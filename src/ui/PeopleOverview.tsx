@@ -12,6 +12,7 @@ import { DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FILE_PATHS } from '../data/types';
 
 type StatusFilter = 'active' | 'inactive' | 'all';
 
@@ -190,7 +191,7 @@ export function PeopleOverview() {
                   return (
                     <tr
                       key={p.id}
-                      className={`cursor-pointer border-b border-border-default transition-colors duration-500 ${p.id === selectedId ? 'bg-brand-accent-tint' : changed('people.json', [{ id: p.id }]) ? 'bg-met-tint' : ''} ${p.active ? '' : 'text-text-secondary'}`}
+                      className={`cursor-pointer border-b border-border-default transition-colors duration-500 ${p.id === selectedId ? 'bg-brand-accent-tint' : changed(FILE_PATHS.people, [{ id: p.id }]) ? 'bg-met-tint' : ''} ${p.active ? '' : 'text-text-secondary'}`}
                       onClick={() => setSelectedId(p.id)}
                     >
                       <td className="px-3 py-2">

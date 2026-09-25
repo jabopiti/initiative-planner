@@ -50,7 +50,8 @@ export function useIsChangedByOthers(): (file: string, path: Path) => boolean {
   return (file, path) => {
     if (changed.size === 0) return false;
     const key = changeKey(file, path);
-    return [...changed].some((other) => changeCovers(key, other) || changeCovers(other, key));
+    for (const other of changed) if (changeCovers(key, other) || changeCovers(other, key)) return true;
+    return false;
   };
 }
 

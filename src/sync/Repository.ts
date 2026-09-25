@@ -315,8 +315,7 @@ export class Repository {
     } catch (error) {
       this.pullFailure = toReadOnlyState(error, 'Something went wrong loading the dataset.');
     }
-    this.publishStatus();
-    this.scheduleRetry(complete && this.pullFailure === null);
+    this.settlePull(complete);
   }
 
   /** What changed in the repository since what is on screen: null when nothing did, else the files that did. */
@@ -361,14 +360,19 @@ export class Repository {
     return listing;
   }
 
-  /** The version of each file as it is on screen. */
-  private knownShas(): Map<string, string> {
-    const known = new Map(this.shas);
-    for (const [path, writer] of [
+  /** The writer of each master file that has one, by path. */
+  private masterWriters() {
+    return [
       [FILE_PATHS.teams, this.teamsWriter],
       [FILE_PATHS.people, this.peopleWriter],
       [FILE_PATHS.memberships, this.membershipsWriter],
-    ] as const) {
+    ] as const;
+  }
+
+  /** The version of each file as it is on screen. */
+  private knownShas(): Map<string, string> {
+    const known = new Map(this.shas);
+    for (const [path, writer] of this.masterWriters()) {
       if (writer?.sha != null) known.set(path, writer.sha);
     }
     for (const [id, writer] of this.initiativeWriters) if (writer.sha !== null) known.set(FILE_PATHS.initiative(id), writer.sha);
@@ -421,11 +425,7 @@ export class Repository {
     }
     if (Object.keys(patch).length > 0) this.setState(patch);
 
-    for (const [path, writer] of [
-      [FILE_PATHS.teams, this.teamsWriter],
-      [FILE_PATHS.people, this.peopleWriter],
-      [FILE_PATHS.memberships, this.membershipsWriter],
-    ] as const) {
+    for (const [path, writer] of this.masterWriters()) {
       const file = files.get(path);
       if (file && writer) applied(path, writer.receive({ content: JSON.parse(file.content), sha: file.sha }, compared.get(path) ?? null));
     }
@@ -508,15 +508,16 @@ export class Repository {
       const held = this.held;
       this.held = null;
       const complete = this.applyPulled(held);
-      this.publishStatus();
-      this.scheduleRetry(complete && this.pullFailure === null);
+      this.settlePull(complete);
     };
   }
 
-  private scheduleRetry(settled: boolean): void {
+  /** Shows how the pull ended, and tries again soon unless everything it found was applied. */
+  private settlePull(complete: boolean): void {
+    this.publishStatus();
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
-    if (settled) return;
+    if (complete && this.pullFailure === null) return;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       if (document.visibilityState === 'visible') void this.pull();
@@ -1037,9 +1038,7 @@ export class Repository {
   /** Flush any pending debounced write immediately (page unload). */
   async flushPending(): Promise<void> {
     await Promise.all([
-      this.teamsWriter?.flush(),
-      this.peopleWriter?.flush(),
-      this.membershipsWriter?.flush(),
+      ...this.masterWriters().map(([, writer]) => writer?.flush()),
       ...[...this.initiativeWriters.values()].map((w) => w.flush()),
     ]);
   }
