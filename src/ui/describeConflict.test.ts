@@ -23,6 +23,10 @@ const initiative: Required<Initiative> = {
   status: 'Active',
   phases: { validation: phase },
   defaultPlan: true,
+  // Live checklist state (still field-by-field mergeable); a gate record itself is pinned by frozenPaths once
+  // written (§10.5, §8.1), so it never surfaces per-field conflicts and its own optional fields stay minimal here.
+  checklist: { validation: { 'g2-business-case': { status: 'tentative', note: 'Check later' } } },
+  gates: { discovery: { outcome: 'passed', passedOn: '2026-01-01', checklist: [] } },
 };
 const customRole: Required<CustomRole> = { active: true, label: 'Architect', costFactor: 1.2, dayRatesByYear: [{ year: 2026, dayRate: 900 }] };
 const person: Required<Person> = { id: 'ana', name: 'Ana Silva', countryId: 'de', roleId: 'dev', customRole, capacityPct: 100, active: true };

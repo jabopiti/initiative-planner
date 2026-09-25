@@ -21,6 +21,8 @@ import { formatDate, formatMonth } from '../data/dates';
 import { localToday } from '../data/dates';
 import { buildDefaultPlan } from '../data/defaultPlan';
 import { frozenPaths, isPhaseFrozen } from '../data/frozen';
+import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, withChecklistItem } from '../data/gate';
+import type { ChecklistStatus } from '../data/types';
 import { toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type BranchHead } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
@@ -1046,6 +1048,56 @@ export class Repository {
         text: (name, phase) => `${name}: ${phase} actual for ${formatMonth(month)} recorded (${this.brand.currencySymbol}${Math.round(amount)})`,
       },
     );
+  }
+
+  /** A checklist item's name, for the commit note, as its gate defines it. */
+  private checklistItemName(phaseId: string, itemId: string): string {
+    return this.brand.process.find((p) => p.id === phaseId)?.exitGate.checklistItems.find((i) => i.id === itemId)?.name ?? 'checklist item';
+  }
+
+  /**
+   * Set a checklist item's status and note together (§5.4, §8.1): Incomplete and Complete commit as soon as
+   * they're clicked; Tentative is saved together with its (required) note in one act.
+   */
+  setChecklistItem(initiativeId: string, phaseId: string, itemId: string, status: ChecklistStatus, note: string): void {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    if (!initiative) return;
+    const next = withChecklistItem(initiative, phaseId, itemId, status, note);
+    this.replaceInitiative(next);
+    this.initiativeWriters.get(initiativeId)?.schedule(next, {
+      key: `checklist:${phaseId}:${itemId}`,
+      text: `${initiative.name}: "${this.checklistItemName(phaseId, itemId)}" set to ${status[0].toUpperCase()}${status.slice(1)}`,
+    });
+  }
+
+  /**
+   * Pass the initiative's current gate (§8.1): refused with its blockers when it isn't ready. On success, the
+   * exited phase is frozen if costed, the gate record is written, and the initiative moves on (or Closes, on
+   * the final gate).
+   */
+  passGate(initiativeId: string, takenAt: string = localToday()): { ok: true } | { ok: false; blockers: string[] } {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    if (!initiative) return { ok: false, blockers: ['This initiative could not be found.'] };
+    const result = evaluatePassGate(this.brand.process, initiative, this.state.people, this.state, this.brand.approvalTracks, takenAt);
+    if (!result.ok) return result;
+
+    this.replaceInitiative(result.initiative);
+    const approved = result.record.recordedGrandEstimate !== undefined ? `, approved at ${this.money(result.record.recordedGrandEstimate)}` : '';
+    this.initiativeWriters.get(initiativeId)?.schedule(result.initiative, {
+      key: `gate:${result.phase.id}`,
+      text: `${initiative.name}: ${result.phase.exitGate.label} passed${approved}`,
+    });
+    return { ok: true };
+  }
+
+  /** Reopen the initiative's most recently passed gate (§8.3): reversible only one transition at a time. A no-op when there is none. */
+  reopenGate(initiativeId: string): void {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    if (!initiative) return;
+    const result = evaluateReopenGate(this.brand.process, initiative);
+    if (!result) return;
+    this.replaceInitiative(result.initiative);
+    this.initiativeWriters.get(initiativeId)?.schedule(result.initiative, { key: `gate:${result.phase.id}:reopened`, text: `${initiative.name}: ${result.phase.exitGate.label} reopened` });
   }
 
   /**

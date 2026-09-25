@@ -74,6 +74,24 @@ function initiativeField(rest: Path, doc: Initiative | undefined, conflict: Merg
       return { label: 'Status', format: text };
     case 'defaultPlan':
       return { label: 'Suggested periods', format: () => 'Yes', unset: 'No' };
+    case 'checklist': {
+      if (typeof phaseId !== 'string' || typeof part !== 'string' || rest.length !== 4) return null;
+      const gate = ctx.process.find((p) => p.id === phaseId)?.exitGate;
+      const name = gate?.checklistItems.find((i) => i.id === part)?.name ?? part;
+      if (item === 'status') return { label: `${name} status`, format: (s) => (s as string)[0].toUpperCase() + (s as string).slice(1), unset: 'Incomplete' };
+      if (item === 'note') return { label: `${name} note`, format: text, unset: 'none' };
+      return null;
+    }
+    case 'gates': {
+      // A gate record is pinned by frozenPaths once written (§10.5, §8.1) and never merges field by field, so
+      // these paths never appear in a real conflict; labelled defensively in case that ever changes.
+      if (typeof phaseId !== 'string' || rest.length !== 3) return null;
+      const gateLabel = ctx.process.find((p) => p.id === phaseId)?.exitGate.label ?? phaseId;
+      if (part === 'outcome') return { label: `${gateLabel} outcome`, format: text };
+      if (part === 'passedOn') return { label: `${gateLabel} passed on`, format: date, unset: 'not passed' };
+      if (part === 'checklist') return { label: `${gateLabel} recorded checklist`, format: fallbackValue, unset: 'none' };
+      return null;
+    }
   }
   if (head !== 'phases' || typeof phaseId !== 'string' || rest.length < 3) return null;
   const phase = ctx.process.find((p) => p.id === phaseId)?.label ?? phaseId;

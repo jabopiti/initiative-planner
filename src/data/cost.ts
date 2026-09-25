@@ -1,6 +1,8 @@
+import type { ApprovalTrackDef, PhaseDef } from '../brand/types';
 import { monthKey, monthOf, parseIso } from './dates';
+import { isPhaseFrozen } from './frozen';
 import { isActiveMember } from './teamMembers';
-import type { CostItem, Country, Membership, PhasePlan, Person, Role, Team } from './types';
+import type { CostItem, Country, FrozenPhaseSnapshot, Initiative, Membership, PhasePlan, Person, Role, Team } from './types';
 
 /**
  * The cost of an allocation (§7.1), ported from the audited prototype engine
@@ -18,6 +20,11 @@ export interface RateData {
 export interface Period {
   startDate?: string;
   endDate?: string;
+}
+
+/** Whether a period has both dates set and isn't inverted (§7.1) — the period-validity rule every "is this phase costed/estimated/planned" check starts from. */
+export function hasValidPeriod(period: Period): boolean {
+  return Boolean(period.startDate && period.endDate && period.startDate <= period.endDate);
 }
 
 function parseDate(isoDate: string): Date {
@@ -267,4 +274,73 @@ export function parseAmount(text: string): number | null {
   if (text.trim() === '') return null;
   const value = Number(text);
   return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+/** A frozen phase's months, for the same reasons {@link phaseMonths} gives a live one's: its period, and any recorded actual or one-month item outside it. */
+export function frozenPhaseMonths(snapshot: FrozenPhaseSnapshot, actualMonths: Record<string, number> | undefined): string[] {
+  return phaseMonths({ startDate: snapshot.startDate, endDate: snapshot.endDate, allocations: [], costItems: snapshot.costItems, actualMonths });
+}
+
+/**
+ * A frozen phase's blended total (§7.3, §8.1): the snapshot's monthly estimate, with any actuals recorded since
+ * folded in, never recalculated from live people or rate data — the whole point of freezing.
+ */
+export function frozenBlendedTotal(snapshot: FrozenPhaseSnapshot, actualMonths: Record<string, number> | undefined): number {
+  const actuals = actualMonths ?? {};
+  return frozenPhaseMonths(snapshot, actualMonths).reduce((total, month) => total + (actuals[month] ?? snapshot.estimateByMonth[month] ?? 0), 0);
+}
+
+/**
+ * A costed phase's blended total (§7.3, §8.1): its frozen snapshot's once its own gate has passed — so a later
+ * master-data change can never move it — and its live plan's otherwise. Zero for a phase never planned yet, or
+ * for a non-costed phase's passed gate (which has no snapshot to freeze). Pass `estimateByMonth` when the
+ * caller already has the live phase's monthly estimate, so it isn't walked twice.
+ */
+export function phaseEffectiveTotal(initiative: Initiative, phaseId: string, people: Person[], data: RateData, estimateByMonth?: Record<string, number>): number {
+  const plan = initiative.phases?.[phaseId];
+  const snapshot = isPhaseFrozen(initiative, phaseId) ? initiative.gates![phaseId].frozenSnapshot : undefined;
+  if (snapshot) return frozenBlendedTotal(snapshot, plan?.actualMonths);
+  return plan ? phaseBlendedTotal(plan, people, data, estimateByMonth) : 0;
+}
+
+/**
+ * An initiative's grand estimate (§4): the blended total of every costed phase (see {@link phaseEffectiveTotal}).
+ */
+export function grandEstimate(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): number {
+  let total = 0;
+  for (const phase of process) {
+    if (phase.costed) total += phaseEffectiveTotal(initiative, phase.id, people, data);
+  }
+  return total;
+}
+
+/**
+ * An initiative's deviation (§4): recorded actuals minus their estimates, summed over every costed phase and
+ * every month that has one. A frozen phase compares against its own frozen estimate, never a live recompute,
+ * for the same reason {@link grandEstimate} does. Zero, not undefined, when nothing has been recorded yet.
+ */
+export function grandDeviation(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): number {
+  let total = 0;
+  for (const phase of process) {
+    if (!phase.costed) continue;
+    const plan = initiative.phases?.[phase.id];
+    if (!plan) continue;
+    if (isPhaseFrozen(initiative, phase.id)) {
+      const snapshot = initiative.gates![phase.id].frozenSnapshot!;
+      for (const [month, amount] of Object.entries(plan.actualMonths ?? {})) total += amount - (snapshot.estimateByMonth[month] ?? 0);
+      continue;
+    }
+    total += phaseDeviation(plan, people, data) ?? 0;
+  }
+  return total;
+}
+
+/** The approval track a total resolves to (§7.4): bounds lower-inclusive, upper-exclusive; `null` when no band covers it. */
+export function resolveApprovalTrack(tracks: ApprovalTrackDef[], total: number): ApprovalTrackDef | null {
+  for (const track of tracks) {
+    const aboveLower = total >= track.lowerBound;
+    const belowUpper = track.upperBound === undefined || total < track.upperBound;
+    if (aboveLower && belowUpper) return track;
+  }
+  return null;
 }

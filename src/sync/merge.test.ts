@@ -212,10 +212,9 @@ describe('resolving a conflict sets the chosen value at its path, and only there
 });
 
 describe('frozen phases never merge (§8.1)', () => {
-  /** Test marker until slice 008 gives gates a real one: a phase carrying `frozen: true`. */
-  const merge = (b: Initiative, m: Initiative, t: Initiative) =>
-    mergeDocument(b, m, t, { frozen: (doc) => frozenPaths(doc, (i, id) => (i.phases?.[id] as { frozen?: boolean } | undefined)?.frozen === true) });
-  const frozenBase = withValidation(base, { frozen: true });
+  const merge = (b: Initiative, m: Initiative, t: Initiative) => mergeDocument(b, m, t, { frozen: frozenPaths });
+  const passedGate = { validation: { outcome: 'passed' as const, passedOn: '2026-11-30', checklist: [] } };
+  const frozenBase: Initiative = { ...base, gates: passedGate };
 
   it('keeps the snapshot whatever either side changed in it, with no conflict', () => {
     const mine = withValidation(frozenBase, { endDate: '2027-01-31', allocations: [alloc('a1', 80, 'ana')] });
@@ -240,7 +239,7 @@ describe('frozen phases never merge (§8.1)', () => {
   });
 
   it('a phase frozen by one side (a gate passed meanwhile) keeps that side’s values over the other’s edit', () => {
-    const passed = withValidation(base, { frozen: true });
+    const passed: Initiative = { ...base, gates: passedGate };
     const edited = withValidation(base, { endDate: '2027-01-31' });
     expect(merge(base, edited, passed).merged.phases!.validation.endDate).toBe('2026-11-30');
     expect(merge(base, passed, edited).merged.phases!.validation.endDate).toBe('2026-11-30');

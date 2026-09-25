@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import type { ApprovalTrackDef, PhaseDef } from '../brand/types';
 import {
   actualOrEstimate,
   allocationFigures,
   allocationRefusal,
+  frozenBlendedTotal,
+  frozenPhaseMonths,
+  grandDeviation,
+  grandEstimate,
   isOutsidePeriod,
   monthsInRange,
   parseAmount,
@@ -13,13 +18,14 @@ import {
   phaseDeviation,
   phaseMonths,
   phaseTotal,
+  resolveApprovalTrack,
   resolveRate,
   weekdaysInMonth,
   workingDaysForPeriod,
   trackedYears,
   yearRecord,
 } from './cost';
-import type { CostItem, Country, Membership, PhasePlan, Person, Role, Team } from './types';
+import type { CostItem, Country, FrozenPhaseSnapshot, Initiative, Membership, PhasePlan, Person, Role, Team } from './types';
 
 const twenty = Array(12).fill(20);
 
@@ -316,5 +322,114 @@ describe('shared helpers of the cost rules', () => {
   it('reads an amount as a number of 0 or more, and nothing else', () => {
     expect([parseAmount('0'), parseAmount(' 12.5 '), parseAmount('1e3')]).toEqual([0, 12.5, 1000]);
     for (const text of ['', '  ', '-1', 'abc', 'Infinity', '1e999']) expect(parseAmount(text), text).toBeNull();
+  });
+});
+
+describe('resolveApprovalTrack (§7.4)', () => {
+  const tracks: ApprovalTrackDef[] = [
+    { id: 'light', name: 'Light', abbreviation: 'L', lowerBound: 0, upperBound: 50_000, severity: 1, requirementText: '' },
+    { id: 'standard', name: 'Standard', abbreviation: 'S', lowerBound: 50_000, upperBound: 200_000, severity: 2, requirementText: '' },
+    { id: 'elevated', name: 'Elevated', abbreviation: 'E', lowerBound: 200_000, severity: 3, requirementText: '' },
+  ];
+
+  it('is lower-inclusive and upper-exclusive', () => {
+    expect(resolveApprovalTrack(tracks, 0)?.id).toBe('light');
+    expect(resolveApprovalTrack(tracks, 49_999)?.id).toBe('light');
+    expect(resolveApprovalTrack(tracks, 50_000)?.id).toBe('standard');
+    expect(resolveApprovalTrack(tracks, 200_000)?.id).toBe('elevated');
+  });
+
+  it('is null, never rounded, for a total no band covers', () => {
+    const gapped: ApprovalTrackDef[] = [
+      { id: 'light', name: 'Light', abbreviation: 'L', lowerBound: 0, upperBound: 10_000, severity: 1, requirementText: '' },
+      { id: 'elevated', name: 'Elevated', abbreviation: 'E', lowerBound: 20_000, severity: 2, requirementText: '' },
+    ];
+    expect(resolveApprovalTrack(gapped, 15_000)).toBeNull();
+    expect(resolveApprovalTrack(tracks, -1)).toBeNull();
+  });
+});
+
+describe('frozenBlendedTotal and frozenPhaseMonths (§8.1)', () => {
+  const snapshot: FrozenPhaseSnapshot = {
+    startDate: '2026-01-01',
+    endDate: '2026-02-28',
+    allocations: [{ id: 'a1', personId: 'ana', allocationPct: 100, cost: 20_000 }],
+    costItems: [],
+    estimateByMonth: { '2026-01': 10_000, '2026-02': 10_000 },
+  };
+
+  it('uses the frozen estimate for a month with no recorded actual', () => {
+    expect(frozenBlendedTotal(snapshot, undefined)).toBe(20_000);
+  });
+
+  it('folds a recorded actual in, leaving the frozen estimate for the rest', () => {
+    expect(frozenBlendedTotal(snapshot, { '2026-01': 11_500 })).toBe(11_500 + 10_000);
+  });
+
+  it('never recalculates from live rates: an actual recorded outside the frozen period still counts, via frozenPhaseMonths', () => {
+    expect(frozenPhaseMonths(snapshot, { '2026-03': 500 })).toEqual(['2026-01', '2026-02', '2026-03']);
+    expect(frozenBlendedTotal(snapshot, { '2026-03': 500 })).toBe(20_000 + 500);
+  });
+});
+
+describe('grandEstimate (§4, §8.1)', () => {
+  const process: PhaseDef[] = [
+    { id: 'discovery', label: 'Discovery', description: '', costed: false, exitGate: { id: 'g0', label: 'G0', description: '', requiresEstimates: false, skippable: true, checklistItems: [] } },
+    { id: 'validation', label: 'Validation', description: '', costed: true, exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: true, skippable: true, checklistItems: [] } },
+    { id: 'development', label: 'Development', description: '', costed: true, exitGate: { id: 'g2', label: 'G2', description: '', requiresEstimates: true, skippable: false, checklistItems: [] } },
+  ];
+
+  it('sums the blended total of every costed phase, ignoring non-costed ones and ones never planned', () => {
+    const initiative: Initiative = {
+      id: 'i1',
+      name: 'Checkout',
+      teamId: 't1',
+      status: 'Active',
+      phases: { validation: { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50 }] } },
+    };
+    expect(grandEstimate(initiative, process, [ana], data)).toBe(8000);
+  });
+
+  it('uses a passed phase’s frozen snapshot, immune to a later rate change, instead of recomputing it live', () => {
+    const frozenSnapshot: FrozenPhaseSnapshot = { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50, cost: 8000 }], costItems: [], estimateByMonth: { '2026-10': 4000, '2026-11': 4000 } };
+    const initiative: Initiative = {
+      id: 'i1',
+      name: 'Checkout',
+      teamId: 't1',
+      status: 'Active',
+      phases: { validation: { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50 }] }, development: { startDate: '2026-12-01', endDate: '2026-12-31', allocations: [{ id: 'a2', personId: 'ana', allocationPct: 100 }] } },
+      gates: { validation: { outcome: 'passed', passedOn: '2026-11-30', frozenSnapshot, checklist: [] } },
+    };
+    // Development, still live: 20 days × 100% × 500 × 0.8 (this file's fixture rate/factor) = 8000.
+    const rateChanged: Country[] = countries.map((c) => ({ ...c, ratesByYear: c.ratesByYear.map((r) => ({ ...r, dayRate: r.dayRate * 10 })) }));
+    expect(grandEstimate(initiative, process, [ana], { ...data, countries: rateChanged })).toBe(8000 + 80_000);
+  });
+});
+
+describe('grandDeviation (§4)', () => {
+  const process: PhaseDef[] = [
+    { id: 'validation', label: 'Validation', description: '', costed: true, exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: true, skippable: true, checklistItems: [] } },
+    { id: 'development', label: 'Development', description: '', costed: true, exitGate: { id: 'g2', label: 'G2', description: '', requiresEstimates: true, skippable: false, checklistItems: [] } },
+  ];
+
+  it('is zero when nothing has a recorded actual', () => {
+    const initiative: Initiative = { id: 'i1', name: 'Checkout', teamId: 't1', status: 'Active', phases: { validation: { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50 }] } } };
+    expect(grandDeviation(initiative, process, [ana], data)).toBe(0);
+  });
+
+  it('sums live and frozen phases’ deviation, the frozen one against its own snapshot', () => {
+    const frozenSnapshot: FrozenPhaseSnapshot = { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [], costItems: [], estimateByMonth: { '2026-10': 4000, '2026-11': 4000 } };
+    const initiative: Initiative = {
+      id: 'i1',
+      name: 'Checkout',
+      teamId: 't1',
+      status: 'Active',
+      phases: {
+        validation: { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [], actualMonths: { '2026-10': 4500 } }, // +500 over the frozen estimate
+        development: { startDate: '2026-12-01', endDate: '2026-12-31', allocations: [{ id: 'a2', personId: 'ana', allocationPct: 100 }], actualMonths: { '2026-12': 7500 } }, // 8000 estimate, -500
+      },
+      gates: { validation: { outcome: 'passed', passedOn: '2026-11-30', frozenSnapshot, checklist: [] } },
+    };
+    expect(grandDeviation(initiative, process, [ana], data)).toBe(500 - 500);
   });
 });

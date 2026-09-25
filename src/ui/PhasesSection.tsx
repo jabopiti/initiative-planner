@@ -3,17 +3,21 @@ import { useBrand } from '../state/BrandContext';
 import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
-import { actualOrEstimate, allocationFigures, phaseBlendedTotal, phaseByMonth, phaseCoverage, phaseMonths } from '../data/cost';
+import { actualOrEstimate, allocationFigures, hasValidPeriod, phaseByMonth, phaseCoverage, phaseEffectiveTotal, phaseMonths } from '../data/cost';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
+import { currentPhaseId } from '../data/gate';
+import { isPhaseFrozen } from '../data/frozen';
 import { freeCapacityByPerson } from '../data/personLoad';
 import { roleLabel } from '../data/roleLabel';
 import { activeMembers } from '../data/teamMembers';
-import { FILE_PATHS, type Initiative, type PhasePlan, type Team } from '../data/types';
+import { FILE_PATHS, type FrozenPhaseSnapshot, type Initiative, type PhasePlan, type Person, type Role, type Team } from '../data/types';
 import { AmountInput } from './AmountInput';
 import { CostItemsTable } from './CostItemsTable';
+import { TIMING_LABELS } from './costItemTiming';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, InfoIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
+import { GateChecklistPanel } from './GateChecklistPanel';
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, FrozenIcon, InfoIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
 import { sortRows } from './tableSort';
 import { PercentInput } from './PercentInput';
@@ -24,14 +28,15 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 /** A phase nobody has planned yet. One shared object, so the picker's memo isn't invalidated on every render. */
 const UNPLANNED: PhasePlan = { allocations: [] };
 
-/** The initiative page's Phases section (§5.4): every phase in order, costed ones expandable. */
+/** The initiative page's Phases section (§5.4): every phase in order, costed ones expandable, with the current phase's Gate / Checklist panel directly beneath it. */
 export function PhasesSection({ initiative, team }: { initiative: Initiative; team: Team | undefined }) {
   const { process } = useBrand();
   const { initiatives, teams } = useRepositoryState();
   // One portfolio-wide pass for every allocation row of every phase (§5.4 warnings).
   const today = localToday();
   const loads = useMemo(() => activeLoads({ initiatives, teams, process, today }), [initiatives, teams, process, today]);
-  // The first costed phase opens by default; the others are one line until clicked.
+  // The first costed phase opens by default; the others are one line until clicked. Unaffected by which phase
+  // is current: a phase ahead stays plannable before its own gate is reached (§5.4 "Guided, not gatekept").
   const costedPhases = process.filter((p) => p.costed);
   const [open, setOpen] = useState<Set<string>>(() => new Set(costedPhases.slice(0, 1).map((p) => p.id)));
   const toggle = (id: string) =>
@@ -44,9 +49,10 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
   // One next step at a time: the first costed phase still missing its period or its people.
   const isPlanned = (phase: PhaseDef) => {
     const plan = initiative.phases?.[phase.id];
-    return Boolean(plan?.startDate && plan.endDate && plan.startDate <= plan.endDate) && plan!.allocations.length > 0;
+    return Boolean(plan && hasValidPeriod(plan) && plan.allocations.length > 0);
   };
   const nextStepId = costedPhases.find((p) => !isPlanned(p))?.id;
+  const currentId = currentPhaseId(initiative, process);
 
   return (
     <section aria-labelledby="phases-heading">
@@ -64,7 +70,7 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
       )}
       <ol className="m-0 flex list-none flex-col gap-2 p-0">
         {process.map((phase) => (
-          <li key={phase.id} className="rounded-lg border border-border-default bg-surface-card">
+          <li key={phase.id} id={`phase-row-${phase.id}`} className="rounded-lg border border-border-default bg-surface-card">
             {phase.costed ? (
               <CostedPhase
                 phase={phase}
@@ -79,6 +85,7 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
               />
             ) : (
               <div className="flex items-center gap-2 px-3 py-2.5 text-sm">
+                {isPhaseFrozen(initiative, phase.id) && <FrozenIcon width={16} height={16} className="shrink-0 text-text-secondary" />}
                 <span className="font-medium">{phase.label}</span>
                 <span className="text-text-muted">· not costed</span>
               </div>
@@ -86,6 +93,13 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
           </li>
         ))}
       </ol>
+      {process
+        .filter((phase) => phase.id === currentId)
+        .map((phase) => (
+          <div key={phase.id} className="mt-2">
+            <GateChecklistPanel initiative={initiative} phase={phase} />
+          </div>
+        ))}
     </section>
   );
 }
@@ -126,16 +140,19 @@ function CostedPhase({
   const hasPeriod = Boolean(plan.startDate && plan.endDate);
   const inverted = hasPeriod && plan.endDate! < plan.startDate!;
   const costed = hasPeriod && !inverted;
+  // A phase whose own gate passed shows its frozen snapshot: locked, and immune to a later master-data change (§8.1).
+  const frozen = isPhaseFrozen(initiative, phase.id);
+  const snapshot: FrozenPhaseSnapshot | undefined = initiative.gates?.[phase.id]?.frozenSnapshot;
   // The next missing thing is highlighted, in one phase only: the period first, then the people.
   const needsPeriod = isNextStep && !hasPeriod;
   const needsPeople = isNextStep && hasPeriod && plan.allocations.length === 0;
   const previousEnd = previous && initiative.phases?.[previous.id]?.endDate;
   const overlap = previous && previousEnd && plan.startDate && plan.startDate <= previousEnd ? `Starts before ${previous.label} ends (${formatDate(previousEnd)}). The two phases overlap.` : null;
-  const estimateByMonth = phaseByMonth(plan, people, rateData);
-  const total = phaseBlendedTotal(plan, people, rateData, estimateByMonth);
+  const estimateByMonth = frozen && snapshot ? snapshot.estimateByMonth : phaseByMonth(plan, people, rateData);
+  const total = phaseEffectiveTotal(initiative, phase.id, people, rateData, estimateByMonth);
   const hasCost = plan.allocations.length > 0 || (plan.costItems?.length ?? 0) > 0 || Object.keys(plan.actualMonths ?? {}).length > 0;
   const coverage = phaseCoverage(plan);
-  const coverageLabel = coverage === 'actual' ? 'Actual' : coverage === 'forecast' ? 'Forecast' : 'Estimate';
+  const coverageLabel = frozen ? 'Frozen' : coverage === 'actual' ? 'Actual' : coverage === 'forecast' ? 'Forecast' : 'Estimate';
   const months = costed ? phaseMonths(plan) : [];
 
   // Who can still be added, and what each has free for the phase's months (§5.11), most free first. Free capacity
@@ -145,12 +162,12 @@ function CostedPhase({
     const teamMembers = team ? activeMembers(team.id, memberships, people) : [];
     const notYetAllocated = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
     const free =
-      expanded && team
+      expanded && team && !frozen
         ? freeCapacityByPerson({ people: notYetAllocated, teamId: team.id, teams, memberships, period: plan, initiatives, process, today: localToday() })
         : undefined;
     const addable = sortRows(notYetAllocated, { free: (p) => free?.get(p.id) ?? 0, name: (p) => p.name }, 'free', 'desc', 'name');
     return { teamMembers, addable, free };
-  }, [expanded, team, memberships, people, plan, initiatives, process]);
+  }, [expanded, team, teams, memberships, people, plan, initiatives, process, frozen]);
 
   const picker =
     team && teamMembers.length === 0 ? (
@@ -206,6 +223,7 @@ function CostedPhase({
         onClick={onToggle}
       >
         <Chevron width={16} height={16} className="shrink-0 text-text-secondary" />
+        {frozen && <FrozenIcon width={16} height={16} className="shrink-0 text-text-secondary" />}
         <span className="font-medium">{phase.label}</span>
         {hasPeriod ? (
           <span className="text-text-secondary">{formatPeriod(plan.startDate!, plan.endDate!)}</span>
@@ -222,132 +240,138 @@ function CostedPhase({
 
       {expanded && (
         <div id={bodyId} className="flex flex-col gap-4 border-t border-border-default px-3 py-3">
-          <div
-            className={`flex flex-col gap-2 rounded-md ${needsPeriod ? 'border border-brand-accent bg-brand-accent-tint p-3' : ''}`}
-            data-highlight={needsPeriod || undefined}
-          >
-            {needsPeriod && <p className="m-0 text-sm font-medium text-brand-accent-text">Set the period to calculate cost.</p>}
-            <div className="flex flex-wrap items-start gap-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-text-secondary">Start date</span>
-                <DateInput
-                  label={`${phase.label} start date`}
-                  value={plan.startDate}
-                  changed={changed(file, ['phases', phase.id, 'startDate'])}
-                  highlight={needsPeriod}
-                  onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'startDate', v)}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-text-secondary">End date</span>
-                <DateInput
-                  label={`${phase.label} end date`}
-                  value={plan.endDate}
-                  changed={changed(file, ['phases', phase.id, 'endDate'])}
-                  openOn={plan.startDate}
-                  highlight={needsPeriod}
-                  onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'endDate', v)}
-                />
-              </div>
-            </div>
-          </div>
-          {overlap && (
-            <InlineWarning>{overlap}</InlineWarning>
-          )}
-          {inverted && (
-            <InlineWarning>The end date is before the start date, so this phase isn&apos;t costed yet.</InlineWarning>
-          )}
-
-          {plan.allocations.length === 0 ? (
-            <div
-              className={`flex flex-col items-start gap-2 rounded-md border border-dashed p-3 ${needsPeople ? 'border-brand-accent bg-brand-accent-tint' : 'border-border-strong'}`}
-              data-highlight={needsPeople || undefined}
-            >
-              <p className={`m-0 text-sm ${needsPeople ? 'font-medium text-brand-accent-text' : 'text-text-secondary'}`}>
-                Who works on {phase.label}? Add a team member to see this phase&apos;s cost.
-              </p>
-              {picker}
-            </div>
+          {frozen && snapshot ? (
+            <FrozenPhaseBody snapshot={snapshot} people={people} roles={roles} currencySymbol={currencySymbol} />
           ) : (
-            <table className="w-full border-collapse text-sm">
-              <caption className="sr-only">{phase.label} allocations</caption>
-              <thead>
-                <tr className="text-left text-xs text-text-secondary">
-                  <th className="py-1 pr-2 font-medium">Person</th>
-                  <th className="py-1 pr-2 font-medium">Allocation %</th>
-                  <th className="py-1 pr-2 text-right font-medium">Days</th>
-                  <th className="py-1 pr-2 text-right font-medium">Cost</th>
-                  <th className="w-8 py-1">
-                    <span className="sr-only">Remove</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {plan.allocations.map((allocation) => {
-                  const person = people.find((p) => p.id === allocation.personId);
-                  const figures = person ? allocationFigures(plan, person, allocation.allocationPct, rateData) : null;
-                  const name = person?.name ?? 'Unknown person';
-                  const warnings = allocationWarnings(initiative, phase.id, allocation.personId, { initiatives, teams, people, memberships, process, today }, loads);
-                  return (
-                    <tr key={allocation.id} className="border-t border-border-default">
-                      <td className="py-1.5 pr-2">
-                        <div>{name}</div>
-                        {person && <div className="text-xs text-text-muted">{roleLabel(person, roles)}</div>}
-                        {warnings.notMember && <InlineWarning className="mt-1">No longer a member of {team?.name ?? 'the team'}</InlineWarning>}
-                        {warnings.overTeamFteMonths.length > 0 && (
-                          <InlineWarning icon={OverTeamFteIcon} className="mt-1">
-                            Over Team FTE % in {formatMonthRanges(warnings.overTeamFteMonths)}
-                          </InlineWarning>
-                        )}
-                        {warnings.overCapacityMonths.length > 0 && (
-                          <InlineWarning icon={OverCapacityIcon} className="mt-1">
-                            Over Capacity % in {formatMonthRanges(warnings.overCapacityMonths)}
-                          </InlineWarning>
-                        )}
-                      </td>
-                      <td className="py-1.5 pr-2">
-                        <PercentInput
-                          label={`Allocation % for ${name}`}
-                          changed={changed(file, ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct'])}
-                          value={allocation.allocationPct}
-                          onChange={(pct) => repository.updateAllocation(initiative.id, phase.id, allocation.id, pct)}
-                        />
-                      </td>
-                      <td className="py-1.5 pr-2 text-right tabular-nums">{costed && figures ? figures.personDays.toFixed(1) : '—'}</td>
-                      <td className="py-1.5 pr-2 text-right tabular-nums">
-                        {costed && figures ? formatAmount(figures.cost, currencySymbol) : '—'}
-                      </td>
-                      <td className="py-1.5 text-right">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Remove ${name} from ${phase.label}`}
-                          onClick={() => {
-                            const removed = repository.removeAllocation(initiative.id, phase.id, allocation.id);
-                            if (!removed) return;
-                            undoToast(() => repository.restoreAllocation(initiative.id, phase.id, removed.allocation, removed.index));
-                          }}
-                        >
-                          <RemoveIcon />
-                        </Button>
-                      </td>
+            <>
+              <div
+                className={`flex flex-col gap-2 rounded-md ${needsPeriod ? 'border border-brand-accent bg-brand-accent-tint p-3' : ''}`}
+                data-highlight={needsPeriod || undefined}
+              >
+                {needsPeriod && <p className="m-0 text-sm font-medium text-brand-accent-text">Set the period to calculate cost.</p>}
+                <div className="flex flex-wrap items-start gap-4">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-text-secondary">Start date</span>
+                    <DateInput
+                      label={`${phase.label} start date`}
+                      value={plan.startDate}
+                      changed={changed(file, ['phases', phase.id, 'startDate'])}
+                      highlight={needsPeriod}
+                      onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'startDate', v)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-text-secondary">End date</span>
+                    <DateInput
+                      label={`${phase.label} end date`}
+                      value={plan.endDate}
+                      changed={changed(file, ['phases', phase.id, 'endDate'])}
+                      openOn={plan.startDate}
+                      highlight={needsPeriod}
+                      onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'endDate', v)}
+                    />
+                  </div>
+                </div>
+              </div>
+              {overlap && (
+                <InlineWarning>{overlap}</InlineWarning>
+              )}
+              {inverted && (
+                <InlineWarning>The end date is before the start date, so this phase isn&apos;t costed yet.</InlineWarning>
+              )}
+
+              {plan.allocations.length === 0 ? (
+                <div
+                  className={`flex flex-col items-start gap-2 rounded-md border border-dashed p-3 ${needsPeople ? 'border-brand-accent bg-brand-accent-tint' : 'border-border-strong'}`}
+                  data-highlight={needsPeople || undefined}
+                >
+                  <p className={`m-0 text-sm ${needsPeople ? 'font-medium text-brand-accent-text' : 'text-text-secondary'}`}>
+                    Who works on {phase.label}? Add a team member to see this phase&apos;s cost.
+                  </p>
+                  {picker}
+                </div>
+              ) : (
+                <table className="w-full border-collapse text-sm">
+                  <caption className="sr-only">{phase.label} allocations</caption>
+                  <thead>
+                    <tr className="text-left text-xs text-text-secondary">
+                      <th className="py-1 pr-2 font-medium">Person</th>
+                      <th className="py-1 pr-2 font-medium">Allocation %</th>
+                      <th className="py-1 pr-2 text-right font-medium">Days</th>
+                      <th className="py-1 pr-2 text-right font-medium">Cost</th>
+                      <th className="w-8 py-1">
+                        <span className="sr-only">Remove</span>
+                      </th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
+                  </thead>
+                  <tbody>
+                    {plan.allocations.map((allocation) => {
+                      const person = people.find((p) => p.id === allocation.personId);
+                      const figures = person ? allocationFigures(plan, person, allocation.allocationPct, rateData) : null;
+                      const name = person?.name ?? 'Unknown person';
+                      const warnings = allocationWarnings(initiative, phase.id, allocation.personId, { initiatives, teams, people, memberships, process, today }, loads);
+                      return (
+                        <tr key={allocation.id} className="border-t border-border-default">
+                          <td className="py-1.5 pr-2">
+                            <div>{name}</div>
+                            {person && <div className="text-xs text-text-muted">{roleLabel(person, roles)}</div>}
+                            {warnings.notMember && <InlineWarning className="mt-1">No longer a member of {team?.name ?? 'the team'}</InlineWarning>}
+                            {warnings.overTeamFteMonths.length > 0 && (
+                              <InlineWarning icon={OverTeamFteIcon} className="mt-1">
+                                Over Team FTE % in {formatMonthRanges(warnings.overTeamFteMonths)}
+                              </InlineWarning>
+                            )}
+                            {warnings.overCapacityMonths.length > 0 && (
+                              <InlineWarning icon={OverCapacityIcon} className="mt-1">
+                                Over Capacity % in {formatMonthRanges(warnings.overCapacityMonths)}
+                              </InlineWarning>
+                            )}
+                          </td>
+                          <td className="py-1.5 pr-2">
+                            <PercentInput
+                              label={`Allocation % for ${name}`}
+                              changed={changed(file, ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct'])}
+                              value={allocation.allocationPct}
+                              onChange={(pct) => repository.updateAllocation(initiative.id, phase.id, allocation.id, pct)}
+                            />
+                          </td>
+                          <td className="py-1.5 pr-2 text-right tabular-nums">{costed && figures ? figures.personDays.toFixed(1) : '—'}</td>
+                          <td className="py-1.5 pr-2 text-right tabular-nums">
+                            {costed && figures ? formatAmount(figures.cost, currencySymbol) : '—'}
+                          </td>
+                          <td className="py-1.5 text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Remove ${name} from ${phase.label}`}
+                              onClick={() => {
+                                const removed = repository.removeAllocation(initiative.id, phase.id, allocation.id);
+                                if (!removed) return;
+                                undoToast(() => repository.restoreAllocation(initiative.id, phase.id, removed.allocation, removed.index));
+                              }}
+                            >
+                              <RemoveIcon />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
 
-          {plan.allocations.length > 0 && picker}
-          {team && teamMembers.length > 0 && <p className="m-0 text-xs text-text-muted">Only members of {team.name} can be allocated.</p>}
-          {refusal && (
-            <p className="m-0 text-sm text-warning-text" role="alert">
-              {refusal}
-            </p>
-          )}
+              {plan.allocations.length > 0 && picker}
+              {team && teamMembers.length > 0 && <p className="m-0 text-xs text-text-muted">Only members of {team.name} can be allocated.</p>}
+              {refusal && (
+                <p className="m-0 text-sm text-warning-text" role="alert">
+                  {refusal}
+                </p>
+              )}
 
-          <CostItemsTable initiativeId={initiative.id} phase={phase} plan={plan} />
+              <CostItemsTable initiativeId={initiative.id} phase={phase} plan={plan} />
+            </>
+          )}
 
           {costed && months.length > 0 && (
             <div className="flex flex-col gap-2">
@@ -386,6 +410,72 @@ function CostedPhase({
         </div>
       )}
     </>
+  );
+}
+
+/** A frozen phase's period, allocations and cost items (§8.1, §9.9): read-only, from the gate's snapshot, never the live rates. Actuals stay outside this — they're rendered by the shared Actuals table below. */
+function FrozenPhaseBody({ snapshot, people, roles, currencySymbol }: { snapshot: FrozenPhaseSnapshot; people: Person[]; roles: Role[]; currencySymbol: string }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-text-secondary">Start date</span>
+          <span className="text-text-muted">{formatDate(snapshot.startDate)}</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-text-secondary">End date</span>
+          <span className="text-text-muted">{formatDate(snapshot.endDate)}</span>
+        </div>
+      </div>
+      {snapshot.allocations.length > 0 && (
+        <table className="w-full border-collapse text-sm">
+          <caption className="sr-only">Frozen allocations</caption>
+          <thead>
+            <tr className="text-left text-xs text-text-secondary">
+              <th className="py-1 pr-2 font-medium">Person</th>
+              <th className="py-1 pr-2 font-medium">Allocation %</th>
+              <th className="py-1 pr-2 text-right font-medium">Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {snapshot.allocations.map((allocation) => {
+              const person = people.find((p) => p.id === allocation.personId);
+              return (
+                <tr key={allocation.id} className="border-t border-border-default">
+                  <td className="py-1.5 pr-2 text-text-muted">
+                    <div>{person?.name ?? 'Unknown person'}</div>
+                    {person && <div className="text-xs text-text-muted">{roleLabel(person, roles)}</div>}
+                  </td>
+                  <td className="py-1.5 pr-2 tabular-nums text-text-muted">{allocation.allocationPct}%</td>
+                  <td className="py-1.5 pr-2 text-right tabular-nums text-text-muted">{formatAmount(allocation.cost, currencySymbol)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      {snapshot.costItems.length > 0 && (
+        <table className="w-full border-collapse text-sm">
+          <caption className="sr-only">Frozen cost items</caption>
+          <thead>
+            <tr className="text-left text-xs text-text-secondary">
+              <th className="py-1 pr-2 font-medium">Label</th>
+              <th className="py-1 pr-2 font-medium">Amount</th>
+              <th className="py-1 pr-2 font-medium">When</th>
+            </tr>
+          </thead>
+          <tbody>
+            {snapshot.costItems.map((item) => (
+              <tr key={item.id} className="border-t border-border-default">
+                <td className="py-1.5 pr-2 text-text-muted">{item.label}</td>
+                <td className="py-1.5 pr-2 tabular-nums text-text-muted">{formatAmount(item.amount, currencySymbol)}</td>
+                <td className="py-1.5 pr-2 text-text-muted">{item.timing === 'month' && item.month ? `${TIMING_LABELS.month} (${formatMonth(item.month)})` : TIMING_LABELS[item.timing]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
 

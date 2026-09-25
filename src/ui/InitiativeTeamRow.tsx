@@ -2,6 +2,7 @@ import { useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
+import { reopenGate } from '../data/gate';
 import { allocationCount, describeTeamChange } from '../data/teamChange';
 import type { Initiative, Team } from '../data/types';
 import { formatAmount } from './formatAmount';
@@ -16,8 +17,9 @@ import { Button } from '@/components/ui/button';
  */
 export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   const repository = useRepository();
-  const { currencySymbol } = useBrand();
+  const { currencySymbol, process } = useBrand();
   const { teams } = useRepositoryState();
+  const reopenable = reopenGate(process, initiative);
   const [pendingTeamId, setPendingTeamId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const applyRef = useRef<HTMLButtonElement>(null);
@@ -76,6 +78,11 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
           <span className="px-3">{currentTeam?.name ?? 'Unknown team'}</span>
         )}
         <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs">{initiative.status}</span>
+        {reopenable && (
+          <Button type="button" variant="link" size="sm" className="h-auto p-0 text-text-secondary" onClick={() => repository.reopenGate(initiative.id)}>
+            Reopen {reopenable.phase.exitGate.label}
+          </Button>
+        )}
       </div>
 
       {confirming && (
