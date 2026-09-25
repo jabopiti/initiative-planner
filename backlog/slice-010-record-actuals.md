@@ -8,7 +8,7 @@ depends_on: ["005"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: null
+change_summary: "Decided in review: €0-estimate kept spec-literal (always shows 'using the estimate'); actuals row shows the confirm check and an always-visible editable field side by side; the phase header total/pill become coverage-aware (Estimate/Forecast/Actual, blended total); deviation ships as a data function only, with no Cost summary UI yet; phaseMonths sources from the phase period and recorded actualMonths keys only, cost-item months joining once slice 007 lands."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "A bounded, well-specified rule (§7.3) with one edge case (the default-to-estimate display); viable as Haiku 4.5 once the phase-editing patterns from slice 005 are established in the codebase."
 spec_sections: ["§4 Core definitions (Estimate, Forecast, Actual)", "§5.4 Initiative detail view (actuals table)", "§6 Data model (Actuals)", "§7.3 Actuals default to the estimate once a month closes"]
@@ -46,6 +46,35 @@ month, with unrecorded closed months defaulting visibly to their estimate.
 **Explicitly excluded:** The Overdue item in Needs attention (slice 011)
 — recording an actual correctly is the core behaviour here; surfacing that
 one is missing is a separate, later aggregation on top of this data.
+
+**Decided in review (pre-implementation):**
+- The €0-estimate call from engine-audit.md: kept spec-literal. A closed
+  month with no recorded actual always shows "using the estimate," even
+  when the estimate is exactly €0 — §7.3's wording carries no exception,
+  and AC #1 states none either.
+- The actuals row's confirm check and editable field sit side by side and
+  are both always visible for a closed, unrecorded month (no click-to-edit
+  step), matching the app's existing inline-editing convention
+  (PercentInput, DateInput). The check records the estimate; typing in the
+  field and committing (blur/Enter) records an override — either is the
+  slice's single act. Once a month has a recorded actual, its row keeps
+  only the editable field (no check), since there is nothing left to
+  confirm; the field stays open to correction at any time (§6).
+- The phase header's total and coverage pill (currently a hardcoded
+  "Estimate" label predating actuals, PhasesSection.tsx:212-215) become
+  coverage-aware in this slice: the total is the blended figure (recorded
+  actual where present, estimate otherwise) and the pill reads Estimate /
+  Forecast / Actual per §4. Needed for the slice's own outcome — otherwise
+  recording an actual would change nothing visible above the actuals
+  table.
+- Deviation (§4) ships as a data-layer function only (no Cost summary
+  section exists yet to show it in — that lands with a later slice, per
+  slice-008's "approved at" scope). "Becomes available" is satisfied by
+  the calculation being correct and ready for that slice to consume.
+- `phaseMonths` sources from the phase period and recorded `actualMonths`
+  keys only (per engine-audit.md's call), since cost items (slice 007)
+  are not yet in the data model; slice 007 extends it with cost-item
+  months when it lands.
 
 ## Execution path
 
