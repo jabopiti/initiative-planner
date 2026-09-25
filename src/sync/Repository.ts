@@ -118,7 +118,6 @@ export interface TeamChange {
   removed: RemovedAllocation[];
 }
 
-/** `allocation` put at `index` of `allocations`, or at the end when the list has since become shorter. */
 /** `item` put back at `index` (or last, when the list has since shrunk): where an Undo restores a removed list item. */
 function insertAt<T>(list: T[], item: T, index: number): T[] {
   const next = [...list];
@@ -963,8 +962,10 @@ export class Repository {
     return { item, index };
   }
 
-  /** Undo of {@link removeFromList}: the same item, same id, back in its place, as a normal edit. */
+  /** Undo of {@link removeFromList}: the same item, same id, back in its place, as a normal edit. Nothing happens when it is already there again. */
   private restoreToList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, item: T, index: number, restored: string): void {
+    const present = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
+    if (present.some((other) => other.id === item.id)) return;
     this.editPhase(
       initiativeId,
       phaseId,
@@ -973,11 +974,13 @@ export class Repository {
     );
   }
 
+  /** Remove an allocation; the position comes back so an Undo can put it where it was (§5.11). */
   removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
     const removed = this.removeFromList<Allocation>('allocations', initiativeId, phaseId, allocationId, (a) => `allocation removed (${this.personName(a.personId)})`);
     return removed && { allocation: removed.item, index: removed.index };
   }
 
+  /** Undo of {@link removeAllocation}: the same allocation, same id, back in its place, as a normal edit. */
   restoreAllocation(initiativeId: string, phaseId: string, allocation: Allocation, index: number): void {
     this.restoreToList('allocations', initiativeId, phaseId, allocation, index, `allocation restored (${this.personName(allocation.personId)})`);
   }
@@ -1005,7 +1008,7 @@ export class Repository {
     if (!item) return;
     const what =
       'label' in change
-        ? `${item.label} renamed to ${change.label}`
+        ? `renamed to ${change.label}`
         : 'amount' in change
           ? `${item.label} amount set to ${this.money(change.amount)}`
           : 'timing' in change && change.timing === 'spread'
@@ -1019,10 +1022,12 @@ export class Repository {
     );
   }
 
+  /** Remove a cost item; the position comes back so an Undo can put it where it was (§5.11). */
   removeCostItem(initiativeId: string, phaseId: string, itemId: string): { item: CostItem; index: number } | null {
     return this.removeFromList<CostItem>('costItems', initiativeId, phaseId, itemId, (item) => `cost item removed (${item.label})`);
   }
 
+  /** Undo of {@link removeCostItem}. */
   restoreCostItem(initiativeId: string, phaseId: string, item: CostItem, index: number): void {
     this.restoreToList('costItems', initiativeId, phaseId, item, index, `cost item restored (${item.label})`);
   }

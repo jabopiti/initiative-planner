@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { formatMonth, MONTHS, monthKey, parseMonthText } from '../data/dates';
+import { FIRST_YEAR, formatMonth, LAST_YEAR, MONTHS, monthKey, parseMonthText } from '../data/dates';
 import { Button } from '@/components/ui/button';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { PopoverTextField } from './PopoverTextField';
@@ -51,13 +51,13 @@ export function MonthInput({
       {(select) => (
         <>
           <div className="mb-2 flex items-center justify-between">
-            <Button type="button" variant="ghost" size="icon" aria-label="Previous year" onClick={() => setYear(year - 1)}>
+            <Button type="button" variant="ghost" size="icon" aria-label="Previous year" disabled={year <= FIRST_YEAR} onClick={() => setYear(year - 1)}>
               <ChevronLeftIcon />
             </Button>
             <span className="text-sm font-medium tabular-nums" aria-live="polite">
               {year}
             </span>
-            <Button type="button" variant="ghost" size="icon" aria-label="Next year" onClick={() => setYear(year + 1)}>
+            <Button type="button" variant="ghost" size="icon" aria-label="Next year" disabled={year >= LAST_YEAR} onClick={() => setYear(year + 1)}>
               <ChevronRightIcon />
             </Button>
           </div>

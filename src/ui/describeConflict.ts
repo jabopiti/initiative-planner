@@ -2,6 +2,7 @@ import type { PhaseDef } from '../brand/types';
 import { formatDateField, formatMonth } from '../data/dates';
 import { FILE_PATHS, type Country, type Allocation, type CostItem, type CustomRoleYearRate, type Initiative, type Membership, type Person, type Role, type Team } from '../data/types';
 import { getAtPath, type MergeConflict, type Path } from '../sync/merge';
+import { TIMING_LABELS } from './costItemTiming';
 import { formatAmount } from './formatAmount';
 
 /** What a conflict row needs to name things as the screen does. */
@@ -101,7 +102,7 @@ function costItemField(phase: string, item: CostItem | undefined, whole: boolean
     case 'amount':
       return { label: `${what} amount`, format: amount };
     case 'timing':
-      return { label: `${what} timing`, format: (t) => (t === 'month' ? 'One month' : 'Spread over the phase') };
+      return { label: `${what} timing`, format: (t) => TIMING_LABELS[t as CostItem['timing']] };
     case 'month':
       return { label: `${what} month`, format: (m) => formatMonth(String(m)) };
     default:

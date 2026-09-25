@@ -49,8 +49,8 @@ export function PopoverTextField({
   /** Selectors for the picker element ↓ moves into, the first that matches winning. */
   pickerFocus: string[];
   pickerClassName?: string;
-  /** The picker; `select` commits a value picked in it and returns the focus to the field. */
-  children: (select: (picked: string) => void) => ReactNode;
+  /** The picker; `select` commits the value picked in it (none, when the pick was a deselect) and returns the focus to the field. */
+  children: (select: (picked: string | undefined) => void) => ReactNode;
 }) {
   const shown = value ? format(value) : '';
   const [draft, setDraft] = useState(shown);
@@ -67,8 +67,11 @@ export function PopoverTextField({
 
   const commit = () => {
     if (draft.trim() === '') {
-      setUnreadable(Boolean(required));
-      if (!required && value !== undefined) onChange(undefined);
+      if (required) {
+        // The value stays what it was, and so does what the field shows.
+        setDraft(shown);
+        setUnreadable(true);
+      } else if (value !== undefined) onChange(undefined);
       return;
     }
     const parsed = parse(draft);
@@ -148,11 +151,15 @@ export function PopoverTextField({
             if (e.target === inputRef.current) e.preventDefault();
           }}
           onEscapeKeyDown={() => inputRef.current?.focus()}
+          // The field keeps the focus while the picker is clicked (Safari does not focus a clicked button, so the blur would commit and close it first).
+          onMouseDown={(e) => e.preventDefault()}
         >
           {children((picked) => {
-            setUnreadable(false);
-            setDraft(format(picked));
-            if (picked !== value) onChange(picked);
+            if (picked !== undefined) {
+              setUnreadable(false);
+              setDraft(format(picked));
+              if (picked !== value) onChange(picked);
+            }
             setOpen(false);
             inputRef.current?.focus();
           })}

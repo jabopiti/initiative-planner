@@ -9,6 +9,7 @@ import { CommitInput, Refusal } from './CommitInput';
 import { InlineWarning } from './InlineWarning';
 import { MonthInput } from './MonthInput';
 import { PlusIcon, RemoveIcon } from './icons';
+import { TIMING_LABELS } from './costItemTiming';
 import { undoToast } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,7 @@ const LABEL_REFUSAL = 'Enter a label.';
 const AMOUNT_REFUSAL = 'Enter an amount of 0 or more.';
 
 /** The month a new one-month item starts on: the phase's first month, or this month while the period is unset. */
-const defaultMonth = (plan: PhasePlan): string => periodMonths(plan)[0] ?? monthOf(localToday());
+const defaultMonth = (months: string[]): string => months[0] ?? monthOf(localToday());
 
 function TimingToggle({ value, label, onChange }: { value: CostItem['timing']; label: string; onChange: (timing: CostItem['timing']) => void }) {
   return (
@@ -31,8 +32,11 @@ function TimingToggle({ value, label, onChange }: { value: CostItem['timing']; l
       // Selecting the selected segment again would deselect it; a timing is always chosen.
       onValueChange={(next) => next && onChange(next as CostItem['timing'])}
     >
-      <ToggleGroupItem value="month">One month</ToggleGroupItem>
-      <ToggleGroupItem value="spread">Spread over the phase</ToggleGroupItem>
+      {(Object.keys(TIMING_LABELS) as CostItem['timing'][]).map((timing) => (
+        <ToggleGroupItem key={timing} value={timing}>
+          {TIMING_LABELS[timing]}
+        </ToggleGroupItem>
+      ))}
     </ToggleGroup>
   );
 }
@@ -44,6 +48,8 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
   const { currencySymbol } = useBrand();
   const file = FILE_PATHS.initiative(initiativeId);
   const items = plan.costItems ?? [];
+  // The period's months, once for every row: the outside-the-period warning and the default month read them.
+  const months = periodMonths(plan);
   const [drafting, setDrafting] = useState(false);
 
   return (
@@ -78,10 +84,11 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                       onCommit={(text) => {
                         const label = text.trim();
                         if (label === '') return LABEL_REFUSAL;
+                        if (label === item.label) return false; // only whitespace differed: the field shows the saved label again
                         repository.updateCostItem(initiativeId, phase.id, item.id, { label });
                       }}
                     />
-                    {isOutsidePeriod(plan, item) && (
+                    {isOutsidePeriod(months, item) && (
                       <InlineWarning className="mt-1">{formatMonth(item.month!)} is outside the phase&apos;s period. It still counts.</InlineWarning>
                     )}
                   </td>
@@ -113,7 +120,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                         value={item.timing}
                         label={`When for ${item.label}`}
                         onChange={(timing) =>
-                          repository.updateCostItem(initiativeId, phase.id, item.id, timing === 'month' ? { timing, month: item.month ?? defaultMonth(plan) } : { timing })
+                          repository.updateCostItem(initiativeId, phase.id, item.id, timing === 'month' ? { timing, month: item.month ?? defaultMonth(months) } : { timing })
                         }
                       />
                       {item.timing === 'month' && (
@@ -152,7 +159,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
       {drafting ? (
         <DraftRow
           phase={phase}
-          plan={plan}
+          months={months}
           onCancel={() => setDrafting(false)}
           onAdd={(draft) => {
             repository.addCostItem(initiativeId, phase.id, draft);
@@ -181,12 +188,13 @@ function AddButton({ phase, onClick }: { phase: PhaseDef; onClick: () => void })
 /** The unsaved row: nothing is committed until Add, which needs a label and an amount of 0 or more. */
 function DraftRow({
   phase,
-  plan,
+  months,
   onAdd,
   onCancel,
 }: {
   phase: PhaseDef;
-  plan: PhasePlan;
+  /** The phase's period months, for the month a one-month item starts on. */
+  months: string[];
   onAdd: (draft: Omit<CostItem, 'id'>) => void;
   onCancel: () => void;
 }) {
@@ -194,7 +202,9 @@ function DraftRow({
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
   const [timing, setTiming] = useState<CostItem['timing']>('spread');
-  const [month, setMonth] = useState<string>(() => defaultMonth(plan));
+  // Until one is picked, the month follows the phase's period, which may still change while the row is open.
+  const [pickedMonth, setMonth] = useState<string>();
+  const month = pickedMonth ?? defaultMonth(months);
   const [refused, setRefused] = useState<{ label?: string; amount?: string }>({});
   const labelErrorId = useId();
   const amountErrorId = useId();
@@ -203,7 +213,7 @@ function DraftRow({
     const parsed = parseAmount(amount);
     const text = label.trim();
     setRefused({ label: text === '' ? LABEL_REFUSAL : undefined, amount: parsed === null ? AMOUNT_REFUSAL : undefined });
-    if (text !== '' && parsed !== null) onAdd({ label: text, amount: parsed, timing, month });
+    if (text !== '' && parsed !== null) onAdd({ label: text, amount: parsed, timing, ...(timing === 'month' && { month }) });
   };
   const keys = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') add();

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { parseAmount } from '../data/cost';
 import { CommitInput } from './CommitInput';
 import { InlineWarning } from './InlineWarning';
 
@@ -31,7 +32,7 @@ export function PercentInput({
   const [over, setOver] = useState(false);
   const [cappedAt, setCappedAt] = useState<number | null>(null);
   const limit = max ?? 100;
-  const parse = (text: string) => (text.trim() === '' ? NaN : Number(text));
+  const parse = (text: string) => parseAmount(text) ?? NaN;
   const messageClass = 'mt-1 order-last w-full';
 
   return (
@@ -54,7 +55,7 @@ export function PercentInput({
         onCommit={(text) => {
           setOver(false);
           const parsed = parse(text);
-          if (Number.isNaN(parsed) || parsed < 0) return REFUSAL;
+          if (Number.isNaN(parsed)) return REFUSAL;
           if (parsed > limit) return max === undefined ? REFUSAL : capTo(max);
           if (parsed === value) return false;
           onChange(parsed);

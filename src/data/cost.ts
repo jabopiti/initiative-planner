@@ -161,27 +161,20 @@ export function periodMonths(period: Period): string[] {
   return period.startDate && period.endDate ? monthsInRange(period.startDate, period.endDate) : [];
 }
 
-/** A cost item's amount by month over a period's `months` (§7.1): the full amount in its one month, or an equal share of every month. */
+/**
+ * A cost item's amount by month over a period's `months` (§7.1): the full amount in its one month, or an equal share
+ * of every calendar month the period touches (the partial first and last months are not prorated). Empty without a
+ * valid period, so an item counts only once its phase is costed; a one-month item outside the period still counts.
+ */
 function spreadItem(months: string[], item: CostItem): Record<string, number> {
   if (months.length === 0) return {};
   if (item.timing === 'month') return item.month ? { [item.month]: item.amount } : {};
   return Object.fromEntries(months.map((key) => [key, item.amount / months.length]));
 }
 
-/**
- * What a cost item adds to each month of a phase (§7.1). An equal share goes into every calendar month the
- * period touches (the partial first and last months are not prorated). Empty without a valid period, so an item
- * counts only once its phase is costed; a one-month item outside the period still counts.
- */
-export function costItemByMonth(period: Period, item: CostItem): Record<string, number> {
-  return spreadItem(periodMonths(period), item);
-}
-
-/** Whether a one-month item lies outside a valid period (§6): it stays and counts, and the phase warns. */
-export function isOutsidePeriod(period: Period, item: CostItem): boolean {
-  if (item.timing !== 'month' || !item.month) return false;
-  const months = periodMonths(period);
-  return months.length > 0 && !months.includes(item.month);
+/** Whether a one-month item lies outside a valid period's `months` (§6): it stays and counts, and the phase warns. */
+export function isOutsidePeriod(months: string[], item: CostItem): boolean {
+  return item.timing === 'month' && Boolean(item.month) && months.length > 0 && !months.includes(item.month!);
 }
 
 /** A phase's monthly estimate (§7.1): its allocations' cost and its cost items, month by month. An allocation whose person no longer exists adds nothing. */

@@ -62,10 +62,19 @@ describe('Month input (§9.11)', () => {
     await user.keyboard('{Enter}');
     expect(screen.getByRole('alert')).toHaveTextContent('Enter a month such as Sep 2026.');
     expect(onChange).not.toHaveBeenCalled();
+    expect(field).toHaveValue('Sep 2026'); // the field shows what is still stored
 
     rerender(<MonthInput label="Month" value="2026-09" onChange={onChange} />);
     await user.clear(field);
     await user.keyboard('{Enter}');
     expect(onChange).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it('stops the year stepper where a typed month would stop being accepted (2000 to 2100)', async () => {
+    const user = userEvent.setup();
+    render(<MonthInput label="Month" value="2100-06" onChange={() => {}} />);
+    await user.click(screen.getByRole('textbox', { name: 'Month' }));
+    expect(await screen.findByRole('button', { name: 'Next year' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Previous year' })).toBeEnabled();
   });
 });

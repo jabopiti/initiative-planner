@@ -97,8 +97,8 @@ export function formatDate(isoDate: string): string {
 }
 
 /** Years a plan can sensibly name; a typo such as 1026 or 20266 is refused rather than costed month by month. */
-const FIRST_YEAR = 2000;
-const LAST_YEAR = 2100;
+export const FIRST_YEAR = 2000;
+export const LAST_YEAR = 2100;
 
 /** "26.06.2026" (or "3 Sep 2026", a longer month name, or ISO) to ISO; null when it isn't a real date in 2000 to 2100. */
 export function parseDateText(text: string): string | null {

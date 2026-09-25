@@ -625,6 +625,8 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     await user.type(within(draft).getByRole('spinbutton', { name: 'Amount' }), '6000{Enter}');
     expect(screen.getByRole('row', { name: /Load-testing licence/ })).toBeInTheDocument();
     expect(validationRow()).toHaveTextContent('€14,000');
+    await vi.waitFor(() => expect(added()).toBeDefined(), { timeout: 3000 });
+    expect(added()!.content.phases![id].costItems).toEqual([{ id: expect.any(String), label: 'Load-testing licence', amount: 6000, timing: 'spread' }]); // no month the user never chose
   });
 
   it.each([
@@ -682,7 +684,18 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     const set = () => puts.find((p) => p.message.includes('amount set'));
     await vi.waitFor(() => expect(set()).toBeDefined(), { timeout: 3000 });
     // The two edits landed in one commit, each named.
-    expect(set()!.message).toBe('Payments API: Validation cost item Load-testing licence amount set to €9,000; Payments API: Validation cost item Load-testing licence renamed to Licence');
+    expect(set()!.message).toBe('Payments API: Validation cost item Load-testing licence amount set to €9,000; Payments API: Validation cost item renamed to Licence');
+  });
+
+  it('treats a label that only gained a space as unchanged: the saved label comes back and nothing is committed', async () => {
+    const user = userEvent.setup();
+    planned([licence]);
+    renderPage();
+    const label = await screen.findByLabelText('Label of Load-testing licence');
+    await user.type(label, ' {Enter}');
+    expect(label).toHaveValue('Load-testing licence');
+    await user.tab();
+    expect(puts.some((p) => p.message.includes('renamed'))).toBe(false);
   });
 
   it('switches an item between one month and spread, keeping its month', async () => {

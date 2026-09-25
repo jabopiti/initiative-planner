@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   allocationFigures,
   allocationRefusal,
-  costItemByMonth,
   isOutsidePeriod,
   monthsInRange,
   parseAmount,
@@ -196,30 +195,28 @@ describe('only a team’s members may be allocated (§7.2)', () => {
 describe('cost items in a phase’s monthly estimate (§7.1)', () => {
   const period = { startDate: '2026-10-16', endDate: '2026-12-10' }; // three calendar months, the first and last partial
   const item = (extra: Partial<CostItem>): CostItem => ({ id: 'c1', label: 'Penetration test', amount: 12000, timing: 'spread', ...extra });
+  const byMonth = (p: typeof period | { startDate?: string; endDate?: string }, ...costItems: CostItem[]) => phaseByMonth({ ...p, allocations: [], costItems }, [], data);
 
   it('puts a one-month item in full into its month and nowhere else', () => {
-    expect(costItemByMonth(period, item({ timing: 'month', month: '2026-11' }))).toEqual({ '2026-11': 12000 });
-    const byMonth = phaseByMonth({ ...period, allocations: [], costItems: [item({ timing: 'month', month: '2026-11' })] }, [], data);
-    expect(byMonth['2026-11']).toBe(12000);
-    expect(byMonth['2026-10']).toBeUndefined();
+    expect(byMonth(period, item({ timing: 'month', month: '2026-11' }))).toEqual({ '2026-11': 12000 });
   });
 
   it('spreads an item equally over every calendar month of the period, partial first and last months included', () => {
-    expect(costItemByMonth(period, item({}))).toEqual({ '2026-10': 4000, '2026-11': 4000, '2026-12': 4000 });
+    expect(byMonth(period, item({}))).toEqual({ '2026-10': 4000, '2026-11': 4000, '2026-12': 4000 });
   });
 
   it('keeps the month of a spread item without using it', () => {
-    expect(costItemByMonth(period, item({ month: '2027-05' }))).toEqual({ '2026-10': 4000, '2026-11': 4000, '2026-12': 4000 });
+    expect(byMonth(period, item({ month: '2027-05' }))).toEqual({ '2026-10': 4000, '2026-11': 4000, '2026-12': 4000 });
   });
 
   it('still counts a one-month item whose month lies outside the period', () => {
-    expect(costItemByMonth(period, item({ timing: 'month', month: '2027-03' }))).toEqual({ '2027-03': 12000 });
+    expect(byMonth(period, item({ timing: 'month', month: '2027-03' }))).toEqual({ '2027-03': 12000 });
   });
 
   it('counts nothing without a valid period, and nothing for a one-month item that has no month', () => {
-    expect(costItemByMonth({ startDate: '2026-10-01' }, item({}))).toEqual({});
-    expect(costItemByMonth({ startDate: '2026-11-30', endDate: '2026-10-01' }, item({ timing: 'month', month: '2026-11' }))).toEqual({});
-    expect(costItemByMonth(period, item({ timing: 'month' }))).toEqual({});
+    expect(byMonth({ startDate: '2026-10-01' }, item({}))).toEqual({});
+    expect(byMonth({ startDate: '2026-11-30', endDate: '2026-10-01' }, item({ timing: 'month', month: '2026-11' }))).toEqual({});
+    expect(byMonth(period, item({ timing: 'month' }))).toEqual({});
   });
 
   it('adds cost items to the allocation cost in the phase total', () => {
@@ -235,10 +232,11 @@ describe('cost items in a phase’s monthly estimate (§7.1)', () => {
   });
 
   it('knows a one-month item is outside a valid period, and never for a spread item or without a period', () => {
-    expect(isOutsidePeriod(period, item({ timing: 'month', month: '2027-03' }))).toBe(true);
-    expect(isOutsidePeriod(period, item({ timing: 'month', month: '2026-12' }))).toBe(false);
-    expect(isOutsidePeriod(period, item({ month: '2027-03' }))).toBe(false);
-    expect(isOutsidePeriod({ startDate: '2026-10-01' }, item({ timing: 'month', month: '2027-03' }))).toBe(false);
+    const months = periodMonths(period);
+    expect(isOutsidePeriod(months, item({ timing: 'month', month: '2027-03' }))).toBe(true);
+    expect(isOutsidePeriod(months, item({ timing: 'month', month: '2026-12' }))).toBe(false);
+    expect(isOutsidePeriod(months, item({ month: '2027-03' }))).toBe(false);
+    expect(isOutsidePeriod(periodMonths({ startDate: '2026-10-01' }), item({ timing: 'month', month: '2027-03' }))).toBe(false);
   });
 });
 
