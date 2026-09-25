@@ -2,6 +2,7 @@
 name: spec-section
 description: Extract one numbered section (e.g. 5.6, 7.2) from docs/spec.md instead of reading the whole 1700+ line file. Use for any backlog slice's spec_sections frontmatter, or any other §-reference, that needs looking up.
 user-invocable: false
+allowed-tools: Bash(.claude/skills/spec-section/scripts/extract.sh *)
 ---
 
 # spec-section
