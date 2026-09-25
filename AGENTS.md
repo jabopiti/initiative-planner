@@ -63,8 +63,11 @@ Every call re-reads the whole context, so long sessions get expensive.
    order, fix before moving on.
 5. UI: assert text, roles and labels in component tests (Vitest +
    Testing Library, jsdom is set up; put tests beside the component).
-   Use the browser only for what tests can't show (visual polish): text
-   tools (`read_page`, `find`) first, at most one screenshot at the end.
+   Then, for any change to visible UI, one smoke pass in the running app
+   (see "Browser verification"): text tools (`read_page`, `find`) first,
+   at most one screenshot at the end. The only reason to skip it is a dev
+   server that won't start — say so and why; "needs a GitHub token" is
+   not a reason, the dev token below covers it.
 6. Commit per logical change, then `/clear` before an unrelated task.
 
 ## Do not touch
@@ -76,13 +79,35 @@ Every call re-reads the whole context, so long sessions get expensive.
 - The dataset (`data` branch files) — runtime data (§6, §10.2), not
   source code; never edit directly.
 
+## Browser verification
+- Start it with `preview_start` `{name: "initiative-planner"}` (from
+  `.claude/launch.json`; `npm run dev`, port 5173). Never with Bash.
+- No sign-in step: `VITE_DEV_TOKEN` in the gitignored `.env.local` skips
+  the Connect screen on the dev server only (`src/auth/tokenStore.ts`; it
+  is compiled out of production builds). `.worktreeinclude` copies
+  `.env.local` into every new worktree. Never read, print or copy that
+  file; if it is missing, ask the user rather than looking for a token.
+- The app reads and writes the real `data` branch, so every edit you
+  make in the browser is a real commit — fine while it is a development
+  dataset (see below). For something to look at, run `npm run
+  dev:seed-data` first (the example teams, people and initiatives from
+  `backlog/example-data.md`); after a reset the app is empty.
+- To see the Connect screen instead, start the server with the token
+  blanked: `VITE_DEV_TOKEN= npm run dev`.
+- `read_network_requests` can miss the `api.github.com` calls; check them
+  with `javascript_tool`: `performance.getEntriesByType('resource')`.
+- `npm run build:quiet && npm run preview` (`initiative-planner-built`,
+  port 8899) is for the strict CSP only; the dev token is stripped there.
+
 ## Development data
 While this repo's `data` branch is a development dataset (it is, until a
 real dataset is put there), Claude may empty or reset it at any time for
 testing, without asking, so tests start from a clean state — but only with
 `npm run dev:reset-data`, which empties teams, people and memberships and
-deletes initiative files, keeping roles and countries. It reads the token
-from `.env.local` and never prints it. This exception ends when real data
+deletes initiative files, keeping roles and countries, or `npm run
+dev:seed-data`, which does that reset and then writes the example data
+(`scripts/seed-dev-data.mjs`). They read the token from `.env.local` and
+never print it. This exception ends when real data
 lives on that branch: remove this section then.
 
 ## Security
