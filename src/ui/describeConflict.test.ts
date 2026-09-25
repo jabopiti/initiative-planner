@@ -6,7 +6,7 @@ import { describeConflict, type ConflictContext } from './describeConflict';
 
 // Every field filled: a field added to a type must be added here too, and then needs a banner label.
 const allocation: Required<Allocation> = { id: 'a1', personId: 'ana', allocationPct: 50 };
-const phase: Required<PhasePlan> = { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [allocation] };
+const phase: Required<PhasePlan> = { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [allocation], actualMonths: { '2026-10': 14200 } };
 const initiative: Required<Initiative> = {
   id: 'i1',
   name: 'Payments API',
@@ -72,6 +72,11 @@ describe('conflict rows name every field in words (§3, §9.9)', () => {
       theirs: '15.12.2026',
       labelled: true,
     });
+  });
+
+  it('reads a phase actual by its month, and a removed one as not recorded', () => {
+    const r = row('initiatives/i1.json', ['phases', 'validation', 'actualMonths', '2026-10'], undefined, 14200);
+    expect([r.field, r.mine, r.theirs]).toEqual(['Validation actual for Oct 2026', 'not recorded', '€14,200']);
   });
 
   it('names an allocation by its phase and person, and a removed one as removed', () => {

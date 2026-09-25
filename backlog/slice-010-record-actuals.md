@@ -100,14 +100,14 @@ one is missing is a separate, later aggregation on top of this data.
 
 ## Acceptance criteria
 
-- [ ] Given a closed month with no recorded actual, when the phase is
+- [x] Given a closed month with no recorded actual, when the phase is
       viewed, then it shows "using the estimate" with the estimate value.
-- [ ] Given the confirm check on such a month, when clicked, then the
+- [x] Given the confirm check on such a month, when clicked, then the
       estimate is recorded as the actual in one action.
-- [ ] Given a different amount is typed for a closed month, when
+- [x] Given a different amount is typed for a closed month, when
       submitted, then it is recorded as the actual, overriding the
       estimate.
-- [ ] Given a month that has not yet ended, when the phase is viewed, then
+- [x] Given a month that has not yet ended, when the phase is viewed, then
       it shows "not closed yet" with no actual field.
 
 ## Delivery gate

@@ -1,5 +1,5 @@
 import type { PhaseDef } from '../brand/types';
-import { formatDateField } from '../data/dates';
+import { formatDateField, formatMonth } from '../data/dates';
 import { FILE_PATHS, type Country, type Allocation, type CustomRoleYearRate, type Initiative, type Membership, type Person, type Role, type Team } from '../data/types';
 import { getAtPath, type MergeConflict, type Path } from '../sync/merge';
 import { formatAmount } from './formatAmount';
@@ -78,6 +78,9 @@ function initiativeField(rest: Path, doc: Initiative | undefined, conflict: Merg
   const phase = ctx.process.find((p) => p.id === phaseId)?.label ?? phaseId;
   if (rest.length === 3 && part === 'startDate') return { label: `${phase} start date`, format: date };
   if (rest.length === 3 && part === 'endDate') return { label: `${phase} end date`, format: date };
+  if (rest.length === 4 && part === 'actualMonths' && typeof item === 'string') {
+    return { label: `${phase} actual for ${formatMonth(item)}`, format: (v) => formatAmount(v as number, ctx.currencySymbol), unset: 'not recorded' };
+  }
   if (part !== 'allocations' || typeof item !== 'object' || rest.length > 5) return null;
 
   const allocation = itemAt(doc, conflict, 4) as Allocation | undefined;

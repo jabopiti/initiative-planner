@@ -4,15 +4,16 @@ import { useBrand } from '../state/BrandContext';
 import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
-import { allocationFigures, phaseTotal } from '../data/cost';
-import { formatDate, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
+import { actualOrEstimate, allocationFigures, phaseBlendedTotal, phaseCoverage, phaseEstimateByMonth, phaseMonths } from '../data/cost';
+import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { freeCapacityByPerson } from '../data/personLoad';
 import { roleLabel } from '../data/roleLabel';
 import { activeMembers } from '../data/teamMembers';
 import { FILE_PATHS, type Initiative, type PhasePlan, type Team } from '../data/types';
+import { AmountInput } from './AmountInput';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
-import { ChevronDownIcon, ChevronRightIcon, InfoIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, InfoIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
 import { sortRows } from './tableSort';
 import { PercentInput } from './PercentInput';
@@ -129,7 +130,12 @@ function CostedPhase({
   const needsPeople = isNextStep && hasPeriod && plan.allocations.length === 0;
   const previousEnd = previous && initiative.phases?.[previous.id]?.endDate;
   const overlap = previous && previousEnd && plan.startDate && plan.startDate <= previousEnd ? `Starts before ${previous.label} ends (${formatDate(previousEnd)}). The two phases overlap.` : null;
-  const total = phaseTotal(plan, people, rateData);
+  const total = phaseBlendedTotal(plan, people, rateData);
+  const hasCost = plan.allocations.length > 0 || Object.keys(plan.actualMonths ?? {}).length > 0;
+  const coverage = phaseCoverage(plan);
+  const coverageLabel = coverage === 'actual' ? 'Actual' : coverage === 'forecast' ? 'Forecast' : 'Estimate';
+  const estimateByMonth = phaseEstimateByMonth(plan, people, rateData);
+  const months = costed ? phaseMonths(plan, plan.actualMonths) : [];
 
   // Who can still be added, and what each has free for the phase's months (§5.11), most free first. Free capacity
   // is undefined without a valid period (the list is then by name) and while the phase is closed: only the open
@@ -209,10 +215,8 @@ function CostedPhase({
         {plan.allocations.length === 0 && (
           <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>· Add people</span>
         )}
-        <span className="ml-auto font-medium tabular-nums">
-          {costed && plan.allocations.length > 0 ? formatAmount(total, currencySymbol) : '—'}
-        </span>
-        <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary">Estimate</span>
+        <span className="ml-auto font-medium tabular-nums">{costed && hasCost ? formatAmount(total, currencySymbol) : '—'}</span>
+        <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary">{coverageLabel}</span>
       </button>
 
       {expanded && (
@@ -346,6 +350,71 @@ function CostedPhase({
             <p className="m-0 text-sm text-warning-text" role="alert">
               {refusal}
             </p>
+          )}
+
+          {costed && months.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <h3 className="m-0 text-sm font-medium text-text-primary">Actuals</h3>
+              <table className="w-full border-collapse text-sm">
+                <caption className="sr-only">{phase.label} actuals</caption>
+                <thead>
+                  <tr className="text-left text-xs text-text-secondary">
+                    <th className="py-1 pr-2 font-medium">Month</th>
+                    <th className="py-1 pr-2 text-right font-medium">Estimate</th>
+                    <th className="py-1 pr-2 text-right font-medium">Actual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {months.map((month) => {
+                    const estimate = estimateByMonth[month] ?? 0;
+                    const recorded = plan.actualMonths?.[month];
+                    const defaulted = actualOrEstimate(plan, month, today, estimateByMonth);
+                    return (
+                      <tr key={month} className="border-t border-border-default">
+                        <td className="py-1.5 pr-2">{formatMonth(month)}</td>
+                        <td className="py-1.5 pr-2 text-right tabular-nums">{formatAmount(estimate, currencySymbol)}</td>
+                        <td className="py-1.5 pr-2">
+                          {recorded !== undefined ? (
+                            <div className="flex justify-end">
+                              <AmountInput
+                                label={`Actual for ${phase.label} ${formatMonth(month)}`}
+                                currencySymbol={currencySymbol}
+                                value={recorded}
+                                changed={changed(file, ['phases', phase.id, 'actualMonths', month])}
+                                onChange={(amount) => repository.setActual(initiative.id, phase.id, month, amount)}
+                              />
+                            </div>
+                          ) : defaulted !== undefined ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Record the estimate as the actual for ${phase.label} ${formatMonth(month)}`}
+                                onClick={() => repository.setActual(initiative.id, phase.id, month, defaulted)}
+                              >
+                                <CheckIcon />
+                              </Button>
+                              <span className="text-text-muted">{formatAmount(defaulted, currencySymbol)} · using the estimate</span>
+                              <AmountInput
+                                label={`Override the actual for ${phase.label} ${formatMonth(month)}`}
+                                currencySymbol={currencySymbol}
+                                value={undefined}
+                                placeholder="Enter amount"
+                                changed={changed(file, ['phases', phase.id, 'actualMonths', month])}
+                                onChange={(amount) => repository.setActual(initiative.id, phase.id, month, amount)}
+                              />
+                            </div>
+                          ) : (
+                            <span className="flex justify-end text-text-secondary">not closed yet</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

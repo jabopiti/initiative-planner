@@ -1,6 +1,6 @@
 /**
  * Dataset shapes (spec §6), scoped to the fields the built slices read or write.
- * Cost items, actuals and gate records arrive with their own slices.
+ * Cost items and gate records arrive with their own slices.
  */
 
 export type InitiativeStatus = 'Active' | 'On Hold' | 'Cancelled' | 'Closed';
@@ -66,6 +66,8 @@ export interface PhasePlan {
   startDate?: string;
   endDate?: string;
   allocations: Allocation[];
+  /** Recorded actual cost per month, keyed by month `YYYY-MM` (§6, §7.3). Absent until someone records one. */
+  actualMonths?: Record<string, number>;
 }
 
 export interface Initiative {

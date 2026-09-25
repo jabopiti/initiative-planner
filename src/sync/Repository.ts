@@ -16,7 +16,7 @@ import {
   type Team,
 } from '../data/types';
 import { allocationRefusal } from '../data/cost';
-import { formatDate } from '../data/dates';
+import { formatDate, formatMonth } from '../data/dates';
 import { localToday } from '../data/dates';
 import { buildDefaultPlan } from '../data/defaultPlan';
 import { frozenPaths, isPhaseFrozen } from '../data/frozen';
@@ -950,6 +950,22 @@ export class Repository {
       phaseId,
       (plan) => ({ ...plan, allocations: insertAllocation(plan.allocations, allocation, index) }),
       { key: allocation.id, text: (name, phase) => `${name}: ${phase} allocation restored (${this.personName(allocation.personId)})` },
+    );
+  }
+
+  /**
+   * Record a month's actual for a phase (§7.3): the estimate confirmed as-is, or an override — either way a
+   * single act, and recordable again later to correct it (§6).
+   */
+  setActual(initiativeId: string, phaseId: string, month: string, amount: number): void {
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, actualMonths: { ...plan.actualMonths, [month]: amount } }),
+      {
+        key: `actual:${month}`,
+        text: (name, phase) => `${name}: ${phase} actual for ${formatMonth(month)} recorded (${this.brand.currencySymbol}${Math.round(amount)})`,
+      },
     );
   }
 
