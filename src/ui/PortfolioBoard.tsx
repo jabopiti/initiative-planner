@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import { useRepositoryState } from '../state/DataContext';
+import { useIsChangedByOthers, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { currentPhaseId } from '../data/processState';
-import type { Initiative } from '../data/types';
+import { FILE_PATHS, type Initiative } from '../data/types';
 import { navigate } from '../router/useHashRoute';
 import { EmptyState } from './EmptyState';
 
@@ -14,6 +14,7 @@ import { EmptyState } from './EmptyState';
 export function PortfolioBoard() {
   const brand = useBrand();
   const { teams, initiatives } = useRepositoryState();
+  const changed = useIsChangedByOthers();
 
   const initiativesByPhase = useMemo(() => {
     const byPhase = new Map<string, Initiative[]>(brand.process.map((phase) => [phase.id, []]));
@@ -57,7 +58,7 @@ export function PortfolioBoard() {
                 {phaseInitiatives.map((initiative) => (
                   <a
                     key={initiative.id}
-                    className="block rounded-lg border border-border-default bg-surface-card px-3 py-2.5 text-inherit no-underline"
+                    className={`block rounded-lg border border-border-default px-3 py-2.5 text-inherit no-underline transition-colors duration-500 ${changed(FILE_PATHS.initiative(initiative.id), []) ? 'bg-met-tint' : 'bg-surface-card'}`}
                     href={`#/initiatives/${initiative.id}`}
                   >
                     <div className="mb-1 text-sm font-semibold">{initiative.name}</div>

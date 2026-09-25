@@ -35,6 +35,19 @@ export interface PutFileResult {
   sha: string;
 }
 
+export interface DirectoryEntry {
+  name: string;
+  path: string;
+  /** The file's version: the same value a read of the file gives. */
+  sha: string;
+  type: 'file' | 'dir';
+}
+
+export interface BranchHead {
+  sha: string;
+  etag: string | null;
+}
+
 /** Parse a fetched file's JSON content, or `fallback` when the file doesn't exist (§10.2: a missing master file means "empty"). */
 export function parseJsonFile<T>(file: GetFileResult | null, fallback: T): T {
   return file ? (JSON.parse(file.content) as T) : fallback;
@@ -122,18 +135,39 @@ export class GithubClient {
     return { sha: body.content.sha };
   }
 
-  /** GET .../contents/{dir}?ref={branch} as a directory listing. Empty array if the directory doesn't exist yet. */
-  async listDirectory(args: { path: string; branch: string }): Promise<{ name: string; path: string }[]> {
+  /** GET .../contents/{dir}?ref={branch} as a directory listing, each entry with its version. Empty array if the directory doesn't exist yet. */
+  async listDirectory(args: { path: string; branch: string }): Promise<DirectoryEntry[]> {
     assertBranch(args.branch);
     const url = `${this.repoUrl(`contents/${encodePath(args.path)}`)}?ref=${encodeURIComponent(args.branch)}`;
     const response = await this.request(url, { method: 'GET' });
 
     if (response.status === 404) return [];
-    assertOk(response, `GET ${args.path}`);
+    assertOk(response, `GET ${args.path || 'the repository root'}`);
 
     const body = (await response.json()) as unknown;
     if (!Array.isArray(body)) return [];
-    return body.map((entry) => ({ name: (entry as { name: string }).name, path: (entry as { path: string }).path }));
+    return body.map((entry) => {
+      const { name, path, sha, type } = entry as DirectoryEntry;
+      return { name, path, sha, type };
+    });
+  }
+
+  /**
+   * GET .../git/ref/heads/{branch}: the commit the branch is at (§10.2). Asked again with the ETag it gave,
+   * an unchanged branch answers 304, which GitHub does not count against the rate limit. Null when the
+   * branch does not exist yet.
+   */
+  async getBranchHead(args: { branch: string; etag: string | null }): Promise<BranchHead | 'not-modified' | null> {
+    assertBranch(args.branch);
+    const url = this.repoUrl(`git/ref/heads/${encodeURIComponent(args.branch)}`);
+    const response = await this.request(url, { method: 'GET', headers: args.etag ? { 'If-None-Match': args.etag } : {} });
+
+    if (response.status === 304) return 'not-modified';
+    if (response.status === 404) return null;
+    assertOk(response, `GET the head of ${args.branch}`);
+
+    const body = (await response.json()) as { object: { sha: string } };
+    return { sha: body.object.sha, etag: response.headers.get('etag') };
   }
 
   /** Checked-token validation (§5.10): who this token is, and whether it can write to the configured repo. */

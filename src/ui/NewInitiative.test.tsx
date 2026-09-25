@@ -9,6 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { NewInitiativeControl } from './NewInitiativeControl';
 import { NewInitiativeDraft } from './NewInitiativeDraft';
 import { PortfolioBoard } from './PortfolioBoard';
+import { rootListing } from '../sync/testing/rootListing';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const ONE_TEAM = [{ id: 't1', name: 'Payments', active: true }];
@@ -37,6 +38,7 @@ beforeAll(() => {
         puts.push({ url, body: JSON.parse(String(init.body)) });
         return json({ content: { sha: 'next' } });
       }
+      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
       if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
       if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');

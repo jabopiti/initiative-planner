@@ -8,6 +8,7 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { TeamDetail } from './TeamDetail';
 import { TeamsOverview } from './TeamsOverview';
+import { rootListing } from '../sync/testing/rootListing';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const person = (id: string, name: string, active: boolean) => ({
@@ -36,6 +37,7 @@ beforeAll(() => {
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
+      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags);
       if (url.includes('/contents/roles.json')) return file(baseline.roles);
       if (url.includes('/contents/countries.json')) return file(baseline.countries);

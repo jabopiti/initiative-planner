@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { useRepository, useRepositoryState } from '../state/DataContext';
+import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { activeLoads, teamCapacity, teamHasCapacityWarning } from '../data/capacity';
 import { localToday } from '../data/dates';
@@ -15,12 +15,14 @@ import { sortRows, useTableSort, type SortValue } from './tableSort';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { FILE_PATHS } from '../data/types';
 
 /** Teams overview (§5.7): name, size, per-phase initiative counts, and New team. */
 export function TeamsOverview() {
   const brand = useBrand();
   const repository = useRepository();
   const { teams, initiatives, memberships, people } = useRepositoryState();
+  const changed = useIsChangedByOthers();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -138,7 +140,7 @@ export function TeamsOverview() {
           {sorted.map(({ team, members, counts, capacityWarning }) => (
             <tr
               key={team.id}
-              className={`cursor-pointer border-b border-border-default ${team.active ? '' : 'text-text-secondary'}`}
+              className={`cursor-pointer border-b border-border-default transition-colors duration-500 ${changed(FILE_PATHS.teams, [{ id: team.id }]) ? 'bg-met-tint' : ''} ${team.active ? '' : 'text-text-secondary'}`}
               onClick={(e) => {
                 // A click on the name link is the link's own (Cmd-click opens a new tab, without also leaving this one); the warning marker only shows its tooltip.
                 if (!(e.target as HTMLElement).closest('a, [data-row-action]')) navigate(`/teams/${team.id}`);

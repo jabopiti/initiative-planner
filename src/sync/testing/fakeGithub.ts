@@ -32,7 +32,10 @@ export function fakeGithub() {
   const arrivals = new Map<string, number>();
   const holds: { prefix: string; gate: Promise<void> }[] = [];
   const failures: { prefix: string; status: number }[] = [];
+  const reads: string[] = [];
+  const failReads: { path: string; status: number }[] = [];
   let counter = 0;
+  let head = 1;
 
   const take = <T extends { prefix: string }>(queue: T[], path: string): T | undefined => {
     const index = queue.findIndex((entry) => path.startsWith(entry.prefix));
@@ -42,20 +45,39 @@ export function fakeGithub() {
   const put = (path: string, value: unknown): string => {
     const sha = `sha-${(counter += 1)}`;
     files.set(path, { content: JSON.stringify(value), sha });
+    head += 1;
     return sha;
   };
 
   const fetchMock = vi.fn(async (url: string, init: RequestInit = {}) => {
-    const match = new URL(url).pathname.match(/\/contents\/(.+)$/);
-    if (!match) throw new Error(`Unhandled request in test: ${url}`);
-    const path = decodeURIComponent(match[1]);
+    const pathname = new URL(url).pathname;
     const method = init.method ?? 'GET';
 
+    if (method === 'GET' && pathname.endsWith(`/git/ref/heads/${DATA_BRANCH}`)) {
+      if (files.size === 0) return json({ message: 'Not Found' }, 404);
+      const etag = `"head-${head}"`;
+      if (new Headers(init.headers).get('If-None-Match') === etag) return new Response(null, { status: 304 });
+      return new Response(JSON.stringify({ object: { sha: `commit-${head}` } }), { status: 200, headers: { etag } });
+    }
+
+    const match = pathname.match(/\/contents\/(.*)$/);
+    if (!match) throw new Error(`Unhandled request in test: ${url}`);
+    const path = decodeURIComponent(match[1]);
+
     if (method === 'GET') {
+      const entry = (p: string, name: string) => ({ name, path: p, sha: files.get(p)!.sha, type: 'file' });
+      if (path === '') {
+        const root = [...files.keys()].filter((p) => !p.includes('/')).map((p) => entry(p, p));
+        const hasInitiatives = [...files.keys()].some((p) => p.startsWith('initiatives/'));
+        return json(root.concat(hasInitiatives ? [{ name: 'initiatives', path: 'initiatives', sha: 'dir', type: 'dir' }] : []));
+      }
       if (path === 'initiatives') {
-        const entries = [...files.keys()].filter((p) => p.startsWith('initiatives/')).map((p) => ({ name: p.slice(12), path: p }));
+        const entries = [...files.keys()].filter((p) => p.startsWith('initiatives/')).map((p) => entry(p, p.slice(12)));
         return entries.length ? json(entries) : json({ message: 'Not Found' }, 404);
       }
+      reads.push(path);
+      const failure = failReads.findIndex((f) => f.path === path);
+      if (failure >= 0) return json({ message: 'failed' }, failReads.splice(failure, 1)[0].status);
       const file = files.get(path);
       return file ? json({ content: encodeBase64Utf8(file.content), sha: file.sha }) : json({ message: 'Not Found' }, 404);
     }
@@ -94,6 +116,17 @@ export function fakeGithub() {
     read: <T>(path: string): T => JSON.parse(files.get(path)!.content) as T,
     /** Files as they were before the client under test looked, or as the other writer commits them. */
     seed: (path: string, value: unknown) => void put(path, value),
+    /** The other writer removes a file. */
+    remove: (path: string) => {
+      files.delete(path);
+      head += 1;
+    },
+    /** Paths of every file the client has downloaded, in order (listings and head checks are not downloads). */
+    reads,
+    /** The next download of `path` is refused with `status`. */
+    failRead: (path: string, status: number) => void failReads.push({ path, status }),
+    /** Every request the client has made, in order, as `METHOD pathname`. */
+    requests: () => fetchMock.mock.calls.map(([url, init]) => `${(init as RequestInit | undefined)?.method ?? 'GET'} ${new URL(url as string).pathname}`),
     /** The next write to a path starting with `prefix` waits until the returned function is called. */
     hold: (prefix: string) => {
       let release!: () => void;
@@ -106,6 +139,14 @@ export function fakeGithub() {
 }
 
 export type Fake = ReturnType<typeof fakeGithub>;
+
+/** Every request waits for the returned `release()` (or only those `only` picks), so what shows before the network answers can be told from what shows after. */
+export function holdNetwork(fake: Fake, only: (url: string, init?: RequestInit) => boolean = () => true) {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  vi.stubGlobal('fetch', (url: string, init?: RequestInit) => (only(url, init) ? gate.then(() => fake.fetchMock(url, init)) : fake.fetchMock(url, init)));
+  return release;
+}
 
 export async function open(fake: Fake, seeded: { teams?: Team[]; people?: Person[]; initiatives?: Initiative[] } = {}) {
   fake.seed('dataset.json', { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: false });

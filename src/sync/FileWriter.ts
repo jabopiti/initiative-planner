@@ -1,7 +1,7 @@
-import { fileCache } from '../cache/db';
+import type { FileCache } from '../cache/db';
 import type { GithubClient } from '../github/client';
 import { GithubApiError, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { pathKey, sameValue, setAtPath, type DocumentMerge, type MergeConflict } from './merge';
+import { changedPaths, pathKey, sameValue, setAtPath, type DocumentMerge, type MergeConflict, type Path } from './merge';
 import type { WriteQueue } from './WriteQueue';
 
 const COMMIT_DEBOUNCE_MS = 1000;
@@ -25,6 +25,9 @@ export interface SyncedFile<D> {
   sha: string;
 }
 
+/** What became of a pulled file: applied, with the paths that changed on screen, or left alone (see `receive`). */
+export type Received = { changed: Path[] } | { left: 'retry' | 'writer' };
+
 export interface FileWriterOptions<D> {
   path: string;
   branch: string;
@@ -37,6 +40,10 @@ export interface FileWriterOptions<D> {
   initial: SyncedFile<D> | null;
   /** What to tell the user when that first save fails. */
   creationFailure?: string;
+  /** Where a save that landed is kept, for the next open (§10.4). */
+  cache: FileCache;
+  /** Settles when the first pull of the dataset has (§3): a save waits for it, so it is built on what the pull brought in. */
+  gate?: () => Promise<unknown>;
   onStatus: (status: WriteStatus) => void;
   onConflict: (conflict: FileConflict) => void;
   /** The document on screen should now be this one: a save landed, or a merge brought in the other writer's changes. */
@@ -70,6 +77,8 @@ export class FileWriter<D> {
   /** The last save failed and nothing has been saved since, so an idle writer must not say synced. */
   private failed = false;
   private openConflicts: FileConflict[] = [];
+  /** A save is running: the pull leaves the file alone, since the save's own re-read brings in anything newer. */
+  private saving = false;
 
   constructor(private readonly options: FileWriterOptions<D>) {
     this.synced = options.initial;
@@ -114,16 +123,62 @@ export class FileWriter<D> {
     return result;
   }
 
+  /** The version of the file this writer last read or wrote; null while the file does not exist yet. */
+  get sha(): string | null {
+    return this.synced?.sha ?? null;
+  }
+
+  /** Nothing is waiting to be saved, no save is running and no choice is open: a pull may replace what is on screen. */
+  get idle(): boolean {
+    return this.pending === null && this.timer === null && this.waiting === 0 && !this.saving && this.openConflicts.length === 0 && !this.failed;
+  }
+
+  /**
+   * The repository's newer version of the file, from a pull (§3). It replaces what is on screen; an edit not yet
+   * saved is merged with it like a save that found the file changed (§10.5), and a clash is a conflict for the
+   * user to choose. The file is left alone, and says why, when a save is running or it is not the version the pull
+   * compared (a save landed since): `retry`, the next pull will find it changed. Or a choice is open or the last
+   * save failed: `writer`, the writer's next save re-reads the file and merges it, so a pull has nothing to retry.
+   */
+  receive(file: SyncedFile<D>, replaces: string | null): Received {
+    if (this.openConflicts.length > 0 || this.failed) return { left: 'writer' };
+    if (this.saving || (this.synced?.sha ?? null) !== replaces) return { left: 'retry' };
+    const before = this.screen;
+    let next = file.content;
+    if (this.pending !== null || this.timer !== null) {
+      const mine = this.pending ?? (this.screen as D);
+      const message = this.commitMessage();
+      const outcome = this.options.merge(this.synced?.content ?? file.content, mine, file.content);
+      this.raise(outcome.conflicts, message);
+      next = outcome.merged;
+      this.pending = next;
+    }
+    this.synced = file;
+    this.screen = next;
+    this.options.onDocument(next);
+    return { changed: changedPaths(before, next) };
+  }
+
+  private commitMessage(): string {
+    return this.notes.size > 0 ? [...this.notes.values()].join('; ') : `${this.options.path}: update`;
+  }
+
   private async saveNext(): Promise<SaveResult> {
+    await this.options.gate?.();
     if (this.pending === null) {
       this.reportIdle();
       return 'saved';
     }
     const mine = this.pending;
     this.pending = null;
-    const message = this.notes.size > 0 ? [...this.notes.values()].join('; ') : `${this.options.path}: update`;
+    const message = this.commitMessage();
     this.notes.clear();
-    return this.save(mine, message);
+    this.saving = true;
+    try {
+      return await this.save(mine, message);
+    } finally {
+      this.saving = false;
+    }
   }
 
   private async save(mine: D, message: string): Promise<SaveResult> {
@@ -143,7 +198,7 @@ export class FileWriter<D> {
         this.synced = { content: sent, sha };
         this.failed = false;
         this.landed(mine, sent, merged, message);
-        await this.cache(sent, sha);
+        void this.cache(sent, sha); // Not waited for: the save is done, and the cache only helps the next open.
         return 'saved';
       } catch (error) {
         const stale = error instanceof GithubApiError && error.cause_ === 'conflict';
@@ -280,7 +335,7 @@ export class FileWriter<D> {
    */
   private async cache(sent: D, sha: string): Promise<void> {
     try {
-      await fileCache.set(this.options.path, { content: JSON.stringify(sent), sha });
+      await this.options.cache.set(this.options.path, { content: JSON.stringify(sent), sha });
     } catch {
       // Survivable, unlike misreporting a write that succeeded.
     }

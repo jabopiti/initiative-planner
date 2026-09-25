@@ -160,3 +160,25 @@ export function mergeDocument<D>(base: D, mine: D, theirs: D, options: MergeOpti
 
   return { merged: merge([], base, mine, theirs) as D, conflicts };
 }
+
+/**
+ * The paths whose values differ between two versions of a document, for showing what changed: a value that
+ * changed, or a list item (or record key) that was added, at the item's own path. Something removed leaves
+ * nothing on screen to point at, so it is not listed.
+ */
+export function changedPaths(before: unknown, after: unknown, path: Path = []): Path[] {
+  if (sameValue(before, after)) return [];
+  if (isRecord(before) && isRecord(after)) {
+    return [...new Set([...Object.keys(before), ...Object.keys(after)])].flatMap((key) =>
+      key in after ? changedPaths(before[key], after[key], [...path, key]) : [],
+    );
+  }
+  if (isIdList(before) && isIdList(after)) {
+    const earlier = new Map(before.map((item) => [item.id as string, item]));
+    return after.flatMap((item) => {
+      const itemPath = [...path, { id: item.id as string }];
+      return earlier.has(item.id as string) ? changedPaths(earlier.get(item.id as string), item, itemPath) : [itemPath];
+    });
+  }
+  return [path];
+}

@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type ComponentProps } from 'react';
+import { useHoldWhileEditing } from '../state/DataContext';
 import { Input } from '@/components/ui/input';
 
 /**
@@ -8,13 +9,17 @@ import { Input } from '@/components/ui/input';
  * the field then stays in edit with what was typed, marked invalid, and the message sits under it, linked
  * to the field and announced. Enter or leaving the field repeats the refusal until the text is fixed.
  * Esc cancels an edit in progress (§9.5), clears the message and, having used the key, keeps it from also
- * closing a panel around the field; with nothing typed it passes on.
+ * closing a panel around the field; with nothing typed it passes on. While text is typed and not yet committed,
+ * a change another user made is held back from the page (§3), and `changed` tints the field for a few seconds
+ * when another user's change just updated its value (§9.9).
  */
 export function CommitInput({
   value,
   onCommit,
   onDraftChange,
   errorClassName = '',
+  changed = false,
+  className,
   ...props
 }: Omit<ComponentProps<typeof Input>, 'value' | 'defaultValue' | 'onChange' | 'onBlur'> & {
   value: string;
@@ -23,10 +28,13 @@ export function CommitInput({
   onDraftChange?: (text: string) => void;
   /** Layout for the refusal message, which renders right after the field as a sibling. */
   errorClassName?: string;
+  /** Another user's change just updated this value (§9.9). */
+  changed?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   const [error, setError] = useState<string | null>(null);
   const errorId = useId();
+  useHoldWhileEditing(draft !== value);
   useEffect(() => {
     setDraft(value);
     setError(null);
@@ -50,6 +58,7 @@ export function CommitInput({
     <>
       <Input
         {...props}
+        className={`transition-colors duration-500 ${className ?? ''} ${changed ? 'bg-met-tint' : ''}`}
         value={draft}
         aria-invalid={error ? true : props['aria-invalid']}
         aria-describedby={error ? errorId : props['aria-describedby']}
