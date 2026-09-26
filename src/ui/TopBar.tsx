@@ -1,4 +1,5 @@
 import { useBrand } from '../state/BrandContext';
+import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { NewInitiativeControl } from './NewInitiativeControl';
 import { SyncIndicator } from './SyncIndicator';
 import { LogoMark, SearchIcon } from './icons';
@@ -11,9 +12,10 @@ const NAV_ITEMS: { label: string; path: string }[] = [
   { label: 'Settings', path: '/settings' },
 ];
 
-/** The top navigation bar (§5.1). */
+/** The top navigation bar (§5.1), including the Initiatives nav item's Needs attention count (§8.5). */
 export function TopBar({ route }: { route: string }) {
   const brand = useBrand();
+  const needsAttentionCount = useNeedsAttentionItems().length;
   return (
     <header className="sticky top-0 z-10 flex items-center gap-6 border-b border-border-default bg-surface-card px-5 py-2.5">
       <a href="#/portfolio" className="flex shrink-0 items-center gap-2 font-bold text-text-primary no-underline">
@@ -31,11 +33,16 @@ export function TopBar({ route }: { route: string }) {
               aria-current={active ? 'page' : undefined}
               className={
                 active
-                  ? 'rounded-lg bg-brand-accent-tint px-3 py-1.5 font-medium text-brand-accent-text no-underline'
-                  : 'rounded-lg px-3 py-1.5 font-medium text-text-secondary no-underline'
+                  ? 'flex items-center gap-1.5 rounded-lg bg-brand-accent-tint px-3 py-1.5 font-medium text-brand-accent-text no-underline'
+                  : 'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium text-text-secondary no-underline'
               }
             >
               {item.label}
+              {item.path === '/initiatives' && needsAttentionCount > 0 && (
+                <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-[11px] font-medium text-text-secondary" aria-label={`${needsAttentionCount} needing attention`}>
+                  {needsAttentionCount}
+                </span>
+              )}
             </a>
           );
         })}
