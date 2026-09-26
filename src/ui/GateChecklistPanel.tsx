@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import type { PhaseDef } from '../brand/types';
-import { gateProgress, gateRequirements, type ChecklistItemView, type ChecklistRequirement } from '../data/gate';
+import { gateProgress, gateProgressText, gateRequirements, type ChecklistItemView, type ChecklistRequirement } from '../data/gate';
 import { useBrand } from '../state/BrandContext';
 import { useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { FILE_PATHS, type ChecklistStatus, type Initiative } from '../data/types';
@@ -38,7 +38,7 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
         <h2 id="gate-checklist-heading" className="m-0 text-lg">
           Gate / Checklist — {phase.exitGate.label}
         </h2>
-        <span className="text-sm text-text-secondary">{`${complete} of ${total} complete`}</span>
+        <span className="text-sm text-text-secondary">{gateProgressText({ complete, total })}</span>
       </div>
       <ol className="m-0 flex list-none flex-col p-0">
         {items.map((item) => (

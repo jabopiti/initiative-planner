@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { currentPhaseId, gateBlockers, gateOverdue, gateRequirements } from '../data/gate';
-import { daysBetween, localToday } from '../data/dates';
+import { currentPhaseId, gateBlockers, gateOverdue, gateRequirements, overrunMessage, READY_MESSAGE } from '../data/gate';
+import { localToday } from '../data/dates';
 import { useBrand } from '../state/BrandContext';
 import { useRepository } from '../state/DataContext';
 import type { Initiative } from '../data/types';
@@ -52,8 +52,8 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   // The first blocker always names something specific (AC1, AC2), whatever else is also open.
   let guidance: string;
   if (passed) guidance = `Passed ${passed}`;
-  else if (overdue && endDate) guidance = `${phase.label} is ${daysBetween(endDate, today)} days overrun`;
-  else if (ready) guidance = 'All requirements met';
+  else if (overdue && endDate) guidance = overrunMessage(phase, endDate, today);
+  else if (ready) guidance = READY_MESSAGE;
   else guidance = blockers.length > 1 ? `${blockers[0]} (+${blockers.length - 1} more)` : blockers[0];
 
   return (

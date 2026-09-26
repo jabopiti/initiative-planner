@@ -1,11 +1,8 @@
-import { useMemo } from 'react';
-import { localToday } from '../data/dates';
-import { needsAttentionItems } from '../data/needsAttention';
 import { useBrand } from '../state/BrandContext';
-import { useRepositoryState } from '../state/DataContext';
 import { NewInitiativeControl } from './NewInitiativeControl';
 import { SyncIndicator } from './SyncIndicator';
 import { LogoMark, SearchIcon } from './icons';
+import { useNeedsAttentionItems } from './useNeedsAttentionItems';
 
 const NAV_ITEMS: { label: string; path: string }[] = [
   { label: 'Portfolio', path: '/portfolio' },
@@ -18,12 +15,7 @@ const NAV_ITEMS: { label: string; path: string }[] = [
 /** The top navigation bar (§5.1), including the Initiatives nav item's Needs attention count (§8.5). */
 export function TopBar({ route }: { route: string }) {
   const brand = useBrand();
-  const { initiatives, people, roles, countries } = useRepositoryState();
-  const today = localToday();
-  const needsAttentionCount = useMemo(
-    () => needsAttentionItems(initiatives, brand.process, people, { roles, countries }, brand.approvalTracks, today).length,
-    [initiatives, brand.process, people, roles, countries, brand.approvalTracks, today],
-  );
+  const needsAttentionCount = useNeedsAttentionItems().length;
   return (
     <header className="sticky top-0 z-10 flex items-center gap-6 border-b border-border-default bg-surface-card px-5 py-2.5">
       <a href="#/portfolio" className="flex shrink-0 items-center gap-2 font-bold text-text-primary no-underline">

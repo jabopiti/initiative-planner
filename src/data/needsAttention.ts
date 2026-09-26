@@ -1,6 +1,6 @@
 import type { ApprovalTrackDef, PhaseDef } from '../brand/types';
-import { daysBetween, formatMonth, monthOf, nextMonth } from './dates';
-import { currentPhaseId, gateBlockers, gateOverdue, gateProgress, gateRequirements, lastCostedPassedGate } from './gate';
+import { formatMonth, monthOf, nextMonth } from './dates';
+import { currentPhaseId, gateOverdue, gateProgress, gateProgressText, gateRequirements, lastCostedPassedGate, overrunMessage, READY_MESSAGE, type GateRequirement } from './gate';
 import { grandEstimate, phaseMonths, resolveApprovalTrack, type RateData } from './cost';
 import type { Initiative } from './types';
 import type { Person } from './types';
@@ -10,12 +10,18 @@ export type NeedsAttentionKind = 'escalated' | 'overrun' | 'overdue' | 'due' | '
 /** Priority order (§8.5): consequential first, an opportunity last. */
 const KIND_ORDER: NeedsAttentionKind[] = ['escalated', 'overrun', 'overdue', 'due', 'ready'];
 
+interface NeedsAttentionBase {
+  initiativeId: string;
+  initiativeName: string;
+  reason: string;
+}
+
 export type NeedsAttentionItem =
-  | { kind: 'escalated'; initiativeId: string; initiativeName: string; reason: string }
-  | { kind: 'overrun'; initiativeId: string; initiativeName: string; reason: string; phaseId: string }
-  | { kind: 'overdue'; initiativeId: string; initiativeName: string; reason: string; phaseId: string; month: string }
-  | { kind: 'due'; initiativeId: string; initiativeName: string; reason: string; phaseId: string }
-  | { kind: 'ready'; initiativeId: string; initiativeName: string; reason: string };
+  | (NeedsAttentionBase & { kind: 'escalated' })
+  | (NeedsAttentionBase & { kind: 'overrun'; phaseId: string })
+  | (NeedsAttentionBase & { kind: 'overdue'; phaseId: string; month: string })
+  | (NeedsAttentionBase & { kind: 'due'; phaseId: string; blocker: GateRequirement })
+  | (NeedsAttentionBase & { kind: 'ready' });
 
 /**
  * Escalated (§7.4, §8.5): the live approval track is stricter than the one recorded at the last passed gate that
@@ -35,7 +41,7 @@ function overrunReason(initiative: Initiative, process: PhaseDef[], phaseId: str
   const phase = process.find((p) => p.id === phaseId)!;
   if (!gateOverdue(initiative, phase, today)) return null;
   const endDate = initiative.phases![phaseId].endDate!;
-  return `${phase.label} is ${daysBetween(endDate, today)} days overrun`;
+  return overrunMessage(phase, endDate, today);
 }
 
 /**
@@ -57,21 +63,23 @@ function overdueTarget(initiative: Initiative, process: PhaseDef[], today: strin
   return null;
 }
 
-/** Due (§8.1, §8.5): the current phase's own end date has been reached and its gate still has a blocker (a warning-only, e.g. Tentative, gate reads Ready instead — §8.1: only Incomplete ever blocks). */
-function dueReason(initiative: Initiative, process: PhaseDef[], phaseId: string, today: string): string | null {
+/**
+ * Due (§8.1, §8.5): the current phase's own end date has been reached and its gate still has a blocker (a
+ * warning-only, e.g. Tentative, gate reads Ready instead — §8.1: only Incomplete ever blocks). The blocker itself
+ * is kept, not just its text, so the strip can jump straight to it (§5.2) without re-deriving it.
+ */
+function dueReason(initiative: Initiative, process: PhaseDef[], phaseId: string, today: string, requirements: GateRequirement[]): { text: string; blocker: GateRequirement } | null {
   const phase = process.find((p) => p.id === phaseId)!;
   const plan = initiative.phases?.[phaseId];
   if (!phase.costed || !plan?.endDate || plan.endDate > today) return null;
-  const requirements = gateRequirements(process, initiative, phaseId);
-  if (gateBlockers(requirements).length === 0) return null;
-  const { complete, total } = gateProgress(requirements);
-  return `${complete} of ${total} complete`;
+  const blocker = requirements.find((r) => r.state === 'blocker');
+  if (!blocker) return null;
+  return { text: gateProgressText(gateProgress(requirements)), blocker };
 }
 
 /** Ready (§8.5): nothing left blocking the current gate — a warning-only gate (Tentative items) reads as Ready too, matching the magic bar (§5.4). */
-function readyReason(initiative: Initiative, process: PhaseDef[], phaseId: string): string | null {
-  const requirements = gateRequirements(process, initiative, phaseId);
-  return gateBlockers(requirements).length === 0 ? 'All requirements met' : null;
+function readyReason(requirements: GateRequirement[]): string | null {
+  return requirements.every((r) => r.state !== 'blocker') ? READY_MESSAGE : null;
 }
 
 /** The one Needs attention item for an Active initiative (§8.5), or `null` when none of the five kinds apply. */
@@ -91,10 +99,12 @@ function needsAttentionItem(initiative: Initiative, process: PhaseDef[], people:
     return { ...base, kind: 'overdue', reason: `${phase.label}: no actual recorded for ${formatMonth(overdue.month)}`, phaseId: overdue.phaseId, month: overdue.month };
   }
 
-  const due = dueReason(initiative, process, phaseId, today);
-  if (due) return { ...base, kind: 'due', reason: due, phaseId };
+  const requirements = gateRequirements(process, initiative, phaseId);
 
-  const ready = readyReason(initiative, process, phaseId);
+  const due = dueReason(initiative, process, phaseId, today, requirements);
+  if (due) return { ...base, kind: 'due', reason: due.text, phaseId, blocker: due.blocker };
+
+  const ready = readyReason(requirements);
   if (ready) return { ...base, kind: 'ready', reason: ready };
 
   return null;

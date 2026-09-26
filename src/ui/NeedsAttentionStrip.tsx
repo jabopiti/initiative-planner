@@ -1,14 +1,9 @@
-import { useMemo, useState } from 'react';
-import type { PhaseDef } from '../brand/types';
-import { gateRequirements } from '../data/gate';
-import { localToday } from '../data/dates';
-import { needsAttentionItems, type NeedsAttentionItem, type NeedsAttentionKind } from '../data/needsAttention';
-import type { Initiative } from '../data/types';
-import { useBrand } from '../state/BrandContext';
-import { useRepositoryState } from '../state/DataContext';
+import { useState } from 'react';
+import type { NeedsAttentionItem, NeedsAttentionKind } from '../data/needsAttention';
 import { actualCellAnchor } from './PhasesSection';
 import { DueIcon, EscalatedIcon, OverdueIcon, OverrunIcon, ReadyIcon } from './icons';
 import { jumpTargetId } from './jumpTo';
+import { useNeedsAttentionItems } from './useNeedsAttentionItems';
 
 /** Shown at most three at a time (§5.2); "Show n more" reveals the rest in place. */
 const COLLAPSED_COUNT = 3;
@@ -23,7 +18,7 @@ const KIND_CONFIG: Record<NeedsAttentionKind, { label: string; Icon: typeof Over
 };
 
 /** Where a strip item's initiative name opens to (§5.2): the initiative page, scrolled and focused at the place matching its kind. */
-function hrefFor(item: NeedsAttentionItem, initiatives: Initiative[], process: PhaseDef[]): string {
+function hrefFor(item: NeedsAttentionItem): string {
   const base = `#/initiatives/${item.initiativeId}`;
   switch (item.kind) {
     case 'escalated':
@@ -32,11 +27,9 @@ function hrefFor(item: NeedsAttentionItem, initiatives: Initiative[], process: P
       return `${base}?focus=phase-row-${item.phaseId}`;
     case 'overdue':
       return `${base}?focus=${actualCellAnchor(item.phaseId, item.month)}&openPhase=${item.phaseId}`;
-    case 'due': {
-      const initiative = initiatives.find((i) => i.id === item.initiativeId);
-      const target = initiative && jumpTargetId(gateRequirements(process, initiative, item.phaseId), item.phaseId);
-      return `${base}?focus=${target || 'magic-bar'}`;
-    }
+    case 'due':
+      // A one-element array is enough: jumpTargetId just needs to find item.blocker again, already known to be one.
+      return `${base}?focus=${jumpTargetId([item.blocker], item.phaseId) ?? 'magic-bar'}`;
     case 'ready':
       return `${base}?focus=magic-bar`;
   }
@@ -44,15 +37,8 @@ function hrefFor(item: NeedsAttentionItem, initiatives: Initiative[], process: P
 
 /** The Portfolio's Needs attention strip (§5.2, §8.5): the ranked list of current-gate states worth a look. */
 export function NeedsAttentionStrip() {
-  const { process, approvalTracks } = useBrand();
-  const { initiatives, people, roles, countries } = useRepositoryState();
   const [expanded, setExpanded] = useState(false);
-  const today = localToday();
-
-  const items = useMemo(
-    () => needsAttentionItems(initiatives, process, people, { roles, countries }, approvalTracks, today),
-    [initiatives, process, people, roles, countries, approvalTracks, today],
-  );
+  const items = useNeedsAttentionItems();
 
   if (items.length === 0) return null;
   const shown = expanded ? items : items.slice(0, COLLAPSED_COUNT);
@@ -70,7 +56,7 @@ export function NeedsAttentionStrip() {
             <li key={item.initiativeId} className="flex items-center gap-2.5 border-t border-border-default px-3.5 py-2 text-sm first:border-t-0">
               <Icon width={16} height={16} className={`shrink-0 ${colorClass}`} />
               <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${tintClass} ${colorClass}`}>{label}</span>
-              <a href={hrefFor(item, initiatives, process)} className="shrink-0 font-medium text-text-primary underline">
+              <a href={hrefFor(item)} className="shrink-0 font-medium text-text-primary underline">
                 {item.initiativeName}
               </a>
               <span className="truncate text-text-secondary">— {item.reason}</span>

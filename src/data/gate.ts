@@ -1,5 +1,6 @@
 import type { ApprovalTrackDef, GateDef, PhaseDef } from '../brand/types';
 import { allocationFigures, grandEstimate, hasValidPeriod, phaseByMonth, resolveApprovalTrack, type RateData } from './cost';
+import { daysBetween } from './dates';
 import { currentPhaseId } from './processState';
 import type { ChecklistItemRecord, ChecklistItemState, ChecklistStatus, FrozenAllocation, FrozenPhaseSnapshot, GateRecord, Initiative, Person } from './types';
 
@@ -148,10 +149,23 @@ export function gateProgress(requirements: GateRequirement[]): { complete: numbe
   return { complete: requirements.filter((r) => r.state === 'met').length, total: requirements.length };
 }
 
+/** "X of Y complete" (§8.1), the one phrase this reads as everywhere it appears (the gate panel, the Needs attention strip). */
+export function gateProgressText(progress: { complete: number; total: number }): string {
+  return `${progress.complete} of ${progress.total} complete`;
+}
+
+/** Nothing left blocking the gate (§8.1, §8.5) — a warning-only gate (Tentative items) reads as this too, since only Incomplete ever blocks. */
+export const READY_MESSAGE = 'All requirements met';
+
 /** Whether the phase behind a costed gate has run past the date it was itself estimated to end on (§8.1) — the one thing worth real alarm colour. */
 export function gateOverdue(initiative: Initiative, phase: PhaseDef, today: string): boolean {
   const plan = initiative.phases?.[phase.id];
   return Boolean(phase.costed && plan?.endDate && plan.endDate < today);
+}
+
+/** "<phase> is N days overrun" (§8.1, §8.5), the one phrase this reads as everywhere a phase's own overdue state is shown (the magic bar, the Needs attention strip). */
+export function overrunMessage(phase: PhaseDef, endDate: string, today: string): string {
+  return `${phase.label} is ${daysBetween(endDate, today)} days overrun`;
 }
 
 /** Snapshot everything an approved figure depends on, so it can never move (§8.1). */
