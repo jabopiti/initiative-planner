@@ -8,7 +8,7 @@ depends_on: ["008", "010"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: null
+change_summary: "Decided in review: one item per Active initiative (the priority cascade stops at the first match); Overdue scans every costed phase, not just the current one; deep links use a `?focus=` suffix on the initiative hash route, consumed once on mount via a shared scroll/focus helper extracted from MagicBar's jump-to-blocker; strip renders as compact one-line rows, not chip cards; new icons are TrendingUp/CalendarClock/ClipboardList/Rocket for Escalated/Overdue/Due/Ready; the five reason strings reuse existing app phrasing where one exists; the nav count is a neutral pill matching the approval-track badge style."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "Cross-cutting aggregation across five prioritized categories (§8.5) reusing logic already built in slices 008 and 010; moderate complexity from the priority ordering, not from any new calculation. Escalate to Opus 5 only if the five-way prioritization proves fiddly."
 spec_sections: ["§5.2 Portfolio overview (Needs attention strip)", "§5.1 Navigation (Initiatives nav count)", "§7.4 Approval tracks (Escalation)", "§8.5 Needs attention"]
@@ -47,6 +47,58 @@ exclusion — On Hold initiatives are correctly left out of the strip per
 §8.5, but the fuller On Hold lifecycle (Resume, the magic bar's "On hold"
 state) is scoped to a later lifecycle slice, not required for this
 slice's core aggregation behaviour.
+
+**Decided in review (pre-implementation):**
+- One item per Active initiative: §8.5's "checks escalation, phase
+  overrun, overdue actuals, due requirements, and readiness, in that
+  priority order" is read as a cascade — the first kind that applies is
+  the initiative's item, not a set of independent checks. This makes
+  "initiatives with at least one item" (§5.1 nav count) well-defined
+  without inventing a tie-break rule.
+- Overdue scans every costed phase, not just the current one, since a
+  past phase's own actual can go overdue after that phase's gate has
+  already passed; Escalated/Overrun/Due/Ready stay about the current
+  gate only.
+- Deep link: clicking a strip item's name navigates to
+  `#/initiatives/<id>?focus=<anchorId>`. `App.tsx` splits `focus` off the
+  hash path; `InitiativeDetail` reads it once on mount, expanding the
+  phase holding the target if it starts collapsed (only matters for
+  Overdue's actual row), then scrolls and focuses it via a helper
+  extracted from MagicBar.tsx's existing jump-to-blocker (today local to
+  that file) — reusing the one scroll/focus pattern already in the app
+  (§9.5: magic bar actions "that point to a section move focus to it")
+  rather than adding a second one. Anchor targets: the cost summary
+  section (Escalated), the existing `phase-row-{phaseId}` id (Overrun), a
+  new per-month id on the actuals row (Overdue), the gate checklist panel
+  (Due, already unconditionally mounted for the current phase), and the
+  magic bar's Pass gate button (Ready).
+- Strip layout: compact one-line rows in a bordered "Needs attention"
+  panel — icon, kind pill, initiative name (link), short reason — with
+  "Show n more" as a footer row. Chip cards (one small card per item)
+  were considered and rejected: each needed 3-4 lines and wrapped the
+  reason text more than a row does.
+- Icons (§9.10): Escalated = TrendingUp, Overdue = CalendarClock, Due =
+  ClipboardList, Ready = Rocket — chosen to stay visually distinct from
+  Overrun's existing Flame and Complete's existing CircleCheck (a
+  CircleCheckBig alternative for Ready was rejected as reading as a
+  near-duplicate of Complete's icon).
+- Copy, one short reason per kind, reusing existing app phrasing where it
+  already exists rather than inventing new wording:
+  - Overrun: "{phase label} is {N} days overrun" — verbatim from
+    MagicBar.tsx's existing overdue guidance.
+  - Escalated: "Needs {live track} approval (was {recorded track})" — new
+    text; no existing precedent to reuse.
+  - Overdue: "{phase label}: no actual recorded for {month}" — mirrors
+    §8.5's own wording ("no actual recorded against it").
+  - Due: "{complete} of {total} complete" — verbatim; §8.1 says to use
+    this phrase "everywhere it appears".
+  - Ready: "All requirements met" — verbatim from MagicBar.tsx's existing
+    ready guidance.
+- Nav count (§5.1): a small neutral pill (bg-surface-subtle), matching
+  the style already used for the Portfolio card's approval-track badge,
+  next to the "Initiatives" label — not warning-tinted, since the count
+  mixes all severities including the calm Ready state (§9.8: Met, not
+  Warning).
 
 ## Execution path
 
