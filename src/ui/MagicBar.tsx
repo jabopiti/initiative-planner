@@ -1,30 +1,15 @@
 import { useEffect, useState } from 'react';
-import { currentPhaseId, gateBlockers, gateOverdue, gateRequirements, type GateRequirement } from '../data/gate';
+import { currentPhaseId, gateBlockers, gateOverdue, gateRequirements } from '../data/gate';
 import { daysBetween, localToday } from '../data/dates';
 import { useBrand } from '../state/BrandContext';
 import { useRepository } from '../state/DataContext';
 import type { Initiative } from '../data/types';
-import { checklistItemAnchor } from './GateChecklistPanel';
+import { jumpTargetId, jumpTo } from './jumpTo';
 import { OverrunIcon } from './icons';
 import { Button } from '@/components/ui/button';
 
 /** How long "Passed <gate> — Reopen" shows before the bar moves on (§5.4, §9.9: a few seconds). */
 const PASSED_MESSAGE_MS = 5000;
-
-/** Where a click on the muted Pass gate, or the open-item count, jumps to (§5.4). */
-function jumpTargetId(requirements: GateRequirement[], phaseId: string): string | null {
-  const blocker = requirements.find((r) => r.state === 'blocker');
-  if (!blocker) return null;
-  return blocker.kind === 'estimates' ? `phase-row-${blocker.missingPhaseIds[0]}` : checklistItemAnchor(phaseId, blocker.itemId);
-}
-
-function jumpTo(id: string | null) {
-  if (!id) return;
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  (el.matches('input,button,[tabindex]') ? el : el.querySelector<HTMLElement>('input,button,[tabindex]'))?.focus();
-}
 
 /** The current phase's own row for the stepper (§5.4): a compact dot, current one accented. */
 function StepperDot({ state }: { state: 'done' | 'current' | 'ahead' }) {
@@ -72,7 +57,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   else guidance = blockers.length > 1 ? `${blockers[0]} (+${blockers.length - 1} more)` : blockers[0];
 
   return (
-    <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-border-default bg-surface-card px-4 py-3 shadow-[0_-1px_4px_rgba(0,0,0,0.06)]">
+    <div id="magic-bar" className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-border-default bg-surface-card px-4 py-3 shadow-[0_-1px_4px_rgba(0,0,0,0.06)]">
       <div className="flex items-center gap-1.5" aria-hidden="true">
         {process.map((p, i) => (
           <StepperDot key={p.id} state={i < process.indexOf(phase) ? 'done' : p.id === phaseId ? 'current' : 'ahead'} />
