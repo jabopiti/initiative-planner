@@ -6,6 +6,7 @@ import { buildBaselineDataset } from '../data/baseline';
 import type { Initiative, Membership, Person } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider, useRepositoryState } from '../state/DataContext';
+import { NeedsAttentionProvider } from '../state/NeedsAttentionContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { InitiativeDetail } from './InitiativeDetail';
 import { PortfolioBoard } from './PortfolioBoard';
@@ -65,7 +66,9 @@ function renderWith(ui: React.ReactNode) {
   return render(
     <BrandProvider brand={defaultBrandPack}>
       <TooltipProvider>
-        <RepositoryProvider token="token">{ui}</RepositoryProvider>
+        <RepositoryProvider token="token">
+          <NeedsAttentionProvider>{ui}</NeedsAttentionProvider>
+        </RepositoryProvider>
       </TooltipProvider>
     </BrandProvider>,
   );

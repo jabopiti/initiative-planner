@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import type { NeedsAttentionItem, NeedsAttentionKind } from '../data/needsAttention';
+import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { actualCellAnchor } from './PhasesSection';
 import { DueIcon, EscalatedIcon, OverdueIcon, OverrunIcon, ReadyIcon } from './icons';
 import { jumpTargetId } from './jumpTo';
-import { useNeedsAttentionItems } from './useNeedsAttentionItems';
 
 /** Shown at most three at a time (§5.2); "Show n more" reveals the rest in place. */
 const COLLAPSED_COUNT = 3;

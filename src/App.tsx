@@ -3,6 +3,7 @@ import { tokenStore } from './auth/tokenStore';
 import { defaultBrandPack } from './brand/defaultBrand';
 import { BrandProvider } from './state/BrandContext';
 import { RepositoryProvider, useRepositoryState } from './state/DataContext';
+import { NeedsAttentionProvider } from './state/NeedsAttentionContext';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { TopBar } from './ui/TopBar';
 import { ConflictBanner } from './ui/ConflictBanner';
@@ -52,9 +53,11 @@ function MainApp({ token }: { token: string }) {
   const route = useHashRoute();
   return (
     <RepositoryProvider token={token}>
-      <TopBar route={route} />
-      <ConflictBanner />
-      <Screen route={route} />
+      <NeedsAttentionProvider>
+        <TopBar route={route} />
+        <ConflictBanner />
+        <Screen route={route} />
+      </NeedsAttentionProvider>
     </RepositoryProvider>
   );
 }

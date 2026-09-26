@@ -1,8 +1,8 @@
 import { useBrand } from '../state/BrandContext';
+import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { NewInitiativeControl } from './NewInitiativeControl';
 import { SyncIndicator } from './SyncIndicator';
 import { LogoMark, SearchIcon } from './icons';
-import { useNeedsAttentionItems } from './useNeedsAttentionItems';
 
 const NAV_ITEMS: { label: string; path: string }[] = [
   { label: 'Portfolio', path: '/portfolio' },
