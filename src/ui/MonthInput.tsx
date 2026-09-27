@@ -18,6 +18,7 @@ export function MonthInput({
   required,
   changed,
   failure = null,
+  retryLabel,
   onChange,
 }: {
   /** A month key, `YYYY-MM`. */
@@ -28,6 +29,8 @@ export function MonthInput({
   changed?: boolean;
   /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
   failure?: FieldFailure | null;
+  /** The failed edit's Retry button's accessible name, distinct from every other Retry on screen (§9.5, §9.9). */
+  retryLabel?: string;
   onChange: (value: string | undefined) => void;
 }) {
   const [year, setYear] = useState(() => yearOf(value ?? monthKey(new Date().getFullYear(), 0)));
@@ -44,6 +47,7 @@ export function MonthInput({
       required={required}
       changed={changed}
       failure={failure}
+      retryLabel={retryLabel}
       widthClassName="w-36"
       format={formatMonth}
       parse={parseMonthText}

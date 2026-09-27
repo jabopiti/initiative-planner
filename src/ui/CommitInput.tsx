@@ -3,12 +3,25 @@ import { useHoldWhileEditing, type FieldFailure } from '../state/DataContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+/** The tinted, announced message box under a field (§9.9): a refusal (alarm) or a failed save (warning) share
+ * this one shape, differing only in tone and content. */
+function MessageBox({ id, tone, className = '', children }: { id?: string; tone: 'alarm' | 'warning'; className?: string; children: ReactNode }) {
+  const toneClass = tone === 'alarm' ? 'bg-alarm-tint text-alarm-text' : 'bg-warning-tint text-warning-text';
+  // No gap/justify class here: Refusal and FailedEdit need different ones, and each supplies its own via
+  // `className` below rather than fighting the base's over an already-present utility of the same kind.
+  return (
+    <p id={id} role="alert" className={`m-0 flex items-center rounded-md px-2 py-1 text-xs ${toneClass} ${className}`}>
+      {children}
+    </p>
+  );
+}
+
 /** The message under a field that refused its text (§9.9), announced when it appears. */
 export function Refusal({ id, className = '', children }: { id?: string; className?: string; children: ReactNode }) {
   return (
-    <p id={id} role="alert" className={`m-0 flex items-center gap-1 rounded-md bg-alarm-tint px-2 py-1 text-xs text-alarm-text ${className}`}>
+    <MessageBox id={id} tone="alarm" className={`gap-1 ${className}`}>
       {children}
-    </p>
+    </MessageBox>
   );
 }
 
@@ -16,16 +29,12 @@ export function Refusal({ id, className = '', children }: { id?: string; classNa
  * (§3, §9.9): the cause and its own Retry, with an accessible name distinct from every other Retry on screen. */
 export function FailedEdit({ id, retryLabel, failure, className = '' }: { id?: string; retryLabel: string; failure: FieldFailure; className?: string }) {
   return (
-    <p
-      id={id}
-      role="alert"
-      className={`m-0 flex items-center justify-between gap-2 rounded-md bg-warning-tint px-2 py-1 text-xs text-warning-text ${className}`}
-    >
+    <MessageBox id={id} tone="warning" className={`justify-between gap-2 ${className}`}>
       <span>{failure.message}</span>
       <Button type="button" variant="outline" size="xs" aria-label={retryLabel} onClick={failure.retry}>
         Retry
       </Button>
-    </p>
+    </MessageBox>
   );
 }
 

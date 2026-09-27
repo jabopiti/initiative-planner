@@ -72,9 +72,12 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => {
+            {items.map((item, index) => {
               const itemChanged = (field: string) => changed(file, ['phases', phase.id, 'costItems', { id: item.id }, field]);
               const itemFailure = (field: string) => failure(file, ['phases', phase.id, 'costItems', { id: item.id }, field]);
+              // Position, not the item's own (freely re-typed, possibly duplicate) label: two cost items named
+              // alike must still get their own Retry, distinguishable to a screen reader (§9.5, §9.9).
+              const itemRetryLabel = (field: string) => `Retry saving the ${field} of cost item ${index + 1}`;
               return (
                 <tr key={item.id} className="border-t border-border-default align-top">
                   <td className="py-1.5 pr-2">
@@ -84,6 +87,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                       value={item.label}
                       changed={itemChanged('label')}
                       failure={itemFailure('label')}
+                      retryLabel={itemRetryLabel('label')}
                       onCommit={(text) => {
                         const label = text.trim();
                         if (label === '') return LABEL_REFUSAL;
@@ -109,6 +113,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                         value={String(item.amount)}
                         changed={itemChanged('amount')}
                         failure={itemFailure('amount')}
+                        retryLabel={itemRetryLabel('amount')}
                         onCommit={(text) => {
                           const amount = parseAmount(text);
                           if (amount === null) return AMOUNT_REFUSAL;
@@ -134,6 +139,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                           value={item.month}
                           changed={itemChanged('month')}
                           failure={itemFailure('month')}
+                          retryLabel={itemRetryLabel('month')}
                           onChange={(month) => month && repository.updateCostItem(initiativeId, phase.id, item.id, { month })}
                         />
                       )}

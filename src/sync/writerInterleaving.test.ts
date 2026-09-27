@@ -628,5 +628,50 @@ describe('slice 005j: read-only banner, automatic recovery, and Retry (§3, §9.
       await repo.flushPending();
       expect(repo.getState().readOnly).toBeNull();
     });
+
+    it('works for an initiative file too, not only the master files (allWriters keys by file path)', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake, { initiatives: [initiative()] });
+      const file = 'initiatives/i1.json';
+
+      fake.fail(file, 500);
+      repo.renameInitiative('i1', 'Renamed');
+      await repo.flushPending();
+
+      expect(repo.getState().fileFailures.get(file)).not.toBeUndefined();
+      expect([...repo.getState().failedFields].some((k) => k.startsWith(file))).toBe(true);
+
+      repo.retryFile(file); // must resolve to this initiative's own writer, not a no-op
+      await repo.flushPending();
+
+      expect(fake.commits(file)).toHaveLength(1);
+      expect(repo.getState().readOnly).toBeNull();
+      expect(repo.getState().fileFailures.size).toBe(0);
+    });
+  });
+
+  describe('the banner and a failed field never disagree, even mid-retry', () => {
+    it('stays read-only, with the field still listed failed, while a retry\'s own write is still in flight', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+      fake.fail('teams.json', 500);
+      repo.createTeam('Platform');
+      await repo.flushPending();
+      expect(repo.getState().readOnly).not.toBeNull();
+      expect(repo.getState().fileFailures.get('teams.json')).not.toBeUndefined();
+
+      const release = fake.hold('teams.json');
+      repo.retryFile('teams.json');
+      await vi.waitFor(() => expect(fake.arrived('teams.json')).toBe(2));
+
+      // The writer already reported 'syncing' for this retry, but nothing has saved yet: both must still say failed.
+      expect(repo.getState().readOnly).not.toBeNull();
+      expect(repo.getState().fileFailures.get('teams.json')).not.toBeUndefined();
+
+      release();
+      await repo.flushPending();
+      expect(repo.getState().readOnly).toBeNull();
+      expect(repo.getState().fileFailures.size).toBe(0);
+    });
   });
 });

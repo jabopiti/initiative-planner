@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { causeText } from '../github/errors';
 import { pathKey, type Path } from '../sync/merge';
 import { useBrand } from './BrandContext';
 import { changeCovers, changeKey, Repository, type RepositoryState } from '../sync/Repository';
@@ -74,7 +75,7 @@ export function useFieldFailure(): (file: string, path: Path) => FieldFailure | 
     if (conflicts.some((c) => c.file === file && pathKey(c.path) === pathKey(path))) return null;
     const cause = fileFailures.get(file);
     if (!cause) return null;
-    return { message: `Not saved: ${cause.message.replace(/[.\s]+$/, '')}.`, retry: () => repository.retryFile(file) };
+    return { message: `Not saved: ${causeText(cause)}.`, retry: () => repository.retryFile(file) };
   };
 }
 

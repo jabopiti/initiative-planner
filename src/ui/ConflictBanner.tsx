@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
+import { causeText } from '../github/errors';
 import type { FileConflict } from '../sync/FileWriter';
 import { pathKey } from '../sync/merge';
 import { Button } from '@/components/ui/button';
@@ -57,7 +58,7 @@ export function ConflictBanner() {
             </div>
             {unsaved.includes(conflict) && (
               <p className="mt-1 mb-0">
-                Your choice was not saved{readOnly ? `: ${readOnly.message.replace(/[.\s]+$/, '')}` : ''}. Choose again to retry.
+                Your choice was not saved{readOnly ? `: ${causeText(readOnly)}` : ''}. Choose again to retry.
               </p>
             )}
           </div>
