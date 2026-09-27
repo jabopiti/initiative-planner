@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useBrand } from '../state/BrandContext';
-import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
+import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState, type FieldFailure } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
 import { actualOrEstimate, allocationFigures, hasValidPeriod, phaseByMonth, phaseCoverage, phaseEffectiveTotal, phaseMonths } from '../data/cost';
@@ -138,6 +138,7 @@ function CostedPhase({
 }) {
   const repository = useRepository();
   const changed = useIsChangedByOthers();
+  const failure = useFieldFailure();
   const file = FILE_PATHS.initiative(initiative.id);
   const { currencySymbol, process } = useBrand();
   const { people, roles, countries, memberships, initiatives, teams } = useRepositoryState();
@@ -264,6 +265,7 @@ function CostedPhase({
                       label={`${phase.label} start date`}
                       value={plan.startDate}
                       changed={changed(file, ['phases', phase.id, 'startDate'])}
+                      failure={failure(file, ['phases', phase.id, 'startDate'])}
                       highlight={needsPeriod}
                       onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'startDate', v)}
                     />
@@ -274,6 +276,7 @@ function CostedPhase({
                       label={`${phase.label} end date`}
                       value={plan.endDate}
                       changed={changed(file, ['phases', phase.id, 'endDate'])}
+                      failure={failure(file, ['phases', phase.id, 'endDate'])}
                       openOn={plan.startDate}
                       highlight={needsPeriod}
                       onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'endDate', v)}
@@ -339,6 +342,7 @@ function CostedPhase({
                             <PercentInput
                               label={`Allocation % for ${name}`}
                               changed={changed(file, ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct'])}
+                              failure={failure(file, ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct'])}
                               value={allocation.allocationPct}
                               onChange={(pct) => repository.updateAllocation(initiative.id, phase.id, allocation.id, pct)}
                             />
@@ -406,6 +410,7 @@ function CostedPhase({
                           defaulted={actualOrEstimate(plan, month, today, estimateByMonth)}
                           currencySymbol={currencySymbol}
                           changed={changed(file, ['phases', phase.id, 'actualMonths', month])}
+                          failure={failure(file, ['phases', phase.id, 'actualMonths', month])}
                           onChange={(amount) => repository.setActual(initiative.id, phase.id, month, amount)}
                         />
                       </td>
@@ -495,6 +500,7 @@ function ActualCell({
   defaulted,
   currencySymbol,
   changed,
+  failure,
   onChange,
 }: {
   phase: PhaseDef;
@@ -505,12 +511,21 @@ function ActualCell({
   defaulted: number | undefined;
   currencySymbol: string;
   changed: boolean;
+  /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
+  failure: FieldFailure | null;
   onChange: (amount: number) => void;
 }) {
   if (recorded !== undefined) {
     return (
       <div className="flex justify-end">
-        <AmountInput label={`Actual for ${phase.label} ${formatMonth(month)}`} currencySymbol={currencySymbol} value={recorded} changed={changed} onChange={onChange} />
+        <AmountInput
+          label={`Actual for ${phase.label} ${formatMonth(month)}`}
+          currencySymbol={currencySymbol}
+          value={recorded}
+          changed={changed}
+          failure={failure}
+          onChange={onChange}
+        />
       </div>
     );
   }
@@ -533,6 +548,7 @@ function ActualCell({
           value={undefined}
           placeholder="Enter amount"
           changed={changed}
+          failure={failure}
           onChange={onChange}
         />
       </div>

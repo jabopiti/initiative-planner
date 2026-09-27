@@ -77,4 +77,13 @@ describe('Month input (§9.11)', () => {
     expect(await screen.findByRole('button', { name: 'Next year' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Previous year' })).toBeEnabled();
   });
+
+  it('a failed edit (§3, §9.9) shows its cause and its own Retry, distinct from other fields', async () => {
+    const retry = vi.fn();
+    const user = userEvent.setup();
+    render(<MonthInput label="Month for Design" value="2026-09" onChange={() => {}} failure={{ message: 'Not saved: offline.', retry }} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Not saved: offline.');
+    await user.click(screen.getByRole('button', { name: 'Retry saving Month for Design' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
 });

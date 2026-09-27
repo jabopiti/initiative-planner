@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
-import type { Path } from '../sync/merge';
+import { causeText } from '../github/errors';
+import { pathKey, type Path } from '../sync/merge';
 import { useBrand } from './BrandContext';
 import { changeCovers, changeKey, Repository, type RepositoryState } from '../sync/Repository';
 
@@ -52,6 +53,29 @@ export function useIsChangedByOthers(): (file: string, path: Path) => boolean {
     const key = changeKey(file, path);
     for (const other of changed) if (changeCovers(key, other) || changeCovers(other, key)) return true;
     return false;
+  };
+}
+
+/** What a failed field shows in place of looking like a normal committed field (§3, §9.9). */
+export interface FieldFailure {
+  message: string;
+  retry: () => void;
+}
+
+/**
+ * A field's own failed, unsaved edit (§3, §9.9): null once the value at `path` of `file` has nothing failed,
+ * or a same-field conflict already owns that path — `ConflictBanner` says so there, so this never says it too.
+ * A function rather than a hook per value, so a row of fields can ask inside a loop, like `useIsChangedByOthers`.
+ */
+export function useFieldFailure(): (file: string, path: Path) => FieldFailure | null {
+  const repository = useRepository();
+  const { failedFields, fileFailures, conflicts } = useRepositoryState();
+  return (file, path) => {
+    if (!failedFields.has(changeKey(file, path))) return null;
+    if (conflicts.some((c) => c.file === file && pathKey(c.path) === pathKey(path))) return null;
+    const cause = fileFailures.get(file);
+    if (!cause) return null;
+    return { message: `Not saved: ${causeText(cause)}.`, retry: () => repository.retryFile(file) };
   };
 }
 

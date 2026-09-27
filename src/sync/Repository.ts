@@ -23,7 +23,7 @@ import { buildDefaultPlan } from '../data/defaultPlan';
 import { frozenPaths, isPhaseFrozen } from '../data/frozen';
 import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, withChecklistItem } from '../data/gate';
 import type { ChecklistStatus } from '../data/types';
-import { toReadOnlyState, type ReadOnlyState } from '../github/errors';
+import { AUTOMATIC_RETRY_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type BranchHead } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
@@ -46,6 +46,12 @@ export interface RepositoryState {
   memberships: Membership[];
   initiatives: Initiative[];
   conflicts: FileConflict[];
+  /** Files with a failed, unsaved edit (§3, §9.9), by path: the read-only banner's cause is `readOnly`, but a
+   * field needs its own file's cause, since more than one file can be failing for different reasons at once. */
+  fileFailures: ReadonlyMap<string, ReadOnlyState>;
+  /** Values with a failed, unsaved edit, as `changeKey`s (§9.9): a field maps its own path to this to show
+   * "Not saved" and its own Retry, instead of looking like a normal committed field. */
+  failedFields: ReadonlySet<string>;
   /** Values another user's change updated a moment ago, as `changeKey`s, to tint (§9.9 Changed by others). */
   changed: ReadonlySet<string>;
   /** Others' changes arrived a moment ago: the sync indicator's tooltip says so (§9.9). */
@@ -156,6 +162,8 @@ export class Repository {
     memberships: [],
     initiatives: [],
     conflicts: [],
+    fileFailures: new Map(),
+    failedFields: new Set(),
     changed: new Set(),
     updatedByOthers: false,
   };
@@ -386,13 +394,20 @@ export class Repository {
     ] as const;
   }
 
+  /** Every file's writer, by path, master and initiative alike — for the read-only banner and Retry (§9.9), which
+   * treat every file the same regardless of what document type it holds. */
+  private allWriters(): [string, FileWriter<unknown>][] {
+    const master = this.masterWriters().filter((entry) => entry[1] !== null) as unknown as [string, FileWriter<unknown>][];
+    const initiatives = [...this.initiativeWriters].map(
+      ([id, writer]): [string, FileWriter<unknown>] => [FILE_PATHS.initiative(id), writer as FileWriter<unknown>],
+    );
+    return [...master, ...initiatives];
+  }
+
   /** The version of each file as it is on screen. */
   private knownShas(): Map<string, string> {
     const known = new Map(this.shas);
-    for (const [path, writer] of this.masterWriters()) {
-      if (writer?.sha != null) known.set(path, writer.sha);
-    }
-    for (const [id, writer] of this.initiativeWriters) if (writer.sha !== null) known.set(FILE_PATHS.initiative(id), writer.sha);
+    for (const [path, writer] of this.allWriters()) if (writer.sha != null) known.set(path, writer.sha);
     return known;
   }
 
@@ -526,16 +541,50 @@ export class Repository {
     };
   }
 
-  /** Shows how the pull ended, and tries again soon unless everything it found was applied. */
+  /** Shows how the pull ended, and arms the shared retry loop unless everything it found was applied. */
   private settlePull(complete: boolean): void {
-    this.publishStatus();
+    const recoverable = this.publishStatus();
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
-    if (complete && this.pullFailure === null) return;
+    this.armRetry(!complete, recoverable);
+  }
+
+  /**
+   * One shared timer for the pull's own retry and the automatic recovery of a failed write (§3, §9.9): the
+   * same 30s cadence and tab-visibility gate, so a failed write never fires its own separate loop. Arms only
+   * when there is something to retry: the pull itself, or a writer whose cause auto-retries. `hasRecoverableFailure`
+   * comes from the same {@link publishStatus} pass that just built `fileFailures`, so arming never re-walks
+   * every writer a second time for the same status event.
+   */
+  private armRetry(pullIncomplete: boolean, hasRecoverableFailure: boolean): void {
+    if (this.retryTimer) return;
+    if (!pullIncomplete && this.pullFailure === null && !hasRecoverableFailure) return;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
-      if (document.visibilityState === 'visible') void this.pull();
+      if (document.visibilityState !== 'visible') return;
+      for (const [, writer] of this.allWriters()) if (this.autoRetries(writer)) void writer.retry();
+      void this.pull();
     }, PULL_RETRY_MS);
+  }
+
+  /** Whether `writer`'s failure, if any, is one of the two causes §3 marks "Automatic" (§9.9). */
+  private autoRetries(writer: FileWriter<unknown>): boolean {
+    const failure = writer.failure;
+    return failure !== null && AUTOMATIC_RETRY_CAUSES.includes(failure.cause);
+  }
+
+  /** Resends one file's failed edit now, rather than waiting for the shared retry loop (§9.9: a field's own Retry). */
+  retryFile(file: string): void {
+    void this.allWriters().find(([path]) => path === file)?.[1].retry();
+  }
+
+  /**
+   * The read-only banner's Retry (§9.9): uniform across every cause, unlike the automatic loop — a pull now,
+   * and every currently-failed file resent, instead of waiting for the next tick.
+   */
+  retryAll(): void {
+    void this.pull();
+    for (const [, writer] of this.allWriters()) if (writer.failure) void writer.retry();
   }
 
   /** Pulls on the schedule of §3, from now until the returned function is called: on focus, and every 5 minutes while visible. */
@@ -568,14 +617,36 @@ export class Repository {
   private statusOf(file: string): (status: WriteStatus) => void {
     return (status) => {
       this.writerStatus.set(file, status);
-      this.publishStatus();
+      // A write can fail independently of any pull, so the shared retry loop must arm here too.
+      this.armRetry(false, this.publishStatus());
     };
   }
 
-  private publishStatus(): void {
+  /** Publishes the aggregate state from every writer's current status, and reports whether any of their
+   * failures is a cause {@link armRetry} should auto-retry — computed in this same pass, so arming never
+   * has to walk every writer again for the same status event. */
+  private publishStatus(): boolean {
     const all = [...this.writerStatus.values()];
-    const failed = all.find((s): s is { readOnly: ReadOnlyState } => typeof s === 'object');
-    this.setState({ syncing: this.opening || all.some((s) => s === 'syncing'), readOnly: failed?.readOnly ?? this.pullFailure });
+    const fileFailures = new Map<string, ReadOnlyState>();
+    const failedFields = new Set<string>();
+    let recoverable = false;
+    for (const [path, writer] of this.allWriters()) {
+      const failure = writer.failure;
+      if (!failure) continue;
+      fileFailures.set(path, failure);
+      for (const p of writer.failedPaths) failedFields.add(changeKey(path, p));
+      if (AUTOMATIC_RETRY_CAUSES.includes(failure.cause)) recoverable = true;
+    }
+    // Read from fileFailures, not from `writerStatus`'s own strings: a writer reports 'syncing' the moment
+    // a retry starts, before its own `failed` flag clears, and the banner must not blink off while the
+    // field it belongs to still shows "Not saved" (§3, §9.9) — both come from the same writer state here.
+    this.setState({
+      syncing: this.opening || all.some((s) => s === 'syncing'),
+      readOnly: fileFailures.values().next().value ?? this.pullFailure,
+      fileFailures,
+      failedFields,
+    });
+    return recoverable;
   }
 
   /** Any conflict a file's writer finds, to resolve in the banner. */

@@ -45,3 +45,13 @@ export function toReadOnlyState(error: unknown, fallbackMessage: string): ReadOn
   if (error instanceof GithubApiError) return { cause: error.cause_, message: CAUSE_MESSAGES[error.cause_] ?? error.message };
   return { cause: 'unknown', message: fallbackMessage };
 }
+
+/** The two causes §3's Sync failures table marks "Automatic": retrying can succeed by itself, with no user
+ * action. The others — access denied; process mismatch / dataset newer — need the user to do something first
+ * (a new token; a reload), so a shared background retry loop (§9.9) only ever fires for these two. */
+export const AUTOMATIC_RETRY_CAUSES: readonly GithubFailureCause[] = ['unreachable', 'rate-limited'];
+
+/** `state.message` without trailing punctuation, for splicing into a sentence (e.g. "Not saved: `<this>`."). */
+export function causeText(state: ReadOnlyState): string {
+  return state.message.replace(/[.\s]+$/, '');
+}

@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { useHoldWhileEditing } from '../state/DataContext';
+import { useHoldWhileEditing, type FieldFailure } from '../state/DataContext';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
+import { FailedEdit } from './CommitInput';
 import { CalendarIcon } from './icons';
 
 /**
@@ -27,6 +28,8 @@ export function PopoverTextField({
   onTyped,
   pickerFocus,
   pickerClassName = 'w-auto p-0',
+  failure = null,
+  retryLabel,
   children,
 }: {
   value: string | undefined;
@@ -38,6 +41,10 @@ export function PopoverTextField({
   highlight?: boolean;
   /** Another user's change just updated this value (§9.9). */
   changed?: boolean;
+  /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
+  failure?: FieldFailure | null;
+  /** The failed edit's Retry button's accessible name, distinct from every other Retry on screen (§9.5, §9.9). */
+  retryLabel?: string;
   widthClassName: string;
   format: (value: string) => string;
   parse: (text: string) => string | null;
@@ -57,6 +64,9 @@ export function PopoverTextField({
   const [unreadable, setUnreadable] = useState(false);
   const [open, setOpen] = useState(false);
   const errorId = useId();
+  const failureId = useId();
+  // Not while actively drafting something else: a fresh, uncommitted edit takes over the field's message slot.
+  const showFailure = !unreadable && draft === shown ? failure : null;
   useHoldWhileEditing(draft !== shown);
   const inputRef = useRef<HTMLInputElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -101,7 +111,7 @@ export function PopoverTextField({
               className={`w-full pr-9 transition-colors duration-500 ${highlight ? 'border-brand-accent bg-brand-accent-tint' : changed ? 'bg-met-tint' : ''}`}
               aria-label={label}
               aria-invalid={unreadable || undefined}
-              aria-describedby={unreadable ? errorId : undefined}
+              aria-describedby={unreadable ? errorId : showFailure !== null ? failureId : undefined}
               placeholder={placeholder}
               value={draft}
               onClick={openPicker}
@@ -170,6 +180,7 @@ export function PopoverTextField({
           {refusal}
         </p>
       )}
+      {showFailure && <FailedEdit id={failureId} failure={showFailure} retryLabel={retryLabel ?? `Retry saving ${label}`} />}
     </div>
   );
 }

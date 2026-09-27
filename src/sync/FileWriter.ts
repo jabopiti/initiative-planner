@@ -74,8 +74,11 @@ export class FileWriter<D> {
   private tail: Promise<unknown> = Promise.resolve();
   /** Saves requested and not yet started. */
   private waiting = 0;
-  /** The last save failed and nothing has been saved since, so an idle writer must not say synced. */
-  private failed = false;
+  /** What last failed to save, and why — set and cleared together by {@link fail}/{@link clearFailure} — kept
+   * until a fresh edit or a landed save clears it (§3, §9.9); non-null is "the last save failed and nothing
+   * has been saved since", so an idle writer must not say synced. */
+  private failedContent: D | null = null;
+  private failedCause: ReadOnlyState | null = null;
   private openConflicts: FileConflict[] = [];
   /** A save is running: the pull leaves the file alone, since the save's own re-read brings in anything newer. */
   private saving = false;
@@ -93,7 +96,7 @@ export class FileWriter<D> {
   schedule(next: D, note?: { key: string; text: string }): void {
     this.screen = next;
     this.pending = next;
-    this.failed = false;
+    this.clearFailure();
     if (note) this.notes.set(note.key, note.text);
     this.options.onStatus('syncing');
     if (this.timer) clearTimeout(this.timer);
@@ -130,7 +133,30 @@ export class FileWriter<D> {
 
   /** Nothing is waiting to be saved, no save is running and no choice is open: a pull may replace what is on screen. */
   get idle(): boolean {
-    return this.pending === null && this.timer === null && this.waiting === 0 && !this.saving && this.openConflicts.length === 0 && !this.failed;
+    return (
+      this.pending === null && this.timer === null && this.waiting === 0 && !this.saving && this.openConflicts.length === 0 && this.failedCause === null
+    );
+  }
+
+  /** Why this file's last save failed, for as long as nothing has saved since (§3, §9.9); null otherwise. */
+  get failure(): ReadOnlyState | null {
+    return this.failedCause;
+  }
+
+  /** The paths that changed in the edit that failed to save, against what is actually on GitHub (§9.9): only
+   * these are shown as "Not saved" on screen, so a field the failed edit never touched is not implicated. */
+  get failedPaths(): Path[] {
+    if (this.failedContent === null) return [];
+    return changedPaths(this.synced?.content ?? null, this.failedContent);
+  }
+
+  /** Resends the edit that last failed to save (§3, §9.9's Retry): a no-op once nothing is failed, since a
+   * fresh edit already cleared it via {@link schedule}. */
+  retry(): Promise<SaveResult> {
+    if (this.failedContent === null) return Promise.resolve('saved');
+    this.pending = this.failedContent;
+    this.options.onStatus('syncing');
+    return this.enqueue(() => this.saveNext());
   }
 
   /**
@@ -141,7 +167,7 @@ export class FileWriter<D> {
    * save failed: `writer`, the writer's next save re-reads the file and merges it, so a pull has nothing to retry.
    */
   receive(file: SyncedFile<D>, replaces: string | null): Received {
-    if (this.openConflicts.length > 0 || this.failed) return { left: 'writer' };
+    if (this.openConflicts.length > 0 || this.failedCause !== null) return { left: 'writer' };
     if (this.saving || (this.synced?.sha ?? null) !== replaces) return { left: 'retry' };
     const before = this.screen;
     let next = file.content;
@@ -196,18 +222,19 @@ export class FileWriter<D> {
           }),
         );
         this.synced = { content: sent, sha };
-        this.failed = false;
+        this.clearFailure();
         this.landed(mine, sent, merged, message);
         void this.cache(sent, sha); // Not waited for: the save is done, and the cache only helps the next open.
         return 'saved';
       } catch (error) {
         const stale = error instanceof GithubApiError && error.cause_ === 'conflict';
         const exists = this.synced === null && error instanceof GithubApiError && error.status === 422;
-        if (!stale && !exists) return this.fail(error, this.synced ? 'Something went wrong saving this change.' : this.creationFailure());
+        if (!stale && !exists) return this.fail(error, this.synced ? 'Something went wrong saving this change.' : this.creationFailure(), sent);
         if (retries <= 0) {
           return this.fail(
             new GithubApiError('Could not save after several retries — please retry.', 'conflict'),
             'Could not save after several retries — please retry.',
+            sent,
           );
         }
         // A wrapped re-read: a failure anywhere in the retry must still resolve to a reported status,
@@ -220,7 +247,7 @@ export class FileWriter<D> {
           sent = outcome.merged;
           merged = true;
         } catch (retryError) {
-          return this.fail(retryError, 'Could not save this change after a conflict.');
+          return this.fail(retryError, 'Could not save this change after a conflict.', sent);
         }
       }
     }
@@ -272,7 +299,7 @@ export class FileWriter<D> {
     this.screen = screen;
     this.options.onDocument(screen);
     this.raise(conflicts, message);
-    this.failed = false;
+    this.clearFailure();
     this.reportIdle();
     return 'conflicts';
   }
@@ -301,7 +328,8 @@ export class FileWriter<D> {
       this.screen = doc;
       this.options.onDocument(doc);
       if (idle && this.synced && sameValue(doc, this.synced.content)) {
-        this.failed = false; // Keep theirs, with nothing else to write: the repository already holds it.
+        // Keep theirs, with nothing else to write: the repository already holds it.
+        this.clearFailure();
         this.reportIdle();
         return 'saved';
       }
@@ -317,15 +345,23 @@ export class FileWriter<D> {
     return this.options.creationFailure ?? 'Something went wrong saving this change.';
   }
 
-  private fail(error: unknown, fallback: string): SaveResult {
-    this.failed = true;
-    this.options.onStatus({ readOnly: toReadOnlyState(error, fallback) });
+  private fail(error: unknown, fallback: string, content: D): SaveResult {
+    this.failedContent = content;
+    this.failedCause = toReadOnlyState(error, fallback);
+    this.options.onStatus({ readOnly: this.failedCause });
     return 'failed';
+  }
+
+  /** The two failure fields are always set (by {@link fail}) and cleared together (§3, §9.9); every clearing
+   * site calls this one method so they can never drift apart the way separately-written clears would. */
+  private clearFailure(): void {
+    this.failedContent = null;
+    this.failedCause = null;
   }
 
   /** Synced only when nothing newer is waiting for its own save. */
   private reportIdle(): void {
-    if (this.pending === null && this.waiting === 0 && this.timer === null && !this.failed) this.options.onStatus('synced');
+    if (this.pending === null && this.waiting === 0 && this.timer === null && this.failedCause === null) this.options.onStatus('synced');
   }
 
   /**

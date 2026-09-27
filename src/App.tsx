@@ -6,6 +6,7 @@ import { RepositoryProvider, useRepositoryState } from './state/DataContext';
 import { NeedsAttentionProvider } from './state/NeedsAttentionContext';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { TopBar } from './ui/TopBar';
+import { ReadOnlyBanner } from './ui/ReadOnlyBanner';
 import { ConflictBanner } from './ui/ConflictBanner';
 import { PortfolioBoard } from './ui/PortfolioBoard';
 import { TeamsOverview } from './ui/TeamsOverview';
@@ -55,6 +56,7 @@ function MainApp({ token }: { token: string }) {
     <RepositoryProvider token={token}>
       <NeedsAttentionProvider>
         <TopBar route={route} />
+        <ReadOnlyBanner />
         <ConflictBanner />
         <Screen route={route} />
       </NeedsAttentionProvider>
