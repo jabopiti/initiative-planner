@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type ComponentProps, type ReactNode } from 'react';
-import { useHoldWhileEditing } from '../state/DataContext';
+import { useHoldWhileEditing, type FieldFailure } from '../state/DataContext';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 /** The message under a field that refused its text (§9.9), announced when it appears. */
@@ -7,6 +8,23 @@ export function Refusal({ id, className = '', children }: { id?: string; classNa
   return (
     <p id={id} role="alert" className={`m-0 flex items-center gap-1 rounded-md bg-alarm-tint px-2 py-1 text-xs text-alarm-text ${className}`}>
       {children}
+    </p>
+  );
+}
+
+/** A field whose edit failed to save stays in edit and shows this instead of looking identical to a saved field
+ * (§3, §9.9): the cause and its own Retry, with an accessible name distinct from every other Retry on screen. */
+export function FailedEdit({ id, retryLabel, failure, className = '' }: { id?: string; retryLabel: string; failure: FieldFailure; className?: string }) {
+  return (
+    <p
+      id={id}
+      role="alert"
+      className={`m-0 flex items-center justify-between gap-2 rounded-md bg-warning-tint px-2 py-1 text-xs text-warning-text ${className}`}
+    >
+      <span>{failure.message}</span>
+      <Button type="button" variant="outline" size="xs" aria-label={retryLabel} onClick={failure.retry}>
+        Retry
+      </Button>
     </p>
   );
 }
@@ -28,6 +46,8 @@ export function CommitInput({
   onDraftChange,
   errorClassName = '',
   changed = false,
+  failure = null,
+  retryLabel,
   className,
   ...props
 }: Omit<ComponentProps<typeof Input>, 'value' | 'defaultValue' | 'onChange' | 'onBlur'> & {
@@ -39,10 +59,15 @@ export function CommitInput({
   errorClassName?: string;
   /** Another user's change just updated this value (§9.9). */
   changed?: boolean;
+  /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
+  failure?: FieldFailure | null;
+  /** The failed edit's Retry button's accessible name, distinct from every other Retry on screen (§9.5, §9.9). */
+  retryLabel?: string;
 }) {
   const [draft, setDraft] = useState(value);
   const [error, setError] = useState<string | null>(null);
   const errorId = useId();
+  const failureId = useId();
   useHoldWhileEditing(draft !== value);
   useEffect(() => {
     setDraft(value);
@@ -63,6 +88,9 @@ export function CommitInput({
     if (result === false) setDraft(value);
   };
 
+  // Not while actively drafting something else: a fresh, uncommitted edit takes over the field's message slot.
+  const showFailure = !error && draft === value ? failure : null;
+
   return (
     <>
       <Input
@@ -70,7 +98,7 @@ export function CommitInput({
         className={`transition-colors duration-500 ${className ?? ''} ${changed ? 'bg-met-tint' : ''}`}
         value={draft}
         aria-invalid={error ? true : props['aria-invalid']}
-        aria-describedby={error ? errorId : props['aria-describedby']}
+        aria-describedby={error ? errorId : showFailure !== null ? failureId : props['aria-describedby']}
         onChange={(e) => {
           setDraft(e.target.value);
           onDraftChange?.(e.target.value);
@@ -90,6 +118,9 @@ export function CommitInput({
         <Refusal id={errorId} className={errorClassName}>
           {error}
         </Refusal>
+      )}
+      {showFailure && (
+        <FailedEdit id={failureId} className={errorClassName} failure={showFailure} retryLabel={retryLabel ?? `Retry saving ${props['aria-label'] ?? 'this field'}`} />
       )}
     </>
   );

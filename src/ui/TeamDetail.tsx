@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
+import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
 import { roleLabel } from '../data/roleLabel';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
@@ -19,6 +19,7 @@ import { FILE_PATHS } from '../data/types';
 export function TeamDetail({ id }: { id: string }) {
   const repository = useRepository();
   const changed = useIsChangedByOthers();
+  const failure = useFieldFailure();
   const { teams, people, memberships, roles, countries } = useRepositoryState();
   const [query, setQuery] = useState('');
   const [personId, setPersonId] = useState<string | null>(null);
@@ -208,6 +209,7 @@ export function TeamDetail({ id }: { id: string }) {
                       <div className="flex items-center gap-1">
                         <PercentInput
                           changed={changed(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
+                          failure={failure(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
                           label={`Team FTE % for ${person.name}`}
                           value={m.teamFtePct}
                           disabled={!m.active || !person.active}

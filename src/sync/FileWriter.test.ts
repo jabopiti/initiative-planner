@@ -255,4 +255,70 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
     const last = statuses.at(-1);
     expect(typeof last === 'object' && last !== null && 'readOnly' in last).toBe(true);
   });
+
+  describe('slice 005j: a failed edit stays in edit, and Retry resends it', () => {
+    it('keeps the failed edit and its cause; retry() resends the same content and clears the failure', async () => {
+      const writer = makeWriter({ content: [{ id: 't1', name: 'Original', active: true }], sha: 's0' });
+      writer.schedule([{ id: 't1', name: 'Renamed', active: true }]);
+
+      fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'server error' }, 500));
+      await writer.flush();
+
+      expect(writer.failure).not.toBeNull();
+      expect(writer.failedPaths).toEqual([[{ id: 't1' }, 'name']]);
+      expect(statuses.at(-1)).toEqual({ readOnly: writer.failure });
+
+      fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's1' } }));
+      await writer.retry();
+
+      expect(writer.failure).toBeNull();
+      expect(writer.failedPaths).toEqual([]);
+      expect(statuses.at(-1)).toBe('synced');
+      expect(committed.at(-1)).toEqual([{ id: 't1', name: 'Renamed', active: true }]);
+      const puts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
+      expect(puts).toHaveLength(2);
+    });
+
+    it('only lists the fields the failed edit actually changed, not the rest of the document', async () => {
+      const writer = makeWriter({
+        content: [
+          { id: 't1', name: 'A', active: true },
+          { id: 't2', name: 'B', active: true },
+        ],
+        sha: 's0',
+      });
+      writer.schedule([
+        { id: 't1', name: 'A renamed', active: true },
+        { id: 't2', name: 'B', active: true },
+      ]);
+
+      fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'server error' }, 500));
+      await writer.flush();
+
+      expect(writer.failedPaths).toEqual([[{ id: 't1' }, 'name']]);
+    });
+
+    it('a fresh edit clears the failed state at once, before anything has saved', async () => {
+      const writer = makeWriter({ content: [], sha: 's0' });
+      writer.schedule([{ id: 't1', name: 'Platform', active: true }]);
+      fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'server error' }, 500));
+      await writer.flush();
+      expect(writer.failure).not.toBeNull();
+
+      writer.schedule([{ id: 't1', name: 'Payments', active: true }]);
+      expect(writer.failure).toBeNull();
+      expect(writer.failedPaths).toEqual([]);
+
+      fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's1' } }));
+      await writer.flush();
+      expect(statuses.at(-1)).toBe('synced');
+    });
+
+    it('retry() is a no-op once nothing is failed', async () => {
+      const writer = makeWriter({ content: [{ id: 't1', name: 'Platform', active: true }], sha: 's0' });
+
+      await expect(writer.retry()).resolves.toBe('saved');
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 });

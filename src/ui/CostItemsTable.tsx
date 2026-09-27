@@ -1,6 +1,6 @@
 import { useId, useState } from 'react';
 import { useBrand } from '../state/BrandContext';
-import { useIsChangedByOthers, useRepository } from '../state/DataContext';
+import { useFieldFailure, useIsChangedByOthers, useRepository } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { isOutsidePeriod, parseAmount, periodMonths } from '../data/cost';
 import { formatMonth, localToday, monthOf } from '../data/dates';
@@ -45,6 +45,7 @@ function TimingToggle({ value, label, onChange }: { value: CostItem['timing']; l
 export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: string; phase: PhaseDef; plan: PhasePlan }) {
   const repository = useRepository();
   const changed = useIsChangedByOthers();
+  const failure = useFieldFailure();
   const { currencySymbol } = useBrand();
   const file = FILE_PATHS.initiative(initiativeId);
   const items = plan.costItems ?? [];
@@ -73,6 +74,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
           <tbody>
             {items.map((item) => {
               const itemChanged = (field: string) => changed(file, ['phases', phase.id, 'costItems', { id: item.id }, field]);
+              const itemFailure = (field: string) => failure(file, ['phases', phase.id, 'costItems', { id: item.id }, field]);
               return (
                 <tr key={item.id} className="border-t border-border-default align-top">
                   <td className="py-1.5 pr-2">
@@ -81,6 +83,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                       className="w-full min-w-32"
                       value={item.label}
                       changed={itemChanged('label')}
+                      failure={itemFailure('label')}
                       onCommit={(text) => {
                         const label = text.trim();
                         if (label === '') return LABEL_REFUSAL;
@@ -105,6 +108,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                         errorClassName="mt-1 order-last w-full"
                         value={String(item.amount)}
                         changed={itemChanged('amount')}
+                        failure={itemFailure('amount')}
                         onCommit={(text) => {
                           const amount = parseAmount(text);
                           if (amount === null) return AMOUNT_REFUSAL;
@@ -129,6 +133,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                           label={`Month for ${item.label}`}
                           value={item.month}
                           changed={itemChanged('month')}
+                          failure={itemFailure('month')}
                           onChange={(month) => month && repository.updateCostItem(initiativeId, phase.id, item.id, { month })}
                         />
                       )}

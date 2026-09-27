@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatDateField, localIso, localToday, parseDateText, parseIso } from '../data/dates';
+import type { FieldFailure } from '../state/DataContext';
 import { Calendar } from '@/components/ui/calendar';
 import { PopoverTextField } from './PopoverTextField';
 
@@ -19,6 +20,7 @@ export function DateInput({
   openOn,
   highlight,
   changed,
+  failure = null,
   onChange,
 }: {
   value: string | undefined;
@@ -29,6 +31,8 @@ export function DateInput({
   highlight?: boolean;
   /** Another user's change just updated this date (§9.9). */
   changed?: boolean;
+  /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
+  failure?: FieldFailure | null;
   onChange: (value: string | undefined) => void;
 }) {
   const [month, setMonth] = useState<Date>(() => fromIso(value ?? openOn ?? localToday()));
@@ -44,6 +48,7 @@ export function DateInput({
       refusal="Couldn't read that date. Try 26.06.2026."
       highlight={highlight}
       changed={changed}
+      failure={failure}
       widthClassName="w-40"
       format={formatDateField}
       parse={parseDateText}

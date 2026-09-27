@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Initiative, Person, Team } from '../data/types';
+import { changeKey, PULL_RETRY_MS } from './Repository';
 import { fakeGithub, initiative, open, person, PHASE, type Fake } from './testing/fakeGithub';
 
 /**
@@ -445,5 +446,187 @@ describe('decided in chat for slice 005g', () => {
     expect(repo.getState().conflicts).toEqual([]);
     expect(repo.getState().readOnly).toBeNull();
     expect(fake.read<Person[]>('people.json')[0].name).toBe('Mine');
+  });
+});
+
+describe('slice 005j: read-only banner, automatic recovery, and Retry (§3, §9.9)', () => {
+  const setVisibility = (state: 'visible' | 'hidden') =>
+    Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
+
+  beforeEach(() => setVisibility('visible'));
+  afterEach(() => vi.useRealTimers());
+
+  /** The next PUT to a path starting with `prefix` fails at the network level ("unreachable"), not with an HTTP status. */
+  function failUnreachable(fake: Fake, prefix: string) {
+    let spent = false;
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+      if (!spent && (init?.method ?? 'GET') === 'PUT' && new URL(url).pathname.includes(prefix)) {
+        spent = true;
+        return Promise.reject(new TypeError('offline'));
+      }
+      return fake.fetchMock(url, init);
+    });
+  }
+
+  describe('automatic recovery is cause-conditional (§3 Sync failures table)', () => {
+    it('unreachable retries itself on the shared 30s loop, with no Retry click', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+
+      failUnreachable(fake, 'teams.json');
+      repo.createTeam('Platform');
+      await repo.flushPending();
+      expect(repo.getState().readOnly?.cause).toBe('unreachable');
+
+      await vi.advanceTimersByTimeAsync(PULL_RETRY_MS);
+      await repo.whenPulled();
+
+      expect(repo.getState().readOnly).toBeNull();
+      expect(fake.commits('teams.json')).toHaveLength(1);
+    });
+
+    it('rate limited retries itself the same way', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+
+      fake.fail('teams.json', 429);
+      repo.createTeam('Platform');
+      await repo.flushPending();
+      expect(repo.getState().readOnly?.cause).toBe('rate-limited');
+
+      await vi.advanceTimersByTimeAsync(PULL_RETRY_MS);
+      await repo.whenPulled();
+
+      expect(repo.getState().readOnly).toBeNull();
+      expect(fake.commits('teams.json')).toHaveLength(1);
+    });
+
+    it('access denied never auto-retries: the failure stays until a Retry is asked for', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+
+      fake.fail('teams.json', 403);
+      repo.createTeam('Platform');
+      await repo.flushPending();
+      expect(repo.getState().readOnly?.cause).toBe('access-denied');
+
+      await vi.advanceTimersByTimeAsync(PULL_RETRY_MS * 3);
+      expect(repo.getState().readOnly?.cause).toBe('access-denied'); // still failing: nothing retried it
+      expect(fake.commits('teams.json')).toEqual([]);
+
+      repo.retryFile('teams.json'); // the manual Retry, once the user has done something about it
+      await repo.flushPending();
+      expect(repo.getState().readOnly).toBeNull();
+      expect(fake.commits('teams.json')).toHaveLength(1);
+    });
+
+    it('the shared loop does not fire at all while nothing failed and the pull is fine', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+      const heads = () => fake.requests().filter((r) => r.includes('/git/ref/heads/')).length;
+      const before = heads();
+
+      await vi.advanceTimersByTimeAsync(PULL_RETRY_MS * 3);
+
+      expect(heads()).toBe(before); // §3's own 5-minute schedule, not this loop, is what would fire
+      expect(repo.getState().readOnly).toBeNull();
+    });
+  });
+
+  describe("the banner's Retry (retryAll) is uniform across causes", () => {
+    it('resends the pull and every currently-failed file immediately, regardless of cause', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake, { initiatives: [initiative()] });
+
+      fake.fail('teams.json', 403); // access-denied: would never auto-retry on its own
+      repo.createTeam('Platform');
+      await repo.flushPending();
+      fake.fail('people.json', 429); // rate-limited
+      repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
+      await repo.flushPending();
+      expect(repo.getState().readOnly).not.toBeNull();
+      const headsBefore = fake.requests().filter((r) => r.includes('/git/ref/heads/')).length;
+
+      repo.retryAll();
+      await repo.flushPending();
+      await repo.whenPulled();
+
+      expect(fake.requests().filter((r) => r.includes('/git/ref/heads/')).length).toBeGreaterThan(headsBefore);
+      expect(repo.getState().readOnly).toBeNull();
+      expect(fake.commits('teams.json')).toHaveLength(1);
+      expect(fake.commits('people.json')).toHaveLength(1);
+    });
+  });
+
+  describe("a field's own Retry (retryFile) resends only that file", () => {
+    it('leaves another failed file untouched', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+
+      fake.fail('teams.json', 500);
+      repo.createTeam('Platform');
+      await repo.flushPending();
+      fake.fail('people.json', 500);
+      repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
+      await repo.flushPending();
+
+      repo.retryFile('teams.json');
+      await repo.flushPending();
+
+      expect(fake.commits('teams.json')).toHaveLength(1);
+      expect(fake.commits('people.json')).toEqual([]);
+      expect(repo.getState().readOnly).not.toBeNull(); // people.json is still failing
+    });
+  });
+
+  describe('failedFields (§9.9): which field shows "Not saved" and its own Retry', () => {
+    it('keys a failed value the same way as "changed by others", by file and path', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake, { people: [person('p1', 'Base')] });
+
+      fake.fail('people.json', 500);
+      repo.updatePerson('p1', { name: 'Mine' });
+      await repo.flushPending();
+
+      expect([...repo.getState().failedFields]).toEqual([changeKey('people.json', [{ id: 'p1' }, 'name'])]);
+      expect(repo.getState().fileFailures.get('people.json')).not.toBeUndefined();
+    });
+
+    it('lists only the fields each failing file actually changed, not every field in it', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake, { people: [person('p1', 'Base'), person('p2', 'Kept', 100)] });
+
+      fake.fail('people.json', 500);
+      repo.updatePerson('p1', { name: 'Mine' }); // p2 untouched, in the same file
+      await repo.flushPending();
+      fake.fail('teams.json', 500);
+      repo.createTeam('Platform');
+      await repo.flushPending();
+
+      const failed = repo.getState().failedFields;
+      expect(failed.has(changeKey('people.json', [{ id: 'p1' }, 'name']))).toBe(true);
+      expect(failed.has(changeKey('people.json', [{ id: 'p2' }, 'name']))).toBe(false);
+      expect([...failed].some((k) => k.startsWith('teams.json'))).toBe(true);
+    });
+
+    it('a fresh edit clears the field from failedFields at once, before anything has saved', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake, { people: [person('p1', 'Base')] });
+
+      fake.fail('people.json', 500);
+      repo.updatePerson('p1', { name: 'Mine' });
+      await repo.flushPending();
+      expect(repo.getState().failedFields.size).toBeGreaterThan(0);
+
+      repo.updatePerson('p1', { name: 'Mine again' });
+      expect(repo.getState().failedFields.size).toBe(0);
+
+      await repo.flushPending();
+      expect(repo.getState().readOnly).toBeNull();
+    });
   });
 });

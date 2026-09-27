@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
+import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
 import type { Person } from '../data/types';
 import { FILE_PATHS } from '../data/types';
@@ -39,6 +39,7 @@ export function PersonPanel({ person, onClose }: { person: Person | null; onClos
 function PersonDetails({ person }: { person: Person }) {
   const repository = useRepository();
   const changed = useIsChangedByOthers();
+  const failure = useFieldFailure();
   const { roles, countries, teams, memberships } = useRepositoryState();
   const customRole = person.customRole;
   const customActive = customRole?.active === true;
@@ -71,6 +72,8 @@ function PersonDetails({ person }: { person: Person }) {
           <CommitInput
             id="person-name"
             changed={changed(FILE_PATHS.people, [{ id: person.id }, 'name'])}
+            failure={failure(FILE_PATHS.people, [{ id: person.id }, 'name'])}
+            retryLabel="Retry saving Name"
             value={person.name}
             onCommit={(text) => {
               const trimmed = text.trim();
@@ -136,6 +139,7 @@ function PersonDetails({ person }: { person: Person }) {
           <PercentInput
             label="Capacity %"
             changed={changed(FILE_PATHS.people, [{ id: person.id }, 'capacityPct'])}
+            failure={failure(FILE_PATHS.people, [{ id: person.id }, 'capacityPct'])}
             value={person.capacityPct}
             onChange={(capacityPct) => repository.updatePerson(person.id, { capacityPct })}
           />
@@ -170,6 +174,7 @@ function PersonDetails({ person }: { person: Person }) {
               <PercentInput
                 flat
                 changed={changed(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
+                failure={failure(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
                 label={`Team FTE % for ${team?.name ?? 'team'}`}
                 value={m.teamFtePct}
                 max={max}

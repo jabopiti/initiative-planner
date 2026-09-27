@@ -2,7 +2,7 @@ import { parseAmount, trackedYears, yearRecord } from '../data/cost';
 import type { CustomRole, Person } from '../data/types';
 import { FILE_PATHS } from '../data/types';
 import { useBrand } from '../state/BrandContext';
-import { useIsChangedByOthers, useRepository } from '../state/DataContext';
+import { useFieldFailure, useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { Label } from '@/components/ui/label';
 import { CommitInput } from './CommitInput';
 import { InlineWarning } from './InlineWarning';
@@ -14,6 +14,7 @@ import { InlineWarning } from './InlineWarning';
 export function CustomRoleFields({ person, customRole }: { person: Person; customRole: CustomRole }) {
   const repository = useRepository();
   const changed = useIsChangedByOthers();
+  const failure = useFieldFailure();
   const customPath = (field: string) => [{ id: person.id }, 'customRole', field];
   const { currencySymbol } = useBrand();
   const save = (patch: Partial<CustomRole>) => repository.updatePerson(person.id, { customRole: { ...customRole, ...patch } });
@@ -40,6 +41,8 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
         <CommitInput
           id="person-custom-label"
           changed={changed(FILE_PATHS.people, customPath('label'))}
+          failure={failure(FILE_PATHS.people, customPath('label'))}
+          retryLabel="Retry saving Custom role label"
           placeholder="e.g. Fractional CTO"
           value={customRole.label}
           onCommit={(text) => {
@@ -54,6 +57,8 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
         <CommitInput
           id="person-custom-factor"
           changed={changed(FILE_PATHS.people, customPath('costFactor'))}
+          failure={failure(FILE_PATHS.people, customPath('costFactor'))}
+          retryLabel="Retry saving Cost factor"
           type="number"
           step="any"
           min={0}
@@ -83,6 +88,7 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
                 className="w-28"
                 aria-label={`Day rate ${year}`}
                 changed={changed(FILE_PATHS.people, customPath('dayRatesByYear'))}
+                failure={failure(FILE_PATHS.people, customPath('dayRatesByYear'))}
                 disabled={year < tracked[0]}
                 placeholder={inherited ? String(inherited.dayRate) : undefined}
                 value={entered ? String(entered.dayRate) : ''}

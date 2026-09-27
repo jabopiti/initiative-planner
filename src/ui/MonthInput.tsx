@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FIRST_YEAR, formatMonth, LAST_YEAR, MONTHS, monthKey, parseMonthText } from '../data/dates';
+import type { FieldFailure } from '../state/DataContext';
 import { Button } from '@/components/ui/button';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { PopoverTextField } from './PopoverTextField';
@@ -16,6 +17,7 @@ export function MonthInput({
   label,
   required,
   changed,
+  failure = null,
   onChange,
 }: {
   /** A month key, `YYYY-MM`. */
@@ -24,6 +26,8 @@ export function MonthInput({
   required?: boolean;
   /** Another user's change just updated this month (§9.9). */
   changed?: boolean;
+  /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
+  failure?: FieldFailure | null;
   onChange: (value: string | undefined) => void;
 }) {
   const [year, setYear] = useState(() => yearOf(value ?? monthKey(new Date().getFullYear(), 0)));
@@ -39,6 +43,7 @@ export function MonthInput({
       refusal="Enter a month such as Sep 2026."
       required={required}
       changed={changed}
+      failure={failure}
       widthClassName="w-36"
       format={formatMonth}
       parse={parseMonthText}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { parseAmount } from '../data/cost';
+import type { FieldFailure } from '../state/DataContext';
 import { CommitInput } from './CommitInput';
 import { InlineWarning } from './InlineWarning';
 
@@ -17,6 +18,7 @@ export function PercentInput({
   disabled,
   flat,
   changed,
+  failure = null,
   onChange,
 }: {
   value: number;
@@ -27,6 +29,8 @@ export function PercentInput({
   flat?: boolean;
   /** Another user's change just updated this value (§9.9). */
   changed?: boolean;
+  /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
+  failure?: FieldFailure | null;
   onChange: (value: number) => void;
 }) {
   const [over, setOver] = useState(false);
@@ -39,6 +43,7 @@ export function PercentInput({
     <div className={flat ? 'contents' : 'flex flex-wrap items-center gap-x-1'}>
       <CommitInput
         changed={changed}
+        failure={failure}
         type="number"
         inputMode="numeric"
         min={0}

@@ -1,4 +1,5 @@
 import { parseAmount } from '../data/cost';
+import type { FieldFailure } from '../state/DataContext';
 import { CommitInput } from './CommitInput';
 
 const REFUSAL = 'Enter an amount, 0 or more.';
@@ -13,6 +14,7 @@ export function AmountInput({
   label,
   placeholder,
   changed,
+  failure = null,
   onChange,
 }: {
   value: number | undefined;
@@ -21,6 +23,8 @@ export function AmountInput({
   placeholder?: string;
   /** Another user's change just updated this value (§9.9). */
   changed?: boolean;
+  /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
+  failure?: FieldFailure | null;
   onChange: (value: number) => void;
 }) {
   return (
@@ -28,6 +32,7 @@ export function AmountInput({
       <span className="text-sm text-text-secondary">{currencySymbol}</span>
       <CommitInput
         changed={changed}
+        failure={failure}
         type="number"
         inputMode="decimal"
         step="any"
