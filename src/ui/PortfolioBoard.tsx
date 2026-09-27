@@ -5,11 +5,11 @@ import { currentPhaseId } from '../data/processState';
 import { FILE_PATHS, type Initiative } from '../data/types';
 import { navigate } from '../router/useHashRoute';
 import { EmptyState } from './EmptyState';
+import { NeedsAttentionStrip } from './NeedsAttentionStrip';
 
 /**
- * Portfolio overview (§5.2): the board and its empty state. Filters,
- * key metrics, the Getting started strip and the Needs attention strip are
- * later work (§8.5 and richer §5.2 depend on gate data that isn't built yet).
+ * Portfolio overview (§5.2): the board, the Needs attention strip and the empty state. Filters, key metrics and
+ * the Getting started strip are later work.
  */
 export function PortfolioBoard() {
   const brand = useBrand();
@@ -45,6 +45,7 @@ export function PortfolioBoard() {
 
   return (
     <div className="px-8 py-6">
+      <NeedsAttentionStrip />
       <div className="flex items-start gap-4 overflow-x-auto">
         {brand.process.map((phase) => {
           const phaseInitiatives = initiativesByPhase.get(phase.id) ?? [];

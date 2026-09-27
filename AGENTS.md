@@ -76,7 +76,14 @@ section then.
   `github_pat_` / `ghp_`. The token lives only in browser storage (§3,
   §10.1) — never write it to a file, the dataset, or a commit.
 - Never read, print or copy `.env.local` (it holds the dev token); if it
-  is missing, ask the user rather than looking for a token.
+  is missing, ask the user rather than looking for a token. In a cloud/
+  remote session, `.env.local` may not exist at all but `VITE_DEV_TOKEN`
+  can still be set directly as a real environment variable — check for it
+  (`[ -n "$VITE_DEV_TOKEN" ]`, never print it) before concluding there's
+  no token; `npm run dev` picks it up either way, and the
+  `dev:reset-data`/`dev:seed-data` scripts (which invoke node with
+  `--env-file=.env.local`) can be run directly as `node
+  scripts/<name>.mjs` to use the environment variable instead.
 - Outbound requests: only the configured GitHub API host.
 - CSP forbids `eval`, `new Function`, inline scripts (§10.1, §10.9) —
   don't write code needing them.

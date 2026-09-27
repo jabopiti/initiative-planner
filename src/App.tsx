@@ -3,6 +3,7 @@ import { tokenStore } from './auth/tokenStore';
 import { defaultBrandPack } from './brand/defaultBrand';
 import { BrandProvider } from './state/BrandContext';
 import { RepositoryProvider, useRepositoryState } from './state/DataContext';
+import { NeedsAttentionProvider } from './state/NeedsAttentionContext';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { TopBar } from './ui/TopBar';
 import { ConflictBanner } from './ui/ConflictBanner';
@@ -32,7 +33,14 @@ function Screen({ route }: { route: string }) {
   if (route === '/teams') return <TeamsOverview />;
   if (route.startsWith('/teams/')) return <TeamDetail key={route} id={route.slice('/teams/'.length)} />;
   if (route === '/initiatives/new') return <NewInitiativeDraft />;
-  if (route.startsWith('/initiatives/')) return <InitiativeDetail id={route.slice('/initiatives/'.length)} />;
+  if (route.startsWith('/initiatives/')) {
+    // A Needs attention strip link (§5.2, §8.5) carries where to scroll and focus as a query suffix on the
+    // hash path, since the hash router (useHashRoute.ts) otherwise treats the whole path as one opaque route.
+    const rest = route.slice('/initiatives/'.length);
+    const [id, query = ''] = rest.split('?');
+    const params = new URLSearchParams(query);
+    return <InitiativeDetail id={id} focus={params.get('focus')} openPhaseId={params.get('openPhase')} />;
+  }
   if (route === '/initiatives') {
     return <Placeholder title="Initiatives" note="The full initiatives table isn't built yet." />;
   }
@@ -45,9 +53,11 @@ function MainApp({ token }: { token: string }) {
   const route = useHashRoute();
   return (
     <RepositoryProvider token={token}>
-      <TopBar route={route} />
-      <ConflictBanner />
-      <Screen route={route} />
+      <NeedsAttentionProvider>
+        <TopBar route={route} />
+        <ConflictBanner />
+        <Screen route={route} />
+      </NeedsAttentionProvider>
     </RepositoryProvider>
   );
 }

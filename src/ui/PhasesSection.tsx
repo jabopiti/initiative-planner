@@ -28,8 +28,11 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 /** A phase nobody has planned yet. One shared object, so the picker's memo isn't invalidated on every render. */
 const UNPLANNED: PhasePlan = { allocations: [] };
 
+/** A phase's actuals-table row anchor (§5.2, §8.5), for the Portfolio's Needs attention strip jumping to an Overdue month. */
+export const actualCellAnchor = (phaseId: string, month: string) => `actual-${phaseId}-${month}`;
+
 /** The initiative page's Phases section (§5.4): every phase in order, costed ones expandable, with the current phase's Gate / Checklist panel directly beneath it. */
-export function PhasesSection({ initiative, team }: { initiative: Initiative; team: Team | undefined }) {
+export function PhasesSection({ initiative, team, openPhaseId }: { initiative: Initiative; team: Team | undefined; openPhaseId?: string | null }) {
   const { process } = useBrand();
   const { initiatives, teams } = useRepositoryState();
   // One portfolio-wide pass for every allocation row of every phase (§5.4 warnings).
@@ -38,7 +41,12 @@ export function PhasesSection({ initiative, team }: { initiative: Initiative; te
   // The first costed phase opens by default; the others are one line until clicked. Unaffected by which phase
   // is current: a phase ahead stays plannable before its own gate is reached (§5.4 "Guided, not gatekept").
   const costedPhases = process.filter((p) => p.costed);
-  const [open, setOpen] = useState<Set<string>>(() => new Set(costedPhases.slice(0, 1).map((p) => p.id)));
+  const [open, setOpen] = useState<Set<string>>(() => {
+    const initial = new Set(costedPhases.slice(0, 1).map((p) => p.id));
+    // A Needs attention deep link into a collapsed phase's actuals table (§8.5 Overdue) opens it on arrival.
+    if (openPhaseId) initial.add(openPhaseId);
+    return initial;
+  });
   const toggle = (id: string) =>
     setOpen((current) => {
       const next = new Set(current);
@@ -387,7 +395,7 @@ function CostedPhase({
                 </thead>
                 <tbody>
                   {months.map((month) => (
-                    <tr key={month} className="border-t border-border-default">
+                    <tr key={month} id={actualCellAnchor(phase.id, month)} className="border-t border-border-default">
                       <td className="py-1.5 pr-2">{formatMonth(month)}</td>
                       <td className="py-1.5 pr-2 text-right tabular-nums">{formatAmount(estimateByMonth[month] ?? 0, currencySymbol)}</td>
                       <td className="py-1.5 pr-2">
