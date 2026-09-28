@@ -885,7 +885,12 @@ The capacity grid has a **Copy** button (§9.2).
 Contains the following sections:
 
 - **Roles** (lockable): name, abbreviation, cost factor, active toggle. A
-  role can be added and deactivated (§9.3).
+  role can be added and deactivated (§9.3). After a cost-factor edit, a note
+  beside the field states how many initiatives it changes the estimate of:
+  those with an unfrozen allocation (§8.1) of a person whose standard role
+  is this one — excluding a person whose active custom role (§6) currently
+  replaces it, since the edit has no effect on their cost while that's
+  active.
 - **Countries & rates** (lockable): a list of countries. Opening a country
   shows one table with a row per tracked year: the day rate and the working
   days for each of the 12 months. Working days are prefilled with the

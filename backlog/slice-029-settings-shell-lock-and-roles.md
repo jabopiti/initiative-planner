@@ -122,3 +122,26 @@ None.
 - **Lock:** a labelled toggle button ("Locked" / "Unlocked") in the section
   header, plus the §9.9 hint while locked.
 - **Impact:** an inline note after a rate-affecting edit, no confirmation.
+- **Impact count excludes custom roles:** a person whose active custom role
+  (§6) currently replaces their standard role's factor doesn't count toward
+  a standard role's impact number — the edit has no effect on their cost
+  while it's active.
+- **Lock/unlock rendering:** the "🔒 Locked" / "🔓 Unlocked" shorthand is a
+  Lucide icon (reusing `Lock`/adding `Unlock`) plus the text label, not a
+  literal emoji — matches every other icon in the codebase (e.g.
+  `FrozenIcon` wraps Lucide's `Lock`; nothing renders emoji glyphs).
+- **Impact note style:** plain muted caption text under the Cost factor
+  field, not a warning/alarm box — it's informational, matching the
+  existing "uses {year}" caption style in `CustomRoleFields.tsx`.
+- **Locked-section rendering:** the hint sits once under the section
+  header, above the table; fields stay as the same (disabled) inputs
+  rather than switching to a separate static renderer; Add role and the
+  Active toggle are visible but disabled while locked, not hidden —
+  reusing §2's rule for the Danger zone's actions.
+- **No interactive sort** on the Roles table; default order is by name
+  (§9.11).
+- **Refusal copy**, matching this codebase's existing style: blank name →
+  "Enter a name."; blank abbreviation → "Enter an abbreviation."; cost
+  factor ≤ 0 or non-numeric → "Enter a cost factor above 0."
+- **Deactivate/reactivate** is an immediate one-click toggle, no
+  confirmation, no undo toast — matches the existing Team/Person pattern.
