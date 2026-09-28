@@ -2,20 +2,23 @@ import type { PhaseDef } from '../brand/types';
 import { iso, parseIso } from './dates';
 import type { PhasePlan } from './types';
 
-/** `isoDate`'s month, shifted by `months`, with that target month's own last day. */
-function shiftMonth(isoDate: string, months: number): { year: number; month: number; lastDay: number } {
-  const [y, m] = parseIso(isoDate);
-  const index = y * 12 + (m - 1) + months;
-  const year = Math.floor(index / 12);
-  const month = (index % 12) + 1;
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  return { year, month, lastDay };
+/** The number of days `year`-`month` has. */
+function lastDayOfMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** `year`-`month`, shifted by `months`, with that target month's own last day. */
+function shiftMonth(year: number, month: number, months: number): { year: number; month: number; lastDay: number } {
+  const index = year * 12 + (month - 1) + months;
+  const nextYear = Math.floor(index / 12);
+  const nextMonth = (index % 12) + 1;
+  return { year: nextYear, month: nextMonth, lastDay: lastDayOfMonth(nextYear, nextMonth) };
 }
 
 /** The same day of the month, `months` later; a day the target month lacks becomes its last day. */
 export function addMonths(isoDate: string, months: number): string {
-  const [, , d] = parseIso(isoDate);
-  const { year, month, lastDay } = shiftMonth(isoDate, months);
+  const [y, m, d] = parseIso(isoDate);
+  const { year, month, lastDay } = shiftMonth(y, m, months);
   return iso(year, month, Math.min(d, lastDay));
 }
 
@@ -27,9 +30,8 @@ export function addMonths(isoDate: string, months: number): string {
  */
 export function extendByOneMonth(isoDate: string): string {
   const [y, m, d] = parseIso(isoDate);
-  const sourceLastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
-  const { year, month, lastDay } = shiftMonth(isoDate, 1);
-  return iso(year, month, d === sourceLastDay ? lastDay : Math.min(d, lastDay));
+  const { year, month, lastDay } = shiftMonth(y, m, 1);
+  return iso(year, month, d === lastDayOfMonth(y, m) ? lastDay : Math.min(d, lastDay));
 }
 
 function addDays(isoDate: string, days: number): string {
