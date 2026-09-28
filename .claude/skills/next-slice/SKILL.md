@@ -1,8 +1,8 @@
 ---
 name: next-slice
-description: Pick up the next backlog slice — the user picks from the eligible slices, then every open decision (copy and UI above all) is settled with them before implementation. Use when the user asks what's next, to pick up a slice, or starts backlog work.
+description: Pick up the next backlog slice — the user picks from the eligible slices, then the gaps, questions and open decisions are listed and every one is settled with the user (copy and UI shown as rendered mockups) before implementation. Use when the user asks what's next, to pick up a slice, or starts backlog work.
 argument-hint: "[slice id]"
-allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/find-eligible.sh) Bash(.claude/skills/spec-section/scripts/extract.sh *)
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/find-eligible.sh) Bash(.claude/skills/spec-section/scripts/extract.sh *) Bash(node ${CLAUDE_SKILL_DIR}/scripts/screenshot.mjs *)
 ---
 
 # next-slice
@@ -20,10 +20,18 @@ on it is done, treat the spike as done.
 
 ## Pick
 
-If `$ARGUMENTS` names a slice, take it (say if it isn't eligible).
-Otherwise the user picks — even when only one is eligible — with your
-recommendation from `backlog/slices-overview.md`. Mention the slice's
-`recommended_model` so they can switch; don't switch it yourself.
+If `$ARGUMENTS` names a slice, take it (say if it isn't eligible, or in
+progress on another branch). Otherwise the user picks — even when only one
+is eligible — with your recommendation from the build plan in
+`backlog/slices-overview.md`. Never offer a slice marked IN PROGRESS: another
+session has it. Mention the slice's `recommended_model` so they can switch;
+don't switch it yourself.
+
+Several sessions run slices in parallel, one slice each, on their own
+branches. Start from the latest `origin/main` (merge it in if the branch is
+older), keep edits to shared hot files (`Repository.ts`, `MagicBar.tsx`,
+`App.tsx`, the Actions menu and Settings section lists) additive, and merge
+`origin/main` again before the final test run and push.
 
 ## Review
 
@@ -46,18 +54,39 @@ Find everything implementation would otherwise have to guess:
 What you can decide sensibly and change cheaply is an assumption: state
 it, don't ask. Other implementation details stay out.
 
+## Present the findings first
+
+Before any question, and before any code, post one list: the gaps found,
+the questions, the open decisions (each with its options and your
+recommendation) and the assumptions. This happens in every session, also
+when the slice's "Decided in review" section looks complete — those
+bullets are settled, but what the code and spec show today can still leave
+something open. Then settle it item by item.
+
 ## Settle
 
-Ask until nothing is open, recommending an option each time.
-- Copy options quote the exact text, in its place, and name the §9.2
-  rule they follow.
-- UI options are always shown as a visual in the chat before the
-  question: one per decision, options side by side and named as in the
-  question, in the app's look (`src/index.css` tokens, shadcn, §9.10
-  icons), with names and figures from `backlog/example-data.md`, in the
-  state being decided. No inline visual tool: ASCII in the option preview.
+Ask until nothing is open, recommending an option each time. The user
+picks; nothing is implemented before every item is settled.
+- **Copy:** show every new or changed string as a draft **in place** —
+  rendered in the mockup of its screen, not only quoted — and quote the
+  exact text in the question, naming the §9.2 rule it follows.
+- **UI:** every decision is shown as a **rendered visual mockup** before
+  the question — never an ASCII or text sketch alone. One image per
+  decision, options side by side and labelled as in the question, in the
+  state being decided, with names and figures from
+  `backlog/example-data.md`. Make it look like the app: preferably the
+  real screen from the dev server (`run-initiative-planner` skill) with
+  each option injected into the page; otherwise an HTML page in the
+  scratchpad using the `src/index.css` tokens, shadcn styling and Lucide
+  icons (§9.10). Capture it with `node ${CLAUDE_SKILL_DIR}/scripts/screenshot.mjs
+  <page.html|url> <out.png>` and show the PNG with SendUserFile (display
+  `render`) right before asking. Option previews in the question may add
+  a short ASCII reminder, but the image is the mockup.
+- Copy and layout the user has seen and picked are what gets built; a
+  change during implementation goes back to them with a new mockup.
 
-Nothing to decide: say so, list the assumptions, ask to go ahead.
+Nothing to decide: say so, list the assumptions, and ask to go ahead —
+still a question, never a silent start.
 
 ## Record
 
