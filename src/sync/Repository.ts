@@ -19,7 +19,7 @@ import {
 import { allocationRefusal } from '../data/cost';
 import { formatDate, formatMonth } from '../data/dates';
 import { localToday } from '../data/dates';
-import { buildDefaultPlan } from '../data/defaultPlan';
+import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
 import { frozenPaths, isPhaseFrozen } from '../data/frozen';
 import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, withChecklistItem } from '../data/gate';
 import type { ChecklistStatus } from '../data/types';
@@ -961,6 +961,19 @@ export class Repository {
         key: which,
         text: (name, phase) => `${name}: ${phase} ${word} ${value === undefined ? 'cleared' : `set to ${formatDate(value)}`}`,
       },
+    );
+  }
+
+  /** Move a phase's end date a month later (§5.11 Extend on overrun), keeping its allocations; later phases do not move. */
+  extendPhase(initiativeId: string, phaseId: string): void {
+    const endDate = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.endDate;
+    if (!endDate) return;
+    const next = extendByOneMonth(endDate);
+    this.editPhase(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, endDate: next }),
+      { key: 'extend', text: (name, phase) => `${name}: ${phase} extended to ${formatDate(next)}` },
     );
   }
 

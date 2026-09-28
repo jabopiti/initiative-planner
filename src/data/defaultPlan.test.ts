@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { localToday } from './dates';
-import { buildDefaultPlan, chainPeriods } from './defaultPlan';
+import { buildDefaultPlan, chainPeriods, extendByOneMonth } from './defaultPlan';
 
 describe('chainPeriods (§5.11 default plan)', () => {
   it('starts on the given day and ends the day before the same day N months later', () => {
@@ -27,6 +27,23 @@ describe('chainPeriods (§5.11 default plan)', () => {
 
   it('returns nothing for no durations', () => {
     expect(chainPeriods('2026-09-24', [])).toEqual([]);
+  });
+});
+
+describe('extendByOneMonth (§5.11 Extend on overrun)', () => {
+  it('moves to the same day next month', () => {
+    expect(extendByOneMonth('2027-01-15')).toBe('2027-02-15');
+  });
+
+  it('counts a day the next month lacks as its last day', () => {
+    expect(extendByOneMonth('2027-01-31')).toBe('2027-02-28');
+    expect(extendByOneMonth('2028-01-31')).toBe('2028-02-29'); // leap year
+  });
+
+  it("moves a month's own last day to the next month's last day, even when the next month has more days", () => {
+    expect(extendByOneMonth('2026-09-30')).toBe('2026-10-31');
+    expect(extendByOneMonth('2027-02-28')).toBe('2027-03-31');
+    expect(extendByOneMonth('2028-02-29')).toBe('2028-03-31'); // leap year's own last day
   });
 });
 
