@@ -67,6 +67,7 @@ export function TeamsOverview() {
     return {
       headers: ['Name', 'Members', ...brand.process.map((phase) => phase.label)],
       rows: sorted.map((r) => [r.team.name, String(r.members), ...r.counts.map(String)]),
+      numericColumns: [1, ...brand.process.map((_, i) => i + 2)],
     };
   }
 

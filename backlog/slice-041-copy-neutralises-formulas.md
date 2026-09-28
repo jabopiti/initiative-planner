@@ -52,13 +52,13 @@ while numbers still paste as numbers.
 
 ## Acceptance criteria
 
-- [ ] Given text cells "=Hosting", "+1 contractor", "-legacy", "@Mara", then
+- [x] Given text cells "=Hosting", "+1 contractor", "-legacy", "@Mara", then
       the plain-text copy has "'=Hosting", "'+1 contractor", "'-legacy",
       "'@Mara".
-- [ ] Given numeric cells "−€1,300", "+€9,200", "-5%", then they are copied
+- [x] Given numeric cells "−€1,300", "+€9,200", "-5%", then they are copied
       unchanged.
-- [ ] Given the HTML copy, then no cell is prefixed.
-- [ ] Given every existing Copy button, then its numeric columns are declared
+- [x] Given the HTML copy, then no cell is prefixed.
+- [x] Given every existing Copy button, then its numeric columns are declared
       and its current tests pass.
 
 ## Delivery gate

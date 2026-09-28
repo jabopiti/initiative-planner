@@ -67,6 +67,7 @@ export function CapacityGrid({ team }: { team: Team }) {
           return [main, markers.length > 0 ? `(${markers.join(', ')})` : null, provisional].filter(Boolean).join(' ');
         }),
       ]),
+      numericColumns: [1],
     };
   }
 
