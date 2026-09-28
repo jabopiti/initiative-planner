@@ -975,7 +975,8 @@ A pasted token is checked immediately, and the result is specific:
 | Cannot see the repository | "This token can't see <repository>. Create it with access to that repository." |
 | Read-only | "This token can read but not write. Set Contents to Read and write." |
 | Waiting for approval | "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." |
-| Expired or invalid | "GitHub doesn't accept this token." |
+| Expired or invalid (a 401) | "GitHub doesn't accept this token." |
+| Network failure or a server error while checking | "Couldn't reach GitHub to check the token. Check your connection and try again." The token stays in the field and the check can be run again. |
 
 ### 5.11 Suggestions and shortcuts
 
