@@ -62,15 +62,15 @@ else (§5.11), so a known delay is recorded in a second.
 
 ## Acceptance criteria
 
-- [ ] Given the overrun state, then the bar shows "Extend <phase> by one
+- [x] Given the overrun state, then the bar shows "Extend <phase> by one
       month"; in any other state, it does not.
-- [ ] Given it is clicked on a phase ending 30 Sep 2026, then the end date is
+- [x] Given it is clicked on a phase ending 30 Sep 2026, then the end date is
       31 Oct 2026, in one commit naming the new date.
-- [ ] Given a phase ending 15 Jan 2027, then it ends 15 Feb 2027; given 31
+- [x] Given a phase ending 15 Jan 2027, then it ends 15 Feb 2027; given 31
       Jan 2027, 28 Feb 2027; given 28 Feb 2027, 31 Mar 2027.
-- [ ] Given later phases, then their dates are unchanged, and an overlap shows
+- [x] Given later phases, then their dates are unchanged, and an overlap shows
       the existing warning.
-- [ ] Given the phase is still past its end after extending, then the overrun
+- [x] Given the phase is still past its end after extending, then the overrun
       state and the action remain.
 
 ## Delivery gate
