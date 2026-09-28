@@ -222,4 +222,22 @@ describe('GithubClient — edge cases (slice 040)', () => {
 
     expect(result).toEqual({ content: '[]', sha: 'big-file-sha' });
   });
+
+  it("returns null, not a thrown error, when a large file's blob has gone by the time the fallback fetches it", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url);
+      if (u.includes('/contents/')) {
+        return new Response(JSON.stringify({ content: '', encoding: 'none', sha: 'vanished-sha' }), { status: 200 });
+      }
+      if (u.endsWith('/git/blobs/vanished-sha')) {
+        return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+      }
+      throw new Error(`unexpected call: ${u}`);
+    });
+
+    const client = new GithubClient(location, () => 'token');
+    const result = await client.getFile({ path: 'people.json', branch: location.dataBranch });
+
+    expect(result).toBeNull();
+  });
 });

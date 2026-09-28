@@ -22,10 +22,10 @@ export const TOKEN_CHECK_MESSAGES: Record<TokenCheckResult['outcome'], (login?: 
   unreachable: () => "Couldn't reach GitHub to check the token. Check your connection and try again.",
 };
 
-/** A network failure, or a status GitHub returns for reasons that have nothing to do with the token itself (§5.10). */
+/** A network failure, rate limiting, or a status GitHub returns for reasons that have nothing to do with the token itself (§5.10). */
 function isUnreachable(error: unknown): boolean {
   if (!(error instanceof GithubApiError)) return false;
-  if (error.cause_ === 'unreachable') return true;
+  if (error.cause_ === 'unreachable' || error.cause_ === 'rate-limited') return true;
   return typeof error.status === 'number' && error.status >= 500;
 }
 

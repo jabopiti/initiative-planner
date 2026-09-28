@@ -110,4 +110,15 @@ describe('checkToken — the outcomes table (§5.10)', () => {
     const result = await checkToken(location, 'token');
     expect(result).toEqual({ outcome: 'unreachable' });
   });
+
+  it('unreachable: a 429 on the repo access step is not read as "cannot see the repository" either', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith('/user')) return jsonResponse({ login: 'bo' });
+      return jsonResponse({ message: 'API rate limit exceeded' }, 429);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await checkToken(location, 'token');
+    expect(result).toEqual({ outcome: 'unreachable' });
+  });
 });

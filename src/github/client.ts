@@ -113,6 +113,9 @@ export class GithubClient {
       // Files over 1 MB carry no inline content from the Contents API (§3 Storage limits); read them
       // through the blob API instead, by the sha the Contents response still gives us.
       const blobResponse = await this.request(this.repoUrl(`git/blobs/${body.sha}`), { method: 'GET' });
+      // The blob can itself 404 if the file was deleted between the two requests — keep getFile's
+      // "null means the file doesn't exist" contract instead of throwing here.
+      if (blobResponse.status === 404) return null;
       assertOk(blobResponse, `GET blob ${args.path}`);
       rawContent = ((await blobResponse.json()) as { content: string }).content;
     }
