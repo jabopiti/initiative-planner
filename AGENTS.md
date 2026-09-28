@@ -39,8 +39,11 @@ done; verify each before marking complete.
    failing call before editing — don't ship a guess and wait for the user
    to re-report. Feature: write the test for the behaviour first where
    it's cheap.
-2. UI copy or layout choices: agree them in chat before implementing,
-   with a mockup of each option for layout; implement once.
+2. Gaps, questions and open decisions: list them first and let the user
+   pick among proposed options before implementing. UI copy and layout:
+   show every option as a rendered visual mockup (an image in the app's
+   look, copy drafted in place), never a text sketch alone; implement
+   once.
 3. Implement with targeted edits.
 4. `npm run test:quiet`, `npm run typecheck`, `npm run lint` — in that
    order, fix before moving on.
