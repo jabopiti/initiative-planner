@@ -1,5 +1,5 @@
 ---
-slice_id: "033"
+slice_id: "034"
 title: "Global search overlay"
 type: "capability"
 status: "valid"

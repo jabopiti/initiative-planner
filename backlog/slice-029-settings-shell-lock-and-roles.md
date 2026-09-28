@@ -1,5 +1,5 @@
 ---
-slice_id: "028"
+slice_id: "029"
 title: "Settings page with section lock, and the Roles editor"
 type: "capability"
 status: "valid"
@@ -8,7 +8,7 @@ depends_on: ["005"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Promoted from the backlog tail (Settings: edit roles, countries and rates, §5.9), split in review into four slices (028 to 031). This one replaces the Settings placeholder with the page's section navigation, builds §2's lock/unlock as the pattern 029 and 031 reuse, and ships the Roles section."
+change_summary: "Promoted from the backlog tail (Settings: edit roles, countries and rates, §5.9), split in review into four slices (029 to 032). This one replaces the Settings placeholder with the page's section navigation, builds §2's lock/unlock as the pattern 030 and 032 reuse, and ships the Roles section."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "A list editor on existing field primitives plus a small, browser-local lock state with a re-lock-on-leave rule; the impact count on a cost-factor change reuses the cost engine. All directly testable."
 spec_sections: ["§5.9 Settings (Roles)", "§2 What the build fixes, and what the user changes (Editable by the user)", "§6 Data model (Role)", "§7.2 Capacity, rates, and the three percentages", "§8.1 Passing a gate", "§9.3 Deletion rules", "§9.9 Interface states (Locked sections)", "§10.3 Writing", "§10.4 Browser storage"]
@@ -33,7 +33,7 @@ estimates stated where it is made.
 - **Page (§5.9).** A left section list — Roles, Countries & rates, Process,
   Connection, About, Danger zone — and the chosen section on the right. The
   section is in the URL (`#/settings/roles`), default Roles. Sections not yet
-  built (029 to 031) are listed and show one line "Not available yet."
+  built (030 to 032) are listed and show one line "Not available yet."
 - **Lock (§2, §9.9).** Lockable sections (Roles, Countries & rates, Danger
   zone) have a labelled toggle button in their header: "🔒 Locked" /
   "🔓 Unlocked" (pressed state when unlocked, `aria-pressed`). Every section
@@ -58,8 +58,8 @@ estimates stated where it is made.
 - **Commits (§10.3).** "Roles: Tech Lead cost factor set to 1.4", "Roles:
   Designer added", "Roles: Designer deactivated".
 
-**Explicitly excluded:** Countries & rates (029); Process, Connection, About
-(030); Danger zone (031); deleting a role (never, §9.3).
+**Explicitly excluded:** Countries & rates (030); Process, Connection, About
+(031); Danger zone (032); deleting a role (never, §9.3).
 
 ## Execution path
 
@@ -112,8 +112,8 @@ None.
 
 ## Decided in review (pre-implementation)
 
-- **Split:** Settings is four slices (028 shell + lock + Roles, 029 Countries &
-  rates, 030 read-only sections, 031 Danger zone).
+- **Split:** Settings is four slices (029 shell + lock + Roles, 030 Countries &
+  rates, 031 read-only sections, 032 Danger zone).
 - **Layout:** section list on the left, one section on the right, section in
   the URL.
 - **Lock:** a labelled toggle button ("Locked" / "Unlocked") in the section

@@ -1,14 +1,14 @@
 ---
-slice_id: "031"
+slice_id: "032"
 title: "Settings: Danger zone — Load example data and Reset"
 type: "capability"
 status: "valid"
 criteria_failures: []
-depends_on: ["028"]
+depends_on: ["029"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Fourth of the four Settings slices (§5.9), added in review. Needs two things the build lacks: the brand pack's example dataset file (§2; today the example exists only as backlog/example-data.md and a dev script), and a multi-file single commit through the Git data API (§10.3)."
+change_summary: "Fourth of the four Settings slices (§5.9), added in review. Needs two things the build lacks: the brand pack's example dataset file (§2; today the example exists only as backlog/example-data.md and a dev script), and deleting files in a multi-file commit: `createFilesCommit` (Git data API, used at setup) writes several files in one commit today, but a Reset must also remove every initiative file."
 recommended_model: "Claude Opus 5"
 model_rationale: "The first many-file write: one commit through the Git data API (blobs, tree, commit, ref update) that must fail atomically, and must interleave safely with the one writer's pending edits and other users' pulls. Irreversible for the user, so every path needs fake-repository tests."
 spec_sections: ["§5.9 Settings (Danger zone)", "§2 What the build fixes (Brand pack: fresh-install baseline, example dataset; Editable by the user)", "§3 Storage & sync (Setup, Sync behaviour)", "§9.3 Deletion rules", "§9.9 Interface states (Confirmations)", "§10.2 Data layout", "§10.3 Writing"]
@@ -31,7 +31,7 @@ each as one atomic commit.
 
 ## Scope
 
-- **Section (§5.9).** Danger zone, lockable (028's lock; locked, its actions
+- **Section (§5.9).** Danger zone, lockable (029's lock; locked, its actions
   are disabled).
 - **Example dataset (§2).** A plain data file in the brand-pack folder with
   the example teams, people, memberships and initiatives of
@@ -45,8 +45,9 @@ each as one atomic commit.
   teams, memberships or initiatives. Inline confirmation: the button turns
   into "Confirm reset" with Cancel and the line "This removes 3 initiatives,
   9 people and 2 teams." (counts from the dataset).
-- **One commit each (§10.3).** Through the Git data API: create blobs, a tree,
-  a commit on the data branch's head, then move the ref; a moved head
+- **One commit each (§10.3).** Through the existing `createFilesCommit`
+  (Git data API: blobs, a tree, a commit on the data branch's head, then the
+  ref), extended to delete paths (tree entries with a null sha); a moved head
   (another user's commit meanwhile) retries on the new head. Messages: "Example
   data loaded", "Dataset reset". Pending writer edits are dropped before a
   Reset (they would recreate data); a Load waits for them.

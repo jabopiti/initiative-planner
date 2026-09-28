@@ -51,7 +51,7 @@ and how much money sit in that phase.
   by keyboard focus.
 
 **Explicitly excluded:** filters, the year filter and year-scoped figures, key
-metrics, Copy (021); the Getting started strip (032).
+metrics, Copy (021); the Getting started strip (033).
 
 ## Execution path
 

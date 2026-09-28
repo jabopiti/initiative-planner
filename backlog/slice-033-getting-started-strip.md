@@ -1,14 +1,14 @@
 ---
-slice_id: "032"
+slice_id: "033"
 title: "Getting started strip on the Portfolio"
 type: "capability"
 status: "valid"
 criteria_failures: []
-depends_on: ["029", "004"]
+depends_on: ["030", "004"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Promoted from the backlog tail (Getting started strip, full four-step guidance, §5.2). Depends on 029 for Review rates' target and its Rates are correct confirmation."
+change_summary: "Promoted from the backlog tail (Getting started strip, full four-step guidance, §5.2). Depends on 030 for Review rates' target and its Rates are correct confirmation."
 recommended_model: "Claude Haiku 4.5"
 model_rationale: "Four predicates on data the app already has, one session-storage flag, and a strip; fully specified."
 spec_sections: ["§5.2 Portfolio overview (Getting started strip)", "§5.9 Settings (Countries & rates)", "§6 Data model (Dataset)", "§9.4 Empty states", "§10.4 Browser storage"]
@@ -33,7 +33,7 @@ from the data as each is done (§5.2), without ever blocking anything.
 - **Strip (§5.2).** Above the Needs attention strip, one row: title "Getting
   started", four numbered items, and **Dismiss for now** at the right.
   1. **Review rates** → Settings › Countries & rates; done when the dataset's
-     `ratesReviewed` is set (any rate edit or Rates are correct, 029).
+     `ratesReviewed` is set (any rate edit or Rates are correct, 030).
   2. **Create a team** → Teams; done when any team exists.
   3. **Add people to the team** → the first active team's detail; done when
      any active team has an active member.

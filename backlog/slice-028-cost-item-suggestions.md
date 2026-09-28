@@ -1,5 +1,5 @@
 ---
-slice_id: "027"
+slice_id: "028"
 title: "Cost item label suggestions"
 type: "capability"
 status: "valid"

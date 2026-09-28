@@ -1,5 +1,5 @@
 ---
-slice_id: "024"
+slice_id: "025"
 title: "Duplicate an initiative"
 type: "capability"
 status: "valid"

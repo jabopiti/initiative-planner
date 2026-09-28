@@ -1,10 +1,10 @@
 ---
-slice_id: "023"
+slice_id: "024"
 title: "Copy allocations from the previous costed phase"
 type: "capability"
 status: "valid"
 criteria_failures: []
-depends_on: ["005", "006"]
+depends_on: ["005", "006", "023"]
 verification_status: null
 superseded_by: null
 supersedes: null
@@ -43,7 +43,7 @@ of from zero.
   no longer on Platform." The note stays until the phase is next edited or
   the page is left; it is not stored.
 - Warnings on the copied rows (§7.2) show as for any allocation; Copy never
-  lowers a percentage to avoid one (fix suggestions are 026's).
+  lowers a percentage to avoid one (fix suggestions are 027's).
 
 **Explicitly excluded:** copying cost items; copying into a non-empty phase.
 

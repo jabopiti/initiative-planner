@@ -60,7 +60,7 @@ assessment.
   phase can be chosen as the start, but its own gate is not skipped.
 
 **Explicitly excluded:** importing actuals for past months (entered as usual
-on the phase); choosing a starting phase on Duplicate (024).
+on the phase); choosing a starting phase on Duplicate (025).
 
 ## Execution path
 

@@ -8,7 +8,7 @@ depends_on: ["008", "012", "013"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Promoted from the backlog tail (Put on hold / Resume, §8.4). Also builds the initiative Actions menu (§5.4) that slices 015 to 018 and 024 add to. Depends on 013 so an On Hold initiative, which leaves the Portfolio board, is still listed somewhere."
+change_summary: "Promoted from the backlog tail (Put on hold / Resume, §8.4). Also builds the initiative Actions menu (§5.4) that slices 015 to 018 and 025 add to. Depends on 013 so an On Hold initiative, which leaves the Portfolio board, is still listed somewhere."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "A status change and a menu on existing patterns. The magic bar's on-hold state is a new branch in a component with several states already, so its tests must pin the interplay (on hold while overrun, on hold right after a pass)."
 spec_sections: ["§5.4 Initiative detail view (Actions menu, magic bar)", "§8.4 Closing and cancelling", "§8.5 Needs attention", "§7.2 Capacity, rates, and the three percentages", "§9.5 Accessibility", "§9.9 Interface states (Confirmations, Messages)", "§9.10 Icons", "§10.3 Writing"]
@@ -39,7 +39,7 @@ always one click away.
   apply to the current status is hidden, never shown disabled. In this
   slice: **Put on hold** (Active) and **Resume** (On Hold), each with a
   Lucide icon (Pause, Play). Later slices add Cancel (015), Reopen (016),
-  Delete (017), Duplicate (024).
+  Delete (017), Duplicate (025).
 - **Put on hold / Resume (§8.4, §9.9).** One click, no confirmation, no
   reason. Status becomes On Hold / Active. Commits: "Checkout Redesign: put
   on hold", "Checkout Redesign: resumed".
@@ -58,7 +58,7 @@ always one click away.
   with Resume still beside it. Overrun is not shown while on hold.
 
 **Explicitly excluded:** Cancel and the whole-initiative freeze (015); Reopen
-in the menu (016); Delete (017); Duplicate (024).
+in the menu (016); Delete (017); Duplicate (025).
 
 ## Execution path
 

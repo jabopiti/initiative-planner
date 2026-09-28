@@ -1,7 +1,7 @@
 ---
 generated_from: "Initiative Planner (white-label core) spec, v1 — 22 September 2026"
-total_slices: 22
-valid_slices: 22
+total_slices: 55
+valid_slices: 55
 flagged_slices: 0
 ---
 
@@ -78,12 +78,43 @@ for the AI-agent-driven build the team asked for:
 | 005g | One writer for every file | ✅ valid | 005 |
 | 005h | Merge initiative files by path | ✅ valid | 005g |
 | 005i | Open from the cache and pull others' changes | ✅ valid | 005g |
+| 005j | Read-only banner, automatic recovery, and a failed edit stays in edit | ✅ valid | 005g |
 | 006 | Availability suggestion in the person picker | ✅ valid | 005 |
 | 007 | Add cost items to a phase | ✅ valid | 005 |
 | 008 | Pass a gate with its checklist | ✅ valid | 005, 007 |
 | 009 | View team capacity grid with warnings | ✅ valid | 005 |
 | 010 | Record actuals for a closed month | ✅ valid | 005 |
 | 011 | See Needs attention on the Portfolio | ✅ valid | 008, 010 |
+| 012 | Initiative header: description, owner and approval track badge | ✅ valid | 004, 005 |
+| 013 | Initiatives overview table with filters | ✅ valid | 004c, 011, 012 |
+| 014 | Actions menu, with Put on hold and Resume | ✅ valid | 008, 012, 013 |
+| 015 | Cancel an initiative, and a Cancelled or Closed initiative is frozen | ✅ valid | 014 |
+| 016 | Reopen from the Actions menu: the last gate, or a Closed initiative | ✅ valid | 008, 014, 015 |
+| 017 | Delete an initiative no gate has passed | ✅ valid | 013, 014 |
+| 018 | Skip a skippable gate with a reason | ✅ valid | 008, 014 |
+| 019 | Choose a starting phase for an untouched initiative | ✅ valid | 005c, 018 |
+| 020 | Portfolio cards show owner, estimate, approval track and attention; columns show their sum | ✅ valid | 011, 012 |
+| 021 | Portfolio filters, year filter, key metrics and Copy | ✅ valid | 013, 020 |
+| 022 | Team detail lists its initiatives and starts a new one for the team | ✅ valid | 005d, 013 |
+| 023 | Domain rules out of components | ✅ valid | 009, 010 |
+| 024 | Copy allocations from the previous costed phase | ✅ valid | 005, 006, 023 |
+| 025 | Duplicate an initiative | ✅ valid | 005c, 007, 014 |
+| 026 | Extend an overrun phase by one month | ✅ valid | 008 |
+| 027 | Fix suggestions for capacity warnings | ✅ valid | 009, 023 |
+| 028 | Cost item label suggestions | ✅ valid | 007 |
+| 029 | Settings page with section lock, and the Roles editor | ✅ valid | 005 |
+| 030 | Settings: Countries & rates, and Rates are correct | ✅ valid | 029 |
+| 031 | Settings: Process, Connection and About | ✅ valid | 029 |
+| 032 | Settings: Danger zone — Load example data and Reset | ✅ valid | 029 |
+| 033 | Getting started strip on the Portfolio | ✅ valid | 030, 004 |
+| 034 | Global search overlay | ✅ valid | 012, 013 |
+| 035 | Same-field conflict shown inline under the field | ✅ valid | 005h, 005j |
+| 036 | Accessibility and membership fixes from the review | ✅ valid | 004, 005j |
+| 037 | Retry a rejected write with a short backoff | ✅ valid | 005g |
+| 038 | Entity ids in each commit's trailer lines | ✅ valid | 005h |
+| 039 | Commit messages describe the net effect of grouped edits | ✅ valid | 005g |
+| 040 | GitHub client edge cases: slashed branch names, large files, token check failures | ✅ valid | 003 |
+| 041 | Copied cells that look like formulas stay text | ✅ valid | 004c |
 
 ## Dependency chain
 
@@ -147,6 +178,20 @@ for the AI-agent-driven build the team asked for:
   estimate must exist for an actual to be recorded against.
 - Slice 011 "See Needs attention on the Portfolio": depends on 008 (gate
   and escalation state) and 010 (overdue-actual state).
+- Slices 012 to 041 were sliced from the backlog tail after 011 shipped
+  (see Mid-flight changes). Their `depends_on` frontmatter is authoritative;
+  the load-bearing links:
+  - 012 (header owner) before 013 (the table's Owner column and filter).
+  - 013 before the lifecycle slices 014 to 017: On Hold, Cancelled and Closed
+    initiatives leave the Portfolio board, so the table is where they stay
+    reachable.
+  - 014 builds the Actions menu that 015, 016, 017 and 025 add to; 015's
+    freeze precedes 016's Reopen of a Closed initiative.
+  - 018 (skip) before 019 (starting phase), which records skips.
+  - 023 (domain rules out of components) before 024 and 027, which reuse
+    those rules.
+  - 029 (Settings shell and lock) before 030 to 032; 030 (Rates are
+    correct) before 033 (Getting started strip).
 
 ## Assumptions made
 
@@ -226,68 +271,22 @@ Initial run entries:
   slice 003's ticked criteria about the old draft page were marked
   superseded by 005d.
 
+- **After slice 011 shipped**, every backlog-tail topic was sliced in full
+  (012 to 041), each with its open decisions settled with the user before
+  writing ("Decided in review" in each file). Checking the tail against the
+  spec and the code found gaps that were in neither: the initiative header's
+  description, owner and approval track badge (012), the Initiatives table
+  (013), Delete (017), the Portfolio cards, column sums, filters, metrics and
+  Copy (020, 021), the team detail's initiatives list (022), Extend on
+  overrun (026), and Settings beyond roles and rates
+  (split into 029 to 032). Two tail items were removed at the user's request
+  (schema/process migration, and accessibility/density/colour compliance,
+  which stays a criterion on every UI slice), and "Approval-track
+  escalation display nuance and 'Not yet known'" was dropped as stale: the
+  spec no longer has "Not yet known". The domain-rules refactor was numbered
+  023, ahead of the suggestion slices that reuse it.
+
 ## Backlog tail (not yet fully sliced)
 
-One line each; dependencies noted loosely. Detail these in full when the
-team is approaching them.
-
-- **Skip a gate with a reason** (§8.2) — depends on 008; lets an owner
-  bypass a skippable gate's checks.
-- **Choose a starting phase for an untouched initiative** (§8.2) —
-  depends on 008; enters historical work with earlier gates auto-skipped.
-- **Put on hold / Resume** (§8.4) — depends on 003; pauses an initiative
-  without freezing it.
-- **Cancel and Reopen a Cancelled initiative** (§8.4) — depends on 003.
-- **Reopen a Closed initiative** (§8.3, §8.4) — depends on 008 and the
-  final-gate-closes-initiative behaviour.
-- **Copy allocations from the previous phase** (§5.11) — depends on 005,
-  needs two phases to exist.
-- **Default plan on initiative creation** (§5.11) — now slice 005c.
-- **Duplicate an initiative** (§5.11) — depends on 005, 007.
-- **Fix suggestions for capacity warnings** (§5.11) — depends on 009.
-- **Cost item suggestions** (§5.11) — depends on 007, needs multiple
-  initiatives to draw from.
-- **Settings: edit roles, countries and rates** (§5.9) — depends on 003;
-  the brand pack's seeded defaults cover the core loop without this.
-- **Getting started strip, full four-step guidance** (§5.2) — depends on
-  004, 005; richer than the plain empty states shipped in 003.
-- **Global search overlay** (§5.1) — depends on 003, 004.
-- **Approval-track escalation display nuance and "Not yet known"**
-  (§7.4) — the core figure is recorded in 008; the fuller display polish
-  can follow.
-- **Schema/process migration and versioning** (§3) — has no real trigger
-  until a second schema version actually exists; deliberately deferred
-  rather than built speculatively.
-- **Accessibility, density and colour-token compliance** (§9.5, §9.8) —
-  not modelled as a standalone slice; treated as an acceptance-criterion
-  attached to every UI-bearing slice above, since it fails the
-  Desirable/Valuable test as a standalone capability.
-- **Read-only banner with Retry, automatic recovery, and a failed edit that
-  stays in edit** (§3 Sync failures, §9.9) — depends on 005g; today a failed
-  push drops the write and leaves the edited value on screen, and no Retry
-  exists.
-- **Retry backoff** (§10.3) — depends on 005g; a 409 retry re-reads the file
-  and goes again at once, where §10.3 asks for a short backoff, to stay
-  inside GitHub's request limits. One place to change now (the file writer),
-  with the delay injectable so tests stay fast.
-- **Entity id in each commit's trailer line** (§10.3) — depends on 005h;
-  commit messages read as plain words but carry no trailer with the
-  entity's id. Callers must pass the entity explicitly (note keys are only
-  sometimes ids), and every commit-message expectation changes with it.
-- **Same-field conflict shown inline under the field** (§9.9) — depends on
-  005h; the banner is the first step.
-- **Accessibility fixes from the review** — the add-member list has no
-  keyboard support (§9.5), the person panel cannot rejoin a team whose
-  membership was deactivated, the sync indicator's cause is hover-only (§5.1
-  says it stays visible), and the sync check icon has no accessible name.
-- **Domain rules out of components** — the people who can be allocated, a
-  phase's figures and the over-capacity rule are worked out inside
-  components; they belong in the data layer beside the cost engine (004d
-  starts this with the team's active members).
-- **GitHub client edge cases** — a branch name with `/` breaks the ref
-  lookup, files over 1 MB come back without content, and the token check
-  reports a network failure or a 5xx as an invalid token.
-- **Copy table cells that begin with `=`, `+`, `-` or `@`** (§9.11) — spreadsheets read them as formulas.
-- **Commit-message notes** — several edits to one allocation inside the
-  debounce window keep only the last note ("added" is lost); a double rename
-  reads as one.
+Empty: every tail topic is now a slice (012 to 041), or was removed or
+dropped as recorded under Mid-flight changes.

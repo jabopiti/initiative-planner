@@ -1,10 +1,10 @@
 ---
-slice_id: "029"
+slice_id: "030"
 title: "Settings: Countries & rates, and Rates are correct"
 type: "capability"
 status: "valid"
 criteria_failures: []
-depends_on: ["028"]
+depends_on: ["029"]
 verification_status: null
 superseded_by: null
 supersedes: null
@@ -39,14 +39,14 @@ and the Getting started strip's first step can clear.
   §9.5: its accessible name says "differs from 21 weekdays"). Each row has
   **Reset to weekdays**. Years that left the tracked window sit in one
   collapsed, read-only "Earlier years" row.
-- **Editing** only while unlocked (028's lock). Day rate: an amount ≥ 0;
+- **Editing** only while unlocked (029's lock). Day rate: an amount ≥ 0;
   working days: whole numbers from 0 to the month's calendar days; anything
   else refused inline.
 - **Add country.** Draft row: name and one day rate, copied to every tracked
   year, working days prefilled with weekdays. **Add** saves.
 - **Deactivate / Reactivate (§9.3).** Inactive countries greyed out, not
   offered for people; people there keep it.
-- **Impact note (028's pattern).** After a day-rate or working-days change:
+- **Impact note (029's pattern).** After a day-rate or working-days change:
   "Changes the estimate of 3 initiatives." beside the field.
 - **Rates are correct (§5.9, §5.2).** While the dataset's `ratesReviewed` is
   false, a **Rates are correct** button in the section header, usable while
@@ -57,7 +57,7 @@ and the Getting started strip's first step can clear.
   correct".
 
 **Explicitly excluded:** holiday calendars or automatic public-holiday
-lookup; the Getting started strip itself (032).
+lookup; the Getting started strip itself (033).
 
 ## Execution path
 
@@ -111,4 +111,4 @@ None.
 - **Opening a country:** expands its year table in place, one at a time.
 - **Rates are correct:** in the section header until confirmed, usable while
   locked; then "Rates reviewed".
-- **Impact note:** as in 028.
+- **Impact note:** as in 029.

@@ -1,10 +1,10 @@
 ---
-slice_id: "026"
+slice_id: "027"
 title: "Fix suggestions for capacity warnings"
 type: "capability"
 status: "valid"
 criteria_failures: []
-depends_on: ["009"]
+depends_on: ["009", "023"]
 verification_status: null
 superseded_by: null
 supersedes: null

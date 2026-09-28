@@ -1,10 +1,10 @@
 ---
-slice_id: "030"
+slice_id: "031"
 title: "Settings: Process, Connection and About"
 type: "capability"
 status: "valid"
 criteria_failures: []
-depends_on: ["028"]
+depends_on: ["029"]
 verification_status: null
 superseded_by: null
 supersedes: null
@@ -54,7 +54,7 @@ work under and can support themselves.
   (id and structure version).
 
 **Explicitly excluded:** editing the process (fixed by the brand pack, §2);
-Danger zone (031).
+Danger zone (032).
 
 ## Execution path
 

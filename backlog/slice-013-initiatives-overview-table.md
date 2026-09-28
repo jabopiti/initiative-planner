@@ -66,7 +66,7 @@ portfolio can be reported on without re-typing it.
 
 **Explicitly excluded:** Portfolio board filters, year filter and key
 metrics (slice 021, which reuses the chip); a search field on the table
-(§5.1 — search is the global overlay, slice 033).
+(§5.1 — search is the global overlay, slice 034).
 
 ## Execution path
 
