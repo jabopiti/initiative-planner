@@ -189,3 +189,70 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
     expect(result.commitSha).not.toBe('my-dangling-sha');
   });
 });
+
+describe('GithubClient — edge cases (slice 040)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps `/` unencoded in the branch head ref URL, for a data branch like planning/data', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ object: { sha: 'head-sha' } }), { status: 200 }));
+
+    const client = new GithubClient(location, () => 'token');
+    await client.getBranchHead({ branch: 'planning/data', etag: null });
+
+    const [calledUrl] = fetchMock.mock.calls[0] as [string];
+    expect(calledUrl).toBe('https://api.github.com/repos/jabopiti/initiative-planner/git/ref/heads/planning/data');
+  });
+
+  it('keeps `/` unencoded in both the GET and PATCH ref URLs createFilesCommit uses for a slashed branch', async () => {
+    const calls: string[] = [];
+    fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      const u = String(url);
+      const method = init.method ?? 'GET';
+      calls.push(`${method} ${u}`);
+      if (method === 'GET' && u.endsWith('/git/ref/heads/planning/data')) return new Response(JSON.stringify({ object: { sha: 'parent-sha' } }), { status: 200 });
+      if (method === 'GET' && u.endsWith('/git/commits/parent-sha')) return new Response(JSON.stringify({ tree: { sha: 'base-tree' } }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob-1' }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'tree-1' }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/commits')) return new Response(JSON.stringify({ sha: 'new-sha' }), { status: 200 });
+      if (method === 'PATCH' && u.endsWith('/git/refs/heads/planning/data')) return new Response(JSON.stringify({ object: { sha: 'new-sha' } }), { status: 200 });
+      return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+    });
+
+    const client = new GithubClient(location, () => 'token');
+    await client.createFilesCommit({
+      branch: 'planning/data',
+      files: [{ path: 'dataset.json', content: '{}' }],
+      message: 'init',
+    });
+
+    expect(calls).toContain('GET https://api.github.com/repos/jabopiti/initiative-planner/git/ref/heads/planning/data');
+    expect(calls).toContain('PATCH https://api.github.com/repos/jabopiti/initiative-planner/git/refs/heads/planning/data');
+  });
+
+  it('reads a file over 1 MB through the blob API when the Contents response carries no inline content', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url);
+      if (u.includes('/contents/')) {
+        return new Response(JSON.stringify({ content: '', encoding: 'none', sha: 'big-file-sha' }), { status: 200 });
+      }
+      if (u.endsWith('/git/blobs/big-file-sha')) {
+        return new Response(JSON.stringify({ sha: 'big-file-sha', encoding: 'base64', content: btoa('[]') }), { status: 200 });
+      }
+      throw new Error(`unexpected call: ${u}`);
+    });
+
+    const client = new GithubClient(location, () => 'token');
+    const result = await client.getFile({ path: 'people.json', branch: location.dataBranch });
+
+    expect(result).toEqual({ content: '[]', sha: 'big-file-sha' });
+  });
+});

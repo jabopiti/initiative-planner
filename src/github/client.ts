@@ -107,7 +107,15 @@ export class GithubClient {
     if (response.status === 404) return null;
     assertOk(response, `GET ${args.path}`);
 
-    const body = (await response.json()) as { content: string; sha: string };
+    const body = (await response.json()) as { content: string; encoding: string; sha: string };
+    if (body.encoding === 'none') {
+      // Files over 1 MB carry no inline content from the Contents API (§3 Storage limits); read them
+      // through the blob API instead, by the sha the Contents response still gives us.
+      const blobResponse = await this.request(this.repoUrl(`git/blobs/${body.sha}`), { method: 'GET' });
+      assertOk(blobResponse, `GET blob ${args.path}`);
+      const blob = (await blobResponse.json()) as { content: string };
+      return { content: decodeBase64Utf8(blob.content), sha: body.sha };
+    }
     return { content: decodeBase64Utf8(body.content), sha: body.sha };
   }
 
@@ -159,7 +167,7 @@ export class GithubClient {
    */
   async getBranchHead(args: { branch: string; etag: string | null }): Promise<BranchHead | 'not-modified' | null> {
     assertBranch(args.branch);
-    const url = this.repoUrl(`git/ref/heads/${encodeURIComponent(args.branch)}`);
+    const url = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
     const response = await this.request(url, { method: 'GET', headers: args.etag ? { 'If-None-Match': args.etag } : {} });
 
     if (response.status === 304) return 'not-modified';
@@ -234,7 +242,7 @@ export class GithubClient {
     // unhandled; the real rejection is still seen wherever `blobsPromise` is awaited below.
     blobsPromise.catch(() => {});
 
-    const refUrl = this.repoUrl(`git/ref/heads/${encodeURIComponent(args.branch)}`);
+    const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
     const refResponse = await this.request(refUrl, { method: 'GET' });
 
     let baseTreeSha: string | undefined;
@@ -278,7 +286,7 @@ export class GithubClient {
 
     if (branchExists) {
       // Updating a ref is PATCH .../git/refs/heads/{branch} (plural); only the GET is `git/ref/...` (singular) — PATCHing the singular URL is a 404.
-      const updateRefResponse = await this.request(this.repoUrl(`git/refs/heads/${encodeURIComponent(args.branch)}`), {
+      const updateRefResponse = await this.request(this.repoUrl(`git/refs/heads/${encodePath(args.branch)}`), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sha: newCommit.sha }),

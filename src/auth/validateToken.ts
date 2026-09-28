@@ -9,7 +9,8 @@ export type TokenCheckResult =
   | { outcome: 'cannot-see-repo' }
   | { outcome: 'read-only' }
   | { outcome: 'pending-approval' }
-  | { outcome: 'invalid' };
+  | { outcome: 'invalid' }
+  | { outcome: 'unreachable' };
 
 export const TOKEN_CHECK_MESSAGES: Record<TokenCheckResult['outcome'], (login?: string) => string> = {
   works: (login) => `Connected as ${login}`,
@@ -18,7 +19,15 @@ export const TOKEN_CHECK_MESSAGES: Record<TokenCheckResult['outcome'], (login?: 
   'read-only': () => 'This token can read but not write. Set Contents to Read and write.',
   'pending-approval': () => 'Your GitHub organisation needs to approve this token first. Ask your GitHub owner.',
   invalid: () => "GitHub doesn't accept this token.",
+  unreachable: () => "Couldn't reach GitHub to check the token. Check your connection and try again.",
 };
+
+/** A network failure, or a status GitHub returns for reasons that have nothing to do with the token itself (§5.10). */
+function isUnreachable(error: unknown): boolean {
+  if (!(error instanceof GithubApiError)) return false;
+  if (error.cause_ === 'unreachable') return true;
+  return typeof error.status === 'number' && error.status >= 500;
+}
 
 export async function checkToken(location: GithubLocation, token: string): Promise<TokenCheckResult> {
   const client = new GithubClient(location, () => token);
@@ -26,8 +35,10 @@ export async function checkToken(location: GithubLocation, token: string): Promi
   let identity: { login: string; scopesClassic: boolean };
   try {
     identity = await client.checkToken();
-  } catch {
-    return { outcome: 'invalid' };
+  } catch (error) {
+    // Only a 401 means GitHub rejected the token outright; anything else (a network
+    // failure, a 403, a 5xx) says nothing about the token and shouldn't be read as that.
+    return error instanceof GithubApiError && error.status === 401 ? { outcome: 'invalid' } : { outcome: 'unreachable' };
   }
 
   try {
@@ -46,6 +57,7 @@ export async function checkToken(location: GithubLocation, token: string): Promi
     if (error instanceof GithubApiError && error.status === 403 && /pending|approv/i.test(error.message)) {
       return { outcome: 'pending-approval' };
     }
+    if (isUnreachable(error)) return { outcome: 'unreachable' };
     return { outcome: 'cannot-see-repo' };
   }
 }
