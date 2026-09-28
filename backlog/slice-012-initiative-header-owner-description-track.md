@@ -62,8 +62,8 @@ are looking at and whom to ask.
   cleared".
 
 **Explicitly excluded:** escalation shown on the badge and the "Not yet
-known" display (slice 030); owner shown on Portfolio cards (slice 020) and in
-the Initiatives table (slice 013); searching by description (slice 029).
+known" display (slice 031); owner shown on Portfolio cards (slice 020) and in
+the Initiatives table (slice 013); searching by description (slice 030).
 
 ## Execution path
 
