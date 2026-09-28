@@ -1422,6 +1422,10 @@ on an initiative, its cost summary and phase costs (§5.4). It copies what is
 currently shown, with the active filters and sort applied, as both plain
 text and rich HTML, so it lands as cells in a spreadsheet or as a table in a
 document. Print and PDF are not supported, so copy is the only output route.
+In the plain-text copy, a text cell starting with `=`, `+`, `-` or `@` is
+prefixed with an apostrophe so a spreadsheet reads it as text, not a formula
+(§10.9); numeric cells (amounts, percentages, signed deviations) are never
+prefixed, and the rich HTML copy is unaffected.
 
 ### 9.3 Deletion rules
 

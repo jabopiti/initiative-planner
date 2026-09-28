@@ -73,3 +73,16 @@ None.
 
 - **Method:** a leading apostrophe on text cells in the plain-text copy only;
   numeric cells and HTML untouched.
+- **`CopyTableData` shape:** `numericColumns: number[]`, a required list of
+  numeric column indices. `CostSummary` → Amount (1); `TeamDetail` → Team
+  FTE % (2); `CapacityGrid` → Team FTE % (1) only — month cells are
+  composite text ("40% (over Team FTE %) +5% provisional"), never numeric
+  on their own; `PeopleOverview` → Capacity (4); `TeamsOverview` → Members
+  (1) and every phase-count column.
+- **Trigger characters:** the flattened cell's first character is one of
+  `=`, `+`, `-`, `@` (OWASP CSV-injection list), OR the cell's first
+  character *before* flattening is a tab or carriage return (flatten would
+  otherwise turn it into a harmless-looking leading space before the check
+  ever saw it). Either condition prefixes the flattened cell with `'`.
+  Header cells go through the same per-column check as data cells, for
+  uniformity.
