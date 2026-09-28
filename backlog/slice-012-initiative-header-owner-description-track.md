@@ -133,3 +133,19 @@ twice or differently.
   it; a deactivated owner stays shown with "(inactive)".
 - **Badge:** the track's name, its requirement text in the tooltip; "No
   approval track" when no band covers the total.
+- **Badge style:** a neutral pill matching the status badge next to it
+  (`bg-surface-subtle`, no border or accent colour). An accent-tinted
+  variant was considered and rejected: §9.8's colour roles are a closed
+  set (Alarm, Warning, Met, Accent — "current phase, selection and
+  links"), the badge fits none of them, and §9.8 forbids colour used for
+  decoration. This also keeps it visually consistent with the status
+  badge, which is neutral for the same reason.
+- **Deactivated owner:** "Mara Voss (inactive)" in the select trigger, no
+  extra styling on the suffix — the word itself carries the state (§9.5
+  "state is never colour alone" already implies text is enough; adding
+  colour here would be decoration without a defined role, same reasoning
+  as the badge).
+- **Owner dropdown grouping:** visible group labels above each part of the
+  list — the initiative's team name (e.g. "Platform") above its active
+  members, then "Everyone else" above the rest. "No owner" sits above
+  both groups, unlabelled.
