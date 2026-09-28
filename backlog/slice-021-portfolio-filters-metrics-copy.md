@@ -56,7 +56,7 @@ from the board, not rebuilt in a spreadsheet.
 - **Empty (§9.4).** Filters matching nothing: the board's columns stay, and
   one line "No initiatives match these filters." with Clear filters.
 
-**Explicitly excluded:** the Getting started strip (029).
+**Explicitly excluded:** the Getting started strip (032).
 
 ## Execution path
 

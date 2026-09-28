@@ -61,9 +61,9 @@ are looking at and whom to ask.
   "Checkout Redesign: owner set to Mara Voss", "Checkout Redesign: owner
   cleared".
 
-**Explicitly excluded:** escalation shown on the badge and the "Not yet
-known" display (slice 031); owner shown on Portfolio cards (slice 020) and in
-the Initiatives table (slice 013); searching by description (slice 030).
+**Explicitly excluded:** escalation shown on the badge (escalation shows in
+Needs attention, 011); owner shown on Portfolio cards (slice 020) and in the
+Initiatives table (slice 013); searching by description (slice 033).
 
 ## Execution path
 
