@@ -15,6 +15,7 @@ import { NewInitiativeDraft } from './ui/NewInitiativeDraft';
 import { PeopleOverview } from './ui/PeopleOverview';
 import { TeamDetail } from './ui/TeamDetail';
 import { Placeholder } from './ui/Placeholder';
+import { SettingsPage, DEFAULT_SECTION } from './ui/SettingsPage';
 import { useHashRoute } from './router/useHashRoute';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -46,7 +47,8 @@ function Screen({ route }: { route: string }) {
     return <Placeholder title="Initiatives" note="The full initiatives table isn't built yet." />;
   }
   if (route === '/people') return <PeopleOverview />;
-  if (route === '/settings') return <Placeholder title="Settings" note="Settings isn't built yet." />;
+  if (route === '/settings') return <SettingsPage section={DEFAULT_SECTION} />;
+  if (route.startsWith('/settings/')) return <SettingsPage section={route.slice('/settings/'.length)} />;
   return <PortfolioBoard />;
 }
 

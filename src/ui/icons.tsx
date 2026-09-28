@@ -3,7 +3,7 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { Archive, ArchiveRestore, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, CircleDashed, ClipboardList, Flame, Gauge, Info, Lock, Plus, RefreshCw, Rocket, Search, Trash2, TrendingUp, TriangleAlert, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, CircleDashed, ClipboardList, Flame, Gauge, Info, Lock, Plus, RefreshCw, Rocket, Search, Trash2, TrendingUp, TriangleAlert, Unlock, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
 
 function iconWrapper(Lucide: LucideIcon) {
@@ -37,6 +37,9 @@ export const TentativeIcon = iconWrapper(CircleDashed);
 export const CompleteIcon = iconWrapper(CircleCheck);
 /** A frozen phase, and a Closed or Cancelled initiative (§9.9, §9.10). */
 export const FrozenIcon = iconWrapper(Lock);
+/** A locked Settings section's toggle (§2, §9.9, §9.10), and its unlocked counterpart. */
+export const LockedIcon = iconWrapper(Lock);
+export const UnlockedIcon = iconWrapper(Unlock);
 /** The one thing worth real alarm colour (§8.1, §9.8): the phase behind the current gate running past its own estimated end date. */
 export const OverrunIcon = iconWrapper(Flame);
 /** Needs attention's remaining four kinds (§8.5, §9.10), distinct from Overrun's Flame and Complete's CircleCheck. */

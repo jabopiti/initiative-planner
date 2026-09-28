@@ -367,6 +367,28 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     // Switching back keeps the custom entries for later (§6).
     expect(repo.getState().people[0].customRole?.label).toBe('Fractional CTO');
   });
+
+  it('says what changed about a role, prefixed "Roles:" (§5.9)', async () => {
+    const mock = routingFetchMock();
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const role = repo.createRole({ name: 'Designer', abbreviation: 'Des', costFactor: 1 });
+    await repo.flushPending();
+    repo.updateRole(role.id, { costFactor: 1.4 });
+    await repo.flushPending();
+    repo.updateRole(role.id, { active: false });
+    await repo.flushPending();
+    repo.updateRole(role.id, { active: true });
+    await repo.flushPending();
+
+    expect(messagesFor(mock, 'roles.json')).toEqual([
+      'Roles: Designer added',
+      'Roles: Designer cost factor set to 1.4',
+      'Roles: Designer deactivated',
+      'Roles: Designer reactivated',
+    ]);
+  });
 });
 
 

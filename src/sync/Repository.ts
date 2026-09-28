@@ -107,7 +107,7 @@ const MASTER_FILES: string[] = [
   FILE_PATHS.memberships,
 ];
 
-export type MasterRecord = Team | Person | Membership;
+export type MasterRecord = Team | Person | Membership | Role;
 
 /** New people (§5.5) take these; country and role default to the last values used. */
 export interface NewPersonInput {
@@ -174,9 +174,10 @@ export class Repository {
   private teamsWriter: FileWriter<Team[]> | null = null;
   private peopleWriter: FileWriter<Person[]> | null = null;
   private membershipsWriter: FileWriter<Membership[]> | null = null;
+  private rolesWriter: FileWriter<Role[]> | null = null;
   private readonly initiativeWriters = new Map<string, FileWriter<Initiative>>();
   private readonly cache: FileCache;
-  /** Versions on screen of the files no writer holds (§10.2: the flags, roles and countries). */
+  /** Versions on screen of the files no writer holds (§10.2: the flags and countries). */
   private readonly shas = new Map<string, string>();
   /** What the last complete pull saw; null when a file was left alone or the cache lost one, so the next pull compares everything. */
   private meta: CacheMeta | null = null;
@@ -277,7 +278,7 @@ export class Repository {
     const branch = this.brand.github.dataBranch;
     /** What a file says, or `fallback` when it does not exist (§10.2: a missing master file means "empty"). */
     const parsed = <T>(path: string, fallback: T): T => (files.has(path) ? (files.get(path)!.value as T) : fallback);
-    for (const path of [FILE_PATHS.datasetFlags, FILE_PATHS.roles, FILE_PATHS.countries]) {
+    for (const path of [FILE_PATHS.datasetFlags, FILE_PATHS.countries]) {
       const file = files.get(path);
       if (file) this.shas.set(path, file.sha);
     }
@@ -288,11 +289,13 @@ export class Repository {
       initiatives.push(initiative);
       this.createInitiativeWriter(initiative, file.sha);
     }
+    const roles = parsed(FILE_PATHS.roles, [] as Role[]);
     const teams = parsed(FILE_PATHS.teams, [] as Team[]);
     const people = parsed(FILE_PATHS.people, [] as Person[]);
     const memberships = parsed(FILE_PATHS.memberships, [] as Membership[]);
     const shaOf = (path: string) => files.get(path)?.sha ?? '';
 
+    this.rolesWriter = this.createWriter<Role>(FILE_PATHS.roles, branch, 'roles', { content: roles, sha: shaOf(FILE_PATHS.roles) });
     this.teamsWriter = this.createWriter<Team>(FILE_PATHS.teams, branch, 'teams', { content: teams, sha: shaOf(FILE_PATHS.teams) });
     this.peopleWriter = this.createWriter<Person>(FILE_PATHS.people, branch, 'people', { content: people, sha: shaOf(FILE_PATHS.people) });
     this.membershipsWriter = this.createWriter<Membership>(FILE_PATHS.memberships, branch, 'memberships', {
@@ -303,7 +306,7 @@ export class Repository {
     this.setState({
       status: 'ready',
       datasetFlags: parsed(FILE_PATHS.datasetFlags, null as DatasetFlags | null),
-      roles: parsed(FILE_PATHS.roles, [] as Role[]),
+      roles,
       countries: parsed(FILE_PATHS.countries, [] as Country[]),
       teams,
       people,
@@ -388,6 +391,7 @@ export class Repository {
   /** The writer of each master file that has one, by path. */
   private masterWriters() {
     return [
+      [FILE_PATHS.roles, this.rolesWriter],
       [FILE_PATHS.teams, this.teamsWriter],
       [FILE_PATHS.people, this.peopleWriter],
       [FILE_PATHS.memberships, this.membershipsWriter],
@@ -446,7 +450,6 @@ export class Repository {
 
     for (const [path, key] of [
       [FILE_PATHS.datasetFlags, 'datasetFlags'],
-      [FILE_PATHS.roles, 'roles'],
       [FILE_PATHS.countries, 'countries'],
     ] as const) {
       const file = files.get(path);
@@ -656,7 +659,7 @@ export class Repository {
   private createWriter<T extends MasterRecord>(
     path: string,
     branch: string,
-    key: 'teams' | 'people' | 'memberships',
+    key: 'roles' | 'teams' | 'people' | 'memberships',
     initial: { content: T[]; sha: string },
   ): FileWriter<T[]> {
     return new FileWriter<T[]>({
@@ -718,6 +721,32 @@ export class Repository {
         ],
       }),
     );
+  }
+
+  /** New role (§5.9): created from a name, abbreviation and cost factor, active. */
+  createRole(input: { name: string; abbreviation: string; costFactor: number }): Role {
+    const role: Role = { id: newId(), ...input, active: true };
+    this.commitRoles([...this.state.roles, role], { key: role.id, text: `Roles: ${role.name} added` });
+    return role;
+  }
+
+  /** In-place edit from the Roles table (§5.9): name, abbreviation, cost factor, or deactivate/reactivate; roles are never deleted (§9.3). */
+  updateRole(id: string, patch: Partial<Omit<Role, 'id'>>): void {
+    const current = this.state.roles.find((r) => r.id === id);
+    if (!current) return;
+    const next = { ...current, ...patch };
+    this.commitRoles(
+      this.state.roles.map((r) => (r.id === id ? next : r)),
+      { key: `${id}:${Object.keys(patch).sort().join(',')}`, text: `Roles: ${this.describeRoleChange(current, next, patch)}` },
+    );
+  }
+
+  private describeRoleChange(current: Role, next: Role, patch: Partial<Omit<Role, 'id'>>): string {
+    if (patch.name !== undefined) return `${current.name} renamed to ${next.name}`;
+    if (patch.abbreviation !== undefined) return `${next.name} abbreviation set to ${next.abbreviation}`;
+    if (patch.costFactor !== undefined) return `${next.name} cost factor set to ${next.costFactor}`;
+    if (patch.active !== undefined) return `${next.name} ${next.active ? 'reactivated' : 'deactivated'}`;
+    return `${next.name} updated`;
   }
 
   /** New team (§5.7): created from a name only. */
@@ -860,6 +889,11 @@ export class Repository {
       this.state.memberships.filter((m) => m.id !== id),
       removed && { key: id, text: `${this.personName(removed.personId)}: removed from ${this.teamName(removed.teamId)}` },
     );
+  }
+
+  private commitRoles(next: Role[], note?: { key: string; text: string }): void {
+    this.setState({ roles: next });
+    this.rolesWriter?.schedule(next, note);
   }
 
   private commitTeams(next: Team[], note?: { key: string; text: string }): void {
