@@ -40,7 +40,9 @@ it (§5.1).
   teams are included, marked "(inactive)"; initiatives show their status when
   not Active.
 - **Open a result (§5.1).** Enter or click: an initiative's page; a person's
-  side panel on the People page; a team's page. The overlay closes.
+  side panel on the People page; a team's page. The overlay closes. People
+  and teams have no direct links (§5.1), so opening a person's panel passes
+  the person through in-app navigation state, not a new shareable URL.
 - **Close.** Esc, or a click outside; focus returns to where it was.
 - **Empty.** Nothing typed: a hint line "Search initiatives, people and
   teams". No match: "No matches for 'xyz'".

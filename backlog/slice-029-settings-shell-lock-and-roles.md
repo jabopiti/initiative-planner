@@ -32,8 +32,10 @@ estimates stated where it is made.
 
 - **Page (§5.9).** A left section list — Roles, Countries & rates, Process,
   Connection, About, Danger zone — and the chosen section on the right. The
-  section is in the URL (`#/settings/roles`), default Roles. Sections not yet
-  built (030 to 032) are listed and show one line "Not available yet."
+  section is in the URL (`#/settings/roles`), default Roles. A section not
+  yet built (030 to 032) is not listed, like an unbuilt action in 014's
+  menu; each of those slices adds its entry to one section list, so they
+  can be built in parallel without editing each other's code.
 - **Lock (§2, §9.9).** Lockable sections (Roles, Countries & rates, Danger
   zone) have a labelled toggle button in their header: "🔒 Locked" /
   "🔓 Unlocked" (pressed state when unlocked, `aria-pressed`). Every section
@@ -80,8 +82,9 @@ estimates stated where it is made.
 
 ## Acceptance criteria
 
-- [ ] Given Settings is opened, then the six sections are listed and Roles is
-      shown; `#/settings/roles` survives a reload.
+- [ ] Given Settings is opened, then the built sections are listed (Roles
+      only, in this slice) and Roles is shown; `#/settings/roles` survives a
+      reload; an unknown section in the URL shows Roles.
 - [ ] Given Roles is opened, then it is locked: values read-only, "Locked.
       Unlock to edit." shown, the button reads "Locked".
 - [ ] Given Unlock, then fields become editable and the button reads

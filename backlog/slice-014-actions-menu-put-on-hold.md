@@ -39,7 +39,12 @@ always one click away.
   apply to the current status is hidden, never shown disabled. In this
   slice: **Put on hold** (Active) and **Resume** (On Hold), each with a
   Lucide icon (Pause, Play). Later slices add Cancel (015), Reopen (016),
-  Delete (017), Duplicate (025).
+  Delete (017), Duplicate (025). While no action applies (a Closed
+  initiative before 016 and 025 ship), the ⋯ button itself is absent rather
+  than opening an empty menu; once Duplicate ships, every status has one.
+  The menu takes its items from one list of `{ label, icon, applies,
+  run }` entries, so 015 to 017 and 025 each add an entry without touching
+  the menu component (fewer merge conflicts between those slices).
 - **Put on hold / Resume (§8.4, §9.9).** One click, no confirmation, no
   reason. Status becomes On Hold / Active. Commits: "Checkout Redesign: put
   on hold", "Checkout Redesign: resumed".
@@ -102,6 +107,8 @@ in the menu (016); Delete (017); Duplicate (025).
       table.
 - [ ] Given an On Hold initiative whose phase is past its end date, then the
       bar shows the on-hold state, not the overrun alarm.
+- [ ] Given a Closed initiative (fixture) and no action that applies to it,
+      then the ⋯ button is not shown.
 - [ ] Given keyboard only, then the ⋯ button opens the menu with Enter or
       Space, items are reachable with the arrow keys, and Esc closes it with
       focus back on the button; the button's accessible name is "Actions".

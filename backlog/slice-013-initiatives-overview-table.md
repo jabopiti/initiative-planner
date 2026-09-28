@@ -4,7 +4,7 @@ title: "Initiatives overview table with filters"
 type: "capability"
 status: "valid"
 criteria_failures: []
-depends_on: ["004c", "011", "012"]
+depends_on: ["004c", "011", "012", "041"]
 verification_status: null
 superseded_by: null
 supersedes: null
@@ -59,7 +59,12 @@ portfolio can be reported on without re-typing it.
   inactive teams and people too, marked "(inactive)", because historical
   initiatives reference them. Owner offers "No owner".
 - **Copy (§9.2).** 004c's Copy button copies the rows and columns shown,
-  with filters and sort applied, as plain text and HTML.
+  with filters and sort applied, as plain text and HTML. Grand estimate is
+  declared a numeric column (041's cell kinds), every other column text.
+- **While loading (§9.9 Opening).** On the very first load, initiatives
+  arrive after the Portfolio's; the table lists those already in and shows
+  the line "Still loading some initiatives…" (the same line as search, 034)
+  until all are loaded, while the sync indicator shows syncing.
 - **Empty states (§9.4).** No initiatives at all: the Portfolio's existing
   empty state (one line, one action). Filters matching nothing: "No
   initiatives match these filters." with **Clear filters** as the action.
@@ -125,6 +130,9 @@ metrics (slice 021, which reuses the chip); a search field on the table
       closes it with focus back on the chip.
 - [ ] Given a screen reader, then each Needs attention marker has an
       accessible name naming the kind (e.g. "Overrun").
+- [ ] Given the first load with some initiatives not yet loaded, then the
+      table lists the loaded ones and shows "Still loading some
+      initiatives…" until all are in.
 
 ## Delivery gate
 
@@ -132,9 +140,11 @@ metrics (slice 021, which reuses the chip); a search field on the table
 
 ## Flags and compromises
 
-The filter chip needs new shadcn components (`command`, `checkbox`, via
-`npx shadcn@latest add`), a new dependency surface, chosen because §9.11
-specifies searchable multi-select and no current component offers it.
+The filter chip needs shadcn's `command` and `checkbox` (via `npx
+shadcn@latest add`; `command` may already be on main from slice 028, which
+may ship first), chosen because §9.11 specifies searchable multi-select and
+no current component offers it. Depends on 041 so the new Copy declares its
+numeric columns from the start instead of being retrofitted.
 
 ## Decided in review (pre-implementation)
 

@@ -36,9 +36,14 @@ changed between the saved state before and after it — the net effect.
     ("renamed from A to C");
   - changed back to the saved value → no note;
   - removed → "Mara Voss removed from Development".
-- **Mechanics.** Notes carry the entity, the field and the value the commit
-  started from; the writer composes the message on flush from the first
-  "from" and the last "to".
+- **Mechanics.** Every repository write passes a structured note: the
+  entity as `{ kind, id }` (initiative, person, team, membership, role,
+  country — slice 038 renders it as a trailer), the field, and the saved
+  value it started from and the new value. The writer combines notes per
+  entity and field on flush from the first "from" and the last "to", then
+  words them. This replaces today's keyed notes in every repository method,
+  so build it when few other slices are editing `Repository.ts` (see the
+  build plan in `slices-overview.md`).
 
 ## Execution path
 
@@ -69,7 +74,9 @@ changed between the saved state before and after it — the net effect.
 
 ## Flags and compromises
 
-None.
+Touches every repository write method. Run it after the feature slices that
+add repository methods, or rebase them onto it; it is the first of two
+back-to-back slices (039, then 038) on the same note shape.
 
 ## Decided in review (pre-implementation)
 

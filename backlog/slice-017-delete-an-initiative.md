@@ -9,7 +9,7 @@ verification_status: null
 superseded_by: null
 supersedes: null
 change_summary: "Found while slicing the backlog tail: §5.4's Actions menu lists Delete and §9.3 allows it while no gate was passed, but it was in neither the sliced backlog nor the tail. Needs the one GitHub write the client doesn't have yet — deleting a file."
-recommended_model: "Claude Opus 5"
+recommended_model: "Claude Opus 5.5"
 model_rationale: "The first file deletion in a dataset that has only ever added and changed files: a new GitHub call, the writer's pending edits for that file, the cache, and a race with another user passing a gate between confirm and delete. The UI is small; the sync correctness is the work, and it needs fake-repository tests of each race."
 spec_sections: ["§9.3 Deletion rules", "§9.9 Interface states (Confirmations, Messages)", "§5.4 Initiative detail view (Design principles, Actions menu)", "§5.11 Suggestions and shortcuts (Undo)", "§3 Storage & sync (Sync behaviour, Conflict edge cases)", "§10.2 Data layout", "§10.3 Writing", "§10.4 Browser storage"]
 ---
@@ -118,7 +118,11 @@ people, teams, roles, countries (never deleted, §9.3); bulk delete.
 ## Flags and compromises
 
 The first delete in the dataset: the GitHub client, the file writer and the
-cache each gain a delete path. It is kept to initiative files only, the one
+cache each gain a delete path. The local half — drop the writer's pending
+edits for the file, remove the initiative from state and cache — is one
+repository function, `forgetInitiative(id)`, which slice 032's Reset reuses
+for every initiative it removes. Delete is exempt from 015's freeze (a
+Cancelled initiative with no passed gate can be deleted). It is kept to initiative files only, the one
 entity §9.3 allows to be removed besides memberships (which are items inside
 a file, not files).
 

@@ -9,7 +9,7 @@ verification_status: null
 superseded_by: null
 supersedes: null
 change_summary: "Found while slicing the backlog tail: §5.2's filter row, year filter, key metrics (Total cost, Deviation) and Copy were never built; the board shows every Active initiative with no way to narrow it. Reuses 013's filter chips."
-recommended_model: "Claude Opus 5"
+recommended_model: "Claude Opus 5.5"
 model_rationale: "The year filter changes every figure on the page (cards, column sums, both metrics) to in-year cost and in-year deviation, and hides initiatives with no cost that year; those year-scoped sums over phases, cost items and actuals need careful data-layer functions and tests across year boundaries."
 spec_sections: ["§5.2 Portfolio overview (Filters, Key metrics, Copy, Year filter)", "§9.11 Lists, filters, inputs and amounts", "§9.2 Copy", "§4 Core definitions", "§7.3 Actuals default to the estimate once a month closes", "§9.4 Empty states"]
 ---
@@ -106,7 +106,10 @@ from the board, not rebuilt in a spreadsheet.
 
 ## Flags and compromises
 
-None.
+§9.11 says every filter chip is a multi-select; the Year chip is
+single-select by decision (one year's figures, or all). Record that
+exception in §9.11 and §5.2 when this ships. Copy declares its amount
+columns numeric (041).
 
 ## Decided in review (pre-implementation)
 

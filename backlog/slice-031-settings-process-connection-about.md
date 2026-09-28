@@ -32,6 +32,8 @@ work under and can support themselves.
 
 ## Scope
 
+- **Sections.** Adds Process, Connection and About to 029's section list,
+  in §5.9's order.
 - **Process (§5.9, read-only).** A vertical timeline: each phase with its
   icon, label, description and, if costed, its default duration ("3 months");
   its exit gate beneath with label, "Requires estimates" / "No estimates
@@ -48,7 +50,8 @@ work under and can support themselves.
   removes the token from the browser and opens the Connect screen (§5.10).
   With pending or failed edits: the button turns into "Disconnect and discard
   2 unsaved changes" with Cancel. The cache stays (§10.4); only the token
-  goes.
+  goes. Connecting again to another repository or branch discards it, by
+  §10.4's existing one-repository rule.
 - **About (§5.9, read-only).** Product name, build version (package version
   and short commit, injected at build time), schema version, process identity
   (id and structure version).

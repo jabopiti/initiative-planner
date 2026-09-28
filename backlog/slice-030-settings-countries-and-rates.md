@@ -9,7 +9,7 @@ verification_status: null
 superseded_by: null
 supersedes: null
 change_summary: "Promoted from the backlog tail (Settings: edit roles, countries and rates, §5.9), second of the four Settings slices."
-recommended_model: "Claude Opus 5"
+recommended_model: "Claude Opus 5.5"
 model_rationale: "The tracked-year window, read-only past years, weekday prefill with tinted differences, a new country's rate copied to every tracked year, and the impact count over unfrozen phases all feed the cost engine; a mistake here corrupts every estimate for a country, so the data-layer rules need careful tests across year boundaries."
 spec_sections: ["§5.9 Settings (Countries & rates)", "§6 Data model (Country, Dataset)", "§7.1 Time granularity and cost of an allocation", "§7.2 Capacity, rates, and the three percentages", "§5.2 Portfolio overview (Getting started strip)", "§9.3 Deletion rules", "§9.5 Accessibility", "§10.3 Writing"]
 ---
@@ -30,6 +30,7 @@ and the Getting started strip's first step can clear.
 
 ## Scope
 
+- **Section.** Adds its "Countries & rates" entry to 029's section list.
 - **List (§5.9).** One row per country: name, the current year's day rate
   ("€720 / day (2026)"), Active. A click expands that country's year table
   in place, one country open at a time.

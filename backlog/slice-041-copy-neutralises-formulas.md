@@ -35,7 +35,8 @@ while numbers still paste as numbers.
   prefixed.
 - **Cell kinds.** `CopyTableData` marks which columns are numeric, so the rule
   doesn't guess from content; every existing Copy caller declares its numeric
-  columns.
+  columns. Ships before the new Copy buttons of 013 and 021 (013 depends on
+  it), so they declare theirs from the start.
 - **HTML copy unchanged** (spreadsheets keep HTML cells as text).
 
 ## Execution path

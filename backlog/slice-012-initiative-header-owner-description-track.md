@@ -45,8 +45,9 @@ are looking at and whom to ask.
   A **No owner** choice at the top clears it. The trigger reads the owner's
   name, or "No owner" in secondary text. An owner who has since been
   deactivated (§9.3) still shows on the trigger as "<name> (inactive)" and is
-  not offered in the list for a new choice. Settable in Active and On Hold;
-  read-only text on a Closed or Cancelled initiative (§8.4 freeze).
+  not offered in the list for a new choice. Editable in every status for
+  now; slice 015's freeze makes both fields read-only on a Closed or
+  Cancelled initiative, so this slice builds no status rule of its own.
 - **Approval track badge (§5.4, §7.4, §9.10).** A badge at the end of the
   meta row naming the live approval track from the grand estimate, e.g.
   "Standard", with the track's requirement text as its tooltip ("Requires
@@ -108,8 +109,6 @@ Initiatives table (slice 013); searching by description (slice 034).
       approval"; given a total no band covers, it reads "No approval track".
 - [ ] Given an allocation change moves the total into another band, then the
       badge changes without a reload.
-- [ ] Given a Closed or Cancelled initiative, then description and owner are
-      shown as read-only text.
 - [ ] Given a screen reader, then the description field and the owner select
       have the accessible names "Description" and "Owner", and the badge's
       text is read, not only its colour.
@@ -120,9 +119,9 @@ Initiatives table (slice 013); searching by description (slice 034).
 
 ## Flags and compromises
 
-The Closed/Cancelled read-only rule is written here against statuses that
-only slices 014 to 016 make reachable; until then it is tested with a
-fixture.
+The Closed/Cancelled read-only rule for description and owner belongs to
+slice 015's single freeze rule, not to this slice, so the two can't build it
+twice or differently.
 
 ## Decided in review (pre-implementation)
 

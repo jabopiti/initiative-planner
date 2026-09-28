@@ -4,12 +4,12 @@ title: "Settings: Danger zone — Load example data and Reset"
 type: "capability"
 status: "valid"
 criteria_failures: []
-depends_on: ["029"]
+depends_on: ["017", "029"]
 verification_status: null
 superseded_by: null
 supersedes: null
 change_summary: "Fourth of the four Settings slices (§5.9), added in review. Needs two things the build lacks: the brand pack's example dataset file (§2; today the example exists only as backlog/example-data.md and a dev script), and deleting files in a multi-file commit: `createFilesCommit` (Git data API, used at setup) writes several files in one commit today, but a Reset must also remove every initiative file."
-recommended_model: "Claude Opus 5"
+recommended_model: "Claude Opus 5.5"
 model_rationale: "The first many-file write: one commit through the Git data API (blobs, tree, commit, ref update) that must fail atomically, and must interleave safely with the one writer's pending edits and other users' pulls. Irreversible for the user, so every path needs fake-repository tests."
 spec_sections: ["§5.9 Settings (Danger zone)", "§2 What the build fixes (Brand pack: fresh-install baseline, example dataset; Editable by the user)", "§3 Storage & sync (Setup, Sync behaviour)", "§9.3 Deletion rules", "§9.9 Interface states (Confirmations)", "§10.2 Data layout", "§10.3 Writing"]
 ---
@@ -32,7 +32,7 @@ each as one atomic commit.
 ## Scope
 
 - **Section (§5.9).** Danger zone, lockable (029's lock; locked, its actions
-  are disabled).
+  are disabled). Adds its entry to 029's section list.
 - **Example dataset (§2).** A plain data file in the brand-pack folder with
   the example teams, people, memberships and initiatives of
   `backlog/example-data.md`, its dates stored relative to the load month so it
@@ -41,8 +41,10 @@ each as one atomic commit.
   teams or initiatives; otherwise disabled with the hint "Reset first". Never
   overwrites. One click (it removes nothing).
 - **Reset (§5.9, §9.9).** Returns the dataset to the fresh-install baseline:
-  roles, countries and rates to the brand pack's placeholders, and no people,
-  teams, memberships or initiatives. Inline confirmation: the button turns
+  roles, countries and rates to the brand pack's placeholders,
+  `ratesReviewed` false again (so the Getting started strip's Review rates
+  returns), and no people, teams, memberships or initiatives. Locally, each
+  removed initiative goes through 017's `forgetInitiative`. Inline confirmation: the button turns
   into "Confirm reset" with Cancel and the line "This removes 3 initiatives,
   9 people and 2 teams." (counts from the dataset).
 - **One commit each (§10.3).** Through the existing `createFilesCommit`
@@ -95,6 +97,8 @@ a developer tool.
       partial dataset).
 - [ ] Given pending edits, then Reset drops them and they are not pushed
       afterwards.
+- [ ] Given Reset after rates were confirmed, then `ratesReviewed` is false
+      again.
 - [ ] Given another user's client pulls after a Reset, then their lists empty
       and an open initiative shows "This initiative couldn't be found."
 

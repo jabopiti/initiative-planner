@@ -50,7 +50,7 @@ Every slice's frontmatter adds three fields beyond the standard template,
 for the AI-agent-driven build the team asked for:
 
 - `recommended_model` and `model_rationale` — which of Claude Haiku 4.5,
-  Sonnet 5 or Opus 5 to use, chosen by how hard the slice's correctness is
+  Sonnet 5 or Opus 5 (Opus 5.5 from slice 012 on) to use, chosen by how hard the slice's correctness is
   to verify by testing alone, not by feature size.
 - `spec_sections` — the exact spec sections the slice needs, so an agent
   (or a reviewer) can load only those instead of the whole spec, for
@@ -86,7 +86,7 @@ for the AI-agent-driven build the team asked for:
 | 010 | Record actuals for a closed month | ✅ valid | 005 |
 | 011 | See Needs attention on the Portfolio | ✅ valid | 008, 010 |
 | 012 | Initiative header: description, owner and approval track badge | ✅ valid | 004, 005 |
-| 013 | Initiatives overview table with filters | ✅ valid | 004c, 011, 012 |
+| 013 | Initiatives overview table with filters | ✅ valid | 004c, 011, 012, 041 |
 | 014 | Actions menu, with Put on hold and Resume | ✅ valid | 008, 012, 013 |
 | 015 | Cancel an initiative, and a Cancelled or Closed initiative is frozen | ✅ valid | 014 |
 | 016 | Reopen from the Actions menu: the last gate, or a Closed initiative | ✅ valid | 008, 014, 015 |
@@ -105,13 +105,13 @@ for the AI-agent-driven build the team asked for:
 | 029 | Settings page with section lock, and the Roles editor | ✅ valid | 005 |
 | 030 | Settings: Countries & rates, and Rates are correct | ✅ valid | 029 |
 | 031 | Settings: Process, Connection and About | ✅ valid | 029 |
-| 032 | Settings: Danger zone — Load example data and Reset | ✅ valid | 029 |
+| 032 | Settings: Danger zone — Load example data and Reset | ✅ valid | 017, 029 |
 | 033 | Getting started strip on the Portfolio | ✅ valid | 030, 004 |
 | 034 | Global search overlay | ✅ valid | 012, 013 |
 | 035 | Same-field conflict shown inline under the field | ✅ valid | 005h, 005j |
 | 036 | Accessibility and membership fixes from the review | ✅ valid | 004, 005j |
 | 037 | Retry a rejected write with a short backoff | ✅ valid | 005g |
-| 038 | Entity ids in each commit's trailer lines | ✅ valid | 005h |
+| 038 | Entity ids in each commit's trailer lines | ✅ valid | 005h, 039 |
 | 039 | Commit messages describe the net effect of grouped edits | ✅ valid | 005g |
 | 040 | GitHub client edge cases: slashed branch names, large files, token check failures | ✅ valid | 003 |
 | 041 | Copied cells that look like formulas stay text | ✅ valid | 004c |
@@ -192,6 +192,51 @@ for the AI-agent-driven build the team asked for:
     those rules.
   - 029 (Settings shell and lock) before 030 to 032; 030 (Rates are
     correct) before 033 (Getting started strip).
+  - 041 (copy cell kinds) before 013, so new Copy buttons declare their
+    numeric columns from the start.
+  - 017 (the first delete, `forgetInitiative`) before 032, whose Reset
+    removes initiatives the same way.
+  - 039 (structured commit notes carrying the entity) before 038, which only
+    renders those entities as trailers.
+
+## Build plan (slices 012 to 041, parallel sessions)
+
+Five lanes, one session at a time per lane, so at most five sessions run at
+once (each opens with its own questions to the user, so more would make
+the user the bottleneck). A session takes one slice: start it with
+`/next-slice <id>` on the model named, from the latest `main`. When its PR is
+merged, the lane's next slice starts in a fresh session. A slice whose
+dependency sits in another lane waits for that PR to merge; take the lane's
+next slice in the meantime if its dependencies are merged.
+`find-eligible.sh` shows what is merged, what is eligible, and what another
+branch has in progress.
+
+Lanes are grouped to keep each hot file in one lane at a time. The hot
+files are the magic bar (`MagicBar.tsx`: 026, 014, 018, 019), the header
+and Actions menu (012, 014, 015, 017, 025), the phase editor
+(`PhasesSection.tsx`: 023, 027, 024, 015, 018), the file writer
+(`FileWriter.ts`: 037, 017, 032, 039, 038) and `Repository.ts`, which almost
+every slice extends. Changes to `Repository.ts` are additive (new methods);
+only 039 and 038 change every method, so they come last.
+
+| Lane | Order (model) | Waits on other lanes |
+|---|---|---|
+| A — Initiative lifecycle (the critical path) | 012 (Sonnet 5) → 013 (Sonnet 5) → 014 (Sonnet 5) → 015 (Opus 5.5) → 016 (Sonnet 5) → 018 (Sonnet 5) → 019 (Opus 5.5) | 013 on 041 (lane E) |
+| B — Portfolio and navigation | 020 (Sonnet 5) → 021 (Opus 5.5) → 022 (Haiku 4.5) → 034 (Sonnet 5) → 017 (Opus 5.5) → 025 (Sonnet 5) | 020 on 012; 021, 022, 034 on 013; 017, 025 on 014 (lane A) |
+| C — Settings | 029 (Sonnet 5) → 030 (Opus 5.5) → 031 (Sonnet 5) → 033 (Haiku 4.5) → 032 (Opus 5.5) | 032 on 017 (lane B) |
+| D — Planning helpers | 026 (Haiku 4.5) → 023 (Sonnet 5) → 027 (Opus 5.5) → 024 (Haiku 4.5) → 028 (Sonnet 5) | none |
+| E — Sync and robustness | 041 (Haiku 4.5) → 040 (Sonnet 5) → 037 (Sonnet 5) → 035 (Opus 5.5) → 036 (Sonnet 5) → 039 (Sonnet 5) → 038 (Sonnet 5) | 039 and 038 last, once lanes A to D have merged every slice that adds repository writes |
+
+Start now: **012** (A), **029** (C), **026** (D), **041** (E). Lane B's first
+slice, 020, needs 012 merged; until then the fifth session can take
+**040** from lane E, which is independent. 026 comes first in lane D so the
+magic bar is free before lane A reaches 014.
+
+Collisions to expect, and to resolve by merging `main` before pushing:
+015's freeze (lane A) with 024, 027 and 028's phase and cost-item edits
+(lane D); 015's frozen line (A) and 017's delete confirmation (B), both under
+the header's meta row; 036 (E) with 022 (B) in `TeamDetail.tsx` and with 034 (B) in the top
+bar; 013 (A), 029 (C) and 034 (B) each add a route in `App.tsx`.
 
 ## Assumptions made
 
@@ -204,10 +249,10 @@ for the AI-agent-driven build the team asked for:
   tracks), roles, countries with researched working days, branding, and a
   worked team/people/initiative example. Slices 002-011 should build and
   demo against this rather than inventing placeholder names.
-- **Team/pace:** building is done by an AI coding agent with the user
+- **Team/pace:** building is done by AI coding agents with the user
   reviewing; slices are sized and modelled accordingly (small, bounded
-  spec-section scope per slice) rather than for a larger human team that
-  could parallelize more aggressively.
+  spec-section scope per slice). From slice 012 on, several sessions run in
+  parallel, one slice each, following the build plan below.
 - **Suggestions interleaving:** per the user's explicit choice, §5.11
   suggestions are interleaved with the core flow as their dependencies
   become ready (e.g. 006 right after 005) rather than pushed to the end
@@ -285,6 +330,36 @@ Initial run entries:
   escalation display nuance and 'Not yet known'" was dropped as stale: the
   spec no longer has "Not yet known". The domain-rules refactor was numbered
   023, ahead of the suggestion slices that reuse it.
+
+- **Review of slices 012 to 041, before any was built**, for completeness,
+  correctness against the spec and parallel building. Changes:
+  - Rules that two slices would have built twice now have one owner: the
+    freeze of description and owner moved from 012 to 015; 015's freeze
+    exempts Reopen, Delete and Duplicate, which it would otherwise have
+    refused.
+  - Shared parts are built once so parallel slices can extend them without
+    editing each other's code: 014's Actions menu takes its items from one
+    action list (the ⋯ button is absent while no action applies), 029's
+    Settings sections are one list (unbuilt sections are not listed, no
+    placeholder), 017's `forgetInitiative` is reused by 032, 039's
+    structured notes carry the entity that 038 renders, and shadcn's
+    `command` is added once by whichever of 028, 013 or 034 comes first.
+  - New dependencies: 013 on 041, 032 on 017, 038 on 039.
+  - Correctness: 026 extends a month-end date to the next month-end (30 Sep
+    → 31 Oct; periods are prorated by day, §7.1); 032's Reset sets
+    `ratesReviewed` back to false; 013 gains §9.9's loading state; 025's
+    navigation keeps the original on Back; 031 notes the one-repository
+    cache rule; 034 opens a person without a direct link (§5.1).
+  - Spec deviations that must be recorded when the slice ships: 019 (§5.4
+    starting-phase entry point, §8.2 "untouched", §6 `startingPhase`) and
+    021 (§9.11, a single-select Year chip).
+  - `recommended_model` Opus 5 became Opus 5.5.
+  - The build plan above was added. `find-eligible.sh` now counts a slice as
+    done only when it is merged into `main` (or on the current branch) and
+    lists slices in progress on other branches. The next-slice skill opens
+    every session with the list of gaps, questions and decisions, and shows
+    UI and copy options as rendered mockups (`scripts/screenshot.mjs`), not
+    text sketches.
 
 ## Backlog tail (not yet fully sliced)
 

@@ -9,7 +9,7 @@ verification_status: null
 superseded_by: null
 supersedes: null
 change_summary: "Promoted from the backlog tail (Fix suggestions for capacity warnings, §5.11)."
-recommended_model: "Claude Opus 5"
+recommended_model: "Claude Opus 5.5"
 model_rationale: "The 'value that fits for every month' is a minimum over months of two different headrooms, with Provisional phases and non-counting initiatives excluded, and the Team FTE % raise must itself stay within Capacity %; an off-by-one here produces a fix that doesn't fix. Needs exhaustive data-layer tests against 009's warning rules."
 spec_sections: ["§5.11 Suggestions and shortcuts (Fix suggestions)", "§7.2 Capacity, rates, and the three percentages", "§5.4 Initiative detail view (allocation warnings)", "§5.8 Team detail view (Capacity view)", "§10.3 Writing"]
 ---

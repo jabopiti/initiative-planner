@@ -9,7 +9,7 @@ verification_status: null
 superseded_by: null
 supersedes: null
 change_summary: "Promoted from the backlog tail (Same-field conflict shown inline under the field, §9.9). 005h shows every conflict in a top banner as a first step; §9.9 puts it under the field."
-recommended_model: "Claude Opus 5"
+recommended_model: "Claude Opus 5.5"
 model_rationale: "Moves conflict display into the two shared field primitives (as 005j did for failed edits) while keeping the banner for conflicts whose field isn't rendered; must interleave correctly with a failed edit on the same path, a field being edited, and a pull that resolves the conflict remotely."
 spec_sections: ["§9.9 Interface states (Same-field conflict)", "§3 Storage & sync (Conflict edge cases)", "§10.5 Merging", "§9.5 Accessibility"]
 ---

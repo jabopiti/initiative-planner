@@ -9,7 +9,7 @@ verification_status: null
 superseded_by: null
 supersedes: null
 change_summary: "Promoted from the backlog tail (Cancel and Reopen a Cancelled initiative, §8.4). Also builds the whole-initiative freeze §8.4 applies to both Cancelled and Closed: Closed is already reachable (passing the final gate), but today only its phases lock, while its name, description, checklist statuses and the like stay editable."
-recommended_model: "Claude Opus 5"
+recommended_model: "Claude Opus 5.5"
 model_rationale: "The freeze is a rule every write path must honour, with two carve-outs (checklist notes, actuals) and a merge side: a pulled change from another user must not be able to edit a frozen initiative either. Missing one write path is silent data corruption, so it needs a data-layer guard tested across every repository method, not just disabled inputs."
 spec_sections: ["§8.4 Closing and cancelling", "§8.3 Reopening", "§5.4 Initiative detail view", "§9.9 Interface states (Frozen, Confirmations)", "§9.10 Icons", "§9.3 Deletion rules", "§10.3 Writing", "§10.5 Merging"]
 ---
@@ -37,11 +37,15 @@ checklist notes and actuals that a finished initiative still needs to accept
   Upgrade: cancelled".
 - **One freeze rule (§8.4), in the data layer.** `isInitiativeFrozen`
   (Cancelled or Closed) guards every repository write for that initiative
-  except two: **checklist-item notes** and **recorded actuals**. Everything
-  else is refused: name, description, owner, team (already), phase periods,
-  allocations, cost items, checklist **statuses**, passing or skipping a
-  gate. Pulled changes (005i) are merged as usual — the freeze stops this
-  user's edits, it does not reject another user's history.
+  except two field edits, **checklist-item notes** and **recorded
+  actuals**, and the lifecycle actions that end or copy the frozen state:
+  **Reopen** (this slice and 016), **Delete** (017, which has its own
+  "no gate passed" rule) and **Duplicate** (025, which only reads it). Every
+  other edit is refused: name, description (012), owner (012), team
+  (already), phase periods, allocations, cost items, checklist **statuses**,
+  passing or skipping a gate. Pulled changes (005i) are merged as usual — the
+  freeze stops this user's edits, it does not reject another user's
+  history.
 - **Frozen page (§9.9).** Every refused field shows read-only and muted, as
   frozen phases already do. A persistent line under the meta row, with a
   lock icon:
@@ -98,7 +102,8 @@ gate from the menu (016); Delete (017).
       read-only and muted, and Add person / Add cost item are absent.
 - [ ] Given a Cancelled or Closed initiative, then a checklist note and a
       month's actual can still be edited and are saved.
-- [ ] Given any repository write other than a note or an actual is attempted
+- [ ] Given any repository write other than a note, an actual or a
+      lifecycle action (Reopen, and Delete/Duplicate once built) is attempted
       on a Cancelled or Closed initiative (unit test per method), then it is
       refused and nothing is committed.
 - [ ] Given Reopen is chosen on a Cancelled initiative (line or menu), then

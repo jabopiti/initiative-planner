@@ -33,7 +33,9 @@ reader, and a deactivated membership can be taken up again.
    full ARIA combobox: ArrowDown/ArrowUp move an active option
    (`aria-activedescendant`, `aria-selected`), Enter chooses it (existing
    person, or Create "<name>"), Esc clears, Tab leaves. The informational "No
-   one else to add." is not an option.
+   one else to add." is not an option. Extend the existing list markup; add
+   no new component dependency (028 and 013 add shadcn's `command` and may
+   run at the same time).
 2. **Rejoin a team (§5.6, §9.3).** The person panel's Add to team offers a team
    whose membership is inactive; choosing it **reactivates that membership**
    (same id), its Team FTE % capped at the person's unclaimed capacity with

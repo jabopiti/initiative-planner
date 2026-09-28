@@ -4,13 +4,13 @@ title: "Entity ids in each commit's trailer lines"
 type: "capability"
 status: "valid"
 criteria_failures: []
-depends_on: ["005h"]
+depends_on: ["005h", "039"]
 verification_status: null
 superseded_by: null
 supersedes: null
 change_summary: "Promoted from the backlog tail (Entity id in each commit's trailer line, §10.3). Commit messages read as plain words but carry no id, so the history can't be traced to an entity once it is renamed."
 recommended_model: "Claude Sonnet 5"
-model_rationale: "Every repository method must pass the entity it touches explicitly (note keys are only sometimes ids), and every commit-message expectation in the tests changes; mechanical but wide."
+model_rationale: "Built on 039's structured notes, which already carry the entity: the writer renders trailers, and every commit-message expectation in the tests gains them. Mechanical but wide across the tests."
 spec_sections: ["§10.3 Writing", "§10.6 Identifiers and links"]
 ---
 
@@ -35,9 +35,10 @@ traceable change log per entity.
   `Entity: country/…`. A grouped commit (several edits in the debounce
   window) lists each distinct entity once, in first-edit order. Parseable by
   `git interpret-trailers --parse`.
-- **Explicit entity.** Each repository write passes `{ kind, id }` with its
-  note; the writer collects them beside the notes. No inference from note
-  keys.
+- **Explicit entity.** Slice 039's structured notes already carry each
+  write's `{ kind, id }`; the writer collects the distinct entities of a
+  commit in first-edit order and renders them. No inference from note keys,
+  and no second change to every repository method.
 - **Multi-file commits** (setup, Reset, Load example data) carry no per-entity
   trailers (they touch the dataset as a whole).
 - **Tests.** Every commit-message expectation gains its trailers.

@@ -9,7 +9,7 @@ verification_status: null
 superseded_by: null
 supersedes: null
 change_summary: "Promoted from the backlog tail (Choose a starting phase, §8.2). Lets work that predates the tool be entered at its real phase: one reason, recorded as a skip on every gate behind it regardless of skippable flags, with the default periods re-chained so the starting phase begins today."
-recommended_model: "Claude Opus 5"
+recommended_model: "Claude Opus 5.5"
 model_rationale: "'Untouched' is a derived state that several slices' edits must clear correctly, the starting phase can be changed again while untouched (so its skips must be distinguishable from real skips), and re-chaining the default plan interacts with 005c. Getting any of these wrong silently corrupts gate history, so the rules need exhaustive data-layer tests."
 spec_sections: ["§8.2 Skipping a gate", "§8.3 Reopening", "§5.11 Suggestions and shortcuts (Default plan)", "§5.4 Initiative detail view (magic bar)", "§6 Data model (Gate record)", "§9.9 Interface states", "§10.3 Writing"]
 ---
@@ -118,6 +118,18 @@ on the phase); choosing a starting phase on Duplicate (025).
 - [ ] Deployed to production-equivalent environment
 
 ## Flags and compromises
+
+**Spec updates this slice must record (§5.4, §8.2, §6) when it ships:**
+- §5.4 says the magic bar's *phase overview* lets the user choose a starting
+  phase; the decision here is a text action in the bar with the stepper
+  non-interactive. Update §5.4's wording.
+- §8.2 defines untouched as "no data entered by a user"; the decision here
+  is plan and gate data only (name, description, owner and team don't
+  count). Update §8.2.
+- The gate record (§6) gains an optional `startingPhase: true`, an additive
+  field: older records without it read as ordinary skips, so no schema
+  version bump or migration is needed (§3 Versioning) — confirm against
+  `schemaVersion` handling in review, and add the field to §6.
 
 **Assumption to confirm at implementation:** costed phases behind the starting
 phase lose their default periods (§8.2 only says the starting phase begins

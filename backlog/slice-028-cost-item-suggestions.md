@@ -43,7 +43,10 @@ and realistic amounts with less typing.
   until Add (007).
 - **Keyboard (§9.5).** Arrow keys move through suggestions, Enter chooses, Esc
   closes the list and keeps the typed text; Tab leaves with the typed text.
-  ARIA combobox roles.
+  ARIA combobox roles. Built on shadcn's `command` in a popover (`npx
+  shadcn@latest add command` if it isn't on main yet); 013's filter chips
+  and 034's search use the same component, so whichever ships first adds
+  it.
 - Typing a label nobody used shows no list.
 
 **Explicitly excluded:** suggestions when renaming an existing item.

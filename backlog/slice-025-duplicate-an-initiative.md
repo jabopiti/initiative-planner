@@ -29,7 +29,8 @@ items — re-planned from today, with none of the original's history (§5.11).
 ## Scope
 
 - **Menu item (§5.4).** **Duplicate** (Lucide Copy icon) in the Actions menu,
-  in every status.
+  in every status — one entry in 014's action list. Reading a frozen
+  (Closed or Cancelled) initiative to copy it is allowed by 015's freeze.
 - **The copy (§5.11).** A new initiative (new id), Active, named "<name> copy",
   with the same team, owner (only if still active) and description. For each
   costed phase with a valid period: the **same length**, re-chained from today
@@ -40,8 +41,9 @@ items — re-planned from today, with none of the original's history (§5.11).
   records, checklist state or actuals. Not marked as a default plan (it
   carries user data, so it is not untouched, §8.2).
 - **Name clash.** If "<name> copy" exists, "<name> copy 2", then 3, and so on.
-- **Opens in place (§5.11).** The new initiative's page replaces the current
-  one (the original stays reachable with Back). One commit: "Checkout
+- **Opens in place (§5.11).** The new initiative's page opens in the same
+  tab as a normal navigation (a new history entry), so Back returns to the
+  original. One commit: "Checkout
   Redesign copy: created from Checkout Redesign".
 - **Failure.** Same as a failed create today: nothing opens, the read-only
   banner shows.
