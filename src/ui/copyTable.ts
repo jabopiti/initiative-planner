@@ -11,8 +11,8 @@ const escapeHtml = (s: string) =>
 /** Tabs and line breaks inside a value would break the cell grid in a spreadsheet. */
 const flatten = (s: string) => s.replace(/[\t\r\n]+/g, ' ');
 
-/** OWASP's CSV-injection character set: a spreadsheet reads a cell starting with any of these as a formula. Checked on the cell as given — before `flatten` would turn a leading tab or carriage return into a harmless-looking space. */
-const RISKY_LEADING_CHAR = /^[\t\r=+\-@]/;
+/** OWASP's CSV-injection character set: a spreadsheet reads a cell starting with any of these as a formula. Checked on the cell as given — before `flatten` would turn a leading tab, carriage return or line feed into a harmless-looking space. */
+const RISKY_LEADING_CHAR = /^[\t\r\n=+\-@]/;
 
 /** A text cell that a spreadsheet could misread as a formula gets a leading apostrophe, so it pastes as text (§9.2, §10.9). */
 function guardCell(cell: string, isNumeric: boolean): string {
@@ -21,8 +21,9 @@ function guardCell(cell: string, isNumeric: boolean): string {
 }
 
 export function tableToText({ headers, rows, numericColumns }: CopyTableData): string {
+  const guardHeader = (r: string[]) => r.map((c) => guardCell(c, false)).join('\t');
   const guardRow = (r: string[]) => r.map((c, i) => guardCell(c, numericColumns.includes(i))).join('\t');
-  return [headers, ...rows].map(guardRow).join('\n');
+  return [guardHeader(headers), ...rows.map(guardRow)].join('\n');
 }
 
 export function tableToHtml({ headers, rows }: CopyTableData): string {

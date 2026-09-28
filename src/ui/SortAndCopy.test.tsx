@@ -35,6 +35,7 @@ const people = [
   person('p2', 'Ada', roleB.id, 50),
   person('p3', 'Bea', roleA.id),
   person('p4', LONG, roleB.id, 80, false),
+  person('p5', '=RiskyName', roleB.id, 100, false),
 ];
 const memberships = [
   { id: 'm1', personId: 'p1', teamId: 't1', teamFtePct: 60, active: true },
@@ -195,6 +196,18 @@ describe('People overview sorting and copy (slice 004c)', () => {
     await renderView(<PeopleOverview />, 'Ada');
     await user.click(screen.getByRole('button', { name: 'Copy' }));
     expect(await screen.findByText("Couldn't copy. Your browser blocked clipboard access.")).toBeInTheDocument();
+  });
+
+  it('guards a name that looks like a formula when copied (slice 041)', async () => {
+    const user = setupUser();
+    await renderView(<PeopleOverview />, 'Ada');
+    await user.click(screen.getByRole('combobox', { name: 'Show people' }));
+    await user.click(await screen.findByRole('option', { name: 'All' }));
+    await screen.findByText('=RiskyName');
+
+    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    expect(await screen.findByText('Copied 5 people')).toBeInTheDocument();
+    expect(written['text/plain']).toContain("'=RiskyName");
   });
 });
 
