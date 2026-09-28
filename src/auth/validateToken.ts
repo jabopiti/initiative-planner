@@ -38,6 +38,9 @@ export async function checkToken(location: GithubLocation, token: string): Promi
   } catch (error) {
     // Only a 401 means GitHub rejected the token outright; anything else (a network
     // failure, a 403, a 5xx) says nothing about the token and shouldn't be read as that.
+    // Deliberately wider than isUnreachable() below: there's no other outcome this identity
+    // check could fall back to, whereas the repo-access step below still has cannot-see-repo
+    // and pending-approval as valid non-401, non-network/5xx outcomes.
     return error instanceof GithubApiError && error.status === 401 ? { outcome: 'invalid' } : { outcome: 'unreachable' };
   }
 

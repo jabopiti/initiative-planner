@@ -108,15 +108,15 @@ export class GithubClient {
     assertOk(response, `GET ${args.path}`);
 
     const body = (await response.json()) as { content: string; encoding: string; sha: string };
+    let rawContent = body.content;
     if (body.encoding === 'none') {
       // Files over 1 MB carry no inline content from the Contents API (§3 Storage limits); read them
       // through the blob API instead, by the sha the Contents response still gives us.
       const blobResponse = await this.request(this.repoUrl(`git/blobs/${body.sha}`), { method: 'GET' });
       assertOk(blobResponse, `GET blob ${args.path}`);
-      const blob = (await blobResponse.json()) as { content: string };
-      return { content: decodeBase64Utf8(blob.content), sha: body.sha };
+      rawContent = ((await blobResponse.json()) as { content: string }).content;
     }
-    return { content: decodeBase64Utf8(body.content), sha: body.sha };
+    return { content: decodeBase64Utf8(rawContent), sha: body.sha };
   }
 
   /** PUT .../contents/{path}, with `branch` always in the request body (§10.2, §10.3). */
