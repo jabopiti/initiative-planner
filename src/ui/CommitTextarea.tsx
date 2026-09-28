@@ -1,6 +1,7 @@
 import type { ComponentProps } from 'react';
 import type { FieldFailure } from '../state/DataContext';
-import { CommitFieldMessages, useCommitField } from './CommitInput';
+import { CommitFieldMessages } from './CommitInput';
+import { useCommitField } from './commitField';
 import { Textarea } from '@/components/ui/textarea';
 
 /**
