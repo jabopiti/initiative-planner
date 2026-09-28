@@ -80,6 +80,7 @@ export function TeamDetail({ id }: { id: string }) {
         `${r.membership.teamFtePct}%`,
         ...(showStatus ? [r.membership.active && r.person.active ? 'Active' : 'Inactive'] : []),
       ]),
+      numericColumns: [2],
     };
   }
 

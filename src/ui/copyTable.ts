@@ -1,6 +1,8 @@
 export interface CopyTableData {
   headers: string[];
   rows: string[][];
+  /** Indices of columns holding numbers, amounts or percentages — never prefixed by the formula-safety rule below. */
+  numericColumns: number[];
 }
 
 const escapeHtml = (s: string) =>
@@ -9,8 +11,19 @@ const escapeHtml = (s: string) =>
 /** Tabs and line breaks inside a value would break the cell grid in a spreadsheet. */
 const flatten = (s: string) => s.replace(/[\t\r\n]+/g, ' ');
 
-export function tableToText({ headers, rows }: CopyTableData): string {
-  return [headers, ...rows].map((r) => r.map(flatten).join('\t')).join('\n');
+/** OWASP's CSV-injection character set: a spreadsheet reads a cell starting with any of these as a formula. Checked on the cell as given — before `flatten` would turn a leading tab, carriage return or line feed into a harmless-looking space. */
+const RISKY_LEADING_CHAR = /^[\t\r\n=+\-@]/;
+
+/** A text cell that a spreadsheet could misread as a formula gets a leading apostrophe, so it pastes as text (§9.2, §10.9). */
+function guardCell(cell: string, isNumeric: boolean): string {
+  const flattened = flatten(cell);
+  return !isNumeric && RISKY_LEADING_CHAR.test(cell) ? `'${flattened}` : flattened;
+}
+
+export function tableToText({ headers, rows, numericColumns }: CopyTableData): string {
+  const guardHeader = (r: string[]) => r.map((c) => guardCell(c, false)).join('\t');
+  const guardRow = (r: string[]) => r.map((c, i) => guardCell(c, numericColumns.includes(i))).join('\t');
+  return [guardHeader(headers), ...rows.map(guardRow)].join('\n');
 }
 
 export function tableToHtml({ headers, rows }: CopyTableData): string {

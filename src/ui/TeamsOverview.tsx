@@ -64,9 +64,11 @@ export function TeamsOverview() {
   }, [rows, brand.process, sort.key, sort.dir]);
 
   function copyData() {
+    const headers = ['Name', 'Members', ...brand.process.map((phase) => phase.label)];
     return {
-      headers: ['Name', 'Members', ...brand.process.map((phase) => phase.label)],
+      headers,
       rows: sorted.map((r) => [r.team.name, String(r.members), ...r.counts.map(String)]),
+      numericColumns: headers.map((_, i) => i).slice(1), // every column but Name
     };
   }
 
