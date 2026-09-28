@@ -80,6 +80,7 @@ export function PeopleOverview() {
         `${r.person.capacityPct}%`,
         r.person.active ? 'Active' : 'Inactive',
       ]),
+      numericColumns: [4],
     };
   }
   const selected = people.find((p) => p.id === selectedId) ?? null;

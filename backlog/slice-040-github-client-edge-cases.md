@@ -83,3 +83,13 @@ None.
 - **Token check failure copy:** "Couldn't reach GitHub to check the token.
   Check your connection and try again."; only a 401 says the token isn't
   accepted.
+- **Classification scope:** the 401-only rule and the new `unreachable`
+  outcome are added in `validateToken.ts` only — the shared
+  `classifyStatus`/`GithubApiError` cause bucketing other read/write paths
+  rely on is untouched.
+- **`unreachable` outcome colour:** `bg-warning-tint text-warning-text`,
+  matching `ReadOnlyBanner.tsx`'s existing treatment of the same "GitHub
+  unreachable" cause elsewhere in the app.
+- **Large-file reads:** via the blob API (`GET git/blobs/{sha}`), not the
+  raw media type — the client already talks to `git/blobs` for writes in
+  `createFilesCommit`.
