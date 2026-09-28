@@ -5,7 +5,7 @@ import { FILE_PATHS } from '../data/types';
 import { CommitInput, Refusal } from './CommitInput';
 import { DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
 import { LockToggle } from './LockToggle';
-import { useSectionLock } from './useSectionLock';
+import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -24,12 +24,11 @@ function initiativeCount(n: number): string {
 }
 
 /** Settings' Roles section (§5.9): a lockable table, edited in place, with Add role and an impact note after a cost-factor edit. */
-export function RolesSection() {
+export function RolesSection({ lock }: { lock: SectionLock }) {
   const repository = useRepository();
   const { roles, initiatives, people } = useRepositoryState();
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
-  const lock = useSectionLock();
   const [drafting, setDrafting] = useState(false);
   // Which initiatives a cost-factor change affects, by role id: shown until that role's cost factor is edited again (§5.9).
   const [impact, setImpact] = useState<Record<string, number>>({});

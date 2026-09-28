@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { BrandProvider } from '../state/BrandContext';
@@ -54,5 +55,20 @@ describe('SettingsPage section list (§5.9)', () => {
   it('an unknown section in the URL shows Roles', async () => {
     renderSettings('countries');
     expect(await screen.findByRole('heading', { name: 'Roles', level: 2 })).toBeInTheDocument();
+  });
+});
+
+describe('Leaving Settings re-locks a section (§2)', () => {
+  it('unlocking, then unmounting and remounting Settings, starts locked again', async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderSettings('roles');
+    await screen.findByRole('heading', { name: 'Roles', level: 2 });
+
+    await user.click(screen.getByRole('button', { name: 'Locked' }));
+    expect(screen.getByRole('button', { name: 'Unlocked' })).toBeInTheDocument();
+
+    unmount(); // leaving Settings entirely
+    renderSettings('roles'); // coming back
+    expect(await screen.findByRole('button', { name: 'Locked' })).toBeInTheDocument();
   });
 });

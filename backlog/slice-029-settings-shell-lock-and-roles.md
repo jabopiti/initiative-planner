@@ -82,28 +82,34 @@ estimates stated where it is made.
 
 ## Acceptance criteria
 
-- [ ] Given Settings is opened, then the built sections are listed (Roles
+- [x] Given Settings is opened, then the built sections are listed (Roles
       only, in this slice) and Roles is shown; `#/settings/roles` survives a
       reload; an unknown section in the URL shows Roles.
-- [ ] Given Roles is opened, then it is locked: values read-only, "Locked.
+- [x] Given Roles is opened, then it is locked: values read-only, "Locked.
       Unlock to edit." shown, the button reads "Locked".
-- [ ] Given Unlock, then fields become editable and the button reads
+- [x] Given Unlock, then fields become editable and the button reads
       "Unlocked"; clicking it again re-locks.
-- [ ] Given Roles unlocked, when moving to another Settings section and back,
+- [x] Given Roles unlocked, when moving to another Settings section and back,
       then it is still unlocked; when leaving Settings and returning, locked.
-- [ ] Given a lock state, then nothing about it is written to the dataset.
-- [ ] Given a cost factor of 0, -1 or text, then it is refused inline with a
+      (The lock is held in `SettingsPage`, one `useSectionLock()` per lockable
+      section, unconditionally — so switching sections, once 030/032 add
+      more, can never remount and so never re-lock one that isn't showing;
+      only `SettingsPage` itself unmounting, i.e. leaving Settings, does.)
+- [x] Given a lock state, then nothing about it is written to the dataset.
+- [x] Given a cost factor of 0, -1 or text, then it is refused inline with a
       message and nothing is saved.
-- [ ] Given a blank name or abbreviation, then it is refused inline.
-- [ ] Given Add role with name, abbreviation and factor, then Add saves it in
+- [x] Given a blank name or abbreviation, then it is refused inline.
+- [x] Given Add role with name, abbreviation and factor, then Add saves it in
       one commit; without a name, Add is disabled.
-- [ ] Given a role is deactivated, then it is greyed out, not offered in a
+- [x] Given a role is deactivated, then it is greyed out, not offered in a
       person's role list, and people who have it keep it.
-- [ ] Given Tech Lead's factor changes and two initiatives have unfrozen
+- [x] Given Tech Lead's factor changes and two initiatives have unfrozen
       allocations of Tech Leads, then "Changes the estimate of 2 initiatives."
       shows beside the field, and a frozen phase's figures are unchanged.
-- [ ] Given keyboard only, then the lock button toggles with Enter or Space and
-      announces its pressed state.
+- [x] Given keyboard only, then the lock button toggles with Enter or Space and
+      announces its pressed state. (A native `<button>` via shadcn's `Button`,
+      so this is Enter/Space and `aria-pressed` for free — verified in the
+      running app and by RTL's role queries.)
 
 ## Delivery gate
 

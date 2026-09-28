@@ -8,6 +8,7 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { rootListing } from '../sync/testing/rootListing';
 import { RolesSection } from './RolesSection';
+import { useSectionLock } from './useSectionLock';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
@@ -48,12 +49,18 @@ beforeEach(() => {
   initiatives = [];
 });
 
+// The lock now lives above RolesSection (SettingsPage, §2), so the test holds it the same way.
+function RolesSectionWithLock() {
+  const lock = useSectionLock();
+  return <RolesSection lock={lock} />;
+}
+
 function renderRoles() {
   return render(
     <BrandProvider brand={defaultBrandPack}>
       <TooltipProvider>
         <RepositoryProvider token="token">
-          <RolesSection />
+          <RolesSectionWithLock />
         </RepositoryProvider>
       </TooltipProvider>
     </BrandProvider>,

@@ -1,19 +1,23 @@
 import { RolesSection } from './RolesSection';
+import { useSectionLock } from './useSectionLock';
 
 /**
  * Settings' section list (§5.9): each entry is a section other slices append to as they build it (030
  * Countries & rates, 031 Process/Connection/About, 032 Danger zone), so this list stays additive across
  * parallel slices. A section not yet built isn't listed, like an unbuilt action in an Actions menu.
  */
-const SETTINGS_SECTIONS: { id: string; label: string; render: () => React.ReactElement }[] = [
-  { id: 'roles', label: 'Roles', render: () => <RolesSection /> },
-];
+const SETTINGS_SECTIONS: { id: string; label: string }[] = [{ id: 'roles', label: 'Roles' }];
 
 const DEFAULT_SECTION = SETTINGS_SECTIONS[0].id;
 
 /** Settings (§5.9): a left section list and the chosen section on the right; an unknown section falls back to the default. */
 export function SettingsPage({ section }: { section: string }) {
   const active = SETTINGS_SECTIONS.find((s) => s.id === section) ?? SETTINGS_SECTIONS[0];
+  // Every lockable section's lock is held here, unconditionally, so switching sections never remounts (and
+  // so never re-locks) one that isn't showing (§2) — only leaving Settings entirely, which unmounts this
+  // whole component, does. A section other slices add gets its own `useSectionLock()` call here, the same way.
+  const rolesLock = useSectionLock();
+  const content = active.id === 'roles' ? <RolesSection lock={rolesLock} /> : null;
 
   return (
     <div className="flex gap-6 px-8 py-6">
@@ -37,7 +41,7 @@ export function SettingsPage({ section }: { section: string }) {
           ))}
         </ul>
       </nav>
-      <div className="min-w-0 flex-1">{active.render()}</div>
+      <div className="min-w-0 flex-1">{content}</div>
     </div>
   );
 }
