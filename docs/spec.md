@@ -1007,8 +1007,11 @@ local time, determined the same way as Confirmed vs. Provisional in §4.
   free capacity, so the default never causes a warning.
 - **Extend on overrun.** When the current phase is past its end date, the
   Overrun state (§5.4, §8.5) offers **Extend <phase> by one month**. It
-  moves the phase's end date a month later and keeps its allocations; later
-  phases do not move.
+  moves the phase's end date a month later — the same day next month, a day
+  the month lacks counting as its last day — and an end on a month's last
+  day moves to the next month's last day (30 Sep → 31 Oct, 28 Feb → 31 Mar),
+  since periods are day-precise and prorated (§7.1). It keeps the phase's
+  allocations; later phases do not move.
 - **Fix suggestions.** A capacity warning on an allocation row or in the
   capacity grid's detail (§5.4, §5.8) offers up to two fixes: reduce the
   person's Allocation % to the value that fits for every month of the phase,

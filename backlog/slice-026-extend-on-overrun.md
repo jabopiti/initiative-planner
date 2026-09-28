@@ -92,3 +92,11 @@ review.
 
 - **Placement:** the magic bar's overrun state only, not the Needs attention
   strip.
+- **Month-end rule confirmed:** a phase ending on a month's last day moves to
+  the next month's last day (30 Sep 2026 → 31 Oct 2026, 28 Feb 2027 → 31 Mar
+  2027), reusing `defaultPlan.ts`'s `addMonths` rather than a literal
+  same-day-next-month rule that would leave a day uncovered.
+- **Link colour:** the "Extend <phase> by one month" link under the overrun
+  message uses a neutral colour, not the accent colour used elsewhere for
+  links — Alarm/accent both stay off it, so only the overrun message and its
+  icon carry colour.
