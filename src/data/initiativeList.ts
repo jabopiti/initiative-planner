@@ -20,12 +20,15 @@ export interface InitiativeRow {
   attention: NeedsAttentionItem | null;
 }
 
+/** A team or person name as lists show it (§9.3): "(inactive)" once deactivated. */
+export const inactiveLabel = (name: string, active: boolean): string => (active ? name : `${name} (inactive)`);
+
 /** An owner as a table shows them (§5.4, §9.3): "(inactive)" once deactivated, a dash for none. */
 export function ownerLabel(ownerId: string | undefined, people: Person[]): string {
   if (!ownerId) return '—';
   const owner = people.find((p) => p.id === ownerId);
   if (!owner) return 'Unknown person';
-  return owner.active ? owner.name : `${owner.name} (inactive)`;
+  return inactiveLabel(owner.name, owner.active);
 }
 
 /** One row per initiative, whatever its status (§5.3). A Closed initiative's current phase is its final one. */
@@ -39,16 +42,18 @@ export function initiativeRows(
   attention: NeedsAttentionItem[],
 ): InitiativeRow[] {
   const attentionById = new Map(attention.map((item) => [item.initiativeId, item]));
+  const teamName = new Map(teams.map((t) => [t.id, t.name]));
+  const phaseLabel = new Map(process.map((p) => [p.id, p.label]));
   return initiatives.map((initiative) => {
     const phaseId = currentPhaseId(initiative, process);
     const total = grandEstimate(initiative, process, people, data);
     const track = resolveApprovalTrack(approvalTracks, total);
     return {
       initiative,
-      teamName: teams.find((t) => t.id === initiative.teamId)?.name ?? 'Unknown team',
+      teamName: teamName.get(initiative.teamId) ?? 'Unknown team',
       ownerName: ownerLabel(initiative.ownerId, people),
       phaseId,
-      phaseLabel: process.find((p) => p.id === phaseId)?.label ?? phaseId,
+      phaseLabel: phaseLabel.get(phaseId) ?? phaseId,
       total,
       trackId: track?.id ?? NONE,
       trackName: track?.name ?? 'No approval track',

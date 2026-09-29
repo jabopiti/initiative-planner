@@ -229,7 +229,7 @@ describe('Initiatives table filters (§9.11)', () => {
 
     await user.click(chipButton('Status'));
     expect(await screen.findByRole('textbox', { name: 'Search status' })).toHaveFocus();
-    expect(screen.getAllByRole('checkbox').map((c) => c.getAttribute('aria-label') ?? c.parentElement?.textContent)).toHaveLength(4);
+    expect(screen.getAllByRole('checkbox')).toHaveLength(4);
     await user.click(screen.getByRole('checkbox', { name: 'On Hold' }));
 
     expect(names()).toEqual(['On Hold Co']);

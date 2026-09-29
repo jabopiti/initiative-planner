@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { activeFilterCount, attentionRank, filterRows, initiativeRows, NO_FILTERS, NONE, type InitiativeFilters } from '../data/initiativeList';
+import { activeFilterCount, attentionRank, filterRows, inactiveLabel, initiativeRows, type InitiativeRow, NO_FILTERS, NONE, type InitiativeFilters } from '../data/initiativeList';
 import { sortRows } from '../data/sortRows';
 import { FILE_PATHS } from '../data/types';
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
@@ -21,7 +21,28 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 const STATUSES = ['Active', 'On Hold', 'Cancelled', 'Closed'];
 
-const inactive = (name: string, active: boolean) => (active ? name : `${name} (inactive)`);
+const CHIPS: [keyof InitiativeFilters, string][] = [
+  ['team', 'Team'],
+  ['owner', 'Owner'],
+  ['phase', 'Phase'],
+  ['track', 'Approval track'],
+  ['status', 'Status'],
+];
+
+/** The icon-only Needs attention marker (§9.10): the kind is its accessible name, kind and reason its tooltip. */
+function AttentionMarker({ item }: { item: NonNullable<InitiativeRow['attention']> }) {
+  const config = KIND_CONFIG[item.kind];
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span role="img" aria-label={config.label} tabIndex={0} className={`inline-flex ${config.colorClass}`}>
+          <config.Icon width={16} height={16} />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{`${config.label}: ${item.reason}`}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 /** The Initiatives overview (§5.3): every initiative in every status, filterable, sortable and copyable. */
 export function InitiativesTable() {
@@ -57,22 +78,19 @@ export function InitiativesTable() {
     [rows, filters, sort.key, sort.dir, process],
   );
 
-  if (initiatives.length === 0) return <NoInitiatives />;
-
-  const options: Record<keyof InitiativeFilters, FilterOption[]> = {
-    team: teams.map((t) => ({ value: t.id, label: inactive(t.name, t.active) })),
-    owner: [{ value: NONE, label: 'No owner' }, ...people.map((p) => ({ value: p.id, label: inactive(p.name, p.active) }))],
+  const options = useMemo<Record<keyof InitiativeFilters, FilterOption[]>>(
+    () => ({
+    team: teams.map((t) => ({ value: t.id, label: inactiveLabel(t.name, t.active) })),
+    owner: [{ value: NONE, label: 'No owner' }, ...people.map((p) => ({ value: p.id, label: inactiveLabel(p.name, p.active) }))],
     phase: process.map((p) => ({ value: p.id, label: p.label })),
     track: [...approvalTracks.map((t) => ({ value: t.id, label: t.name })), { value: NONE, label: 'No approval track' }],
     status: STATUSES.map((s) => ({ value: s, label: s })),
-  };
-  const chips: [keyof InitiativeFilters, string][] = [
-    ['team', 'Team'],
-    ['owner', 'Owner'],
-    ['phase', 'Phase'],
-    ['track', 'Approval track'],
-    ['status', 'Status'],
-  ];
+    }),
+    [teams, people, process, approvalTracks],
+  );
+
+  if (initiatives.length === 0) return <NoInitiatives />;
+
   const filtering = activeFilterCount(filters) > 0;
   const noun = (n: number) => `${n} ${n === 1 ? 'initiative' : 'initiatives'}`;
 
@@ -101,7 +119,7 @@ export function InitiativesTable() {
       </div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
-          {chips.map(([key, label]) => (
+          {CHIPS.map(([key, label]) => (
             <FilterChip key={key} label={label} options={options[key]} selected={filters[key]} onChange={(next) => setFilters({ ...filters, [key]: next })} />
           ))}
         </div>
@@ -134,7 +152,6 @@ export function InitiativesTable() {
             {visible.map((r) => {
               const href = `#/initiatives/${r.initiative.id}`;
               const item = r.attention;
-              const config = item && KIND_CONFIG[item.kind];
               return (
                 <tr
                   key={r.initiative.id}
@@ -155,16 +172,7 @@ export function InitiativesTable() {
                   </td>
                   <td className="px-3 py-2">{r.initiative.status}</td>
                   <td className="px-3 py-2">
-                    {item && config && (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span role="img" aria-label={config.label} tabIndex={0} className={`inline-flex ${config.colorClass}`}>
-                            <config.Icon width={16} height={16} />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>{`${config.label}: ${item.reason}`}</TooltipContent>
-                      </Tooltip>
-                    )}
+                    {item && <AttentionMarker item={item} />}
                   </td>
                 </tr>
               );
