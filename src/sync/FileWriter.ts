@@ -7,7 +7,7 @@ import type { WriteQueue } from './WriteQueue';
 const COMMIT_DEBOUNCE_MS = 1000;
 const MAX_RETRIES = 3;
 /** The wait before retry 1, 2 and 3 after a rejected write (§10.3), before jitter. */
-export const RETRY_BACKOFF_MS = [500, 1000, 2000];
+const RETRY_BACKOFF_MS = [500, 1000, 2000];
 const JITTER = 0.2;
 
 /** The clock a writer waits on when it is not given one; tests replace `delay` to run without real time. */
