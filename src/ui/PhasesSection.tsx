@@ -156,8 +156,8 @@ function CostedPhase({
   // is undefined without a valid period (the list is then by name) and while the phase is closed: only the open
   // phase's picker shows it. It rescans every initiative, so it is kept across renders that don't change its inputs.
   const { teamMembers, addable, free } = useMemo(
-    () => allocatablePeople({ plan, team, withFree: expanded && !frozen, people, teams, memberships, initiatives, process, today: localToday() }),
-    [expanded, team, teams, memberships, people, plan, initiatives, process, frozen],
+    () => allocatablePeople({ plan, team, withFree: expanded && !frozen, people, teams, memberships, initiatives, process, today }),
+    [expanded, team, teams, memberships, people, plan, initiatives, process, frozen, today],
   );
 
   const picker =

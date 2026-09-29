@@ -114,6 +114,6 @@ export function allocatablePeople({
   const teamMembers = team ? activeMembers(team.id, memberships, people) : [];
   const notYetAllocated = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
   const free = withFree && team ? freeCapacityByPerson({ people: notYetAllocated, teamId: team.id, teams, memberships, period: plan, initiatives, process, today }) : undefined;
-  const addable = [...notYetAllocated].sort((a, b) => (free?.get(b.id) ?? 0) - (free?.get(a.id) ?? 0) || nameOrder.compare(a.name, b.name));
+  const addable = notYetAllocated.sort((a, b) => (free?.get(b.id) ?? 0) - (free?.get(a.id) ?? 0) || nameOrder.compare(a.name, b.name));
   return { teamMembers, addable, free };
 }

@@ -28,8 +28,8 @@ export interface PhaseSummary {
 /** A phase's summary figures. `plan` is the phase's plan, or an empty one when it isn't planned yet. */
 export function phaseSummary(initiative: Initiative, phaseId: string, plan: PhasePlan, people: Person[], data: RateData): PhaseSummary {
   const hasPeriod = Boolean(plan.startDate && plan.endDate);
-  const inverted = hasPeriod && plan.endDate! < plan.startDate!;
-  const costed = hasPeriod && !inverted;
+  const costed = hasValidPeriod(plan);
+  const inverted = hasPeriod && !costed;
   const frozen = isPhaseFrozen(initiative, phaseId);
   const snapshot = initiative.gates?.[phaseId]?.frozenSnapshot;
   const estimateByMonth = frozen && snapshot ? snapshot.estimateByMonth : phaseByMonth(plan, people, data);
