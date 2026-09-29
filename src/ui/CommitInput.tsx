@@ -1,5 +1,6 @@
-import { useEffect, useId, useState, type ComponentProps, type ReactNode } from 'react';
-import { useHoldWhileEditing, type FieldFailure } from '../state/DataContext';
+import type { ComponentProps, ReactNode } from 'react';
+import type { FieldFailure } from '../state/DataContext';
+import { useCommitField } from './commitField';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -38,6 +39,35 @@ export function FailedEdit({ id, retryLabel, failure, className = '' }: { id?: s
   );
 }
 
+/** The refusal/failed-save messages under a commit field (§9.9), in the precedence a fresh edit takes over the
+ * field's message slot from a stale failure. */
+export function CommitFieldMessages({
+  error,
+  errorId,
+  showFailure,
+  failureId,
+  errorClassName,
+  retryLabel,
+}: {
+  error: string | null;
+  errorId: string;
+  showFailure: FieldFailure | null;
+  failureId: string;
+  errorClassName: string;
+  retryLabel: string;
+}) {
+  return (
+    <>
+      {error && (
+        <Refusal id={errorId} className={errorClassName}>
+          {error}
+        </Refusal>
+      )}
+      {showFailure && <FailedEdit id={failureId} className={errorClassName} failure={showFailure} retryLabel={retryLabel} />}
+    </>
+  );
+}
+
 /**
  * A text or number field that commits when it loses focus or Enter is pressed, never on each keystroke
  * (§10.3), so typing a value is one edit and one commit. `onCommit` returns `false` to reject the text,
@@ -73,29 +103,7 @@ export function CommitInput({
   /** The failed edit's Retry button's accessible name, distinct from every other Retry on screen (§9.5, §9.9). */
   retryLabel?: string;
 }) {
-  const [draft, setDraft] = useState(value);
-  const [error, setError] = useState<string | null>(null);
-  const errorId = useId();
-  const failureId = useId();
-  useHoldWhileEditing(draft !== value);
-  useEffect(() => {
-    setDraft(value);
-    setError(null);
-  }, [value]);
-
-  const commit = () => {
-    if (draft === value) {
-      setError(null);
-      return;
-    }
-    const result = onCommit(draft);
-    if (typeof result === 'string') {
-      setError(result);
-      return;
-    }
-    setError(null);
-    if (result === false) setDraft(value);
-  };
+  const { draft, setDraft, error, errorId, failureId, commit, cancel } = useCommitField(value, onCommit);
 
   // Not while actively drafting something else: a fresh, uncommitted edit takes over the field's message slot.
   const showFailure = !error && draft === value ? failure : null;
@@ -117,20 +125,19 @@ export function CommitInput({
           props.onKeyDown?.(e);
           if (e.key === 'Enter') commit();
           if (e.key === 'Escape' && draft !== value) {
-            setDraft(value);
-            setError(null);
+            cancel();
             e.stopPropagation();
           }
         }}
       />
-      {error && (
-        <Refusal id={errorId} className={errorClassName}>
-          {error}
-        </Refusal>
-      )}
-      {showFailure && (
-        <FailedEdit id={failureId} className={errorClassName} failure={showFailure} retryLabel={retryLabel ?? `Retry saving ${props['aria-label'] ?? 'this field'}`} />
-      )}
+      <CommitFieldMessages
+        error={error}
+        errorId={errorId}
+        showFailure={showFailure}
+        failureId={failureId}
+        errorClassName={errorClassName}
+        retryLabel={retryLabel ?? `Retry saving ${props['aria-label'] ?? 'this field'}`}
+      />
     </>
   );
 }

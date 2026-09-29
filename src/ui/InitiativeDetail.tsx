@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { FILE_PATHS } from '../data/types';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { CommitInput } from './CommitInput';
+import { CommitTextarea } from './CommitTextarea';
 import { CostSummary } from './CostSummary';
 import { InitiativeTeamRow } from './InitiativeTeamRow';
 import { jumpTo } from './jumpTo';
@@ -48,6 +49,15 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
             onCommit={(text) => repository.renameInitiative(initiative.id, text)}
           />
         </h1>
+        <CommitTextarea
+          className="mb-2 min-h-0 border-transparent bg-transparent px-3 py-1.5 text-sm text-text-secondary shadow-none hover:border-border-default"
+          aria-label="Description"
+          placeholder="Add a description"
+          changed={changed(FILE_PATHS.initiative(initiative.id), ['description'])}
+          failure={failure(FILE_PATHS.initiative(initiative.id), ['description'])}
+          value={initiative.description ?? ''}
+          onCommit={(text) => repository.setDescription(initiative.id, text)}
+        />
         <InitiativeTeamRow initiative={initiative} />
         <CostSummary initiative={initiative} />
         <PhasesSection initiative={initiative} team={team} openPhaseId={openPhaseId} />

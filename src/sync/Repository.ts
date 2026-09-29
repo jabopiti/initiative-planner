@@ -954,6 +954,30 @@ export class Repository {
     return true;
   }
 
+  /** Set or clear the initiative's description in place (§5.4). Trimmed; empty clears it. */
+  setDescription(initiativeId: string, text: string): boolean {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    if (!initiative) return false;
+    const trimmed = text.trim();
+    if (trimmed === (initiative.description ?? '')) return true;
+    const next: Initiative = { ...initiative, description: trimmed };
+    if (!trimmed) delete next.description;
+    this.replaceInitiative(next);
+    this.initiativeWriters.get(initiativeId)?.schedule(next, { key: 'description', text: `${initiative.name}: description changed` });
+    return true;
+  }
+
+  /** Set or clear (`undefined`) the initiative's owner in place (§5.4). */
+  setOwner(initiativeId: string, ownerId: string | undefined): void {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    if (!initiative || ownerId === initiative.ownerId) return;
+    const next: Initiative = { ...initiative, ownerId };
+    if (ownerId === undefined) delete next.ownerId;
+    this.replaceInitiative(next);
+    const text = ownerId ? `${initiative.name}: owner set to ${this.personName(ownerId)}` : `${initiative.name}: owner cleared`;
+    this.initiativeWriters.get(initiativeId)?.schedule(next, { key: 'ownerId', text });
+  }
+
   private phaseLabel(phaseId: string): string {
     return this.brand.process.find((p) => p.id === phaseId)?.label ?? phaseId;
   }

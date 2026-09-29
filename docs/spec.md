@@ -980,7 +980,8 @@ A pasted token is checked immediately, and the result is specific:
 | Cannot see the repository | "This token can't see <repository>. Create it with access to that repository." |
 | Read-only | "This token can read but not write. Set Contents to Read and write." |
 | Waiting for approval | "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." |
-| Expired or invalid | "GitHub doesn't accept this token." |
+| Expired or invalid (a 401) | "GitHub doesn't accept this token." |
+| Network failure or a server error while checking | "Couldn't reach GitHub to check the token. Check your connection and try again." The token stays in the field and the check can be run again. |
 
 ### 5.11 Suggestions and shortcuts
 
@@ -1427,6 +1428,10 @@ on an initiative, its cost summary and phase costs (§5.4). It copies what is
 currently shown, with the active filters and sort applied, as both plain
 text and rich HTML, so it lands as cells in a spreadsheet or as a table in a
 document. Print and PDF are not supported, so copy is the only output route.
+In the plain-text copy, a text cell starting with `=`, `+`, `-` or `@` is
+prefixed with an apostrophe so a spreadsheet reads it as text, not a formula
+(§10.9); numeric cells (amounts, percentages, signed deviations) are never
+prefixed, and the rich HTML copy is unaffected.
 
 ### 9.3 Deletion rules
 

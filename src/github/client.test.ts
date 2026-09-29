@@ -11,6 +11,17 @@ const location: GithubLocation = {
   dataBranch: 'data',
 };
 
+let fetchMock: ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+  fetchMock = vi.fn();
+  vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 /**
  * Regression coverage for slice 002's incident (spike-findings.md): a
  * Contents API call that omits `branch` silently lands on the repository's
@@ -18,17 +29,6 @@ const location: GithubLocation = {
  * this be covered by a test, not just review.
  */
 describe('GithubClient — branch is always explicit (§10.3)', () => {
-  let fetchMock: ReturnType<typeof vi.fn>;
-
-  beforeEach(() => {
-    fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it('refuses getFile when branch is omitted, without ever calling fetch', async () => {
     const client = new GithubClient(location, () => 'token');
     // `as any` bypasses the compile-time requirement to simulate a bug that
@@ -129,32 +129,36 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
     // unhandled rejection — vitest reports that as a failure of this test.
   });
 
-  it('updates an existing branch through PATCH git/refs/heads/{branch} (plural), not the singular read URL, which 404s', async () => {
-    const calls: string[] = [];
-    fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
-      const u = String(url);
-      const method = init.method ?? 'GET';
-      calls.push(`${method} ${u}`);
-      if (method === 'GET' && u.endsWith('/git/ref/heads/data')) return new Response(JSON.stringify({ object: { sha: 'parent-sha' } }), { status: 200 });
-      if (method === 'GET' && u.endsWith('/git/commits/parent-sha')) return new Response(JSON.stringify({ tree: { sha: 'base-tree' } }), { status: 200 });
-      if (method === 'POST' && u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob-1' }), { status: 200 });
-      if (method === 'POST' && u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'tree-1' }), { status: 200 });
-      if (method === 'POST' && u.endsWith('/git/commits')) return new Response(JSON.stringify({ sha: 'new-sha' }), { status: 200 });
-      // GitHub answers a PATCH to the singular `git/ref/...` URL with a 404.
-      if (method === 'PATCH' && u.endsWith('/git/refs/heads/data')) return new Response(JSON.stringify({ object: { sha: 'new-sha' } }), { status: 200 });
-      return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
-    });
+  it.each(['data', 'planning/data'])(
+    'updates an existing branch %s through PATCH git/refs/heads/{branch} (plural), not the singular read URL, which 404s, with `/` kept unencoded',
+    async (branch) => {
+      const calls: string[] = [];
+      fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
+        const u = String(url);
+        const method = init.method ?? 'GET';
+        calls.push(`${method} ${u}`);
+        if (method === 'GET' && u.endsWith(`/git/ref/heads/${branch}`)) return new Response(JSON.stringify({ object: { sha: 'parent-sha' } }), { status: 200 });
+        if (method === 'GET' && u.endsWith('/git/commits/parent-sha')) return new Response(JSON.stringify({ tree: { sha: 'base-tree' } }), { status: 200 });
+        if (method === 'POST' && u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob-1' }), { status: 200 });
+        if (method === 'POST' && u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'tree-1' }), { status: 200 });
+        if (method === 'POST' && u.endsWith('/git/commits')) return new Response(JSON.stringify({ sha: 'new-sha' }), { status: 200 });
+        // GitHub answers a PATCH to the singular `git/ref/...` URL with a 404.
+        if (method === 'PATCH' && u.endsWith(`/git/refs/heads/${branch}`)) return new Response(JSON.stringify({ object: { sha: 'new-sha' } }), { status: 200 });
+        return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+      });
 
-    const client = new GithubClient(location, () => 'token');
-    const result = await client.createFilesCommit({
-      branch: location.dataBranch,
-      files: [{ path: 'dataset.json', content: '{}' }],
-      message: 'init',
-    });
+      const client = new GithubClient(location, () => 'token');
+      const result = await client.createFilesCommit({
+        branch,
+        files: [{ path: 'dataset.json', content: '{}' }],
+        message: 'init',
+      });
 
-    expect(result.commitSha).toBe('new-sha');
-    expect(calls).toContain('PATCH https://api.github.com/repos/jabopiti/initiative-planner/git/refs/heads/data');
-  });
+      expect(result.commitSha).toBe('new-sha');
+      expect(calls).toContain(`GET https://api.github.com/repos/jabopiti/initiative-planner/git/ref/heads/${branch}`);
+      expect(calls).toContain(`PATCH https://api.github.com/repos/jabopiti/initiative-planner/git/refs/heads/${branch}`);
+    },
+  );
 
   it('returns the winning commit sha, not its own dangling one, when it loses the bootstrap race', async () => {
     // GET .../git/ref/heads/data is called twice: once (404, branch doesn't exist yet) before
@@ -187,5 +191,53 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
 
     expect(result.commitSha).toBe('the-actual-winning-sha');
     expect(result.commitSha).not.toBe('my-dangling-sha');
+  });
+});
+
+describe('GithubClient — edge cases (slice 040)', () => {
+  it('keeps `/` unencoded in the branch head ref URL, for a data branch like planning/data', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ object: { sha: 'head-sha' } }), { status: 200 }));
+
+    const client = new GithubClient(location, () => 'token');
+    await client.getBranchHead({ branch: 'planning/data', etag: null });
+
+    const [calledUrl] = fetchMock.mock.calls[0] as [string];
+    expect(calledUrl).toBe('https://api.github.com/repos/jabopiti/initiative-planner/git/ref/heads/planning/data');
+  });
+
+  it('reads a file over 1 MB through the blob API when the Contents response carries no inline content', async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url);
+      if (u.includes('/contents/')) {
+        return new Response(JSON.stringify({ content: '', encoding: 'none', sha: 'big-file-sha' }), { status: 200 });
+      }
+      if (u.endsWith('/git/blobs/big-file-sha')) {
+        return new Response(JSON.stringify({ sha: 'big-file-sha', encoding: 'base64', content: btoa('[]') }), { status: 200 });
+      }
+      throw new Error(`unexpected call: ${u}`);
+    });
+
+    const client = new GithubClient(location, () => 'token');
+    const result = await client.getFile({ path: 'people.json', branch: location.dataBranch });
+
+    expect(result).toEqual({ content: '[]', sha: 'big-file-sha' });
+  });
+
+  it("returns null, not a thrown error, when a large file's blob has gone by the time the fallback fetches it", async () => {
+    fetchMock.mockImplementation(async (url: string) => {
+      const u = String(url);
+      if (u.includes('/contents/')) {
+        return new Response(JSON.stringify({ content: '', encoding: 'none', sha: 'vanished-sha' }), { status: 200 });
+      }
+      if (u.endsWith('/git/blobs/vanished-sha')) {
+        return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+      }
+      throw new Error(`unexpected call: ${u}`);
+    });
+
+    const client = new GithubClient(location, () => 'token');
+    const result = await client.getFile({ path: 'people.json', branch: location.dataBranch });
+
+    expect(result).toBeNull();
   });
 });

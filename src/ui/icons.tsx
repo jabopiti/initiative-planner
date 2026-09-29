@@ -3,7 +3,7 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { Archive, ArchiveRestore, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, CircleDashed, ClipboardList, Flame, Gauge, Info, Lock, Plus, RefreshCw, Rocket, Search, Trash2, TrendingUp, TriangleAlert, Unlock, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, CircleDashed, ClipboardList, Flame, Gauge, Info, Lock, Plus, RefreshCw, Rocket, Search, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
 
 function iconWrapper(Lucide: LucideIcon) {
@@ -19,6 +19,8 @@ export const WarningIcon = iconWrapper(TriangleAlert);
 export const InfoIcon = iconWrapper(Info);
 export const PlusIcon = iconWrapper(Plus);
 export const TeamsIcon = iconWrapper(Users);
+/** The owner select's trigger icon (§5.4, §9.10). */
+export const OwnerIcon = iconWrapper(User);
 export const RemoveIcon = iconWrapper(Trash2);
 export const DeactivateIcon = iconWrapper(UserX);
 export const ReactivateIcon = iconWrapper(UserCheck);
