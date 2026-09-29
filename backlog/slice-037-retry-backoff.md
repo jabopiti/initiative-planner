@@ -52,15 +52,15 @@ GitHub's limits.
 
 ## Acceptance criteria
 
-- [ ] Given three consecutive 409s (fake repository, fake clock), then the
+- [x] Given three consecutive 409s (fake repository, fake clock), then the
       retries start after 0.5 s, 1 s and 2 s (±20%), and the fourth outcome is
       the conflict flow.
-- [ ] Given jitter fixed at +10%, then the delays are exactly 0.55, 1.1 and
+- [x] Given jitter fixed at +10%, then the delays are exactly 0.55, 1.1 and
       2.2 s.
-- [ ] Given a new edit during a backoff, then it is included in the retried
+- [x] Given a new edit during a backoff, then it is included in the retried
       write, and only one write is in flight.
-- [ ] Given 005g's and 005j's interleaving tests, then they pass unchanged.
-- [ ] Given the app, then no test waits on real time for backoff.
+- [x] Given 005g's and 005j's interleaving tests, then they pass unchanged.
+- [x] Given the app, then no test waits on real time for backoff.
 
 ## Delivery gate
 

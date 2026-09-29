@@ -241,6 +241,113 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
     expect(committed).toEqual([[team1]]);
   });
 
+  describe('slice 037: a retry after a 409 waits a short, growing, jittered delay (§10.3)', () => {
+    function timedWriter(random: () => number, waits: number[], during?: () => void) {
+      return new FileWriter<Team[]>({
+        path: 'teams.json',
+        branch: location.dataBranch,
+        github,
+        queue: new WriteQueue(),
+        cache,
+        merge: mergeDocument,
+        whenMissing: [],
+        initial: { content: [], sha: 's0' },
+        delay: (ms) => {
+          waits.push(ms);
+          during?.();
+          return Promise.resolve();
+        },
+        random,
+        onStatus: (s) => statuses.push(s),
+        onConflict: (c) => conflicts.push(c),
+        onDocument: (content) => committed.push(content),
+      });
+    }
+    const conflict409 = () => jsonResponse({ message: 'Conflict' }, 409);
+    const theirsFile = (sha: string) => jsonResponse({ content: btoa(JSON.stringify([])), sha });
+    const puts = () => fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
+
+    it('waits 0.5 s, 1 s and 2 s (±20%) before the three retries, then the fourth 409 is the failure', async () => {
+      const lows: number[] = [];
+      const highs: number[] = [];
+      for (const [random, into] of [
+        [() => 0, lows],
+        [() => 0.999999, highs],
+      ] as const) {
+        fetchMock.mockReset();
+        fetchMock
+          .mockResolvedValueOnce(conflict409())
+          .mockResolvedValueOnce(theirsFile('s1'))
+          .mockResolvedValueOnce(conflict409())
+          .mockResolvedValueOnce(theirsFile('s2'))
+          .mockResolvedValueOnce(conflict409())
+          .mockResolvedValueOnce(theirsFile('s3'))
+          .mockResolvedValueOnce(conflict409());
+        const writer = timedWriter(random, into);
+        writer.schedule([{ id: 't1', name: 'Platform', active: true }]);
+        await expect(writer.flush()).resolves.toBe('failed');
+      }
+      expect(lows.map(Math.round)).toEqual([400, 800, 1600]);
+      expect(highs.map(Math.round)).toEqual([600, 1200, 2400]);
+    });
+
+    it('with jitter fixed at +10% the delays are exactly 0.55, 1.1 and 2.2 s', async () => {
+      const waits: number[] = [];
+      fetchMock
+        .mockResolvedValueOnce(conflict409())
+        .mockResolvedValueOnce(theirsFile('s1'))
+        .mockResolvedValueOnce(conflict409())
+        .mockResolvedValueOnce(theirsFile('s2'))
+        .mockResolvedValueOnce(conflict409())
+        .mockResolvedValueOnce(theirsFile('s3'))
+        .mockResolvedValueOnce(jsonResponse({ content: { sha: 's4' } }));
+      const writer = timedWriter(() => 0.75, waits);
+      writer.schedule([{ id: 't1', name: 'Platform', active: true }]);
+      await expect(writer.flush()).resolves.toBe('saved');
+      expect(waits.map((w) => Math.round(w * 1000) / 1000)).toEqual([550, 1100, 2200]);
+    });
+
+    it('an edit made during a backoff goes out in the retried write, as the only write in flight', async () => {
+      const t1: Team = { id: 't1', name: 'Platform', active: true };
+      const t2: Team = { id: 't2', name: 'Growth', active: true };
+      const writer: FileWriter<Team[]> = timedWriter(
+        () => 0.5,
+        [],
+        () => writer.schedule([t1, t2], { key: 't2', text: 'Growth: added' }),
+      );
+      fetchMock
+        .mockResolvedValueOnce(conflict409())
+        .mockResolvedValueOnce(theirsFile('s1'))
+        .mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
+      writer.schedule([t1], { key: 't1', text: 'Platform: added' });
+      await expect(writer.flush()).resolves.toBe('saved');
+      expect(puts()).toHaveLength(2);
+      const retried = JSON.parse((puts()[1][1] as RequestInit).body as string) as { content: string; message: string };
+      expect((JSON.parse(atob(retried.content)) as Team[]).map((t) => t.id)).toEqual(['t1', 't2']);
+      expect(retried.message).toBe('Platform: added; Growth: added');
+      await writer.flush();
+      expect(puts()).toHaveLength(2); // the folded edit is not written a second time
+    });
+
+    it('a pull that arrives during a backoff leaves the file alone', async () => {
+      let received: unknown;
+      const writer: FileWriter<Team[]> = timedWriter(
+        () => 0.5,
+        [],
+        () => {
+          received = writer.receive({ content: [], sha: 's9' }, 's0');
+        },
+      );
+      fetchMock
+        .mockResolvedValueOnce(conflict409())
+        .mockResolvedValueOnce(theirsFile('s1'))
+        .mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
+      writer.schedule([{ id: 't1', name: 'Platform', active: true }]);
+      await writer.flush();
+      expect(received).toEqual({ left: 'retry' });
+    });
+  });
+
   it('reports a readOnly status instead of throwing when the conflict retry itself fails', async () => {
     const writer = makeWriter({ content: [], sha: 's0' });
     const team1: Team = { id: 't1', name: 'Platform', active: true };

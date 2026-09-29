@@ -6,6 +6,15 @@ import type { WriteQueue } from './WriteQueue';
 
 const COMMIT_DEBOUNCE_MS = 1000;
 const MAX_RETRIES = 3;
+/** The wait before retry 1, 2 and 3 after a rejected write (§10.3), before jitter. */
+export const RETRY_BACKOFF_MS = [500, 1000, 2000];
+const JITTER = 0.2;
+
+/** The clock a writer waits on when it is not given one; tests replace `delay` to run without real time. */
+export const defaultTiming = {
+  delay: (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms)),
+  random: (): number => Math.random(),
+};
 
 export type WriteStatus = 'synced' | 'syncing' | { readOnly: ReadOnlyState };
 
@@ -44,6 +53,10 @@ export interface FileWriterOptions<D> {
   cache: FileCache;
   /** Settles when the first pull of the dataset has (§3): a save waits for it, so it is built on what the pull brought in. */
   gate?: () => Promise<unknown>;
+  /** Waits before a retry (§10.3); real timers by default. */
+  delay?: (ms: number) => Promise<void>;
+  /** Uniform in [0, 1), for the retry jitter; `Math.random` by default. */
+  random?: () => number;
   onStatus: (status: WriteStatus) => void;
   onConflict: (conflict: FileConflict) => void;
   /** The document on screen should now be this one: a save landed, or a merge brought in the other writer's changes. */
@@ -211,6 +224,18 @@ export class FileWriter<D> {
     let sent = mine;
     let merged = false;
     for (let retries = MAX_RETRIES; ; retries -= 1) {
+      if (retries < MAX_RETRIES) {
+        await this.backoff(MAX_RETRIES - retries - 1);
+        // An edit made during the wait joins this write rather than starting one of its own.
+        if (this.pending !== null) {
+          const newer = this.pending;
+          this.pending = null;
+          sent = this.rebase(mine, newer, sent, message);
+          mine = newer;
+          if (this.notes.size > 0) message = [message, ...this.notes.values()].join('; ');
+          this.notes.clear();
+        }
+      }
       try {
         const { sha } = await this.options.queue.run(() =>
           this.options.github.putFile({
@@ -251,6 +276,13 @@ export class FileWriter<D> {
         }
       }
     }
+  }
+
+  /** Waits out the delay before retry `n` (0-based): 0.5 s, 1 s, 2 s, each within ±20%. */
+  private backoff(n: number): Promise<void> {
+    const random = this.options.random ?? defaultTiming.random;
+    const delay = this.options.delay ?? defaultTiming.delay;
+    return delay(RETRY_BACKOFF_MS[n] * (1 + (random() * 2 - 1) * JITTER));
   }
 
   /**
