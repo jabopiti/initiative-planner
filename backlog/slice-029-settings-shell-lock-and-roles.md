@@ -82,28 +82,34 @@ estimates stated where it is made.
 
 ## Acceptance criteria
 
-- [ ] Given Settings is opened, then the built sections are listed (Roles
+- [x] Given Settings is opened, then the built sections are listed (Roles
       only, in this slice) and Roles is shown; `#/settings/roles` survives a
       reload; an unknown section in the URL shows Roles.
-- [ ] Given Roles is opened, then it is locked: values read-only, "Locked.
+- [x] Given Roles is opened, then it is locked: values read-only, "Locked.
       Unlock to edit." shown, the button reads "Locked".
-- [ ] Given Unlock, then fields become editable and the button reads
+- [x] Given Unlock, then fields become editable and the button reads
       "Unlocked"; clicking it again re-locks.
-- [ ] Given Roles unlocked, when moving to another Settings section and back,
+- [x] Given Roles unlocked, when moving to another Settings section and back,
       then it is still unlocked; when leaving Settings and returning, locked.
-- [ ] Given a lock state, then nothing about it is written to the dataset.
-- [ ] Given a cost factor of 0, -1 or text, then it is refused inline with a
+      (The lock is held in `SettingsPage`, one `useSectionLock()` per lockable
+      section, unconditionally — so switching sections, once 030/032 add
+      more, can never remount and so never re-lock one that isn't showing;
+      only `SettingsPage` itself unmounting, i.e. leaving Settings, does.)
+- [x] Given a lock state, then nothing about it is written to the dataset.
+- [x] Given a cost factor of 0, -1 or text, then it is refused inline with a
       message and nothing is saved.
-- [ ] Given a blank name or abbreviation, then it is refused inline.
-- [ ] Given Add role with name, abbreviation and factor, then Add saves it in
+- [x] Given a blank name or abbreviation, then it is refused inline.
+- [x] Given Add role with name, abbreviation and factor, then Add saves it in
       one commit; without a name, Add is disabled.
-- [ ] Given a role is deactivated, then it is greyed out, not offered in a
+- [x] Given a role is deactivated, then it is greyed out, not offered in a
       person's role list, and people who have it keep it.
-- [ ] Given Tech Lead's factor changes and two initiatives have unfrozen
+- [x] Given Tech Lead's factor changes and two initiatives have unfrozen
       allocations of Tech Leads, then "Changes the estimate of 2 initiatives."
       shows beside the field, and a frozen phase's figures are unchanged.
-- [ ] Given keyboard only, then the lock button toggles with Enter or Space and
-      announces its pressed state.
+- [x] Given keyboard only, then the lock button toggles with Enter or Space and
+      announces its pressed state. (A native `<button>` via shadcn's `Button`,
+      so this is Enter/Space and `aria-pressed` for free — verified in the
+      running app and by RTL's role queries.)
 
 ## Delivery gate
 
@@ -122,3 +128,26 @@ None.
 - **Lock:** a labelled toggle button ("Locked" / "Unlocked") in the section
   header, plus the §9.9 hint while locked.
 - **Impact:** an inline note after a rate-affecting edit, no confirmation.
+- **Impact count excludes custom roles:** a person whose active custom role
+  (§6) currently replaces their standard role's factor doesn't count toward
+  a standard role's impact number — the edit has no effect on their cost
+  while it's active.
+- **Lock/unlock rendering:** the "🔒 Locked" / "🔓 Unlocked" shorthand is a
+  Lucide icon (reusing `Lock`/adding `Unlock`) plus the text label, not a
+  literal emoji — matches every other icon in the codebase (e.g.
+  `FrozenIcon` wraps Lucide's `Lock`; nothing renders emoji glyphs).
+- **Impact note style:** plain muted caption text under the Cost factor
+  field, not a warning/alarm box — it's informational, matching the
+  existing "uses {year}" caption style in `CustomRoleFields.tsx`.
+- **Locked-section rendering:** the hint sits once under the section
+  header, above the table; fields stay as the same (disabled) inputs
+  rather than switching to a separate static renderer; Add role and the
+  Active toggle are visible but disabled while locked, not hidden —
+  reusing §2's rule for the Danger zone's actions.
+- **No interactive sort** on the Roles table; default order is by name
+  (§9.11).
+- **Refusal copy**, matching this codebase's existing style: blank name →
+  "Enter a name."; blank abbreviation → "Enter an abbreviation."; cost
+  factor ≤ 0 or non-numeric → "Enter a cost factor above 0."
+- **Deactivate/reactivate** is an immediate one-click toggle, no
+  confirmation, no undo toast — matches the existing Team/Person pattern.

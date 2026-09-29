@@ -169,6 +169,17 @@ const masterFiles: Record<string, MasterFile> = {
       active: statusField,
     }),
   },
+  [FILE_PATHS.roles]: {
+    list: (ctx) => ctx.roles,
+    entity: (role) => (role as Role | undefined)?.name ?? 'A role',
+    fields: () => ({
+      '': { label: 'Role', format: (r) => (r as Role).name, unset: 'removed' },
+      name: nameField,
+      abbreviation: { label: 'Abbreviation', format: text },
+      costFactor: { label: 'Cost factor', format: text },
+      active: statusField,
+    }),
+  },
   [FILE_PATHS.memberships]: {
     list: (ctx) => ctx.memberships,
     entity: (membership, ctx) => {
