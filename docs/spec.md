@@ -381,9 +381,27 @@ because each needs a different fix:
 | Cause | The message says | Recovery |
 |---|---|---|
 | GitHub unreachable or offline | Cannot reach GitHub; changes are paused | Automatic retry, or Retry |
-| Access denied | The token is missing, expired, revoked or lacks write permission | Paste a new token on the Connect screen (§5.10), then Retry |
+| Access denied | The token check (§5.10) runs once on the failure and the message is its outcome: "GitHub doesn't accept this token. It has expired or been revoked; create a new one.", "This token can read but not write. Set Contents to Read and write.", "This token can't see <repository>. Create it with access to that repository.", or "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." | Paste a new token into the banner (below), or fix the token in GitHub and Retry |
 | Rate limited by GitHub | GitHub is limiting requests; try again shortly | Automatic once the limit resets, or Retry |
 | Process mismatch, or dataset newer than this build | Which of the two failed (see Data integrity) | Matching build or dataset; reload to update |
+
+**Replacing the token from the banner.** In read-only mode with the cause
+"Access denied", the banner carries a **token field** and a **Replace**
+button beside the message, so a rejected token never locks the user out.
+Pasting a token checks it at once (typing needs Replace or Enter); the
+result appears under the field, using the wording of §5.10. A token that
+passes is saved with the user's earlier Remember me choice, a toast says
+"Connected as <user>", the banner goes away and the failed and pending
+edits are pushed automatically, with their typed values kept: replacing
+the token never remounts the app or discards an edit. Beside the field:
+**Create a token** (GitHub's token page, prefilled as in §5.10) and
+**Show steps**, a collapsed disclosure with the guide's four steps and the
+repository's copy button. When the token is valid but lacks write access
+or cannot see the repository, the banner links **Edit this token in
+GitHub** and keeps Retry, since changing a token's permissions in GitHub
+keeps its value. Retry is hidden for a rejected token, where it can never
+succeed. If the check itself cannot reach GitHub, the cause becomes
+"GitHub unreachable" and the automatic retry applies.
 
 **A failed edit.** If a push fails, including when the connection drops
 mid-edit, the write is rejected and the dataset stays unchanged. The field
@@ -911,8 +929,10 @@ Contains the following sections:
 - **Connection**: the connected GitHub user and the repository, the
   remaining GitHub API requests for the current hour (from the rate-limit
   headers GitHub returns on every response, so this costs no extra
-  request), and **Disconnect**, which removes the token from the browser
-  and opens the Connect screen (§3, §5.10).
+  request), **Replace token** (the banner's token field, §3 Sync failures,
+  so a token can be rotated before it expires without losing an edit), and
+  **Disconnect**, which removes the token from the browser and opens the
+  Connect screen (§3, §5.10).
 - **About** (read-only): product name, build version, schema version and
   process identity (§2, §3).
 - **Danger zone** (lockable): two actions.
@@ -927,8 +947,9 @@ Lock/unlock behaviour is defined in §2.
 ### 5.10 Connect screen
 
 Shown on first load and whenever no working token is stored (§3,
-Authentication); in read-only mode with the cause "Access denied", the
-banner's action opens it. It is one screen: a **token field** at the top
+Authentication). In read-only mode with the cause "Access denied", the
+banner replaces the token in place instead (§3, Sync failures), reusing
+this screen's check and messages. It is one screen: a **token field** at the top
 with a Connect button and a **Remember me on this device** checkbox (off by
 default), because pasting is the fastest path. It is three stacked cards, so
 the one required action stands apart from the help: the **input card**

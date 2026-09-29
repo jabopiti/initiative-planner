@@ -8,7 +8,7 @@ depends_on: ["029"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Third of the four Settings slices (§5.9), added in review: the read-only Process view, Connection (user, repository, remaining API requests, Disconnect) and About."
+change_summary: "Third of the four Settings slices (§5.9), added in review: the read-only Process view, Connection (user, repository, remaining API requests, Replace token, Disconnect) and About. Widened in review to replace the token in place, from the read-only banner and from Connection, with a specific diagnosis of the access failure."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "Mostly read-only display of the brand pack. The two technical parts — reading the rate-limit headers off every response without an extra request, and a Disconnect that respects unsaved edits — are small and testable with a fake client."
 spec_sections: ["§5.9 Settings (Process, Connection, About)", "§2 What the build fixes (Brand pack)", "§3 Storage & sync (Setup, Data integrity)", "§5.10 Connect screen", "§9.9 Interface states (Confirmations)", "§9.10 Icons", "§10.1 Framework and UI foundations", "§10.4 Browser storage"]
@@ -56,6 +56,10 @@ work under and can support themselves.
   and short commit, injected at build time), schema version, process identity
   (id and structure version).
 
+- **Replace token (§3 Sync failures, §5.9).** One shared component, in
+  the read-only banner for the cause "Access denied" and in Connection.
+  See Decided in review.
+
 **Explicitly excluded:** editing the process (fixed by the brand pack, §2);
 Danger zone (032).
 
@@ -94,6 +98,24 @@ Danger zone (032).
 - [ ] Given 2 pending or failed edits, then Disconnect first turns into
       "Disconnect and discard 2 unsaved changes" with Cancel; Cancel keeps
       everything.
+- [ ] Given an access-denied failure, then the token check runs once and the
+      banner shows its outcome: rejected, read-only, can't see the
+      repository or organisation approval pending, in §5.10's wording.
+- [ ] Given a rejected token, then the banner shows the field, Replace,
+      Create a token and Show steps, and no Retry; given read-only or can't
+      see the repository, then it also shows Edit this token in GitHub and
+      Retry.
+- [ ] Given a token pasted into the field, then it is checked without
+      pressing Replace; a failing check shows §5.10's message under the
+      field and keeps the read-only state.
+- [ ] Given a token that passes, then it is saved with the earlier
+      Remember me choice, the toast reads "Connected as jmustermann", the
+      banner goes and 2 failed edits are pushed with their typed values
+      intact (the app is not remounted).
+- [ ] Given the check cannot reach GitHub, then the cause becomes
+      "unreachable" and the automatic retry applies.
+- [ ] Given Connection, then the same field replaces the token without
+      Disconnect.
 - [ ] Given About, then product name, build version, schema version and process
       identity are shown.
 
@@ -110,3 +132,16 @@ The build version's source (package version plus short commit via a Vite
 
 - **Disconnect with unsaved edits:** inline confirmation naming the count;
   otherwise one click.
+- **Replace token (widened scope).**
+  - Diagnosis: on access-denied, run the §5.10 token check once (2
+    requests, only on failure); the banner shows its outcome. Expired and
+    revoked cannot be told apart, so one message covers both.
+  - Edits survive: `Repository` gets a swappable token, additive, instead
+    of being rebuilt per token (`RepositoryProvider` memoises on it today);
+    failed and pending edits retry automatically after a valid token.
+  - Entry point: inline in the banner (C1), field always shown for
+    access-denied; auto-check on paste, Replace or Enter as fallback.
+  - Copy approved as drawn in review; guide via prefilled link plus a
+    "Show steps" disclosure; success is a toast and the banner going.
+  - Assumptions: the earlier Remember me choice is kept; a token of a
+    different GitHub user is accepted, later commits use that identity.
