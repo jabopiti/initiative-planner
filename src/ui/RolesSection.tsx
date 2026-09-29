@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState, type ComponentProps } from 'react';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { parseAmount } from '../data/cost';
 import { initiativesAffectedByRole } from '../data/roleImpact';
@@ -198,50 +198,41 @@ function DraftRoleRow({
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-md border border-border-strong p-3" role="group" aria-label="New role">
       <div className="flex flex-wrap items-start gap-3">
-        <div className="flex flex-col gap-1">
-          <Input
-            aria-label="Name"
-            placeholder="Name"
-            className="w-48"
-            autoFocus
-            value={name}
-            aria-invalid={refused.name ? true : undefined}
-            aria-describedby={refused.name ? nameErrorId : undefined}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={keys}
-          />
-          {refused.name && <Refusal id={nameErrorId}>{refused.name}</Refusal>}
-        </div>
-        <div className="flex flex-col gap-1">
-          <Input
-            aria-label="Abbreviation"
-            placeholder="Abbreviation"
-            className="w-28"
-            value={abbreviation}
-            aria-invalid={refused.abbreviation ? true : undefined}
-            aria-describedby={refused.abbreviation ? abbreviationErrorId : undefined}
-            onChange={(e) => setAbbreviation(e.target.value)}
-            onKeyDown={keys}
-          />
-          {refused.abbreviation && <Refusal id={abbreviationErrorId}>{refused.abbreviation}</Refusal>}
-        </div>
-        <div className="flex flex-col gap-1">
-          <Input
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step="any"
-            aria-label="Cost factor"
-            placeholder="Cost factor"
-            className="w-24"
-            value={costFactor}
-            aria-invalid={refused.costFactor ? true : undefined}
-            aria-describedby={refused.costFactor ? costFactorErrorId : undefined}
-            onChange={(e) => setCostFactor(e.target.value)}
-            onKeyDown={keys}
-          />
-          {refused.costFactor && <Refusal id={costFactorErrorId}>{refused.costFactor}</Refusal>}
-        </div>
+        <DraftField
+          aria-label="Name"
+          placeholder="Name"
+          className="w-48"
+          autoFocus
+          value={name}
+          errorId={nameErrorId}
+          error={refused.name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={keys}
+        />
+        <DraftField
+          aria-label="Abbreviation"
+          placeholder="Abbreviation"
+          className="w-28"
+          value={abbreviation}
+          errorId={abbreviationErrorId}
+          error={refused.abbreviation}
+          onChange={(e) => setAbbreviation(e.target.value)}
+          onKeyDown={keys}
+        />
+        <DraftField
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step="any"
+          aria-label="Cost factor"
+          placeholder="Cost factor"
+          className="w-24"
+          value={costFactor}
+          errorId={costFactorErrorId}
+          error={refused.costFactor}
+          onChange={(e) => setCostFactor(e.target.value)}
+          onKeyDown={keys}
+        />
       </div>
       <div className="flex gap-2">
         <Button type="button" size="sm" disabled={!name.trim()} onClick={add}>
@@ -251,6 +242,16 @@ function DraftRoleRow({
           Cancel
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** One draft-row field: an `Input` with its refusal message wired up via `aria-invalid`/`aria-describedby`. */
+function DraftField({ errorId, error, ...input }: ComponentProps<typeof Input> & { errorId: string; error?: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Input aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined} {...input} />
+      {error && <Refusal id={errorId}>{error}</Refusal>}
     </div>
   );
 }
