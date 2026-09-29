@@ -59,14 +59,14 @@ describe('phaseSummary (§5.4, §7.3)', () => {
 
 describe('overlapWithPrevious (§5.4)', () => {
   it('returns the previous end when this phase starts on or before it', () => {
-    expect(overlapWithPrevious('2026-10-31', plan({ startDate: '2026-10-31' }))).toBe('2026-10-31');
-    expect(overlapWithPrevious('2026-10-31', plan({ startDate: '2026-10-15' }))).toBe('2026-10-31');
+    expect(overlapWithPrevious(plan({ endDate: '2026-10-31' }), plan({ startDate: '2026-10-31' }))).toBe('2026-10-31');
+    expect(overlapWithPrevious(plan({ endDate: '2026-10-31' }), plan({ startDate: '2026-10-15' }))).toBe('2026-10-31');
   });
 
   it('is null when the phase starts after it, or either date is missing', () => {
-    expect(overlapWithPrevious('2026-10-31', plan({ startDate: '2026-11-01' }))).toBeNull();
+    expect(overlapWithPrevious(plan({ endDate: '2026-10-31' }), plan({ startDate: '2026-11-01' }))).toBeNull();
     expect(overlapWithPrevious(undefined, plan({ startDate: '2026-11-01' }))).toBeNull();
-    expect(overlapWithPrevious('2026-10-31', plan())).toBeNull();
+    expect(overlapWithPrevious(plan({ endDate: '2026-10-31' }), plan())).toBeNull();
   });
 });
 

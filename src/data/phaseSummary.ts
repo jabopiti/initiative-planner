@@ -49,11 +49,16 @@ export function phaseSummary(initiative: Initiative, phaseId: string, plan: Phas
 }
 
 /** The end date of the previous phase when this one starts on or before it (§5.4 overlap warning); null when they don't overlap. */
-export function overlapWithPrevious(previousEnd: string | undefined, plan: PhasePlan): string | null {
+export function overlapWithPrevious(previous: PhasePlan | undefined, plan: PhasePlan): string | null {
+  const previousEnd = previous?.endDate;
   return previousEnd && plan.startDate && plan.startDate <= previousEnd ? previousEnd : null;
 }
 
-/** What a phase still lacks before it can be costed: its period, then its people. Null when neither is missing. */
+/**
+ * What a phase still lacks before it can be costed: its period, then its people. Null when neither is missing.
+ * "Has a period" here means both dates are set, so an inverted period counts as present (the header shows its own
+ * warning for it); {@link nextStepPhase} is stricter and treats an inverted period as not planned.
+ */
 export function planningGap(plan: PhasePlan): 'period' | 'people' | null {
   if (!(plan.startDate && plan.endDate)) return 'period';
   return plan.allocations.length === 0 ? 'people' : null;

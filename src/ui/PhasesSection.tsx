@@ -147,8 +147,7 @@ function CostedPhase({
   const gap = isNextStep ? planningGap(plan) : null;
   const needsPeriod = gap === 'period';
   const needsPeople = gap === 'people';
-  const previousEnd = previous ? initiative.phases?.[previous.id]?.endDate : undefined;
-  const overlapEnd = previous ? overlapWithPrevious(previousEnd, plan) : null;
+  const overlapEnd = previous ? overlapWithPrevious(initiative.phases?.[previous.id], plan) : null;
   const overlap = previous && overlapEnd ? `Starts before ${previous.label} ends (${formatDate(overlapEnd)}). The two phases overlap.` : null;
   const coverageLabel = { frozen: 'Frozen', actual: 'Actual', forecast: 'Forecast', estimate: 'Estimate' }[coverage];
 
