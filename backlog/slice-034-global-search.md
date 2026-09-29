@@ -98,3 +98,9 @@ in §5.1 when this ships.
 
 - **Shortcuts:** Ctrl/⌘+K anywhere, and / outside text fields; shown in the
   icon's tooltip.
+
+- **Staged loading (from slice 013):** slice 013 dropped the "Still loading
+  some initiatives…" line from the Initiatives table because the Repository
+  loads the whole dataset in one pull, so there is no signal for it. This
+  slice owns that line and the staged loading that triggers it, here and in
+  the Initiatives table.

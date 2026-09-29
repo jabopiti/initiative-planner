@@ -3,8 +3,7 @@ import { useIsChangedByOthers, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { currentPhaseId } from '../data/processState';
 import { FILE_PATHS, type Initiative } from '../data/types';
-import { navigate } from '../router/useHashRoute';
-import { EmptyState } from './EmptyState';
+import { NoInitiatives } from './NoInitiatives';
 import { NeedsAttentionStrip } from './NeedsAttentionStrip';
 
 /**
@@ -27,21 +26,7 @@ export function PortfolioBoard() {
 
   const teamsById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
 
-  if (initiatives.length === 0) {
-    // The reason names the prerequisite that is missing, so the one action always works (§9.4).
-    const noTeam = teams.length === 0;
-    const noActiveTeam = !teams.some((t) => t.active);
-    return (
-      <div className="px-8 py-6">
-        <EmptyState
-          line="No initiatives yet"
-          reason={noTeam ? 'No teams yet.' : noActiveTeam ? 'All your teams are inactive.' : undefined}
-          actionLabel={noTeam ? 'Create a team' : noActiveTeam ? 'Reactivate a team' : 'Create your first initiative'}
-          onAction={() => navigate(noActiveTeam ? '/teams' : '/initiatives/new')}
-        />
-      </div>
-    );
-  }
+  if (initiatives.length === 0) return <NoInitiatives />;
 
   return (
     <div className="px-8 py-6">

@@ -14,7 +14,7 @@ import { InitiativeDetail } from './ui/InitiativeDetail';
 import { NewInitiativeDraft } from './ui/NewInitiativeDraft';
 import { PeopleOverview } from './ui/PeopleOverview';
 import { TeamDetail } from './ui/TeamDetail';
-import { Placeholder } from './ui/Placeholder';
+import { InitiativesTable } from './ui/InitiativesTable';
 import { SettingsPage, DEFAULT_SECTION } from './ui/SettingsPage';
 import { useHashRoute } from './router/useHashRoute';
 import { Toaster } from '@/components/ui/sonner';
@@ -43,9 +43,7 @@ function Screen({ route }: { route: string }) {
     const params = new URLSearchParams(query);
     return <InitiativeDetail id={id} focus={params.get('focus')} openPhaseId={params.get('openPhase')} />;
   }
-  if (route === '/initiatives') {
-    return <Placeholder title="Initiatives" note="The full initiatives table isn't built yet." />;
-  }
+  if (route === '/initiatives') return <InitiativesTable />;
   if (route === '/people') return <PeopleOverview />;
   if (route === '/settings') return <SettingsPage section={DEFAULT_SECTION} />;
   if (route.startsWith('/settings/')) return <SettingsPage section={route.slice('/settings/'.length)} />;
