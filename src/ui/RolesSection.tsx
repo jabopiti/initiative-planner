@@ -1,5 +1,6 @@
 import { useId, useMemo, useState } from 'react';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
+import { parseAmount } from '../data/cost';
 import { initiativesAffectedByRole } from '../data/roleImpact';
 import { FILE_PATHS } from '../data/types';
 import { CommitInput, Refusal } from './CommitInput';
@@ -14,8 +15,8 @@ const ABBREVIATION_REFUSAL = 'Enter an abbreviation.';
 const COST_FACTOR_REFUSAL = 'Enter a cost factor above 0.';
 
 function parseCostFactor(text: string): number | null {
-  const value = Number(text);
-  return text.trim() !== '' && Number.isFinite(value) && value > 0 ? value : null;
+  const value = parseAmount(text);
+  return value !== null && value > 0 ? value : null;
 }
 
 /** "N initiative(s)": the one spelling of the impact note's count. */

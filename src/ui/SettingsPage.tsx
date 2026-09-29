@@ -8,7 +8,7 @@ import { useSectionLock } from './useSectionLock';
  */
 const SETTINGS_SECTIONS: { id: string; label: string }[] = [{ id: 'roles', label: 'Roles' }];
 
-const DEFAULT_SECTION = SETTINGS_SECTIONS[0].id;
+export const DEFAULT_SECTION = SETTINGS_SECTIONS[0].id;
 
 /** Settings (§5.9): a left section list and the chosen section on the right; an unknown section falls back to the default. */
 export function SettingsPage({ section }: { section: string }) {
@@ -45,5 +45,3 @@ export function SettingsPage({ section }: { section: string }) {
     </div>
   );
 }
-
-export { DEFAULT_SECTION };
