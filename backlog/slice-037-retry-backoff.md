@@ -73,3 +73,10 @@ None.
 ## Decided in review (pre-implementation)
 
 - **Delays:** 0.5 s, 1 s, 2 s, ±20% jitter.
+- **Wait position:** after the re-read and merge, just before the next put; the first attempt has no wait. Applies to the 409 retry and to the retry after a "file already exists" 422 while creating.
+- **Options:** `FileWriterOptions` gains `delay(ms)` and `random()`; defaults are `setTimeout` and `Math.random`. Jitter is `1 + (random() * 2 - 1) * 0.2`.
+- **Queue:** the wait runs outside the global write queue, so other files aren't held up.
+- **Newer edit during a backoff:** after the wait, pending is three-way-merged onto the write being retried and cleared; its notes join the commit message; one write goes out.
+- **Recovery loop:** the pull path already leaves a file alone while it saves; a test pins it.
+- **Tests:** `src/test/setup.ts` makes the default delay instant, so 005g/005j tests pass unchanged; new tests inject a recording fake delay and fixed jitter.
+- No new copy; the final "Could not save after several retries — please retry." is unchanged.
