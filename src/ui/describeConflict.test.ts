@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import type { Allocation, CostItem, CustomRole, Initiative, Membership, Person, PhasePlan, Team } from '../data/types';
+import type { Allocation, CostItem, CustomRole, Initiative, Membership, Person, PhasePlan, Role, Team } from '../data/types';
 import { getAtPath, type Path } from '../sync/merge';
 import { describeConflict, type ConflictContext } from './describeConflict';
 
@@ -32,6 +32,7 @@ const customRole: Required<CustomRole> = { active: true, label: 'Architect', cos
 const person: Required<Person> = { id: 'ana', name: 'Ana Silva', countryId: 'de', roleId: 'dev', customRole, capacityPct: 100, active: true };
 const team: Required<Team> = { id: 't1', name: 'Platform', active: true };
 const membership: Required<Membership> = { id: 'm1', personId: 'ana', teamId: 't1', teamFtePct: 50, active: true };
+const role: Required<Role> = { id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true };
 
 const context: ConflictContext = {
   process: defaultBrandPack.process,
@@ -40,7 +41,7 @@ const context: ConflictContext = {
   people: [person],
   teams: [team],
   memberships: [membership],
-  roles: [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }],
+  roles: [role],
   countries: [{ id: 'de', name: 'Germany', active: true, ratesByYear: [] }],
 };
 
@@ -60,6 +61,7 @@ describe('conflict rows name every field in words (§3, §9.9)', () => {
     ['people.json', [person]],
     ['teams.json', [team]],
     ['memberships.json', [membership]],
+    ['roles.json', [role]],
   ];
 
   for (const [file, doc] of files) {
@@ -114,6 +116,7 @@ describe('conflict rows name every field in words (§3, §9.9)', () => {
     expect(row('memberships.json', [{ id: 'm1' }, 'teamFtePct'], 50, 70)).toMatchObject({ entity: 'Ana Silva in Platform', field: 'Team FTE %' });
     expect(row('memberships.json', [{ id: 'gone' }, 'teamFtePct'], 50, 70).entity).toBe('A membership');
     expect(row('teams.json', [{ id: 't1' }, 'active'], false, true)).toMatchObject({ entity: 'Platform', field: 'Status', mine: 'Inactive', theirs: 'Active' });
+    expect(row('roles.json', [{ id: 'dev' }, 'costFactor'], 1, 1.4)).toMatchObject({ entity: 'Developer', field: 'Cost factor', mine: '1', theirs: '1.4' });
   });
 
   it('names a field without a label by its key, as plain values', () => {
