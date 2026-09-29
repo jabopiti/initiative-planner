@@ -3,7 +3,6 @@ import { useIsChangedByOthers, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { currentPhaseId } from '../data/processState';
 import { FILE_PATHS, type Initiative } from '../data/types';
-import { navigate } from '../router/useHashRoute';
 import { NoInitiatives } from './NoInitiatives';
 import { NeedsAttentionStrip } from './NeedsAttentionStrip';
 

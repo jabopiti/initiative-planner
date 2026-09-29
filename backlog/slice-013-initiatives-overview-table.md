@@ -91,40 +91,40 @@ metrics (slice 021, which reuses the chip); a search field on the table
 
 ## Acceptance criteria
 
-- [ ] Given the example data, when Initiatives is opened, then all three
+- [x] Given the example data, when Initiatives is opened, then all three
       initiatives are listed with Name, Team, Owner, Phase, Grand estimate,
       Approval track, Status and a Needs attention marker.
-- [ ] Given no sort chosen, then initiatives with a Needs attention item come
+- [x] Given no sort chosen, then initiatives with a Needs attention item come
       first in §8.5 priority order, then the rest by name.
-- [ ] Given a column header is clicked, then rows sort by it; clicked again,
+- [x] Given a column header is clicked, then rows sort by it; clicked again,
       the order reverses; rows with equal values keep their relative order.
-- [ ] Given an On Hold, a Cancelled and a Closed initiative (fixture), then
+- [x] Given an On Hold, a Cancelled and a Closed initiative (fixture), then
       all three are listed by default, and none shows a Needs attention
       marker.
-- [ ] Given a Closed initiative, then its Phase column shows the final
+- [x] Given a Closed initiative, then its Phase column shows the final
       phase.
-- [ ] Given the Status chip is opened, then it shows a search field and one
+- [x] Given the Status chip is opened, then it shows a search field and one
       checkbox per status; ticking On Hold narrows the table at once, the
       chip reads "Status: 1" and is highlighted, and "1 of 3 initiatives"
       and Clear filters appear.
-- [ ] Given text typed in a chip's search field, then only matching choices
+- [x] Given text typed in a chip's search field, then only matching choices
       are listed.
-- [ ] Given filters on Team and Status, then only rows matching both show
+- [x] Given filters on Team and Status, then only rows matching both show
       (AND across chips, OR within a chip).
-- [ ] Given a filter is set, when an initiative is opened and Back pressed,
+- [x] Given a filter is set, when an initiative is opened and Back pressed,
       then the filter is still set; after a reload, it is cleared.
-- [ ] Given Clear filters is clicked, then every chip is cleared and all rows
+- [x] Given Clear filters is clicked, then every chip is cleared and all rows
       show.
-- [ ] Given filters that match nothing, then the table shows "No initiatives
+- [x] Given filters that match nothing, then the table shows "No initiatives
       match these filters." with a Clear filters action.
-- [ ] Given Copy is clicked, then exactly the rows and columns shown, in the
+- [x] Given Copy is clicked, then exactly the rows and columns shown, in the
       shown order, are copied as plain text and HTML, with full amounts.
-- [ ] Given a row is clicked, or focused and Enter pressed, then the
+- [x] Given a row is clicked, or focused and Enter pressed, then the
       initiative page opens.
-- [ ] Given keyboard only, then every chip opens with Enter or Space, its
+- [x] Given keyboard only, then every chip opens with Enter or Space, its
       options are reachable with the arrow keys, Space toggles one, and Esc
       closes it with focus back on the chip.
-- [ ] Given a screen reader, then each Needs attention marker has an
+- [x] Given a screen reader, then each Needs attention marker has an
       accessible name naming the kind (e.g. "Overrun").
 
 ## Delivery gate

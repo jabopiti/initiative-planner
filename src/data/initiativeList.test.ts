@@ -31,7 +31,7 @@ describe('initiativeRows', () => {
     expect(rows[0].trackName).toBe('Light');
   });
   it('shows a Closed initiative in its final phase', () => {
-    const gates = Object.fromEntries(process.map((p) => [p.id, { passedAt: '2026-01-01', checklist: [] }]));
+    const gates = Object.fromEntries(process.map((p) => [p.id, { outcome: 'passed', passedOn: '2026-01-01', checklist: [] }]));
     const [row] = rowsOf([initiative('c', { status: 'Closed', gates: gates as Initiative['gates'] })]);
     expect(row.phaseId).toBe(process[process.length - 1].id);
   });

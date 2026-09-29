@@ -56,7 +56,7 @@ export function FilterChip({ label, options, selected, onChange }: Props) {
           className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${active ? 'border-brand-accent bg-brand-accent-tint font-medium text-brand-accent-text' : 'border-border-strong bg-surface-card text-text-primary'}`}
         >
           {active ? `${label}: ${selected.length}` : label}
-          <ChevronDownIcon size={14} />
+          <ChevronDownIcon width={14} height={14} />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -69,7 +69,7 @@ export function FilterChip({ label, options, selected, onChange }: Props) {
         }}
       >
         <div className="mb-1 flex items-center gap-1.5 border-b border-border-default px-2 pb-1.5">
-          <SearchIcon size={14} className="shrink-0 text-text-muted" />
+          <SearchIcon width={14} height={14} className="shrink-0 text-text-muted" />
           <input
             className="w-full border-0 bg-transparent py-1 text-sm outline-none placeholder:text-text-muted"
             placeholder={`Search ${label.toLowerCase()}`}
