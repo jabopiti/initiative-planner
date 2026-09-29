@@ -8,7 +8,7 @@ import { jumpTargetId } from './jumpTo';
 /** Shown at most three at a time (§5.2); "Show n more" reveals the rest in place. */
 const COLLAPSED_COUNT = 3;
 
-const KIND_CONFIG: Record<NeedsAttentionKind, { label: string; Icon: typeof OverrunIcon; colorClass: string; tintClass: string }> = {
+export const KIND_CONFIG: Record<NeedsAttentionKind, { label: string; Icon: typeof OverrunIcon; colorClass: string; tintClass: string }> = {
   // Alarm (only Overrun), Warning (Escalated, Overdue), Met (Ready) and neutral (Due, the gate's ordinary state) — §9.8.
   overrun: { label: 'Overrun', Icon: OverrunIcon, colorClass: 'text-alarm-text', tintClass: 'bg-alarm-tint' },
   escalated: { label: 'Escalated', Icon: EscalatedIcon, colorClass: 'text-warning-text', tintClass: 'bg-warning-tint' },

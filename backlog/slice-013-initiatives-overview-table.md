@@ -8,7 +8,7 @@ depends_on: ["004c", "011", "012", "041"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Found while slicing the backlog tail: the Initiatives nav item opens a placeholder, and the Portfolio board shows Active initiatives only, so once slices 014 to 016 make On Hold, Cancelled and Closed reachable, those initiatives would be listed nowhere. This slice builds §5.3's table and, with it, §9.11's filter chips as the shared pattern the Portfolio filters (slice 021) reuse."
+change_summary: "Loading line dropped (no staged loading exists); chip built without cmdk. Found while slicing the backlog tail: the Initiatives nav item opens a placeholder, and the Portfolio board shows Active initiatives only, so once slices 014 to 016 make On Hold, Cancelled and Closed reachable, those initiatives would be listed nowhere. This slice builds §5.3's table and, with it, §9.11's filter chips as the shared pattern the Portfolio filters (slice 021) reuse."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "The table reuses 004c's sort and copy and 011's Needs attention items. The new part is the filter chip, a shared pattern with keyboard and session-persistence rules; its behaviour is fully testable with Testing Library."
 spec_sections: ["§5.3 Initiatives overview", "§9.11 Lists, filters, inputs and amounts", "§9.2 Copy", "§9.4 Empty states", "§9.5 Accessibility", "§9.10 Icons", "§8.5 Needs attention", "§7.4 Approval tracks"]
@@ -61,10 +61,6 @@ portfolio can be reported on without re-typing it.
 - **Copy (§9.2).** 004c's Copy button copies the rows and columns shown,
   with filters and sort applied, as plain text and HTML. Grand estimate is
   declared a numeric column (041's cell kinds), every other column text.
-- **While loading (§9.9 Opening).** On the very first load, initiatives
-  arrive after the Portfolio's; the table lists those already in and shows
-  the line "Still loading some initiatives…" (the same line as search, 034)
-  until all are loaded, while the sync indicator shows syncing.
 - **Empty states (§9.4).** No initiatives at all: the Portfolio's existing
   empty state (one line, one action). Filters matching nothing: "No
   initiatives match these filters." with **Clear filters** as the action.
@@ -95,44 +91,41 @@ metrics (slice 021, which reuses the chip); a search field on the table
 
 ## Acceptance criteria
 
-- [ ] Given the example data, when Initiatives is opened, then all three
+- [x] Given the example data, when Initiatives is opened, then all three
       initiatives are listed with Name, Team, Owner, Phase, Grand estimate,
       Approval track, Status and a Needs attention marker.
-- [ ] Given no sort chosen, then initiatives with a Needs attention item come
+- [x] Given no sort chosen, then initiatives with a Needs attention item come
       first in §8.5 priority order, then the rest by name.
-- [ ] Given a column header is clicked, then rows sort by it; clicked again,
+- [x] Given a column header is clicked, then rows sort by it; clicked again,
       the order reverses; rows with equal values keep their relative order.
-- [ ] Given an On Hold, a Cancelled and a Closed initiative (fixture), then
+- [x] Given an On Hold, a Cancelled and a Closed initiative (fixture), then
       all three are listed by default, and none shows a Needs attention
       marker.
-- [ ] Given a Closed initiative, then its Phase column shows the final
+- [x] Given a Closed initiative, then its Phase column shows the final
       phase.
-- [ ] Given the Status chip is opened, then it shows a search field and one
+- [x] Given the Status chip is opened, then it shows a search field and one
       checkbox per status; ticking On Hold narrows the table at once, the
       chip reads "Status: 1" and is highlighted, and "1 of 3 initiatives"
       and Clear filters appear.
-- [ ] Given text typed in a chip's search field, then only matching choices
+- [x] Given text typed in a chip's search field, then only matching choices
       are listed.
-- [ ] Given filters on Team and Status, then only rows matching both show
+- [x] Given filters on Team and Status, then only rows matching both show
       (AND across chips, OR within a chip).
-- [ ] Given a filter is set, when an initiative is opened and Back pressed,
+- [x] Given a filter is set, when an initiative is opened and Back pressed,
       then the filter is still set; after a reload, it is cleared.
-- [ ] Given Clear filters is clicked, then every chip is cleared and all rows
+- [x] Given Clear filters is clicked, then every chip is cleared and all rows
       show.
-- [ ] Given filters that match nothing, then the table shows "No initiatives
+- [x] Given filters that match nothing, then the table shows "No initiatives
       match these filters." with a Clear filters action.
-- [ ] Given Copy is clicked, then exactly the rows and columns shown, in the
+- [x] Given Copy is clicked, then exactly the rows and columns shown, in the
       shown order, are copied as plain text and HTML, with full amounts.
-- [ ] Given a row is clicked, or focused and Enter pressed, then the
+- [x] Given a row is clicked, or focused and Enter pressed, then the
       initiative page opens.
-- [ ] Given keyboard only, then every chip opens with Enter or Space, its
+- [x] Given keyboard only, then every chip opens with Enter or Space, its
       options are reachable with the arrow keys, Space toggles one, and Esc
       closes it with focus back on the chip.
-- [ ] Given a screen reader, then each Needs attention marker has an
+- [x] Given a screen reader, then each Needs attention marker has an
       accessible name naming the kind (e.g. "Overrun").
-- [ ] Given the first load with some initiatives not yet loaded, then the
-      table lists the loaded ones and shows "Still loading some
-      initiatives…" until all are in.
 
 ## Delivery gate
 
@@ -140,10 +133,10 @@ metrics (slice 021, which reuses the chip); a search field on the table
 
 ## Flags and compromises
 
-The filter chip needs shadcn's `command` and `checkbox` (via `npx
-shadcn@latest add`; `command` may already be on main from slice 028, which
-may ship first), chosen because §9.11 specifies searchable multi-select and
-no current component offers it. Depends on 041 so the new Copy declares its
+The filter chip is built from shadcn's `popover`, `checkbox` and `input`
+(via `npx shadcn@latest add`) with its own keyboard handling, because
+§9.11 specifies searchable multi-select, no current component offers it,
+and `command` (cmdk) keeps Space for typing in its search field. Depends on 041 so the new Copy declares its
 numeric columns from the start instead of being retrofitted.
 
 ## Decided in review (pre-implementation)
@@ -153,3 +146,24 @@ numeric columns from the start instead of being retrofitted.
 - **Filters:** §9.11 chips on all five dimensions in this slice, built as the
   shared pattern the Portfolio filters (slice 021) reuse — not People's
   plain status Select.
+- **Loading line dropped:** Repository loads the whole dataset in one pull
+  (no staged loading exists), so "Still loading some initiatives…" has no
+  signal. It moves to the slice that builds staged loading (034 shares the
+  line); this slice has no loading state.
+- **Chip build:** popover + checkbox + search input, no `cmdk`. Open with
+  Enter or Space; the search field is focused; ↓ moves into the options,
+  Space or Enter toggles one, ↑ from the first option returns to search,
+  Esc closes with focus back on the chip.
+- **Layout:** chips on one row with "1 of 3 initiatives" and **Clear
+  filters** at the right of that row; Copy beside the title, as on People.
+- **Needs attention column:** header "Needs attention"; icon-only marker in
+  the item's state colour; tooltip "<Kind>: <reason>"; accessible name the
+  kind. Icons and colours as in the Portfolio strip.
+- **Assumptions:** sort keys (owner by name, none last; estimate numeric;
+  approval track by severity, none first; attention by §8.5 priority, none
+  last; default "attention, then name"); a missing team or owner reads
+  "Unknown team" / "Unknown person"; kept filters live in memory above the
+  screen, keyed by screen name so slice 021 can reuse them; the Portfolio's
+  empty state is extracted and shared; Copy writes the kind name for
+  attention and "(inactive)" for an inactive owner; the Copy confirmation
+  reads "Copied N initiatives".

@@ -8,7 +8,7 @@ import type { Person } from './types';
 export type NeedsAttentionKind = 'escalated' | 'overrun' | 'overdue' | 'due' | 'ready';
 
 /** Priority order (§8.5): consequential first, an opportunity last. */
-const KIND_ORDER: NeedsAttentionKind[] = ['escalated', 'overrun', 'overdue', 'due', 'ready'];
+export const KIND_ORDER: NeedsAttentionKind[] = ['escalated', 'overrun', 'overdue', 'due', 'ready'];
 
 interface NeedsAttentionBase {
   initiativeId: string;
