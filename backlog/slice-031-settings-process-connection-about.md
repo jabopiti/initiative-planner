@@ -146,3 +146,21 @@ The build version's source (package version plus short commit via a Vite
     "Show steps" disclosure; success is a toast and the banner going.
   - Assumptions: the earlier Remember me choice is kept; a token of a
     different GitHub user is accepted, later commits use that identity.
+- **Phase icons:** `PhaseDef` gets an `icon` (a fixed Lucide set: Search,
+  ClipboardCheck, Hammer, Rocket in the default pack); only Process shows it
+  for now, later slices reuse it.
+- **GitHub user:** stored beside the token (same place, cleared with it),
+  fetched once with `GET /user` when missing (dev token, older sessions).
+  The rate-limit line stays request-free, read in `GithubClient.request`.
+- **Layouts and copy** approved as mockups: Process timeline with gate
+  disclosures and approval tracks ("€200,000 and above" for an open top);
+  Connection rows, Replace token block ("Paste a new token to swap it in.
+  Your unsaved changes are kept."), Disconnect ("Removes the token from
+  this browser and opens the Connect screen."; "Disconnect and discard 2
+  unsaved changes" / "1 unsaved change" + Cancel); About rows.
+- **Assumptions:** unsaved changes = failed fields + files waiting to be
+  written; build version = package version + short commit via Vite
+  `define`; sections not lockable, order Roles, Process, Connection, About
+  (Countries & rates from 030 slots in after Roles); empty checklist
+  descriptions are left out; Disconnect goes through an app-level session
+  context.

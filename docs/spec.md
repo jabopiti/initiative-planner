@@ -926,9 +926,12 @@ Contains the following sections:
   The phase's exit gate sits beneath it, with its label, whether it requires
   estimates, whether it can be skipped and how many checklist items it has;
   selecting a gate opens its checklist definitions with their descriptions.
-  Below the timeline, the approval tracks are listed with their bounds,
-  requirement text and severity.
-- **Connection**: the connected GitHub user and the repository, the
+  Below the timeline, the approval tracks are listed with their bounds
+  ("€50,000 – €200,000", "€200,000 and above" for an open top),
+  requirement text and severity. Each phase's icon is a field of the
+  brand pack, one of a fixed set of Lucide icons (§9.10).
+- **Connection**: the connected GitHub user (stored beside the token, so
+  it is known after a reload; fetched once if missing) and the repository, the
   remaining GitHub API requests for the current hour (from the rate-limit
   headers GitHub returns on every response, so this costs no extra
   request), **Replace token** (the banner's token field, §3 Sync failures,
