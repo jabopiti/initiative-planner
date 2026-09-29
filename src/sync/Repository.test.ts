@@ -585,6 +585,17 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       expect(commits.map((c) => c.message)).toEqual(['Payments API: team changed from Payments to Growth']);
     });
 
+    it('reads two moves in one window as one, keeping the allocations lost on the first', async () => {
+      const { repo, initiative, growth } = await withTwoTeams();
+      const third = repo.createTeam('Platform');
+      await repo.flushPending();
+      commits.length = 0;
+      repo.changeTeam(initiative.id, growth.id);
+      repo.changeTeam(initiative.id, third.id);
+      await repo.flushPending();
+      expect(commits.map((c) => c.message)).toEqual(['Payments API: team changed from Payments to Platform, 3 allocations removed']);
+    });
+
     it('says "1 allocation" for one', async () => {
       const { repo, initiative, growth, boAlloc } = await withTwoTeams();
       repo.removeAllocation(initiative.id, 'validation', boAlloc.id);

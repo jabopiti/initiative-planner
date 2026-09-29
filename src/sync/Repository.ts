@@ -1325,8 +1325,7 @@ export class Repository {
       }
       next.phases = phases;
     }
-    const tail = removed.length > 0 ? `, ${allocationCount(removed.length)} removed` : '';
-    this.commitTeam(next, initiative, `${initiative.name}: team changed`, tail);
+    this.commitTeam(next, initiative, `${initiative.name}: team changed`);
     return { fromTeamId: initiative.teamId, toTeamId: teamId, removed };
   }
 
@@ -1340,24 +1339,29 @@ export class Repository {
     if (!initiative) return;
     const locked = isLocked ?? ((phaseId) => isPhaseFrozen(initiative, phaseId));
     const phases = { ...initiative.phases };
-    let restored = 0;
     // Ascending by index, so each insert lands where the allocation was once the ones before it are back.
     for (const { phaseId, allocation, index } of [...change.removed].sort((a, b) => a.index - b.index)) {
       const plan = phases[phaseId];
       if (!plan || locked(phaseId) || plan.allocations.some((a) => a.id === allocation.id)) continue;
       phases[phaseId] = { ...plan, allocations: insertAt(plan.allocations, allocation, index) };
-      restored += 1;
     }
     const next: Initiative = { ...initiative, teamId: change.fromTeamId, ...(initiative.phases && { phases }) };
-    const tail = restored > 0 ? `, ${allocationCount(restored)} restored` : '';
-    this.commitTeam(next, initiative, `${initiative.name}: team changed back`, tail);
+    this.commitTeam(next, initiative, `${initiative.name}: team changed back`);
   }
 
-  /** A team change is a note from the team it started on to the one it ends on, so out and back again leaves none. */
-  private commitTeam(next: Initiative, before: Initiative, subject: string, tail: string): void {
+  /**
+   * A team change is a note from the team and allocation count it started with to those it ends with, so out and
+   * back again leaves none, and two moves in a window read as one with the allocations lost or regained overall.
+   */
+  private commitTeam(next: Initiative, before: Initiative, subject: string): void {
     this.replaceInitiative(next);
-    const words = (from: string | undefined, to: string | undefined) => `${subject} from ${this.teamName(from as string)} to ${this.teamName(to as string)}${tail}`;
-    this.initiativeWriters.get(next.id)?.schedule(next, this.note('initiative', next.id, 'team', before.teamId, next.teamId, words));
+    const state = (i: Initiative) => ({ teamId: i.teamId, allocations: Object.values(i.phases ?? {}).reduce((n, plan) => n + plan.allocations.length, 0) });
+    const words = (from: ReturnType<typeof state> | undefined, to: ReturnType<typeof state> | undefined) => {
+      const lost = (from?.allocations ?? 0) - (to?.allocations ?? 0);
+      const tail = lost > 0 ? `, ${allocationCount(lost)} removed` : lost < 0 ? `, ${allocationCount(-lost)} restored` : '';
+      return `${subject} from ${this.teamName(from?.teamId as string)} to ${this.teamName(to?.teamId as string)}${tail}`;
+    };
+    this.initiativeWriters.get(next.id)?.schedule(next, this.note('initiative', next.id, 'team', state(before), state(next), words));
   }
 
   /**
