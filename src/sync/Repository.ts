@@ -735,6 +735,7 @@ export class Repository {
     const current = this.state.roles.find((r) => r.id === id);
     if (!current) return;
     const next = { ...current, ...patch };
+    if ((Object.keys(patch) as (keyof typeof patch)[]).every((key) => next[key] === current[key])) return;
     this.commitRoles(
       this.state.roles.map((r) => (r.id === id ? next : r)),
       { key: `${id}:${Object.keys(patch).sort().join(',')}`, text: `Roles: ${this.describeRoleChange(current, next, patch)}` },
@@ -742,11 +743,12 @@ export class Repository {
   }
 
   private describeRoleChange(current: Role, next: Role, patch: Partial<Omit<Role, 'id'>>): string {
-    if (patch.name !== undefined) return `${current.name} renamed to ${next.name}`;
-    if (patch.abbreviation !== undefined) return `${next.name} abbreviation set to ${next.abbreviation}`;
-    if (patch.costFactor !== undefined) return `${next.name} cost factor set to ${next.costFactor}`;
-    if (patch.active !== undefined) return `${next.name} ${next.active ? 'reactivated' : 'deactivated'}`;
-    return `${next.name} updated`;
+    const parts: string[] = [];
+    if (patch.name !== undefined) parts.push(`renamed to ${next.name}`);
+    if (patch.abbreviation !== undefined) parts.push(`abbreviation set to ${next.abbreviation}`);
+    if (patch.costFactor !== undefined) parts.push(`cost factor set to ${next.costFactor}`);
+    if (patch.active !== undefined) parts.push(next.active ? 'reactivated' : 'deactivated');
+    return `${current.name} ${parts.join(', ') || 'updated'}`;
   }
 
   /** New team (§5.7): created from a name only. */

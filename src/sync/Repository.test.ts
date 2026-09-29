@@ -389,6 +389,25 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
       'Roles: Designer reactivated',
     ]);
   });
+
+  it('names every changed field of a role in one commit, and skips a no-op patch', async () => {
+    const mock = routingFetchMock();
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const role = repo.createRole({ name: 'Designer', abbreviation: 'Des', costFactor: 1 });
+    await repo.flushPending();
+
+    repo.updateRole(role.id, { active: role.active });
+    await repo.flushPending();
+    repo.updateRole(role.id, { name: 'Product Designer', abbreviation: 'PD' });
+    await repo.flushPending();
+
+    expect(messagesFor(mock, 'roles.json')).toEqual([
+      'Roles: Designer added',
+      'Roles: Designer renamed to Product Designer, abbreviation set to PD',
+    ]);
+  });
 });
 
 
