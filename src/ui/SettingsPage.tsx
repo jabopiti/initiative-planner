@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { AboutSection } from './AboutSection';
 import { ConnectionSection } from './ConnectionSection';
 import { ProcessSection } from './ProcessSection';
@@ -25,16 +26,13 @@ export function SettingsPage({ section }: { section: string }) {
   // so never re-locks) one that isn't showing (§2) — only leaving Settings entirely, which unmounts this
   // whole component, does. A section other slices add gets its own `useSectionLock()` call here, the same way.
   const rolesLock = useSectionLock();
-  const content =
-    active.id === 'roles' ? (
-      <RolesSection lock={rolesLock} />
-    ) : active.id === 'process' ? (
-      <ProcessSection />
-    ) : active.id === 'connection' ? (
-      <ConnectionSection />
-    ) : active.id === 'about' ? (
-      <AboutSection />
-    ) : null;
+  const sections: Record<string, ReactNode> = {
+    roles: <RolesSection lock={rolesLock} />,
+    process: <ProcessSection />,
+    connection: <ConnectionSection />,
+    about: <AboutSection />,
+  };
+  const content = sections[active.id];
 
   return (
     <div className="flex gap-6 px-8 py-6">

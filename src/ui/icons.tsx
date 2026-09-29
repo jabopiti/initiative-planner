@@ -74,9 +74,14 @@ export function LogoMark(props: SVGProps<SVGSVGElement>) {
 }
 
 /** The icon a brand pack names for a phase (§2, §9.10). */
-const PHASE_ICONS: Record<PhaseIconName, LucideIcon> = { search: Search, 'clipboard-check': ClipboardCheck, hammer: Hammer, rocket: Rocket };
+const PHASE_ICONS: Record<PhaseIconName, ReturnType<typeof iconWrapper>> = {
+  search: iconWrapper(Search),
+  'clipboard-check': iconWrapper(ClipboardCheck),
+  hammer: iconWrapper(Hammer),
+  rocket: iconWrapper(Rocket),
+};
 
 export function PhaseIcon({ name, ...props }: { name: PhaseIconName } & SVGProps<SVGSVGElement>) {
   const Icon = PHASE_ICONS[name];
-  return <Icon size={18} strokeWidth={2} aria-hidden="true" {...props} />;
+  return <Icon {...props} />;
 }

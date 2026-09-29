@@ -3,6 +3,7 @@ import { formatAmount } from './formatAmount';
 import { ChevronRightIcon, PhaseIcon } from './icons';
 import type { ApprovalTrackDef, GateDef } from '../brand/types';
 
+const cell = 'border-b border-border-default px-3 py-2';
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** "€50,000 – €200,000", or "€200,000 and above" for a track with no upper bound (§5.9). */
@@ -70,21 +71,21 @@ export function ProcessSection() {
       <table className="w-full border-collapse overflow-hidden rounded-lg border border-border-default bg-surface-card text-left">
         <thead>
           <tr className="text-[13px] text-text-secondary">
-            <th className="border-b border-border-default px-3 py-2 font-medium">Name</th>
-            <th className="border-b border-border-default px-3 py-2 font-medium">Bounds</th>
-            <th className="border-b border-border-default px-3 py-2 font-medium">Requirement</th>
-            <th className="border-b border-border-default px-3 py-2 font-medium">Severity</th>
+            <th className={`${cell} font-medium`}>Name</th>
+            <th className={`${cell} font-medium`}>Bounds</th>
+            <th className={`${cell} font-medium`}>Requirement</th>
+            <th className={`${cell} font-medium`}>Severity</th>
           </tr>
         </thead>
         <tbody>
           {brand.approvalTracks.map((track) => (
             <tr key={track.id}>
-              <td className="border-b border-border-default px-3 py-2">
+              <td className={cell}>
                 {track.name} ({track.abbreviation})
               </td>
-              <td className="border-b border-border-default px-3 py-2">{trackBounds(track, brand.currencySymbol)}</td>
-              <td className="border-b border-border-default px-3 py-2">{track.requirementText}</td>
-              <td className="border-b border-border-default px-3 py-2">{track.severity}</td>
+              <td className={cell}>{trackBounds(track, brand.currencySymbol)}</td>
+              <td className={cell}>{track.requirementText}</td>
+              <td className={cell}>{track.severity}</td>
             </tr>
           ))}
         </tbody>

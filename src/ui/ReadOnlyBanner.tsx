@@ -54,12 +54,13 @@ export function ReadOnlyBanner() {
   const wrap = 'border-b border-border-default bg-warning-tint px-4 py-2 text-sm text-warning-text';
 
   if (denied) {
+    const creationUrl = tokenCreationUrl(brand.github, brand.productName);
     const rejected = diagnosis?.outcome === 'invalid';
     const message = diagnosis
       ? TOKEN_CHECK_MESSAGES[diagnosis.outcome]() + (rejected ? REJECTED_HINT : '')
       : 'Checking your token…';
     const link = rejected
-      ? { href: tokenCreationUrl(brand.github, brand.productName), label: 'Create a token' }
+      ? { href: creationUrl, label: 'Create a token' }
       : diagnosis && diagnosis.outcome !== 'pending-approval'
         ? { href: tokenManagementUrl(brand.github), label: 'Edit this token in GitHub' }
         : null;
@@ -91,7 +92,7 @@ export function ReadOnlyBanner() {
           <TokenSteps
             className="mt-2 gap-1.5 text-text-primary"
             first={
-              <a href={tokenCreationUrl(brand.github, brand.productName)} target="_blank" rel="noreferrer" className="underline">
+              <a href={creationUrl} target="_blank" rel="noreferrer" className="underline">
                 Open GitHub token settings<span className="sr-only"> (opens in a new tab)</span>
               </a>
             }

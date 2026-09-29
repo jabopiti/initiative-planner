@@ -47,23 +47,20 @@ export const tokenStore = {
     return readSession(LOGIN_SESSION_KEY) ?? (await loginCache.get().catch(() => null)) ?? null;
   },
 
-  /** Keep the token for this tab only, or — with `remember` — on this device until it is removed; the login goes where it goes. */
-  async save(token: string, remember: boolean, login?: string): Promise<void> {
+  /** Keep the token for this tab only, or — with `remember` — on this device until it is removed. The login of the
+   * token it replaces goes with it; {@link saveLogin} records the new one. */
+  async save(token: string, remember: boolean): Promise<void> {
+    writeSession(null, LOGIN_SESSION_KEY);
     if (remember) {
       writeSession(null);
-      writeSession(null, LOGIN_SESSION_KEY);
-      await tokenCache.set(token);
-      if (login) await loginCache.set(login);
-      else await loginCache.clear();
+      await Promise.all([tokenCache.set(token), loginCache.clear()]);
     } else {
       writeSession(token);
-      writeSession(login ?? null, LOGIN_SESSION_KEY);
-      await tokenCache.clear();
-      await loginCache.clear();
+      await Promise.all([tokenCache.clear(), loginCache.clear()]);
     }
   },
 
-  /** Records a login found later for the token already stored, in the same place. */
+  /** Records the login of the token already stored, in the same place as the token. */
   async saveLogin(login: string): Promise<void> {
     if (await tokenStore.remembered()) await loginCache.set(login);
     else writeSession(login, LOGIN_SESSION_KEY);
@@ -81,7 +78,6 @@ export const tokenStore = {
   async clear(): Promise<void> {
     writeSession(null);
     writeSession(null, LOGIN_SESSION_KEY);
-    await tokenCache.clear();
-    await loginCache.clear();
+    await Promise.all([tokenCache.clear(), loginCache.clear()]);
   },
 };

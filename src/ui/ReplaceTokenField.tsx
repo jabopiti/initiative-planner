@@ -32,8 +32,9 @@ export function ReplaceTokenField() {
       setError(TOKEN_CHECK_MESSAGES[result.outcome]());
       return;
     }
-    await tokenStore.save(token, await tokenStore.remembered(), result.login);
-    session?.rememberLogin(result.login);
+    await tokenStore.save(token, await tokenStore.remembered());
+    if (session) session.rememberLogin(result.login);
+    else await tokenStore.saveLogin(result.login);
     setValue('');
     repository.setToken(token);
     toast.success(TOKEN_CHECK_MESSAGES[result.outcome](result.login), {
