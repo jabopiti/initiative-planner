@@ -1,8 +1,9 @@
 import type { PhaseDef } from '../brand/types';
 import { countsTowardCapacity } from './capacity';
 import { monthsInRange, periodMonths, type Period } from './cost';
+import { sortRows } from './sortRows';
 import { currentPhaseId, isPhaseConfirmed } from './processState';
-import { activeMembership } from './teamMembers';
+import { activeMembers, activeMembership } from './teamMembers';
 import type { Initiative, Membership, Person, Team } from './types';
 
 /** One person's Allocation % in one month over the Confirmed phases of Active initiatives (§7.2). */
@@ -81,4 +82,37 @@ export function freeCapacityByPerson({
       return [person.id, Math.max(0, Math.floor(free + 1e-9))];
     }),
   );
+}
+
+/**
+ * Who can still be added to a phase (§5.11, §7.2): the team's active members not yet allocated in it, most free
+ * first, ties by name. `free` is computed only when `withFree` (the phase is open and not frozen) and is
+ * undefined without a valid period; the list is then by name alone.
+ */
+export function allocatablePeople({
+  plan,
+  team,
+  withFree,
+  people,
+  teams,
+  memberships,
+  initiatives,
+  process,
+  today,
+}: {
+  plan: Period & { allocations: { personId: string }[] };
+  team: Team | undefined;
+  withFree: boolean;
+  people: Person[];
+  teams: Team[];
+  memberships: Membership[];
+  initiatives: Initiative[];
+  process: PhaseDef[];
+  today: string;
+}): { teamMembers: Person[]; addable: Person[]; free: Map<string, number> | undefined } {
+  const teamMembers = team ? activeMembers(team.id, memberships, people) : [];
+  const notYetAllocated = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
+  const free = withFree && team ? freeCapacityByPerson({ people: notYetAllocated, teamId: team.id, teams, memberships, period: plan, initiatives, process, today }) : undefined;
+  const addable = sortRows(notYetAllocated, { free: (p) => free?.get(p.id) ?? 0, name: (p) => p.name }, 'free', 'desc', 'name');
+  return { teamMembers, addable, free };
 }
