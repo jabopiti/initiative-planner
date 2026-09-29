@@ -28,7 +28,7 @@ import { GithubClient, type BranchHead } from '../github/client';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
-import { FileWriter, type FileConflict, type Received, type WriteStatus } from './FileWriter';
+import { FileWriter, type CommitNote, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, type Path } from './merge';
 import { WriteQueue } from './WriteQueue';
 
@@ -726,7 +726,7 @@ export class Repository {
   /** New role (§5.9): created from a name, abbreviation and cost factor, active. */
   createRole(input: { name: string; abbreviation: string; costFactor: number }): Role {
     const role: Role = { id: newId(), ...input, active: true };
-    this.commitRoles([...this.state.roles, role], { key: role.id, text: `Roles: ${role.name} added` });
+    this.commitRoles([...this.state.roles, role], this.note('role', role.id, 'record', undefined, role, (f, t) => this.describeRole(f, t)));
     return role;
   }
 
@@ -738,23 +738,31 @@ export class Repository {
     if ((Object.keys(patch) as (keyof typeof patch)[]).every((key) => next[key] === current[key])) return;
     this.commitRoles(
       this.state.roles.map((r) => (r.id === id ? next : r)),
-      { key: `${id}:${Object.keys(patch).sort().join(',')}`, text: `Roles: ${this.describeRoleChange(current, next, patch)}` },
+      this.note('role', id, 'record', current, next, (f, t) => this.describeRole(f, t)),
     );
   }
 
-  private describeRoleChange(current: Role, next: Role, patch: Partial<Omit<Role, 'id'>>): string {
+  /** The net change of a role, in plain words (§10.3); the subject is the name it was saved under. */
+  private describeRole(from: Role | undefined, to: Role | undefined): string {
+    if (!from) return `Roles: ${to?.name} added`;
+    if (!to) return `Roles: ${from.name} removed`;
     const parts: string[] = [];
-    if (patch.name !== undefined) parts.push(`renamed to ${next.name}`);
-    if (patch.abbreviation !== undefined) parts.push(`abbreviation set to ${next.abbreviation}`);
-    if (patch.costFactor !== undefined) parts.push(`cost factor set to ${next.costFactor}`);
-    if (patch.active !== undefined) parts.push(next.active ? 'reactivated' : 'deactivated');
-    return `${current.name} ${parts.join(', ') || 'updated'}`;
+    if (to.name !== from.name) parts.push(`renamed to ${to.name}`);
+    if (to.abbreviation !== from.abbreviation) parts.push(`abbreviation set to ${to.abbreviation}`);
+    if (to.costFactor !== from.costFactor) parts.push(`cost factor set to ${to.costFactor}`);
+    if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
+    return `Roles: ${from.name} ${parts.join(', ') || 'updated'}`;
+  }
+
+  /** A note for one field of one entity: what it was before the edit and what it is now (§10.3); `undefined` is "did not exist". */
+  private note<T>(kind: EntityKind, id: string, field: string, from: T | undefined, to: T | undefined, words: (from: T | undefined, to: T | undefined) => string): CommitNote {
+    return { entity: { kind, id }, field, from, to, words: words as CommitNote['words'] };
   }
 
   /** New team (§5.7): created from a name only. */
   createTeam(name: string): Team {
     const team: Team = { id: newId(), name, active: true };
-    this.commitTeams([...this.state.teams, team], { key: team.id, text: `${name}: team created` });
+    this.commitTeams([...this.state.teams, team], this.note('team', team.id, 'record', undefined, team, (f, t) => this.describeTeam(f, t)));
     return team;
   }
 
@@ -768,7 +776,7 @@ export class Repository {
       capacityPct: 100,
       active: true,
     };
-    this.commitPeople([...this.state.people, person], { key: person.id, text: `${person.name}: person added` });
+    this.commitPeople([...this.state.people, person], this.note('person', person.id, 'record', undefined, person, (f, t) => this.describePerson(f, t)));
     return person;
   }
 
@@ -778,8 +786,13 @@ export class Repository {
     if (!current || current.active === patch.active) return;
     this.commitTeams(
       this.state.teams.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-      { key: `${id}:active`, text: `${current.name}: team ${patch.active ? 'reactivated' : 'deactivated'}` },
+      this.note('team', id, 'record', current, { ...current, ...patch }, (f, t) => this.describeTeam(f, t)),
     );
+  }
+
+  private describeTeam(from: Team | undefined, to: Team | undefined): string {
+    if (!from) return `${to?.name}: team created`;
+    return `${from.name}: team ${to?.active ? 'reactivated' : 'deactivated'}`;
   }
 
   /** In-place edit from the person panel (§5.6): no save button, so every change commits. */
@@ -787,28 +800,28 @@ export class Repository {
     const current = this.state.people.find((p) => p.id === id);
     if (!current) return;
     const next = { ...current, ...patch };
-    const change = this.describePersonChange(current, next, patch);
-    // Custom role edits are keyed by what changed, so two different years edited together both reach the message.
-    const key = patch.customRole ? `${id}:customRole:${change}` : `${id}:${Object.keys(patch).sort().join(',')}`;
     this.commitPeople(
       this.state.people.map((p) => (p.id === id ? next : p)),
-      { key, text: `${next.name}: ${change}` },
+      this.note('person', id, 'record', current, next, (f, t) => this.describePerson(f, t)),
     );
   }
 
-  private describePersonChange(current: Person, next: Person, patch: Partial<Omit<Person, 'id'>>): string {
+  /** The net change of a person, in plain words (§10.3): one subject, the name it was saved under, then each change. */
+  private describePerson(from: Person | undefined, to: Person | undefined): string {
+    if (!from) return `${to?.name}: person added`;
+    if (!to) return `${from.name}: person removed`;
     const parts: string[] = [];
-    if (patch.name !== undefined) parts.push(`renamed from ${current.name}`);
-    if (patch.countryId !== undefined) {
-      parts.push(`country set to ${this.state.countries.find((c) => c.id === patch.countryId)?.name ?? 'unknown'}`);
+    if (to.name !== from.name) parts.push(`renamed to ${to.name}`);
+    if (to.countryId !== from.countryId) {
+      parts.push(`country set to ${this.state.countries.find((c) => c.id === to.countryId)?.name ?? 'unknown'}`);
     }
-    if (patch.roleId !== undefined) {
-      parts.push(`role set to ${this.state.roles.find((r) => r.id === patch.roleId)?.name ?? 'unknown'}`);
+    if (to.roleId !== from.roleId) {
+      parts.push(`role set to ${this.state.roles.find((r) => r.id === to.roleId)?.name ?? 'unknown'}`);
     }
-    if (patch.customRole !== undefined) parts.push(...this.describeCustomRoleChange(current, next));
-    if (patch.capacityPct !== undefined) parts.push(`capacity set to ${patch.capacityPct}%`);
-    if (patch.active !== undefined) parts.push(patch.active ? 'reactivated' : 'deactivated');
-    return parts.join(', ') || 'updated';
+    parts.push(...this.describeCustomRoleChange(from, to));
+    if (to.capacityPct !== from.capacityPct) parts.push(`capacity set to ${to.capacityPct}%`);
+    if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
+    return `${from.name}: ${parts.join(', ') || 'updated'}`;
   }
 
   private describeCustomRoleChange(current: Person, next: Person): string[] {
@@ -845,10 +858,7 @@ export class Repository {
     const unclaimed = unclaimedCapacityPct(person, this.state.memberships);
     const teamFtePct = requestedPct === undefined ? unclaimed : allowOver ? requestedPct : Math.min(requestedPct, unclaimed);
     const membership: Membership = { id: newId(), personId, teamId, teamFtePct, active: true };
-    this.commitMemberships([...this.state.memberships, membership], {
-      key: membership.id,
-      text: `${person.name}: added to ${this.teamName(teamId)} at ${teamFtePct}%`,
-    });
+    this.commitMemberships([...this.state.memberships, membership], this.membershipNote(membership.id, undefined, membership));
     return membership;
   }
 
@@ -864,16 +874,24 @@ export class Repository {
         next.teamFtePct = Math.min(patch.teamFtePct, cap);
       }
     }
-    const who = this.personName(current.personId);
-    const where = this.teamName(current.teamId);
-    const activeOnly = patch.active !== undefined && patch.teamFtePct === undefined;
-    const what = activeOnly
-      ? `${patch.active ? 'reactivated' : 'deactivated'} on ${where}`
-      : `Team FTE % on ${where} set to ${next.teamFtePct}%`;
     this.commitMemberships(
       this.state.memberships.map((m) => (m.id === id ? next : m)),
-      { key: `${id}:${activeOnly ? 'active' : 'pct'}`, text: `${who}: ${what}` },
+      this.membershipNote(id, current, next),
     );
+  }
+
+  /** A membership's note; the person and team are named as they are now, since a removal leaves no record to ask. */
+  private membershipNote(id: string, from: Membership | undefined, to: Membership | undefined): CommitNote {
+    const of = (m: Membership | undefined) => (m ? { who: this.personName(m.personId), where: this.teamName(m.teamId) } : undefined);
+    const names = of(from ?? to) as { who: string; where: string };
+    return this.note('membership', id, 'record', from, to, (f, t) => {
+      if (!f) return `${names.who}: added to ${names.where} at ${t?.teamFtePct}%`;
+      if (!t) return `${names.who}: removed from ${names.where}`;
+      const parts: string[] = [];
+      if (t.teamFtePct !== f.teamFtePct) parts.push(`Team FTE % on ${names.where} set to ${t.teamFtePct}%`);
+      if (t.active !== f.active) parts.push(`${t.active ? 'reactivated' : 'deactivated'} on ${names.where}`);
+      return `${names.who}: ${parts.join(', ') || 'updated'}`;
+    });
   }
 
   private personName(id: string): string {
@@ -889,26 +907,26 @@ export class Repository {
     const removed = this.state.memberships.find((m) => m.id === id);
     this.commitMemberships(
       this.state.memberships.filter((m) => m.id !== id),
-      removed && { key: id, text: `${this.personName(removed.personId)}: removed from ${this.teamName(removed.teamId)}` },
+      removed && this.membershipNote(id, removed, undefined),
     );
   }
 
-  private commitRoles(next: Role[], note?: { key: string; text: string }): void {
+  private commitRoles(next: Role[], note?: CommitNote): void {
     this.setState({ roles: next });
     this.rolesWriter?.schedule(next, note);
   }
 
-  private commitTeams(next: Team[], note?: { key: string; text: string }): void {
+  private commitTeams(next: Team[], note?: CommitNote): void {
     this.setState({ teams: next });
     this.teamsWriter?.schedule(next, note);
   }
 
-  private commitPeople(next: Person[], note?: { key: string; text: string }): void {
+  private commitPeople(next: Person[], note?: CommitNote): void {
     this.setState({ people: next });
     this.peopleWriter?.schedule(next, note);
   }
 
-  private commitMemberships(next: Membership[], note?: { key: string; text: string }): void {
+  private commitMemberships(next: Membership[], note?: CommitNote): void {
     this.setState({ memberships: next });
     this.membershipsWriter?.schedule(next, note);
   }
@@ -925,7 +943,7 @@ export class Repository {
     this.setState({ initiatives: [...this.state.initiatives, initiative] });
 
     const writer = this.createInitiativeWriter(initiative, null);
-    writer.schedule(initiative, { key: 'created', text: `${name}: created` });
+    writer.schedule(initiative, this.note('initiative', id, 'record', undefined, initiative, () => `${name}: created`));
     if ((await writer.flush()) !== 'saved') {
       // No file exists, so nothing would ever save edits to it: take it back out rather than leave a page that only looks saved.
       this.initiativeWriters.delete(id);
@@ -952,7 +970,10 @@ export class Repository {
     if (trimmed === initiative.name) return true;
     const next: Initiative = { ...initiative, name: trimmed };
     this.replaceInitiative(next);
-    this.initiativeWriters.get(initiativeId)?.schedule(next, { key: 'name', text: `${initiative.name}: renamed to ${trimmed}` });
+    this.initiativeWriters.get(initiativeId)?.schedule(
+      next,
+      this.note('initiative', initiativeId, 'name', initiative.name, trimmed, (f, t) => `${f}: renamed to ${t}`),
+    );
     return true;
   }
 
@@ -965,7 +986,10 @@ export class Repository {
     const next: Initiative = { ...initiative, description: trimmed };
     if (!trimmed) delete next.description;
     this.replaceInitiative(next);
-    this.initiativeWriters.get(initiativeId)?.schedule(next, { key: 'description', text: `${initiative.name}: description changed` });
+    this.initiativeWriters.get(initiativeId)?.schedule(
+      next,
+      this.note('initiative', initiativeId, 'description', initiative.description, next.description, () => `${initiative.name}: description changed`),
+    );
     return true;
   }
 
@@ -976,8 +1000,8 @@ export class Repository {
     const next: Initiative = { ...initiative, ownerId };
     if (ownerId === undefined) delete next.ownerId;
     this.replaceInitiative(next);
-    const text = ownerId ? `${initiative.name}: owner set to ${this.personName(ownerId)}` : `${initiative.name}: owner cleared`;
-    this.initiativeWriters.get(initiativeId)?.schedule(next, { key: 'ownerId', text });
+    const words = (_: unknown, to: string | undefined) => (to ? `${initiative.name}: owner set to ${this.personName(to)}` : `${initiative.name}: owner cleared`);
+    this.initiativeWriters.get(initiativeId)?.schedule(next, this.note('initiative', initiativeId, 'ownerId', initiative.ownerId, ownerId, words));
   }
 
   private phaseLabel(phaseId: string): string {
@@ -985,11 +1009,11 @@ export class Repository {
   }
 
   /** Apply one edit to a phase's plan (§5.4: edited in place) and schedule its commit under `note`. */
-  private editPhase(
+  private editPhase<T>(
     initiativeId: string,
     phaseId: string,
     change: (plan: PhasePlan) => PhasePlan,
-    note: { key: string; text: (initiativeName: string, phase: string) => string },
+    note: { field: string; from: T | undefined; to: T | undefined; words: (from: T | undefined, to: T | undefined, initiativeName: string, phase: string) => string },
   ): boolean {
     const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
     if (!initiative) return false;
@@ -998,17 +1022,18 @@ export class Repository {
     const next: Initiative = { ...initiative, phases: { ...initiative.phases, [phaseId]: change(plan) } };
     delete next.defaultPlan;
     this.replaceInitiative(next);
-    this.initiativeWriters.get(initiativeId)?.schedule(next, {
-      key: `${phaseId}:${note.key}`,
-      text: note.text(initiative.name, this.phaseLabel(phaseId)),
-    });
+    const label = this.phaseLabel(phaseId);
+    this.initiativeWriters
+      .get(initiativeId)
+      ?.schedule(next, this.note('initiative', initiativeId, `${phaseId}:${note.field}`, note.from, note.to, (f, t) => note.words(f, t, initiative.name, label)));
     return true;
   }
 
   /** Set or clear (`undefined`) one end of a phase's period. Any dates are accepted: an inverted period only warns (§7.2). */
   setPhaseDate(initiativeId: string, phaseId: string, which: 'startDate' | 'endDate', value: string | undefined): void {
     const word = which === 'startDate' ? 'start date' : 'end date';
-    this.editPhase(
+    const before = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.[which];
+    this.editPhase<string>(
       initiativeId,
       phaseId,
       (plan) => {
@@ -1018,8 +1043,10 @@ export class Repository {
         return next;
       },
       {
-        key: which,
-        text: (name, phase) => `${name}: ${phase} ${word} ${value === undefined ? 'cleared' : `set to ${formatDate(value)}`}`,
+        field: which,
+        from: before,
+        to: value,
+        words: (_, to, name, phase) => `${name}: ${phase} ${word} ${to === undefined ? 'cleared' : `set to ${formatDate(to)}`}`,
       },
     );
   }
@@ -1029,11 +1056,11 @@ export class Repository {
     const endDate = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.endDate;
     if (!endDate) return;
     const next = extendByOneMonth(endDate);
-    this.editPhase(
+    this.editPhase<string>(
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, endDate: next }),
-      { key: 'extend', text: (name, phase) => `${name}: ${phase} extended to ${formatDate(next)}` },
+      { field: 'endDate', from: endDate, to: next, words: (_, to, name, phase) => `${name}: ${phase} extended to ${formatDate(to as string)}` },
     );
   }
 
@@ -1056,14 +1083,11 @@ export class Repository {
 
     const membership = activeMembership(personId, team.id, this.state.memberships);
     const allocation: Allocation = { id: newId(), personId, allocationPct: allocationPct ?? membership?.teamFtePct ?? 0 };
-    this.editPhase(
+    this.editPhase<Allocation>(
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, allocations: [...plan.allocations, allocation] }),
-      {
-        key: allocation.id,
-        text: (name, phase) => `${name}: ${phase} allocation added (${person.name}, ${allocation.allocationPct}%)`,
-      },
+      { field: `allocations:${allocation.id}`, from: undefined, to: allocation, words: this.describeItem('allocations') },
     );
     return { ok: true, allocation };
   }
@@ -1073,62 +1097,78 @@ export class Repository {
       .find((i) => i.id === initiativeId)
       ?.phases?.[phaseId]?.allocations.find((a) => a.id === allocationId);
     if (!allocation) return;
-    this.editPhase(
+    this.editPhase<Allocation>(
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, allocations: plan.allocations.map((a) => (a.id === allocationId ? { ...a, allocationPct } : a)) }),
-      {
-        key: allocationId,
-        text: (name, phase) => `${name}: ${phase} allocation of ${this.personName(allocation.personId)} set to ${allocationPct}%`,
-      },
+      { field: `allocations:${allocationId}`, from: allocation, to: { ...allocation, allocationPct }, words: this.describeItem('allocations') },
     );
   }
 
   /**
    * Remove an item from a phase's list; its position comes back so an Undo can put it where it was (§5.11).
-   * `removed` and `restored` finish the commit note, after "<initiative>: <phase> ".
    */
-  private removeFromList<T extends { id: string }>(
-    list: PhaseList,
-    initiativeId: string,
-    phaseId: string,
-    itemId: string,
-    removed: (item: T) => string,
-  ): { item: T; index: number } | null {
+  private removeFromList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, itemId: string): { item: T; index: number } | null {
     const items = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
     const index = items.findIndex((item) => item.id === itemId);
     if (index < 0) return null;
     const item = items[index];
-    this.editPhase(
+    this.editPhase<T>(
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, [list]: itemsOf<T>(plan, list).filter((other) => other.id !== itemId) }),
-      { key: itemId, text: (name, phase) => `${name}: ${phase} ${removed(item)}` },
+      { field: `${list}:${itemId}`, from: item, to: undefined, words: this.describeItem(list) },
     );
     return { item, index };
   }
 
   /** Undo of {@link removeFromList}: the same item, same id, back in its place, as a normal edit. Nothing happens when it is already there again. */
-  private restoreToList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, item: T, index: number, restored: string): void {
+  private restoreToList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, item: T, index: number): void {
     const present = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
     if (present.some((other) => other.id === item.id)) return;
-    this.editPhase(
+    this.editPhase<T>(
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, [list]: insertAt(itemsOf<T>(plan, list), item, index) }),
-      { key: item.id, text: (name, phase) => `${name}: ${phase} ${restored}` },
+      { field: `${list}:${item.id}`, from: undefined, to: item, words: this.describeItem(list) },
     );
   }
 
   /** Remove an allocation; the position comes back so an Undo can put it where it was (§5.11). */
   removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
-    const removed = this.removeFromList<Allocation>('allocations', initiativeId, phaseId, allocationId, (a) => `allocation removed (${this.personName(a.personId)})`);
+    const removed = this.removeFromList<Allocation>('allocations', initiativeId, phaseId, allocationId);
     return removed && { allocation: removed.item, index: removed.index };
   }
 
   /** Undo of {@link removeAllocation}: the same allocation, same id, back in its place, as a normal edit. */
   restoreAllocation(initiativeId: string, phaseId: string, allocation: Allocation, index: number): void {
-    this.restoreToList('allocations', initiativeId, phaseId, allocation, index, `allocation restored (${this.personName(allocation.personId)})`);
+    this.restoreToList('allocations', initiativeId, phaseId, allocation, index);
+  }
+
+  /**
+   * A phase list item's net change in plain words (§10.3): added, removed, or what changed in it. The person or label
+   * is the one the item was saved under, so the message never names a state that was not saved.
+   */
+  private describeItem(list: PhaseList): (from: unknown, to: unknown, name: string, phase: string) => string {
+    return (from, to, name, phase) => {
+      if (list === 'allocations') {
+        const [before, after] = [from as Allocation | undefined, to as Allocation | undefined];
+        const who = this.personName((before ?? after)?.personId as string);
+        if (!before) return `${name}: ${who} added to ${phase} at ${after?.allocationPct}%`;
+        if (!after) return `${name}: ${who} removed from ${phase}`;
+        return `${name}: ${who} set to ${after.allocationPct}% in ${phase}`;
+      }
+      const [before, after] = [from as CostItem | undefined, to as CostItem | undefined];
+      if (!before) return `${name}: ${after?.label} added to ${phase} at ${this.money(after?.amount as number)}`;
+      if (!after) return `${name}: ${before.label} removed from ${phase}`;
+      const parts: string[] = [];
+      if (after.label !== before.label) parts.push(`renamed to ${after.label}`);
+      if (after.amount !== before.amount) parts.push(`amount set to ${this.money(after.amount)}`);
+      if (after.timing !== before.timing || after.month !== before.month) {
+        parts.push(after.timing === 'spread' || !after.month ? 'spread over the phase' : `timed to ${formatMonth(after.month)}`);
+      }
+      return `${name}: ${phase} cost item ${before.label} ${parts.join(', ') || 'updated'}`;
+    };
   }
 
   /** An amount as a commit message reads it, in the deployment's currency (§9.7). */
@@ -1139,11 +1179,11 @@ export class Repository {
   /** Add a cost item to a phase (§5.4); it is one commit, made once the draft row is complete. */
   addCostItem(initiativeId: string, phaseId: string, draft: Omit<CostItem, 'id'>): CostItem | null {
     const item: CostItem = { id: newId(), ...draft };
-    const added = this.editPhase(
+    const added = this.editPhase<CostItem>(
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, costItems: [...(plan.costItems ?? []), item] }),
-      { key: item.id, text: (name, phase) => `${name}: ${phase} cost item added (${item.label}, ${this.money(item.amount)})` },
+      { field: `costItems:${item.id}`, from: undefined, to: item, words: this.describeItem('costItems') },
     );
     return added ? item : null;
   }
@@ -1152,30 +1192,22 @@ export class Repository {
   updateCostItem(initiativeId: string, phaseId: string, itemId: string, change: CostItemChange): void {
     const item = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.costItems?.find((c) => c.id === itemId);
     if (!item) return;
-    const what =
-      'label' in change
-        ? `renamed to ${change.label}`
-        : 'amount' in change
-          ? `${item.label} amount set to ${this.money(change.amount)}`
-          : 'timing' in change && change.timing === 'spread'
-            ? `${item.label} spread over the phase`
-            : `${item.label} timed to ${formatMonth(change.month)}`;
-    this.editPhase(
+    this.editPhase<CostItem>(
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, costItems: (plan.costItems ?? []).map((c) => (c.id === itemId ? { ...c, ...change } : c)) }),
-      { key: `${itemId}:${Object.keys(change).join(',')}`, text: (name, phase) => `${name}: ${phase} cost item ${what}` },
+      { field: `costItems:${itemId}`, from: item, to: { ...item, ...change }, words: this.describeItem('costItems') },
     );
   }
 
   /** Remove a cost item; the position comes back so an Undo can put it where it was (§5.11). */
   removeCostItem(initiativeId: string, phaseId: string, itemId: string): { item: CostItem; index: number } | null {
-    return this.removeFromList<CostItem>('costItems', initiativeId, phaseId, itemId, (item) => `cost item removed (${item.label})`);
+    return this.removeFromList<CostItem>('costItems', initiativeId, phaseId, itemId);
   }
 
   /** Undo of {@link removeCostItem}. */
   restoreCostItem(initiativeId: string, phaseId: string, item: CostItem, index: number): void {
-    this.restoreToList('costItems', initiativeId, phaseId, item, index, `cost item restored (${item.label})`);
+    this.restoreToList('costItems', initiativeId, phaseId, item, index);
   }
 
   /**
@@ -1183,13 +1215,16 @@ export class Repository {
    * single act, and recordable again later to correct it (§6).
    */
   setActual(initiativeId: string, phaseId: string, month: string, amount: number): void {
-    this.editPhase(
+    const before = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.actualMonths?.[month];
+    this.editPhase<number>(
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, actualMonths: { ...plan.actualMonths, [month]: amount } }),
       {
-        key: `actual:${month}`,
-        text: (name, phase) => `${name}: ${phase} actual for ${formatMonth(month)} recorded (${this.brand.currencySymbol}${Math.round(amount)})`,
+        field: `actual:${month}`,
+        from: before,
+        to: amount,
+        words: (_, to, name, phase) => `${name}: ${phase} actual for ${formatMonth(month)} recorded (${this.brand.currencySymbol}${Math.round(to as number)})`,
       },
     );
   }
@@ -1208,10 +1243,12 @@ export class Repository {
     if (!initiative) return;
     const next = withChecklistItem(initiative, phaseId, itemId, status, note);
     this.replaceInitiative(next);
-    this.initiativeWriters.get(initiativeId)?.schedule(next, {
-      key: `checklist:${phaseId}:${itemId}`,
-      text: `${initiative.name}: "${this.checklistItemName(phaseId, itemId)}" set to ${status[0].toUpperCase()}${status.slice(1)}`,
-    });
+    const before = initiative.checklist?.[phaseId]?.[itemId];
+    const words = (_: unknown, to: { status: ChecklistStatus } | undefined) =>
+      `${initiative.name}: "${this.checklistItemName(phaseId, itemId)}" set to ${to ? to.status[0].toUpperCase() + to.status.slice(1) : 'Incomplete'}`;
+    this.initiativeWriters
+      .get(initiativeId)
+      ?.schedule(next, this.note('initiative', initiativeId, `checklist:${phaseId}:${itemId}`, before, next.checklist?.[phaseId]?.[itemId], words));
   }
 
   /**
@@ -1227,10 +1264,9 @@ export class Repository {
 
     this.replaceInitiative(result.initiative);
     const approved = result.record.recordedGrandEstimate !== undefined ? `, approved at ${this.money(result.record.recordedGrandEstimate)}` : '';
-    this.initiativeWriters.get(initiativeId)?.schedule(result.initiative, {
-      key: `gate:${result.phase.id}`,
-      text: `${initiative.name}: ${result.phase.exitGate.label} passed${approved}`,
-    });
+    this.initiativeWriters
+      .get(initiativeId)
+      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, 'open', 'passed', () => `${initiative.name}: ${result.phase.exitGate.label} passed${approved}`));
     return { ok: true };
   }
 
@@ -1241,7 +1277,9 @@ export class Repository {
     const result = evaluateReopenGate(this.brand.process, initiative);
     if (!result) return;
     this.replaceInitiative(result.initiative);
-    this.initiativeWriters.get(initiativeId)?.schedule(result.initiative, { key: `gate:${result.phase.id}:reopened`, text: `${initiative.name}: ${result.phase.exitGate.label} reopened` });
+    this.initiativeWriters
+      .get(initiativeId)
+      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, 'passed', 'open', () => `${initiative.name}: ${result.phase.exitGate.label} reopened`));
   }
 
   /**
@@ -1286,7 +1324,7 @@ export class Repository {
       next.phases = phases;
     }
     const tail = removed.length > 0 ? `, ${allocationCount(removed.length)} removed` : '';
-    this.commitTeam(next, `${initiative.name}: team changed from ${this.teamName(initiative.teamId)} to ${this.teamName(teamId)}${tail}`);
+    this.commitTeam(next, initiative, `${initiative.name}: team changed`, tail);
     return { fromTeamId: initiative.teamId, toTeamId: teamId, removed };
   }
 
@@ -1310,12 +1348,14 @@ export class Repository {
     }
     const next: Initiative = { ...initiative, teamId: change.fromTeamId, ...(initiative.phases && { phases }) };
     const tail = restored > 0 ? `, ${allocationCount(restored)} restored` : '';
-    this.commitTeam(next, `${initiative.name}: team changed back from ${this.teamName(change.toTeamId)} to ${this.teamName(change.fromTeamId)}${tail}`);
+    this.commitTeam(next, initiative, `${initiative.name}: team changed back`, tail);
   }
 
-  private commitTeam(next: Initiative, text: string): void {
+  /** A team change is a note from the team it started on to the one it ends on, so out and back again leaves none. */
+  private commitTeam(next: Initiative, before: Initiative, subject: string, tail: string): void {
     this.replaceInitiative(next);
-    this.initiativeWriters.get(next.id)?.schedule(next, { key: 'team', text });
+    const words = (from: string | undefined, to: string | undefined) => `${subject} from ${this.teamName(from as string)} to ${this.teamName(to as string)}${tail}`;
+    this.initiativeWriters.get(next.id)?.schedule(next, this.note('initiative', next.id, 'team', before.teamId, next.teamId, words));
   }
 
   /**

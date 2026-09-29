@@ -433,7 +433,7 @@ describe('decided in chat for slice 005g', () => {
     const [first, second] = fake.commits('people.json').slice(-2);
     expect(first.message).toMatch(/ \(conflict: used mine\)$/);
     expect(second.message).toMatch(/ \(conflict: used mine\)$/);
-    expect(first.message).toContain('renamed from Base');
+    expect(first.message).toContain('Base: renamed to Mine');
   });
 
   it('a resolution that hits a 409 gets its own retry budget', async () => {
