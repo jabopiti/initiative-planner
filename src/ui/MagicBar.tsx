@@ -48,6 +48,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
     if (result.ok) setPassed(phase.exitGate.label);
   };
   const jump = () => jumpTo(jumpTargetId(requirements, phaseId));
+  const extend = () => repository.extendPhase(initiative.id, phase.id);
 
   // The first blocker always names something specific (AC1, AC2), whatever else is also open.
   let guidance: string;
@@ -64,16 +65,23 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
         ))}
       </div>
       <div className="flex items-center justify-between gap-3">
-        <p className={`m-0 flex items-center gap-1.5 text-sm ${overdue && !passed ? 'font-medium text-alarm-text' : 'text-text-secondary'}`}>
-          {overdue && !passed && <OverrunIcon width={16} height={16} className="shrink-0" />}
-          {!ready && !passed ? (
-            <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-left underline" onClick={jump}>
-              {guidance}
+        <div className="flex flex-col gap-1">
+          <p className={`m-0 flex items-center gap-1.5 text-sm ${overdue && !passed ? 'font-medium text-alarm-text' : 'text-text-secondary'}`}>
+            {overdue && !passed && <OverrunIcon width={16} height={16} className="shrink-0" />}
+            {!ready && !passed ? (
+              <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-left underline" onClick={jump}>
+                {guidance}
+              </button>
+            ) : (
+              guidance
+            )}
+          </p>
+          {overdue && !passed && (
+            <button type="button" className="w-fit cursor-pointer border-0 bg-transparent p-0 text-left text-sm text-text-secondary underline" onClick={extend}>
+              Extend {phase.label} by one month
             </button>
-          ) : (
-            guidance
           )}
-        </p>
+        </div>
         {passed ? (
           <Button type="button" variant="ghost" size="sm" onClick={() => repository.reopenGate(initiative.id)}>
             Reopen

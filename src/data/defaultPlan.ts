@@ -2,14 +2,36 @@ import type { PhaseDef } from '../brand/types';
 import { iso, parseIso } from './dates';
 import type { PhasePlan } from './types';
 
+/** The number of days `year`-`month` has. */
+function lastDayOfMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** `year`-`month`, shifted by `months`, with that target month's own last day. */
+function shiftMonth(year: number, month: number, months: number): { year: number; month: number; lastDay: number } {
+  const index = year * 12 + (month - 1) + months;
+  const nextYear = Math.floor(index / 12);
+  const nextMonth = (index % 12) + 1;
+  return { year: nextYear, month: nextMonth, lastDay: lastDayOfMonth(nextYear, nextMonth) };
+}
+
 /** The same day of the month, `months` later; a day the target month lacks becomes its last day. */
-function addMonths(isoDate: string, months: number): string {
+export function addMonths(isoDate: string, months: number): string {
   const [y, m, d] = parseIso(isoDate);
-  const index = y * 12 + (m - 1) + months;
-  const year = Math.floor(index / 12);
-  const month = (index % 12) + 1;
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const { year, month, lastDay } = shiftMonth(y, m, months);
   return iso(year, month, Math.min(d, lastDay));
+}
+
+/**
+ * A month later (§5.11 Extend on overrun): the same day next month, a day the month lacks becoming
+ * its last day; a date that is itself the last day of its month moves to the next month's last day
+ * too (30 Sep → 31 Oct), since periods are day-precise and prorated (§7.1) — "30 Oct" would leave
+ * 31 Oct uncovered.
+ */
+export function extendByOneMonth(isoDate: string): string {
+  const [y, m, d] = parseIso(isoDate);
+  const { year, month, lastDay } = shiftMonth(y, m, 1);
+  return iso(year, month, d === lastDayOfMonth(y, m) ? lastDay : Math.min(d, lastDay));
 }
 
 function addDays(isoDate: string, days: number): string {
