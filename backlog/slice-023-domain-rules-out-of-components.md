@@ -80,3 +80,16 @@ None.
 
 - **One refactor slice**, ahead of 024 and 027, not folded into feature
   slices.
+- **Audit outcome (settled with the user):** rules moved are allocatable
+  people (was `addable` in PhasesSection), a phase's summary (has cost,
+  coverage status, frozen-or-live estimate by month, effective total,
+  months), phase overlap, the next-step phase (`isPlanned`) and PersonPanel's
+  joinable teams. Over Team FTE % / Capacity % decisions already live in
+  `src/data/capacity.ts`; components only group flagged months for display
+  and that stays.
+- **Coverage is a status, not words:** `src/data` returns `frozen`, `actual`,
+  `forecast` or `estimate`; the component keeps the label text (§9.2).
+- **`allocatablePeople` takes the free-capacity gating as input**, so 024
+  can reuse it outside the picker.
+- **The `Slice 023:` commit body lists each rule, its former location and its
+  new function** (criterion 1). No component test is edited.
