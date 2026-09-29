@@ -1,9 +1,10 @@
-import { useState, type ClipboardEvent, type FormEvent } from 'react';
+import { useContext, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { tokenStore } from '../auth/tokenStore';
 import { checkToken, TOKEN_CHECK_MESSAGES } from '../auth/validateToken';
 import { useBrand } from '../state/BrandContext';
 import { useRepository } from '../state/DataContext';
+import { SessionContext } from '../state/SessionContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -15,6 +16,7 @@ import { Input } from '@/components/ui/input';
 export function ReplaceTokenField() {
   const brand = useBrand();
   const repository = useRepository();
+  const session = useContext(SessionContext);
   const [value, setValue] = useState('');
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +32,8 @@ export function ReplaceTokenField() {
       setError(TOKEN_CHECK_MESSAGES[result.outcome]());
       return;
     }
-    await tokenStore.save(token, await tokenStore.remembered());
+    await tokenStore.save(token, await tokenStore.remembered(), result.login);
+    session?.rememberLogin(result.login);
     setValue('');
     repository.setToken(token);
     toast.success(TOKEN_CHECK_MESSAGES[result.outcome](result.login), {

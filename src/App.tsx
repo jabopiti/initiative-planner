@@ -4,6 +4,7 @@ import { defaultBrandPack } from './brand/defaultBrand';
 import { BrandProvider } from './state/BrandContext';
 import { RepositoryProvider, useRepositoryState } from './state/DataContext';
 import { NeedsAttentionProvider } from './state/NeedsAttentionContext';
+import { SessionContext } from './state/SessionContext';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { TopBar } from './ui/TopBar';
 import { ReadOnlyBanner } from './ui/ReadOnlyBanner';
@@ -68,14 +69,18 @@ function MainApp({ token }: { token: string }) {
 
 export function App() {
   const [token, setToken] = useState<string | null | undefined>(undefined);
+  const [login, setLogin] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     tokenStore
       .load()
       .catch(() => null) // browser storage unavailable: connect again rather than show nothing
-      .then((stored) => {
-        if (!cancelled) setToken(stored);
+      .then(async (stored) => {
+        const storedLogin = stored ? await tokenStore.loadLogin().catch(() => null) : null;
+        if (cancelled) return;
+        setLogin(storedLogin);
+        setToken(stored);
       });
     return () => {
       cancelled = true;
@@ -88,11 +93,27 @@ export function App() {
     <BrandProvider brand={defaultBrandPack}>
       <TooltipProvider>
         {token ? (
-          <MainApp token={token} />
+          <SessionContext.Provider
+            value={{
+              login,
+              rememberLogin: (found) => {
+                setLogin(found);
+                void tokenStore.saveLogin(found);
+              },
+              disconnect: () => {
+                void tokenStore.clear();
+                setLogin(null);
+                setToken(null);
+              },
+            }}
+          >
+            <MainApp token={token} />
+          </SessionContext.Provider>
         ) : (
           <ConnectScreen
-            onConnected={(newToken, remember) => {
-              void tokenStore.save(newToken, remember);
+            onConnected={(newToken, remember, newLogin) => {
+              void tokenStore.save(newToken, remember, newLogin);
+              setLogin(newLogin);
               setToken(newToken);
             }}
           />

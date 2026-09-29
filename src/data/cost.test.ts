@@ -374,9 +374,9 @@ describe('frozenBlendedTotal and frozenPhaseMonths (§8.1)', () => {
 
 describe('grandEstimate (§4, §8.1)', () => {
   const process: PhaseDef[] = [
-    { id: 'discovery', label: 'Discovery', description: '', costed: false, exitGate: { id: 'g0', label: 'G0', description: '', requiresEstimates: false, skippable: true, checklistItems: [] } },
-    { id: 'validation', label: 'Validation', description: '', costed: true, exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: true, skippable: true, checklistItems: [] } },
-    { id: 'development', label: 'Development', description: '', costed: true, exitGate: { id: 'g2', label: 'G2', description: '', requiresEstimates: true, skippable: false, checklistItems: [] } },
+    { id: 'discovery', icon: 'search', label: 'Discovery', description: '', costed: false, exitGate: { id: 'g0', label: 'G0', description: '', requiresEstimates: false, skippable: true, checklistItems: [] } },
+    { id: 'validation', icon: 'search', label: 'Validation', description: '', costed: true, exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: true, skippable: true, checklistItems: [] } },
+    { id: 'development', icon: 'search', label: 'Development', description: '', costed: true, exitGate: { id: 'g2', label: 'G2', description: '', requiresEstimates: true, skippable: false, checklistItems: [] } },
   ];
 
   it('sums the blended total of every costed phase, ignoring non-costed ones and ones never planned', () => {
@@ -408,8 +408,8 @@ describe('grandEstimate (§4, §8.1)', () => {
 
 describe('grandDeviation (§4)', () => {
   const process: PhaseDef[] = [
-    { id: 'validation', label: 'Validation', description: '', costed: true, exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: true, skippable: true, checklistItems: [] } },
-    { id: 'development', label: 'Development', description: '', costed: true, exitGate: { id: 'g2', label: 'G2', description: '', requiresEstimates: true, skippable: false, checklistItems: [] } },
+    { id: 'validation', icon: 'search', label: 'Validation', description: '', costed: true, exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: true, skippable: true, checklistItems: [] } },
+    { id: 'development', icon: 'search', label: 'Development', description: '', costed: true, exitGate: { id: 'g2', label: 'G2', description: '', requiresEstimates: true, skippable: false, checklistItems: [] } },
   ];
 
   it('is zero when nothing has a recorded actual', () => {

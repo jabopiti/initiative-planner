@@ -14,7 +14,7 @@ function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}): R
   return new Response(JSON.stringify(body), { status, headers });
 }
 
-function renderConnectScreen(onConnected: (token: string, remember: boolean) => void = vi.fn()) {
+function renderConnectScreen(onConnected: (token: string, remember: boolean, login: string) => void = vi.fn()) {
   render(
     <BrandProvider brand={defaultBrandPack}>
       <ConnectScreen onConnected={onConnected} />
@@ -44,7 +44,7 @@ describe('ConnectScreen — checked-token outcomes (§5.10)', () => {
 
     const status = await screen.findByRole('status');
     expect(status.textContent).toContain('Connected as bo');
-    expect(onConnected).toHaveBeenCalledWith('a-real-token', false);
+    expect(onConnected).toHaveBeenCalledWith('a-real-token', false, 'bo');
   });
 
   it('a 401 shows "GitHub doesn\'t accept this token." as an alert, in the alarm styling', async () => {

@@ -18,7 +18,7 @@ const MESSAGE_STYLES: Record<TokenCheckResult['outcome'], string> = {
   unreachable: 'bg-warning-tint text-warning-text',
 };
 
-export function ConnectScreen({ onConnected }: { onConnected: (token: string, remember: boolean) => void }) {
+export function ConnectScreen({ onConnected }: { onConnected: (token: string, remember: boolean, login: string) => void }) {
   const [token, setToken] = useState('');
   const [remember, setRemember] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -35,7 +35,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
     setChecking(false);
     setResult(outcome);
     if (outcome.outcome === 'works' || outcome.outcome === 'classic-warning') {
-      onConnected(token.trim(), remember);
+      onConnected(token.trim(), remember, outcome.login);
     }
   }
 

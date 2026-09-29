@@ -1,3 +1,6 @@
+import { AboutSection } from './AboutSection';
+import { ConnectionSection } from './ConnectionSection';
+import { ProcessSection } from './ProcessSection';
 import { RolesSection } from './RolesSection';
 import { useSectionLock } from './useSectionLock';
 
@@ -6,7 +9,12 @@ import { useSectionLock } from './useSectionLock';
  * Countries & rates, 031 Process/Connection/About, 032 Danger zone), so this list stays additive across
  * parallel slices. A section not yet built isn't listed, like an unbuilt action in an Actions menu.
  */
-const SETTINGS_SECTIONS: { id: string; label: string }[] = [{ id: 'roles', label: 'Roles' }];
+const SETTINGS_SECTIONS: { id: string; label: string }[] = [
+  { id: 'roles', label: 'Roles' },
+  { id: 'process', label: 'Process' },
+  { id: 'connection', label: 'Connection' },
+  { id: 'about', label: 'About' },
+];
 
 export const DEFAULT_SECTION = SETTINGS_SECTIONS[0].id;
 
@@ -17,7 +25,16 @@ export function SettingsPage({ section }: { section: string }) {
   // so never re-locks) one that isn't showing (§2) — only leaving Settings entirely, which unmounts this
   // whole component, does. A section other slices add gets its own `useSectionLock()` call here, the same way.
   const rolesLock = useSectionLock();
-  const content = active.id === 'roles' ? <RolesSection lock={rolesLock} /> : null;
+  const content =
+    active.id === 'roles' ? (
+      <RolesSection lock={rolesLock} />
+    ) : active.id === 'process' ? (
+      <ProcessSection />
+    ) : active.id === 'connection' ? (
+      <ConnectionSection />
+    ) : active.id === 'about' ? (
+      <AboutSection />
+    ) : null;
 
   return (
     <div className="flex gap-6 px-8 py-6">

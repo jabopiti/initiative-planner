@@ -81,43 +81,43 @@ Danger zone (032).
 
 ## Acceptance criteria
 
-- [ ] Given Process, then each phase shows label, description, and (costed)
+- [x] Given Process, then each phase shows label, description, and (costed)
       default duration; each gate shows its estimates and skippable flags and
       its checklist count; selecting a gate lists its checklist items with
       descriptions.
-- [ ] Given Process, then the approval tracks are listed with bounds,
+- [x] Given Process, then the approval tracks are listed with bounds,
       requirement text and severity.
-- [ ] Given Connection, then the GitHub user, repository and data branch are
+- [x] Given Connection, then the GitHub user, repository and data branch are
       shown.
-- [ ] Given the last response carried rate-limit headers remaining 4,812 of
+- [x] Given the last response carried rate-limit headers remaining 4,812 of
       5,000 resetting at 14:20, then Connection shows exactly that, and opening
       Connection made no extra request.
-- [ ] Given no response yet, then the remaining requests read "Not known yet".
-- [ ] Given nothing pending, then Disconnect removes the token and shows the
+- [x] Given no response yet, then the remaining requests read "Not known yet".
+- [x] Given nothing pending, then Disconnect removes the token and shows the
       Connect screen in one click.
-- [ ] Given 2 pending or failed edits, then Disconnect first turns into
+- [x] Given 2 pending or failed edits, then Disconnect first turns into
       "Disconnect and discard 2 unsaved changes" with Cancel; Cancel keeps
       everything.
-- [ ] Given an access-denied failure, then the token check runs once and the
+- [x] Given an access-denied failure, then the token check runs once and the
       banner shows its outcome: rejected, read-only, can't see the
       repository or organisation approval pending, in §5.10's wording.
-- [ ] Given a rejected token, then the banner shows the field, Replace,
+- [x] Given a rejected token, then the banner shows the field, Replace,
       Create a token and Show steps, and no Retry; given read-only or can't
       see the repository, then it also shows Edit this token in GitHub and
       Retry.
-- [ ] Given a token pasted into the field, then it is checked without
+- [x] Given a token pasted into the field, then it is checked without
       pressing Replace; a failing check shows §5.10's message under the
       field and keeps the read-only state.
-- [ ] Given a token that passes, then it is saved with the earlier
+- [x] Given a token that passes, then it is saved with the earlier
       Remember me choice, the toast reads "Connected as jmustermann", the
       banner goes and 2 failed edits are pushed with their typed values
       intact (the app is not remounted).
-- [ ] Given the check cannot reach GitHub, then everything failed is
+- [x] Given the check cannot reach GitHub, then everything failed is
       resent and the cause it fails with (unreachable: automatic retry)
       takes over.
-- [ ] Given Connection, then the same field replaces the token without
+- [x] Given Connection, then the same field replaces the token without
       Disconnect.
-- [ ] Given About, then product name, build version, schema version and process
+- [x] Given About, then product name, build version, schema version and process
       identity are shown.
 
 ## Delivery gate

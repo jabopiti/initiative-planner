@@ -3,8 +3,9 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { Archive, ArchiveRestore, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, CircleDashed, ClipboardList, Flame, Gauge, Info, Lock, Plus, RefreshCw, Rocket, Search, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Gauge, Info, Lock, Plus, RefreshCw, Rocket, Search, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
+import type { PhaseIconName } from '../brand/types';
 
 function iconWrapper(Lucide: LucideIcon) {
   return function WrappedIcon(props: SVGProps<SVGSVGElement>) {
@@ -70,4 +71,12 @@ export function LogoMark(props: SVGProps<SVGSVGElement>) {
       <rect x="14" y="14" width="7" height="7" rx="1.5" />
     </svg>
   );
+}
+
+/** The icon a brand pack names for a phase (§2, §9.10). */
+const PHASE_ICONS: Record<PhaseIconName, LucideIcon> = { search: Search, 'clipboard-check': ClipboardCheck, hammer: Hammer, rocket: Rocket };
+
+export function PhaseIcon({ name, ...props }: { name: PhaseIconName } & SVGProps<SVGSVGElement>) {
+  const Icon = PHASE_ICONS[name];
+  return <Icon size={18} strokeWidth={2} aria-hidden="true" {...props} />;
 }
