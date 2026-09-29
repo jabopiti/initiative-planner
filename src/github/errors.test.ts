@@ -6,7 +6,7 @@ describe('toReadOnlyState (§3 Sync failures)', () => {
     const error = new GithubApiError('PUT people.json failed (403)', 'access-denied', 403);
     expect(toReadOnlyState(error, 'fallback')).toEqual({
       cause: 'access-denied',
-      message: 'The token is missing, expired, revoked or lacks write permission',
+      message: 'GitHub refused access with this token',
     });
   });
 

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, ty
 import { causeText } from '../github/errors';
 import { pathKey, type Path } from '../sync/merge';
 import { useBrand } from './BrandContext';
-import { changeCovers, changeKey, Repository, type RepositoryState } from '../sync/Repository';
+import { changeCovers, changeKey, Repository, type RateLimit, type RepositoryState } from '../sync/Repository';
 
 export const RepositoryContext = createContext<Repository | null>(null);
 
@@ -90,4 +90,10 @@ export function useHoldWhileEditing(editing: boolean): void {
     if (!repository || !editing) return;
     return repository.holdWhileEditing();
   }, [repository, editing]);
+}
+
+/** GitHub's request budget as the latest response reported it (§5.9), or null before any response carried it. */
+export function useRateLimit(): RateLimit | null {
+  const repository = useRepository();
+  return useSyncExternalStore(repository.subscribeRateLimit, repository.getRateLimit);
 }

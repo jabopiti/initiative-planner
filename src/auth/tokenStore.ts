@@ -1,4 +1,4 @@
-import { tokenCache } from '../cache/db';
+import { loginCache, tokenCache } from '../cache/db';
 
 /**
  * Where the GitHub token lives (§3). By default it stays in this tab's
@@ -7,19 +7,20 @@ import { tokenCache } from '../cache/db';
  * per-tab, so another page on the same origin cannot read it from its own tab.
  */
 const SESSION_KEY = 'github-token';
+const LOGIN_SESSION_KEY = 'github-login';
 
-function readSession(): string | null {
+function readSession(key = SESSION_KEY): string | null {
   try {
-    return sessionStorage.getItem(SESSION_KEY);
+    return sessionStorage.getItem(key);
   } catch {
     return null; // storage blocked (private mode, policy) — fall back to IndexedDB / re-paste
   }
 }
 
-function writeSession(token: string | null): void {
+function writeSession(token: string | null, key = SESSION_KEY): void {
   try {
-    if (token) sessionStorage.setItem(SESSION_KEY, token);
-    else sessionStorage.removeItem(SESSION_KEY);
+    if (token) sessionStorage.setItem(key, token);
+    else sessionStorage.removeItem(key);
   } catch {
     // Ignored: the token stays in memory for this page load regardless.
   }
@@ -41,19 +42,42 @@ export const tokenStore = {
     return devToken() ?? readSession() ?? (await tokenCache.get());
   },
 
-  /** Keep the token for this tab only, or — with `remember` — on this device until it is removed. */
+  /** The GitHub login the stored token belongs to, or null when it was never recorded (a dev token, an older session). */
+  async loadLogin(): Promise<string | null> {
+    return readSession(LOGIN_SESSION_KEY) ?? (await loginCache.get().catch(() => null)) ?? null;
+  },
+
+  /** Keep the token for this tab only, or — with `remember` — on this device until it is removed. The login of the
+   * token it replaces goes with it; {@link saveLogin} records the new one. */
   async save(token: string, remember: boolean): Promise<void> {
+    writeSession(null, LOGIN_SESSION_KEY);
     if (remember) {
       writeSession(null);
-      await tokenCache.set(token);
+      await Promise.all([tokenCache.set(token), loginCache.clear()]);
     } else {
       writeSession(token);
-      await tokenCache.clear();
+      await Promise.all([tokenCache.clear(), loginCache.clear()]);
+    }
+  },
+
+  /** Records the login of the token already stored, in the same place as the token. */
+  async saveLogin(login: string): Promise<void> {
+    if (await tokenStore.remembered()) await loginCache.set(login);
+    else writeSession(login, LOGIN_SESSION_KEY);
+  },
+
+  /** Whether the token is kept on this device (Remember me), so a replacement keeps the same choice. */
+  async remembered(): Promise<boolean> {
+    try {
+      return (await tokenCache.get()) != null;
+    } catch {
+      return false;
     }
   },
 
   async clear(): Promise<void> {
     writeSession(null);
-    await tokenCache.clear();
+    writeSession(null, LOGIN_SESSION_KEY);
+    await Promise.all([tokenCache.clear(), loginCache.clear()]);
   },
 };
