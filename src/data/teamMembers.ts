@@ -1,4 +1,4 @@
-import type { Membership, Person } from './types';
+import type { Membership, Person, Team } from './types';
 
 /** A person's active membership of a team, if any: it holds their Team FTE % there (§4). */
 export function activeMembership(personId: string, teamId: string, memberships: Membership[]): Membership | undefined {
@@ -18,4 +18,9 @@ export function isActiveMember(person: Person, teamId: string, memberships: Memb
 /** A team's active members, each once. Team size (§5.7) and who can be allocated (§7.2) both use this. */
 export function activeMembers(teamId: string, memberships: Membership[], people: Person[]): Person[] {
   return people.filter((p) => isActiveMember(p, teamId, memberships));
+}
+
+/** The teams a person can still be added to: active ones they have no membership of, active or not (§5.6). */
+export function joinableTeams(personId: string, teams: Team[], memberships: Membership[]): Team[] {
+  return teams.filter((t) => t.active && !memberships.some((m) => m.personId === personId && m.teamId === t.id));
 }
