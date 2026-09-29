@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { activeFilterCount, attentionRank, filterRows, initiativeRows, NO_FILTERS, NONE, type InitiativeFilters } from '../data/initiativeList';
+import { sortRows } from '../data/sortRows';
 import { FILE_PATHS } from '../data/types';
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { useBrand } from '../state/BrandContext';
@@ -14,7 +15,7 @@ import { KIND_CONFIG } from './NeedsAttentionStrip';
 import { NoInitiatives } from './NoInitiatives';
 import { SortableHeader } from './SortableHeader';
 import { TruncatedText } from './TruncatedText';
-import { sortRows, useTableSort } from './tableSort';
+import { useTableSort } from './tableSort';
 import { useSessionFilters } from './sessionFilters';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
