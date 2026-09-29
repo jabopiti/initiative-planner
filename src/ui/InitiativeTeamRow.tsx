@@ -5,20 +5,23 @@ import { useRepository, useRepositoryState } from '../state/DataContext';
 import { reopenGate } from '../data/gate';
 import { allocationCount, describeTeamChange } from '../data/teamChange';
 import type { Initiative, Team } from '../data/types';
+import { ApprovalTrackBadge } from './ApprovalTrackBadge';
 import { formatAmount } from './formatAmount';
+import { OwnerSelect } from './OwnerSelect';
 import { TeamSelect } from './TeamSelect';
 import { Button } from '@/components/ui/button';
 
 /**
- * The initiative header's team and status (§5.4). The team is a dropdown of the active teams; choosing another one
- * that would take allocations out of the open phases asks first, in place under the header (no modal), naming who
- * goes and who stays (§7.2). The dropdown keeps showing the current team until the change is confirmed. A Closed or
- * Cancelled initiative keeps its team, shown as text.
+ * The initiative header's meta row (§5.4): team, owner, status badge and approval track badge. The team is a
+ * dropdown of the active teams; choosing another one that would take allocations out of the open phases asks
+ * first, in place under the header (no modal), naming who goes and who stays (§7.2). The dropdown keeps
+ * showing the current team until the change is confirmed. A Closed or Cancelled initiative keeps its team,
+ * shown as text.
  */
 export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   const repository = useRepository();
   const { currencySymbol, process } = useBrand();
-  const { teams } = useRepositoryState();
+  const { teams, people, memberships } = useRepositoryState();
   const reopenable = reopenGate(process, initiative);
   const [pendingTeamId, setPendingTeamId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -77,7 +80,17 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
         ) : (
           <span className="px-3">{currentTeam?.name ?? 'Unknown team'}</span>
         )}
+        <OwnerSelect
+          people={people}
+          memberships={memberships}
+          teamId={initiative.teamId}
+          teamName={currentTeam?.name ?? 'Unknown team'}
+          value={initiative.ownerId}
+          onValueChange={(ownerId) => repository.setOwner(initiative.id, ownerId)}
+          className="border-transparent bg-transparent text-text-secondary shadow-none hover:border-border-default"
+        />
         <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs">{initiative.status}</span>
+        <ApprovalTrackBadge initiative={initiative} />
         {reopenable && (
           <Button type="button" variant="link" size="sm" className="h-auto p-0 text-text-secondary" onClick={() => repository.reopenGate(initiative.id)}>
             Reopen {reopenable.phase.exitGate.label}

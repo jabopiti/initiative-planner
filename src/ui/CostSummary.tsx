@@ -47,7 +47,7 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
     for (const phase of costedPhases) {
       rows.push([phase.label, formatAmount(phaseEffectiveTotal(initiative, phase.id, people, data), currencySymbol)]);
     }
-    return { headers: ['Metric', 'Amount'], rows };
+    return { headers: ['Metric', 'Amount'], rows, numericColumns: [1] };
   };
 
   return (
