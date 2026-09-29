@@ -236,7 +236,7 @@ export class FileWriter<D> {
     this.extras.clear();
     this.noted = false;
     if (cancelled) {
-      // The edits undid each other: nothing changed, so nothing to commit (§10.3).
+      // The edits undid each other, nothing changed, so nothing to commit (§10.3).
       this.reportIdle();
       return 'saved';
     }

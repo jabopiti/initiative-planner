@@ -1022,10 +1022,10 @@ export class Repository {
     const next: Initiative = { ...initiative, phases: { ...initiative.phases, [phaseId]: change(plan) } };
     delete next.defaultPlan;
     this.replaceInitiative(next);
-    const label = this.phaseLabel(phaseId);
+    const name = initiative.name;
     this.initiativeWriters
       .get(initiativeId)
-      ?.schedule(next, this.note('initiative', initiativeId, `${phaseId}:${note.field}`, note.from, note.to, (f, t) => note.words(f, t, initiative.name, label)));
+      ?.schedule(next, this.note('initiative', initiativeId, `${phaseId}:${note.field}`, note.from, note.to, (f, t) => note.words(f, t, name, this.phaseLabel(phaseId))));
     return true;
   }
 
@@ -1264,9 +1264,10 @@ export class Repository {
 
     this.replaceInitiative(result.initiative);
     const approved = result.record.recordedGrandEstimate !== undefined ? `, approved at ${this.money(result.record.recordedGrandEstimate)}` : '';
+    const [name, gateLabel] = [initiative.name, result.phase.exitGate.label];
     this.initiativeWriters
       .get(initiativeId)
-      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, 'open', 'passed', () => `${initiative.name}: ${result.phase.exitGate.label} passed${approved}`));
+      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, 'open', 'passed', () => `${name}: ${gateLabel} passed${approved}`));
     return { ok: true };
   }
 
@@ -1277,9 +1278,10 @@ export class Repository {
     const result = evaluateReopenGate(this.brand.process, initiative);
     if (!result) return;
     this.replaceInitiative(result.initiative);
+    const [name, gateLabel] = [initiative.name, result.phase.exitGate.label];
     this.initiativeWriters
       .get(initiativeId)
-      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, 'passed', 'open', () => `${initiative.name}: ${result.phase.exitGate.label} reopened`));
+      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, 'passed', 'open', () => `${name}: ${gateLabel} reopened`));
   }
 
   /**
