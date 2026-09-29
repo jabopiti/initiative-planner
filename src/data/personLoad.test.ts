@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import { freeCapacityByPerson } from './personLoad';
+import { allocatablePeople, freeCapacityByPerson } from './personLoad';
 import type { Initiative, Membership, Person } from './types';
 
 const process = defaultBrandPack.process;
@@ -109,3 +109,53 @@ describe('freeCapacityByPerson (§5.11, §7.2)', () => {
   });
 });
 
+
+describe('allocatablePeople (§5.11, §7.2)', () => {
+  const t1 = { id: 't1', name: 'T1', active: true };
+  const bo: Person = { ...person, id: 'bo', name: 'Bo' };
+  const cy: Person = { ...person, id: 'cy', name: 'Cy' };
+  const inactive: Person = { ...person, id: 'di', name: 'Di', active: false };
+  const members = (...ids: string[]): Membership[] => ids.map((id) => ({ id: `m-${id}`, personId: id, teamId: 't1', teamFtePct: 60, active: true }));
+  const args = (over: Partial<Parameters<typeof allocatablePeople>[0]> = {}) => ({
+    plan: { startDate: '2026-10-01', endDate: '2026-10-31', allocations: [] },
+    team: t1,
+    withFree: true,
+    people: [person, bo, cy, inactive],
+    teams: [t1],
+    memberships: members('ana', 'bo', 'cy', 'di'),
+    initiatives: [] as Initiative[],
+    process,
+    today: TODAY,
+    ...over,
+  });
+
+  it('is empty without a team', () => {
+    expect(allocatablePeople(args({ team: undefined }))).toEqual({ teamMembers: [], addable: [], free: undefined });
+  });
+
+  it('offers active team members not yet allocated, and never inactive ones', () => {
+    const r = allocatablePeople(args({ plan: { startDate: '2026-10-01', endDate: '2026-10-31', allocations: [{ personId: 'bo' }] } }));
+    expect(r.teamMembers.map((p) => p.id)).toEqual(['ana', 'bo', 'cy']);
+    expect(r.addable.map((p) => p.id)).toEqual(['ana', 'cy']);
+  });
+
+  it('orders most free first, ties by name', () => {
+    const busy = initiative('busy', 't1', later, 40, '2026-10-01', '2026-10-31');
+    busy.phases![later].allocations[0].personId = 'ana';
+    const r = allocatablePeople(args({ initiatives: [busy] }));
+    expect(r.addable.map((p) => p.id)).toEqual(['bo', 'cy', 'ana']);
+    expect(r.free?.get('ana')).toBe(20);
+  });
+
+  it('is by name alone, with no free figures, when not asked for (closed or frozen phase)', () => {
+    const r = allocatablePeople(args({ withFree: false, people: [cy, bo, person] }));
+    expect(r.free).toBeUndefined();
+    expect(r.addable.map((p) => p.name)).toEqual(['Ana', 'Bo', 'Cy']);
+  });
+
+  it('is by name alone when the phase has no valid period', () => {
+    const r = allocatablePeople(args({ plan: { allocations: [] } }));
+    expect(r.free).toBeUndefined();
+    expect(r.addable.map((p) => p.id)).toEqual(['ana', 'bo', 'cy']);
+  });
+});
