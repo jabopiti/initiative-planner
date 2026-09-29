@@ -26,6 +26,8 @@ function json(body: unknown, status = 200): Response {
 }
 
 /** A repository on the data branch: files with shas, held or failed writes on demand, and "the other writer". */
+export type TokenBehaviour = 'invalid' | 'read-only' | 'cannot-see';
+
 export function fakeGithub() {
   const files = new Map<string, { content: string; sha: string }>();
   const puts: PutRecord[] = [];
@@ -34,6 +36,7 @@ export function fakeGithub() {
   const failures: { prefix: string; status: number }[] = [];
   const reads: string[] = [];
   const failReads: { path: string; status: number }[] = [];
+  const tokenBehaviours = new Map<string, TokenBehaviour>();
   let counter = 0;
   let head = 1;
 
@@ -58,6 +61,16 @@ export function fakeGithub() {
       const etag = `"head-${head}"`;
       if (new Headers(init.headers).get('If-None-Match') === etag) return new Response(null, { status: 304 });
       return new Response(JSON.stringify({ object: { sha: `commit-${head}` } }), { status: 200, headers: { etag } });
+    }
+
+    // The §5.10 token check: who the bearer is, and what it may do to the repository.
+    const behaviour = tokenBehaviours.get((new Headers(init.headers).get('Authorization') ?? '').replace('Bearer ', ''));
+    if (method === 'GET' && pathname === '/user') {
+      return behaviour === 'invalid' ? json({ message: 'Bad credentials' }, 401) : json({ login: 'jmustermann' });
+    }
+    if (method === 'GET' && /^\/repos\/[^/]+\/[^/]+$/.test(pathname)) {
+      if (behaviour === 'cannot-see') return json({ message: 'Not Found' }, 404);
+      return json({ permissions: { push: behaviour !== 'read-only' } });
     }
 
     const match = pathname.match(/\/contents\/(.*)$/);
@@ -133,6 +146,8 @@ export function fakeGithub() {
       holds.push({ prefix, gate: new Promise<void>((resolve) => (release = resolve)) });
       return release;
     },
+    /** What the token check (§5.10) finds for this token: rejected, read-only or unable to see the repository. Every other token works. */
+    setTokenBehaviour: (token: string, behaviour: TokenBehaviour) => void tokenBehaviours.set(token, behaviour),
     /** The next write to a path starting with `prefix` is refused with `status` and changes nothing. */
     fail: (prefix: string, status: number) => void failures.push({ prefix, status }),
   };

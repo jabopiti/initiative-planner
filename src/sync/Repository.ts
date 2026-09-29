@@ -25,6 +25,7 @@ import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, withChe
 import type { ChecklistStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type BranchHead } from '../github/client';
+import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
@@ -197,9 +198,9 @@ export class Repository {
 
   constructor(
     private readonly brand: BrandPack,
-    token: string,
+    private token: string,
   ) {
-    this.github = new GithubClient(brand.github, () => token);
+    this.github = new GithubClient(brand.github, () => this.token);
     this.cache = new FileCache(cacheScope(brand.github));
   }
 
@@ -579,6 +580,20 @@ export class Repository {
   /** Resends one file's failed edit now, rather than waiting for the shared retry loop (§9.9: a field's own Retry). */
   retryFile(file: string): void {
     void this.allWriters().find(([path]) => path === file)?.[1].retry();
+  }
+
+  /** The §5.10 token check for the token in use: the read-only banner's diagnosis of an access-denied failure (§3). */
+  checkAccess(): Promise<TokenCheckResult> {
+    return checkToken(this.brand.github, this.token);
+  }
+
+  /**
+   * Swaps the token in place (§3 Sync failures): the repository, its pending and failed edits and their typed
+   * values stay, and everything failed is resent under the new token.
+   */
+  setToken(token: string): void {
+    this.token = token;
+    this.retryAll();
   }
 
   /**

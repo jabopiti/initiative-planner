@@ -35,13 +35,13 @@ describe('Read-only banner (§3, §9.9)', () => {
   it('names the cause and offers Retry once a write fails', async () => {
     const fake = fakeGithub();
     const { repo } = await open(fake);
-    fake.fail('teams.json', 403);
+    fake.fail('teams.json', 429);
     repo.createTeam('Platform');
     await repo.flushPending();
     renderBanner(repo);
 
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('The token is missing, expired, revoked or lacks write permission');
+    expect(alert.textContent).toContain('GitHub is limiting requests; try again shortly');
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 
@@ -59,5 +59,90 @@ describe('Read-only banner (§3, §9.9)', () => {
 
     await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
     expect(fake.commits('teams.json')).toHaveLength(1);
+  });
+
+  describe('access denied (§3 Sync failures)', () => {
+    async function denied(behaviour?: 'invalid' | 'read-only' | 'cannot-see') {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+      if (behaviour) fake.setTokenBehaviour('token', behaviour);
+      fake.fail('teams.json', 401);
+      repo.createTeam('Platform');
+      await repo.flushPending();
+      renderBanner(repo);
+      return { fake, repo };
+    }
+
+    it('says the token expired or was revoked, with the field, Create a token and no Retry', async () => {
+      await denied('invalid');
+
+      expect(await screen.findByText(/GitHub doesn't accept this token\. It has expired or been revoked; create a new one\./)).toBeInTheDocument();
+      expect(screen.getByLabelText('New GitHub token')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Replace' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Create a token/ })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+    });
+
+    it('says a read-only token cannot write, and keeps Retry and a link to edit it', async () => {
+      await denied('read-only');
+
+      expect(await screen.findByText('This token can read but not write. Set Contents to Read and write.')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Edit this token in GitHub/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    });
+
+    it('says a token cannot see the repository', async () => {
+      await denied('cannot-see');
+
+      expect(await screen.findByText(/This token can't see/)).toBeInTheDocument();
+    });
+
+    it('shows the four steps behind Show steps', async () => {
+      await denied('invalid');
+      await screen.findByText(/expired or been revoked/);
+
+      expect(screen.getByText('Show steps')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Copy jabopiti/initiative-planner' })).toBeInTheDocument();
+    });
+
+    it('checks a pasted token at once, swaps it in, keeps the edit and clears the banner', async () => {
+      const user = userEvent.setup();
+      const { fake, repo } = await denied('invalid');
+      await screen.findByText(/expired or been revoked/);
+
+      await user.click(screen.getByLabelText('New GitHub token'));
+      await user.paste('github_pat_new');
+
+      await vi.waitFor(() => expect(screen.queryByLabelText('New GitHub token')).toBeNull());
+      expect(fake.commits('teams.json')).toHaveLength(1);
+      expect(fake.commits('teams.json')[0].content).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Platform' })]));
+      expect(repo.getState().readOnly).toBeNull();
+    });
+
+    it('shows §5.10\'s message under the field for a pasted token that fails, and stays read-only', async () => {
+      const user = userEvent.setup();
+      const { fake, repo } = await denied('invalid');
+      fake.setTokenBehaviour('github_pat_ro', 'read-only');
+      await screen.findByText(/expired or been revoked/);
+
+      await user.click(screen.getByLabelText('New GitHub token'));
+      await user.paste('github_pat_ro');
+
+      expect(await screen.findByText('This token can read but not write. Set Contents to Read and write.')).toBeInTheDocument();
+      expect(repo.getState().readOnly?.cause).toBe('access-denied');
+    });
+
+    it('checks a typed token on Replace, not before', async () => {
+      const user = userEvent.setup();
+      const { fake } = await denied('invalid');
+      await screen.findByText(/expired or been revoked/);
+      const before = fake.requests().filter((r) => r === 'GET /user').length;
+
+      await user.type(screen.getByLabelText('New GitHub token'), 'github_pat_typed');
+      expect(fake.requests().filter((r) => r === 'GET /user')).toHaveLength(before);
+
+      await user.click(screen.getByRole('button', { name: 'Replace' }));
+      await vi.waitFor(() => expect(fake.requests().filter((r) => r === 'GET /user')).toHaveLength(before + 1));
+    });
   });
 });

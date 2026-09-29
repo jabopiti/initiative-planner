@@ -400,8 +400,10 @@ repository's copy button. When the token is valid but lacks write access
 or cannot see the repository, the banner links **Edit this token in
 GitHub** and keeps Retry, since changing a token's permissions in GitHub
 keeps its value. Retry is hidden for a rejected token, where it can never
-succeed. If the check itself cannot reach GitHub, the cause becomes
-"GitHub unreachable" and the automatic retry applies.
+succeed. Until the check answers, the banner says "Checking your token…"; beside a
+failed field the cause reads "GitHub refused access with this token". If
+the check itself cannot reach GitHub, everything failed is resent, so the
+real cause, "GitHub unreachable" with its automatic retry, takes over.
 
 **A failed edit.** If a push fails, including when the connection drops
 mid-edit, the write is rejected and the dataset stays unchanged. The field

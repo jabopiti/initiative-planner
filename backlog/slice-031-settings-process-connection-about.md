@@ -112,8 +112,9 @@ Danger zone (032).
       Remember me choice, the toast reads "Connected as jmustermann", the
       banner goes and 2 failed edits are pushed with their typed values
       intact (the app is not remounted).
-- [ ] Given the check cannot reach GitHub, then the cause becomes
-      "unreachable" and the automatic retry applies.
+- [ ] Given the check cannot reach GitHub, then everything failed is
+      resent and the cause it fails with (unreachable: automatic retry)
+      takes over.
 - [ ] Given Connection, then the same field replaces the token without
       Disconnect.
 - [ ] Given About, then product name, build version, schema version and process

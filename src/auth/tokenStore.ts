@@ -52,6 +52,15 @@ export const tokenStore = {
     }
   },
 
+  /** Whether the token is kept on this device (Remember me), so a replacement keeps the same choice. */
+  async remembered(): Promise<boolean> {
+    try {
+      return (await tokenCache.get()) != null;
+    } catch {
+      return false;
+    }
+  },
+
   async clear(): Promise<void> {
     writeSession(null);
     await tokenCache.clear();
