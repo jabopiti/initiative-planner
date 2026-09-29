@@ -97,6 +97,15 @@ describe('Read-only banner (§3, §9.9)', () => {
       expect(await screen.findByText(/This token can't see/)).toBeInTheDocument();
     });
 
+    it('falls back to GitHub\'s message with Retry when the check finds nothing wrong but the save is refused again', async () => {
+      const { fake } = await denied();
+      fake.fail('teams.json', 401); // the resend the check triggers is refused as well
+
+      expect(await screen.findByText('GitHub refused access with this token')).toBeInTheDocument();
+      expect(screen.queryByText('Checking your token…')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    });
+
     it('shows the four steps behind Show steps', async () => {
       await denied('invalid');
       await screen.findByText(/expired or been revoked/);
@@ -142,7 +151,8 @@ describe('Read-only banner (§3, §9.9)', () => {
       expect(fake.requests().filter((r) => r === 'GET /user')).toHaveLength(before);
 
       await user.click(screen.getByRole('button', { name: 'Replace' }));
-      await vi.waitFor(() => expect(fake.requests().filter((r) => r === 'GET /user')).toHaveLength(before + 1));
+      // The token's own check, and the banner's fresh diagnosis of the new token if the save is refused again.
+      await vi.waitFor(() => expect(fake.requests().filter((r) => r === 'GET /user').length).toBeGreaterThan(before));
     });
   });
 });

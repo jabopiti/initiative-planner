@@ -27,27 +27,32 @@ export function ReadOnlyBanner() {
   const { readOnly } = useRepositoryState();
   const denied = readOnly?.cause === 'access-denied';
   const [diagnosis, setDiagnosis] = useState<TokenCheckResult | null>(null);
+  // The check has finished, whether or not it found a fault with the token.
+  const [checked, setChecked] = useState(false);
+  // Bumped when the token is replaced, so the check runs again for the new token.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (!denied) {
-      setDiagnosis(null);
-      return;
-    }
+    setDiagnosis(null);
+    setChecked(false);
+    if (!denied) return;
     let cancelled = false;
     void repository.checkAccess().then((result) => {
       if (cancelled) return;
       // A token that now works, or a check that could not reach GitHub, says nothing about the token: resend,
-      // and the real cause (or the automatic retry for "unreachable") takes over.
+      // and the real cause (or the automatic retry for "unreachable") takes over. If the save is refused
+      // again, the banner falls back to GitHub's own message with Retry rather than waiting on this check.
       if (result.outcome === 'works' || result.outcome === 'classic-warning' || result.outcome === 'unreachable') {
         repository.retryAll();
-        return;
+      } else {
+        setDiagnosis(result);
       }
-      setDiagnosis(result);
+      setChecked(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [denied, repository]);
+  }, [denied, attempt, repository]);
 
   if (!readOnly) return null;
 
@@ -58,10 +63,12 @@ export function ReadOnlyBanner() {
     const rejected = diagnosis?.outcome === 'invalid';
     const message = diagnosis
       ? TOKEN_CHECK_MESSAGES[diagnosis.outcome]() + (rejected ? REJECTED_HINT : '')
-      : 'Checking your token…';
+      : checked
+        ? readOnly.message
+        : 'Checking your token…';
     const link = rejected
       ? { href: creationUrl, label: 'Create a token' }
-      : diagnosis && diagnosis.outcome !== 'pending-approval'
+      : checked && diagnosis?.outcome !== 'pending-approval'
         ? { href: tokenManagementUrl(brand.github), label: 'Edit this token in GitHub' }
         : null;
     return (
@@ -71,8 +78,8 @@ export function ReadOnlyBanner() {
           {message}
         </span>
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
-          <ReplaceTokenField />
-          {diagnosis && !rejected && (
+          <ReplaceTokenField onReplaced={() => setAttempt((n) => n + 1)} />
+          {checked && !rejected && (
             <Button type="button" variant="outline" size="sm" onClick={() => repository.retryAll()}>
               Retry
             </Button>

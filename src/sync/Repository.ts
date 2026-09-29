@@ -604,7 +604,9 @@ export class Repository {
     const remaining = Number(headers.get('x-ratelimit-remaining'));
     const limit = Number(headers.get('x-ratelimit-limit'));
     const reset = Number(headers.get('x-ratelimit-reset'));
-    if (!headers.has('x-ratelimit-remaining') || !Number.isFinite(remaining) || !Number.isFinite(limit) || !Number.isFinite(reset)) return;
+    // Number(null) is 0, so every header must be present, not just parse.
+    const complete = ['x-ratelimit-remaining', 'x-ratelimit-limit', 'x-ratelimit-reset'].every((name) => headers.has(name));
+    if (!complete || !Number.isFinite(remaining) || !Number.isFinite(limit) || !Number.isFinite(reset)) return;
     if (this.rateLimit?.remaining === remaining && this.rateLimit.limit === limit && this.rateLimit.resetsAt === reset * 1000) return;
     this.rateLimit = { remaining, limit, resetsAt: reset * 1000 };
     for (const listener of this.rateLimitListeners) listener();

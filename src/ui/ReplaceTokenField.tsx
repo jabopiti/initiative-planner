@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
  * needs Replace or Enter. A token that passes is saved with the earlier Remember me choice and swapped into the
  * running repository, so no edit is lost (`Repository.setToken`). Otherwise §5.10's message shows under the field.
  */
-export function ReplaceTokenField() {
+export function ReplaceTokenField({ onReplaced }: { onReplaced?: () => void }) {
   const brand = useBrand();
   const repository = useRepository();
   const session = useContext(SessionContext);
@@ -37,6 +37,7 @@ export function ReplaceTokenField() {
     else await tokenStore.saveLogin(result.login);
     setValue('');
     repository.setToken(token);
+    onReplaced?.();
     toast.success(TOKEN_CHECK_MESSAGES[result.outcome](result.login), {
       description: result.outcome === 'classic-warning' ? 'A classic token reaches all your repositories.' : undefined,
     });
