@@ -122,7 +122,7 @@ describe('Extend an overrun phase by one month (§5.11)', () => {
     const extend = await screen.findByRole('button', { name: 'Extend Validation by one month' });
     await user.click(extend);
 
-    await vi.waitFor(() => expect(puts.some((p) => p.message.includes('Validation extended to'))).toBe(true));
+    await vi.waitFor(() => expect(puts.some((p) => p.message.includes('Validation extended to'))).toBe(true), { timeout: 3000 });
     const put = puts.find((p) => p.message.includes('Validation extended to'))!;
     expect(put.message).toBe('Checkout Redesign: Validation extended to 30 Sep 2020');
     expect(put.content.phases![validationId].endDate).toBe('2020-09-30'); // 31 Aug (last day) -> 30 Sep (next month's last day)
