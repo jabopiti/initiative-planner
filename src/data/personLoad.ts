@@ -1,6 +1,7 @@
 import type { PhaseDef } from '../brand/types';
 import { countsTowardCapacity } from './capacity';
 import { monthsInRange, periodMonths, type Period } from './cost';
+import { sortRows } from './sortRows';
 import { currentPhaseId, isPhaseConfirmed } from './processState';
 import { activeMembers, activeMembership } from './teamMembers';
 import type { Initiative, Membership, Person, Team } from './types';
@@ -83,8 +84,6 @@ export function freeCapacityByPerson({
   );
 }
 
-const nameOrder = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-
 /**
  * Who can still be added to a phase (§5.11, §7.2): the team's active members not yet allocated in it, most free
  * first, ties by name. `free` is computed only when `withFree` (the phase is open and not frozen) and is
@@ -114,6 +113,6 @@ export function allocatablePeople({
   const teamMembers = team ? activeMembers(team.id, memberships, people) : [];
   const notYetAllocated = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
   const free = withFree && team ? freeCapacityByPerson({ people: notYetAllocated, teamId: team.id, teams, memberships, period: plan, initiatives, process, today }) : undefined;
-  const addable = notYetAllocated.sort((a, b) => (free?.get(b.id) ?? 0) - (free?.get(a.id) ?? 0) || nameOrder.compare(a.name, b.name));
+  const addable = sortRows(notYetAllocated, { free: (p) => free?.get(p.id) ?? 0, name: (p) => p.name }, 'free', 'desc', 'name');
   return { teamMembers, addable, free };
 }
