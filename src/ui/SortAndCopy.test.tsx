@@ -10,7 +10,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { PeopleOverview } from './PeopleOverview';
 import { TeamDetail } from './TeamDetail';
 import { TeamsOverview } from './TeamsOverview';
-import { sortRows } from './tableSort';
+import { sortRows } from '../data/sortRows';
 import { rootListing } from '../sync/testing/rootListing';
 
 const baseline = buildBaselineDataset(defaultBrandPack);

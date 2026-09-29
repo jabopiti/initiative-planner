@@ -3,13 +3,13 @@ import { useBrand } from '../state/BrandContext';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState, type FieldFailure } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
-import { actualOrEstimate, allocationFigures, hasValidPeriod, phaseByMonth, phaseCoverage, phaseEffectiveTotal, phaseMonths } from '../data/cost';
+import { actualOrEstimate, allocationFigures } from '../data/cost';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { currentPhaseId } from '../data/gate';
 import { isPhaseFrozen } from '../data/frozen';
-import { freeCapacityByPerson } from '../data/personLoad';
+import { allocatablePeople } from '../data/personLoad';
+import { nextStepPhase, overlapWithPrevious, phaseSummary, planningGap } from '../data/phaseSummary';
 import { roleLabel } from '../data/roleLabel';
-import { activeMembers } from '../data/teamMembers';
 import { FILE_PATHS, type FrozenPhaseSnapshot, type Initiative, type PhasePlan, type Person, type Role, type Team } from '../data/types';
 import { AmountInput } from './AmountInput';
 import { CostItemsTable } from './CostItemsTable';
@@ -19,7 +19,6 @@ import { formatAmount } from './formatAmount';
 import { GateChecklistPanel } from './GateChecklistPanel';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, FrozenIcon, InfoIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
-import { sortRows } from './tableSort';
 import { PercentInput } from './PercentInput';
 import { undoToast } from './undoToast';
 import { Button } from '@/components/ui/button';
@@ -55,11 +54,7 @@ export function PhasesSection({ initiative, team, openPhaseId }: { initiative: I
     });
 
   // One next step at a time: the first costed phase still missing its period or its people.
-  const isPlanned = (phase: PhaseDef) => {
-    const plan = initiative.phases?.[phase.id];
-    return Boolean(plan && hasValidPeriod(plan) && plan.allocations.length > 0);
-  };
-  const nextStepId = costedPhases.find((p) => !isPlanned(p))?.id;
+  const nextStepId = nextStepPhase(initiative, process)?.id;
   const currentId = currentPhaseId(initiative, process);
 
   return (
@@ -146,37 +141,23 @@ function CostedPhase({
 
   const plan = initiative.phases?.[phase.id] ?? UNPLANNED;
   const rateData = { roles, countries };
-  const hasPeriod = Boolean(plan.startDate && plan.endDate);
-  const inverted = hasPeriod && plan.endDate! < plan.startDate!;
-  const costed = hasPeriod && !inverted;
   // A phase whose own gate passed shows its frozen snapshot: locked, and immune to a later master-data change (§8.1).
-  const frozen = isPhaseFrozen(initiative, phase.id);
-  const snapshot: FrozenPhaseSnapshot | undefined = initiative.gates?.[phase.id]?.frozenSnapshot;
+  const { hasPeriod, inverted, costed, frozen, snapshot, estimateByMonth, total, hasCost, coverage, months } = phaseSummary(initiative, phase.id, plan, people, rateData);
   // The next missing thing is highlighted, in one phase only: the period first, then the people.
-  const needsPeriod = isNextStep && !hasPeriod;
-  const needsPeople = isNextStep && hasPeriod && plan.allocations.length === 0;
-  const previousEnd = previous && initiative.phases?.[previous.id]?.endDate;
-  const overlap = previous && previousEnd && plan.startDate && plan.startDate <= previousEnd ? `Starts before ${previous.label} ends (${formatDate(previousEnd)}). The two phases overlap.` : null;
-  const estimateByMonth = frozen && snapshot ? snapshot.estimateByMonth : phaseByMonth(plan, people, rateData);
-  const total = phaseEffectiveTotal(initiative, phase.id, people, rateData, estimateByMonth);
-  const hasCost = plan.allocations.length > 0 || (plan.costItems?.length ?? 0) > 0 || Object.keys(plan.actualMonths ?? {}).length > 0;
-  const coverage = phaseCoverage(plan);
-  const coverageLabel = frozen ? 'Frozen' : coverage === 'actual' ? 'Actual' : coverage === 'forecast' ? 'Forecast' : 'Estimate';
-  const months = costed ? phaseMonths(plan) : [];
+  const gap = isNextStep ? planningGap(plan) : null;
+  const needsPeriod = gap === 'period';
+  const needsPeople = gap === 'people';
+  const overlapEnd = previous ? overlapWithPrevious(initiative.phases?.[previous.id], plan) : null;
+  const overlap = previous && overlapEnd ? `Starts before ${previous.label} ends (${formatDate(overlapEnd)}). The two phases overlap.` : null;
+  const coverageLabel = { frozen: 'Frozen', actual: 'Actual', forecast: 'Forecast', estimate: 'Estimate' }[coverage];
 
   // Who can still be added, and what each has free for the phase's months (§5.11), most free first. Free capacity
   // is undefined without a valid period (the list is then by name) and while the phase is closed: only the open
   // phase's picker shows it. It rescans every initiative, so it is kept across renders that don't change its inputs.
-  const { teamMembers, addable, free } = useMemo(() => {
-    const teamMembers = team ? activeMembers(team.id, memberships, people) : [];
-    const notYetAllocated = teamMembers.filter((p) => !plan.allocations.some((a) => a.personId === p.id));
-    const free =
-      expanded && team && !frozen
-        ? freeCapacityByPerson({ people: notYetAllocated, teamId: team.id, teams, memberships, period: plan, initiatives, process, today: localToday() })
-        : undefined;
-    const addable = sortRows(notYetAllocated, { free: (p) => free?.get(p.id) ?? 0, name: (p) => p.name }, 'free', 'desc', 'name');
-    return { teamMembers, addable, free };
-  }, [expanded, team, teams, memberships, people, plan, initiatives, process, frozen]);
+  const { teamMembers, addable, free } = useMemo(
+    () => allocatablePeople({ plan, team, withFree: expanded && !frozen, people, teams, memberships, initiatives, process, today }),
+    [expanded, team, teams, memberships, people, plan, initiatives, process, frozen, today],
+  );
 
   const picker =
     team && teamMembers.length === 0 ? (

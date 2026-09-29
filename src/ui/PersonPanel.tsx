@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
+import { joinableTeams } from '../data/teamMembers';
 import type { Person } from '../data/types';
 import { FILE_PATHS } from '../data/types';
 import { Button } from '@/components/ui/button';
@@ -55,7 +56,7 @@ function PersonDetails({ person }: { person: Person }) {
   const teamIds = teams.map((t) => t.id);
   const claimed = claimedFtePct(person.id, memberships);
   const unclaimed = unclaimedCapacityPct(person, memberships);
-  const joinable = teams.filter((t) => t.active && !memberships.some((m) => m.personId === person.id && m.teamId === t.id));
+  const joinable = joinableTeams(person.id, teams, memberships);
   const barPct = (pct: number) => `${Math.min(100, (pct / Math.max(person.capacityPct, 1)) * 100)}%`;
 
   return (
