@@ -278,8 +278,10 @@ export class FileWriter<D> {
           this.pending = null;
           sent = this.rebase(mine, newer, sent, message);
           mine = newer;
-          if (this.notes.size > 0) message = [message, ...this.notes.values()].join('; ');
+          message = [message, this.describe()].filter(Boolean).join('; ');
           this.notes.clear();
+          this.extras.clear();
+          this.noted = false;
         }
       }
       try {

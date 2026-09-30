@@ -263,6 +263,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
         onDocument: (content) => committed.push(content),
       });
     }
+    const added = (team: Team): CommitNote => ({ entity: { kind: 'team', id: team.id }, field: 'record', from: undefined, to: team, words: () => `${team.name}: added` });
     const conflict409 = () => jsonResponse({ message: 'Conflict' }, 409);
     const theirsFile = (sha: string) => jsonResponse({ content: btoa(JSON.stringify([])), sha });
     const puts = () => fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
@@ -313,13 +314,13 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
       const writer: FileWriter<Team[]> = timedWriter(
         () => 0.5,
         [],
-        () => writer.schedule([t1, t2], { key: 't2', text: 'Growth: added' }),
+        () => writer.schedule([t1, t2], added(t2)),
       );
       fetchMock
         .mockResolvedValueOnce(conflict409())
         .mockResolvedValueOnce(theirsFile('s1'))
         .mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
-      writer.schedule([t1], { key: 't1', text: 'Platform: added' });
+      writer.schedule([t1], added(t1));
       await expect(writer.flush()).resolves.toBe('saved');
       expect(puts()).toHaveLength(2);
       const retried = JSON.parse((puts()[1][1] as RequestInit).body as string) as { content: string; message: string };
