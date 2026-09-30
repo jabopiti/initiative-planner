@@ -917,8 +917,13 @@ Contains the following sections:
   weekdays of each month; a cell that differs from the weekday count is
   tinted, and each row has **Reset to weekdays**. Years that have left the
   tracked window sit in a collapsed, read-only row (§7.2). A country can be
-  added and deactivated (§9.3); a new country's day rate is entered once
-  and copied to all years of the tracked window. A locked section shows its
+  added, renamed and deactivated (§9.3); a new country's day rate is entered once
+  and copied to all years of the tracked window. After a day-rate or
+  working-days edit, a note at the top of the open country states how many
+  initiatives it changes the estimate of: those with an unfrozen allocation
+  (§8.1), falling in that year (day rate) or month (working days), of a
+  person in that country — for a day rate, excluding a person whose active
+  custom role replaces it. A locked section shows its
   values read-only with a hint on how to unlock. A **Rates are correct**
   confirmation clears the Getting started item (§5.2).
 - **Process** (read-only): a vertical timeline of the phases in order, each
