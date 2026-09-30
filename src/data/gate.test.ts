@@ -22,16 +22,17 @@ const ana: Person = { id: 'ana', name: 'Ana Ruiz', countryId: 'de', roleId: 'dev
 const people = [ana];
 
 const process: PhaseDef[] = [
-  { id: 'discovery', label: 'Discovery', description: '', costed: false, exitGate: { id: 'g0', label: 'G0', description: '', requiresEstimates: false, skippable: true, checklistItems: [{ id: 'd1', name: 'Problem validated', description: '' }] } },
+  { id: 'discovery', icon: 'search', label: 'Discovery', description: '', costed: false, exitGate: { id: 'g0', label: 'G0', description: '', requiresEstimates: false, skippable: true, checklistItems: [{ id: 'd1', name: 'Problem validated', description: '' }] } },
   {
     id: 'alpha',
+    icon: 'search',
     label: 'Alpha',
     description: '',
     costed: true,
     exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: true, skippable: true, checklistItems: [{ id: 'a1', name: 'Business case approved', description: '' }] },
   },
-  { id: 'beta', label: 'Beta', description: '', costed: true, exitGate: { id: 'g2', label: 'G2', description: '', requiresEstimates: true, skippable: false, checklistItems: [] } },
-  { id: 'gamma', label: 'Gamma', description: '', costed: false, exitGate: { id: 'g3', label: 'G3', description: '', requiresEstimates: false, skippable: false, checklistItems: [] } },
+  { id: 'beta', icon: 'search', label: 'Beta', description: '', costed: true, exitGate: { id: 'g2', label: 'G2', description: '', requiresEstimates: true, skippable: false, checklistItems: [] } },
+  { id: 'gamma', icon: 'search', label: 'Gamma', description: '', costed: false, exitGate: { id: 'g3', label: 'G3', description: '', requiresEstimates: false, skippable: false, checklistItems: [] } },
 ];
 
 const tracks: ApprovalTrackDef[] = [

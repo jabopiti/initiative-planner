@@ -25,6 +25,7 @@ import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, withChe
 import type { ChecklistStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type BranchHead } from '../github/client';
+import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
@@ -33,6 +34,13 @@ import { mergeDocument, pathKey, type Path } from './merge';
 import { WriteQueue } from './WriteQueue';
 
 export type { ReadOnlyState } from '../github/errors';
+
+/** GitHub's request budget for the hour, from the latest response's headers (§5.9); `resetsAt` is epoch milliseconds. */
+export interface RateLimit {
+  remaining: number;
+  limit: number;
+  resetsAt: number;
+}
 
 export interface RepositoryState {
   status: 'loading' | 'ready';
@@ -197,9 +205,9 @@ export class Repository {
 
   constructor(
     private readonly brand: BrandPack,
-    token: string,
+    private token: string,
   ) {
-    this.github = new GithubClient(brand.github, () => token);
+    this.github = new GithubClient(brand.github, () => this.token, (headers) => this.noteRateLimit(headers));
     this.cache = new FileCache(cacheScope(brand.github));
   }
 
@@ -579,6 +587,65 @@ export class Repository {
   /** Resends one file's failed edit now, rather than waiting for the shared retry loop (§9.9: a field's own Retry). */
   retryFile(file: string): void {
     void this.allWriters().find(([path]) => path === file)?.[1].retry();
+  }
+
+  private rateLimit: RateLimit | null = null;
+  private readonly rateLimitListeners = new Set<Listener>();
+
+  /** The budget the latest response reported (§5.9), or null before any response carried it. */
+  getRateLimit = (): RateLimit | null => this.rateLimit;
+
+  subscribeRateLimit = (listener: Listener): (() => void) => {
+    this.rateLimitListeners.add(listener);
+    return () => this.rateLimitListeners.delete(listener);
+  };
+
+  private noteRateLimit(headers: Headers): void {
+    const remaining = Number(headers.get('x-ratelimit-remaining'));
+    const limit = Number(headers.get('x-ratelimit-limit'));
+    const reset = Number(headers.get('x-ratelimit-reset'));
+    // Number(null) is 0, so every header must be present, not just parse.
+    const complete = ['x-ratelimit-remaining', 'x-ratelimit-limit', 'x-ratelimit-reset'].every((name) => headers.has(name));
+    if (!complete || !Number.isFinite(remaining) || !Number.isFinite(limit) || !Number.isFinite(reset)) return;
+    if (this.rateLimit?.remaining === remaining && this.rateLimit.limit === limit && this.rateLimit.resetsAt === reset * 1000) return;
+    this.rateLimit = { remaining, limit, resetsAt: reset * 1000 };
+    for (const listener of this.rateLimitListeners) listener();
+  }
+
+  /**
+   * How many edits would be lost by dropping this session (§5.9 Disconnect): fields whose save failed, plus a file
+   * still waiting to be saved that has no failed field of its own.
+   */
+  unsavedChangeCount(): number {
+    let count = 0;
+    for (const [, writer] of this.allWriters()) {
+      const failed = writer.failedPaths.length;
+      count += failed > 0 ? failed : writer.hasPending ? 1 : 0;
+    }
+    return count;
+  }
+
+  /** The GitHub login of the token in use, for a session that never recorded it (§5.9 Connection): one request. */
+  async fetchLogin(): Promise<string | null> {
+    try {
+      return (await this.github.checkToken()).login;
+    } catch {
+      return null;
+    }
+  }
+
+  /** The §5.10 token check for the token in use: the read-only banner's diagnosis of an access-denied failure (§3). */
+  checkAccess(): Promise<TokenCheckResult> {
+    return checkToken(this.brand.github, this.token);
+  }
+
+  /**
+   * Swaps the token in place (§3 Sync failures): the repository, its pending and failed edits and their typed
+   * values stay, and everything failed is resent under the new token.
+   */
+  setToken(token: string): void {
+    this.token = token;
+    this.retryAll();
   }
 
   /**

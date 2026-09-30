@@ -8,7 +8,7 @@ depends_on: ["029"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Third of the four Settings slices (§5.9), added in review: the read-only Process view, Connection (user, repository, remaining API requests, Disconnect) and About."
+change_summary: "Third of the four Settings slices (§5.9), added in review: the read-only Process view, Connection (user, repository, remaining API requests, Replace token, Disconnect) and About. Widened in review to replace the token in place, from the read-only banner and from Connection, with a specific diagnosis of the access failure."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "Mostly read-only display of the brand pack. The two technical parts — reading the rate-limit headers off every response without an extra request, and a Disconnect that respects unsaved edits — are small and testable with a fake client."
 spec_sections: ["§5.9 Settings (Process, Connection, About)", "§2 What the build fixes (Brand pack)", "§3 Storage & sync (Setup, Data integrity)", "§5.10 Connect screen", "§9.9 Interface states (Confirmations)", "§9.10 Icons", "§10.1 Framework and UI foundations", "§10.4 Browser storage"]
@@ -56,6 +56,10 @@ work under and can support themselves.
   and short commit, injected at build time), schema version, process identity
   (id and structure version).
 
+- **Replace token (§3 Sync failures, §5.9).** One shared component, in
+  the read-only banner for the cause "Access denied" and in Connection.
+  See Decided in review.
+
 **Explicitly excluded:** editing the process (fixed by the brand pack, §2);
 Danger zone (032).
 
@@ -77,24 +81,43 @@ Danger zone (032).
 
 ## Acceptance criteria
 
-- [ ] Given Process, then each phase shows label, description, and (costed)
+- [x] Given Process, then each phase shows label, description, and (costed)
       default duration; each gate shows its estimates and skippable flags and
       its checklist count; selecting a gate lists its checklist items with
       descriptions.
-- [ ] Given Process, then the approval tracks are listed with bounds,
+- [x] Given Process, then the approval tracks are listed with bounds,
       requirement text and severity.
-- [ ] Given Connection, then the GitHub user, repository and data branch are
+- [x] Given Connection, then the GitHub user, repository and data branch are
       shown.
-- [ ] Given the last response carried rate-limit headers remaining 4,812 of
+- [x] Given the last response carried rate-limit headers remaining 4,812 of
       5,000 resetting at 14:20, then Connection shows exactly that, and opening
       Connection made no extra request.
-- [ ] Given no response yet, then the remaining requests read "Not known yet".
-- [ ] Given nothing pending, then Disconnect removes the token and shows the
+- [x] Given no response yet, then the remaining requests read "Not known yet".
+- [x] Given nothing pending, then Disconnect removes the token and shows the
       Connect screen in one click.
-- [ ] Given 2 pending or failed edits, then Disconnect first turns into
+- [x] Given 2 pending or failed edits, then Disconnect first turns into
       "Disconnect and discard 2 unsaved changes" with Cancel; Cancel keeps
       everything.
-- [ ] Given About, then product name, build version, schema version and process
+- [x] Given an access-denied failure, then the token check runs once and the
+      banner shows its outcome: rejected, read-only, can't see the
+      repository or organisation approval pending, in §5.10's wording.
+- [x] Given a rejected token, then the banner shows the field, Replace,
+      Create a token and Show steps, and no Retry; given read-only or can't
+      see the repository, then it also shows Edit this token in GitHub and
+      Retry.
+- [x] Given a token pasted into the field, then it is checked without
+      pressing Replace; a failing check shows §5.10's message under the
+      field and keeps the read-only state.
+- [x] Given a token that passes, then it is saved with the earlier
+      Remember me choice, the toast reads "Connected as jmustermann", the
+      banner goes and 2 failed edits are pushed with their typed values
+      intact (the app is not remounted).
+- [x] Given the check cannot reach GitHub, then everything failed is
+      resent and the cause it fails with (unreachable: automatic retry)
+      takes over.
+- [x] Given Connection, then the same field replaces the token without
+      Disconnect.
+- [x] Given About, then product name, build version, schema version and process
       identity are shown.
 
 ## Delivery gate
@@ -110,3 +133,34 @@ The build version's source (package version plus short commit via a Vite
 
 - **Disconnect with unsaved edits:** inline confirmation naming the count;
   otherwise one click.
+- **Replace token (widened scope).**
+  - Diagnosis: on access-denied, run the §5.10 token check once (2
+    requests, only on failure); the banner shows its outcome. Expired and
+    revoked cannot be told apart, so one message covers both.
+  - Edits survive: `Repository` gets a swappable token, additive, instead
+    of being rebuilt per token (`RepositoryProvider` memoises on it today);
+    failed and pending edits retry automatically after a valid token.
+  - Entry point: inline in the banner (C1), field always shown for
+    access-denied; auto-check on paste, Replace or Enter as fallback.
+  - Copy approved as drawn in review; guide via prefilled link plus a
+    "Show steps" disclosure; success is a toast and the banner going.
+  - Assumptions: the earlier Remember me choice is kept; a token of a
+    different GitHub user is accepted, later commits use that identity.
+- **Phase icons:** `PhaseDef` gets an `icon` (a fixed Lucide set: Search,
+  ClipboardCheck, Hammer, Rocket in the default pack); only Process shows it
+  for now, later slices reuse it.
+- **GitHub user:** stored beside the token (same place, cleared with it),
+  fetched once with `GET /user` when missing (dev token, older sessions).
+  The rate-limit line stays request-free, read in `GithubClient.request`.
+- **Layouts and copy** approved as mockups: Process timeline with gate
+  disclosures and approval tracks ("€200,000 and above" for an open top);
+  Connection rows, Replace token block ("Paste a new token to swap it in.
+  Your unsaved changes are kept."), Disconnect ("Removes the token from
+  this browser and opens the Connect screen."; "Disconnect and discard 2
+  unsaved changes" / "1 unsaved change" + Cancel); About rows.
+- **Assumptions:** unsaved changes = failed fields + files waiting to be
+  written; build version = package version + short commit via Vite
+  `define`; sections not lockable, order Roles, Process, Connection, About
+  (Countries & rates from 030 slots in after Roles); empty checklist
+  descriptions are left out; Disconnect goes through an app-level session
+  context.

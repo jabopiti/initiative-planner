@@ -44,12 +44,20 @@ function renderSettings(section: string) {
 }
 
 describe('SettingsPage section list (§5.9)', () => {
-  it('lists only the built sections, Roles, and marks it current', async () => {
+  it('lists the built sections in order and marks the current one', async () => {
     renderSettings('roles');
     expect(await screen.findByRole('heading', { name: 'Roles', level: 2 })).toBeInTheDocument();
-    const link = screen.getByRole('link', { name: 'Roles' });
-    expect(link).toHaveAttribute('aria-current', 'page');
-    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getAllByRole('link').map((l) => l.textContent)).toEqual(['Roles', 'Process', 'Connection', 'About']);
+    expect(screen.getByRole('link', { name: 'Roles' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('shows Process and About without a lock toggle', async () => {
+    renderSettings('process');
+    expect(await screen.findByRole('heading', { name: 'Process', level: 2 })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /unlock/i })).toBeNull();
+    cleanup();
+    renderSettings('about');
+    expect(await screen.findByRole('heading', { name: 'About', level: 2 })).toBeInTheDocument();
   });
 
   it('an unknown section in the URL shows Roles', async () => {

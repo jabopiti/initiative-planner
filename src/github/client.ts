@@ -77,6 +77,8 @@ export class GithubClient {
   constructor(
     private readonly location: GithubLocation,
     private readonly getToken: () => string | null,
+    /** Told of every response's headers, so the rate-limit budget is read without a request of its own (§5.9). */
+    private readonly onResponse?: (headers: Headers) => void,
   ) {}
 
   private repoUrl(path: string): string {
@@ -92,7 +94,9 @@ export class GithubClient {
 
     try {
       // no-store: GitHub's Contents API answers with max-age=60, and a re-read after a 409 must see the other writer's commit.
-      return await fetch(input, { cache: 'no-store', ...init, headers });
+      const response = await fetch(input, { cache: 'no-store', ...init, headers });
+      this.onResponse?.(response.headers);
+      return response;
     } catch {
       throw new GithubApiError('Cannot reach GitHub; changes are paused.', 'unreachable');
     }

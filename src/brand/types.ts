@@ -19,9 +19,14 @@ export interface GateDef {
   checklistItems: ChecklistItemDef[];
 }
 
+/** The fixed set of Lucide icons a brand pack picks a phase's icon from (§9.10). */
+export type PhaseIconName = 'search' | 'clipboard-check' | 'hammer' | 'rocket';
+
 export interface PhaseDef {
   id: string;
   label: string;
+  /** Shown beside the label in the process view (§5.9). */
+  icon: PhaseIconName;
   description: string;
   costed: boolean;
   /** Default duration in months, for costed phases only (§5.11). */

@@ -33,7 +33,7 @@ export interface ReadOnlyState {
 
 /** What the read-only state says for the causes §3 Sync failures names, because each needs a different fix. */
 const CAUSE_MESSAGES: Partial<Record<GithubFailureCause, string>> = {
-  'access-denied': 'The token is missing, expired, revoked or lacks write permission',
+  'access-denied': 'GitHub refused access with this token',
   'rate-limited': 'GitHub is limiting requests; try again shortly',
 };
 

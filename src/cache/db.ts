@@ -284,3 +284,12 @@ export const tokenCache = {
   set: (token: string) => set(AUTH_STORE, TOKEN_KEY, token),
   clear: () => del(AUTH_STORE, TOKEN_KEY),
 };
+
+/** The GitHub login the remembered token belongs to, kept and cleared with it so Settings can name the user (§5.9). */
+const LOGIN_KEY = 'github-login';
+
+export const loginCache = {
+  get: () => get<string>(AUTH_STORE, LOGIN_KEY),
+  set: (login: string) => set(AUTH_STORE, LOGIN_KEY, login),
+  clear: () => del(AUTH_STORE, LOGIN_KEY),
+};

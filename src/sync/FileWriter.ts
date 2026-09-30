@@ -162,6 +162,11 @@ export class FileWriter<D> {
     return this.failedCause;
   }
 
+  /** An edit is waiting to be saved: typed or made, and no save has taken it yet. */
+  get hasPending(): boolean {
+    return this.pending !== null;
+  }
+
   /** The paths that changed in the edit that failed to save, against what is actually on GitHub (§9.9): only
    * these are shown as "Not saved" on screen, so a field the failed edit never touched is not implicated. */
   get failedPaths(): Path[] {

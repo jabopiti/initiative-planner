@@ -44,6 +44,7 @@ export const defaultBrandPack: BrandPack = {
   process: [
     {
       id: 'discovery',
+      icon: 'search',
       label: 'Discovery',
       description: 'Explore the problem before committing to a plan.',
       costed: false,
@@ -61,6 +62,7 @@ export const defaultBrandPack: BrandPack = {
     },
     {
       id: 'validation',
+      icon: 'clipboard-check',
       label: 'Validation',
       description: 'Validate the approach and build the business case.',
       costed: true,
@@ -80,6 +82,7 @@ export const defaultBrandPack: BrandPack = {
     },
     {
       id: 'development',
+      icon: 'hammer',
       label: 'Development',
       description: 'Build the initiative.',
       costed: true,
@@ -99,6 +102,7 @@ export const defaultBrandPack: BrandPack = {
     },
     {
       id: 'rollout',
+      icon: 'rocket',
       label: 'Rollout',
       description: 'Release and close out the initiative.',
       costed: false,
