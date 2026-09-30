@@ -125,7 +125,6 @@ describe('Actions menu (§5.4)', () => {
     initiative = initiativeWith({ status: 'Closed' });
     renderPage();
 
-    await screen.findByRole('heading', { name: /Gate \/ Checklist|Phases/ }).catch(() => undefined);
     await screen.findByLabelText('Initiative name');
     expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
   });
