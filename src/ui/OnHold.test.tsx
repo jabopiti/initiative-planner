@@ -53,7 +53,13 @@ beforeAll(() => {
       if (url.includes('/contents/people.json')) return file([ana], 'p');
       if (url.includes('/contents/memberships.json')) return file([membership], 'm');
       if (url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
+      if (url.includes('/contents/initiatives/i2.json')) return file({ ...initiative, id: 'i2', name: 'Fraud Detection Upgrade' }, 'i2');
+      if (url.includes('/contents/initiatives')) {
+        return json([
+          { name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' },
+          { name: 'i2.json', path: 'initiatives/i2.json', sha: 'sha-i2', type: 'file' },
+        ]);
+      }
       return json({ message: 'Not Found' }, 404);
     }),
   );
@@ -67,17 +73,16 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-function renderPage() {
-  return render(
-    <BrandProvider brand={defaultBrandPack}>
-      <TooltipProvider>
-        <RepositoryProvider token="token">
-          <InitiativeDetail id="i1" />
-        </RepositoryProvider>
-      </TooltipProvider>
-    </BrandProvider>,
-  );
-}
+const page = (id: string) => (
+  <BrandProvider brand={defaultBrandPack}>
+    <TooltipProvider>
+      <RepositoryProvider token="token">
+        <InitiativeDetail id={id} />
+      </RepositoryProvider>
+    </TooltipProvider>
+  </BrandProvider>
+);
+const renderPage = () => render(page('i1'));
 
 const bar = () => document.getElementById('magic-bar')!;
 
@@ -194,5 +199,19 @@ describe('Magic bar while On Hold (§5.4, §8.4)', () => {
 
     expect(await screen.findByLabelText('Initiative name')).toBeEnabled();
     expect(screen.getByLabelText('Description')).toBeEnabled();
+  });
+
+  it('does not carry a selected Pass gate over to another On Hold initiative when the route changes', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith({ status: 'On Hold' });
+    const { rerender } = renderPage();
+
+    await screen.findByLabelText('Initiative name');
+    await user.click(within(bar()).getByRole('button', { name: 'Pass gate' }));
+    expect(within(bar()).getByText(/Checkout Redesign is on hold/)).toBeInTheDocument();
+
+    rerender(page('i2'));
+    expect(await screen.findByDisplayValue('Fraud Detection Upgrade')).toBeInTheDocument();
+    expect(within(bar()).getByText('On hold')).toBeInTheDocument();
   });
 });
