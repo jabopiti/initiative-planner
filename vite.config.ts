@@ -52,6 +52,8 @@ export default defineConfig({
   define: { __BUILD_VERSION__: JSON.stringify(buildVersion()) },
   plugins: [react(), tailwindcss(), cspMetaTag()],
   base: './',
+  // Parallel sessions each run their own dev server: the preview launcher hands out a free port via PORT.
+  server: { port: Number(process.env.PORT) || 5173 },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
