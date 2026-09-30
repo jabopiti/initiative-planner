@@ -52,15 +52,15 @@ GitHub's limits.
 
 ## Acceptance criteria
 
-- [ ] Given three consecutive 409s (fake repository, fake clock), then the
+- [x] Given three consecutive 409s (fake repository, fake clock), then the
       retries start after 0.5 s, 1 s and 2 s (±20%), and the fourth outcome is
       the conflict flow.
-- [ ] Given jitter fixed at +10%, then the delays are exactly 0.55, 1.1 and
+- [x] Given jitter fixed at +10%, then the delays are exactly 0.55, 1.1 and
       2.2 s.
-- [ ] Given a new edit during a backoff, then it is included in the retried
+- [x] Given a new edit during a backoff, then it is included in the retried
       write, and only one write is in flight.
-- [ ] Given 005g's and 005j's interleaving tests, then they pass unchanged.
-- [ ] Given the app, then no test waits on real time for backoff.
+- [x] Given 005g's and 005j's interleaving tests, then they pass unchanged.
+- [x] Given the app, then no test waits on real time for backoff.
 
 ## Delivery gate
 
@@ -73,3 +73,10 @@ None.
 ## Decided in review (pre-implementation)
 
 - **Delays:** 0.5 s, 1 s, 2 s, ±20% jitter.
+- **Wait position:** after the re-read and merge, just before the next put; the first attempt has no wait. Applies to the 409 retry and to the retry after a "file already exists" 422 while creating.
+- **Options:** `FileWriterOptions` gains `delay(ms)` and `random()`; defaults are `setTimeout` and `Math.random`. Jitter is `1 + (random() * 2 - 1) * 0.2`.
+- **Queue:** the wait runs outside the global write queue, so other files aren't held up.
+- **Newer edit during a backoff:** after the wait, pending is three-way-merged onto the write being retried and cleared; its notes join the commit message; one write goes out.
+- **Recovery loop:** the pull path already leaves a file alone while it saves; a test pins it.
+- **Tests:** `src/test/setup.ts` makes the default delay instant, so 005g/005j tests pass unchanged; new tests inject a recording fake delay and fixed jitter.
+- No new copy; the final "Could not save after several retries — please retry." is unchanged.
