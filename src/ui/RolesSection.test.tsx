@@ -138,6 +138,18 @@ describe('RolesSection editing (§5.9)', () => {
     expect(screen.getByRole('button', { name: 'Reactivate QA Engineer' })).toBeInTheDocument();
   });
 
+  it('locking closes an unsaved new role, so nothing is added while locked', async () => {
+    const user = userEvent.setup();
+    renderRoles();
+    await unlock(user);
+    await user.click(screen.getByRole('button', { name: 'Add role' }));
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Designer');
+    await user.click(screen.getByRole('button', { name: 'Unlocked' }));
+    expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Locked' }));
+    expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument();
+  });
+
   it('Add role: disabled without a name, saves once filled in', async () => {
     const user = userEvent.setup();
     renderRoles();

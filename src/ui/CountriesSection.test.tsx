@@ -18,6 +18,7 @@ let countries: Country[] = [];
 let people: Person[] = [];
 let initiatives: Initiative[] = [];
 let ratesReviewed = false;
+let countriesUnreachable = false;
 const puts: { path: string; message: string; content: unknown }[] = [];
 
 beforeAll(() => {
@@ -25,6 +26,7 @@ beforeAll(() => {
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') {
+        if (countriesUnreachable && url.includes('/contents/countries.json')) return json({ message: 'Server Error' }, 500);
         const body = JSON.parse(init.body as string) as { message: string; content: string };
         puts.push({ path: new URL(url).pathname.split('/contents/')[1], message: body.message, content: JSON.parse(atob(body.content)) });
         return json({ content: { sha: `next-${puts.length}` } });
@@ -53,6 +55,7 @@ const year = (y: number, dayRate: number, workingDaysByMonth = weekdaysByMonth(y
 beforeEach(() => {
   puts.length = 0;
   ratesReviewed = false;
+  countriesUnreachable = false;
   countries = [
     { id: 'de', name: 'Germany', active: true, ratesByYear: [year(2026, 1000), year(2027, 1000), year(2028, 1000)] },
     { id: 'es', name: 'Spain', active: true, ratesByYear: [year(2026, 800), year(2027, 800), year(2028, 800)] },
@@ -189,6 +192,28 @@ describe('Countries & rates list (§5.9)', () => {
       [2028, 600],
     ]);
     expect(portugal.ratesByYear[2].workingDaysByMonth).toEqual(weekdaysByMonth(2028));
+  });
+
+  it('locking closes an unsaved new country, so nothing is added while locked', async () => {
+    const user = await renderSection({ unlock: true });
+    await user.click(screen.getByRole('button', { name: 'Add country' }));
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Portugal');
+    await user.click(screen.getByRole('button', { name: 'Unlocked' }));
+    expect(screen.queryByRole('group', { name: 'New country' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Locked' }));
+    expect(screen.queryByRole('group', { name: 'New country' })).not.toBeInTheDocument();
+  });
+
+  it('a failed rates save shows once, at the top of the country, with its own Retry', async () => {
+    countriesUnreachable = true;
+    const user = await renderSection({ unlock: true });
+    await user.click(screen.getByRole('button', { name: 'Show Germany’s rates' }));
+    const april = screen.getByRole('spinbutton', { name: 'Working days in Apr 2027, Germany' });
+    await user.clear(april);
+    await user.type(april, '19{Enter}');
+
+    expect(await screen.findByRole('button', { name: 'Retry saving Germany’s rates' }, { timeout: 3000 })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Retry/ })).toHaveLength(1);
   });
 
   it('renames and deactivates a country', async () => {

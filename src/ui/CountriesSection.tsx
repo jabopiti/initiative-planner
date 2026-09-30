@@ -6,7 +6,7 @@ import { MONTHS, formatMonth, monthKey } from '../data/dates';
 import { initiativesAffectedByRate, weekdaysByMonth, type RateEdit } from '../data/rates';
 import { FILE_PATHS, type Country, type CountryYearRateRecord } from '../data/types';
 import { AmountInput } from './AmountInput';
-import { CommitInput } from './CommitInput';
+import { CommitInput, FailedEdit } from './CommitInput';
 import { DraftField } from './DraftField';
 import { formatAmount } from './formatAmount';
 import { initiativeCount } from './impactNote';
@@ -49,6 +49,8 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
   const changed = useIsChangedByOthers();
   const [openId, setOpenId] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
+  // Locking closes an unsaved new country: nothing is added while the section is locked.
+  if (drafting && lock.locked) setDrafting(false);
   // The open country's latest impact note (§5.9): replaced by the next edit, gone when the country closes.
   const [impact, setImpact] = useState<{ countryId: string; text: string } | null>(null);
 
@@ -102,6 +104,8 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
             const open = openId === country.id;
             const current = yearRecord(country.ratesByYear, tracked[0]);
             const tableId = `country-rates-${country.id}`;
+            // The year entries merge and save as one value (§5.9 review), so a failed save is the country's rates as a whole.
+            const ratesFailure = failure(FILE_PATHS.countries, [{ id: country.id }, 'ratesByYear']);
             return (
               <Fragment key={country.id}>
                 <tr
@@ -169,6 +173,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                   <tr>
                     <td id={tableId} colSpan={3} className="border-t border-border-default bg-surface-card px-4 pt-2 pb-3">
                       {impact?.countryId === country.id && <p className="m-0 mb-2 text-xs text-text-secondary">{impact.text}</p>}
+                      {ratesFailure && <FailedEdit className="mb-2" failure={ratesFailure} retryLabel={`Retry saving ${country.name}’s rates`} />}
                       <YearTable
                         country={country}
                         tracked={tracked}
@@ -310,12 +315,10 @@ function YearRow({
   onReset?: (year: number) => void;
 }) {
   const changed = useIsChangedByOthers();
-  const failure = useFieldFailure();
   const { year } = record;
   const weekdays = weekdaysByMonth(year);
   const matchesWeekdays = record.workingDaysByMonth.every((d, i) => d === weekdays[i]);
   const ratesChanged = changed(FILE_PATHS.countries, [{ id: country.id }, 'ratesByYear']);
-  const ratesFailure = failure(FILE_PATHS.countries, [{ id: country.id }, 'ratesByYear']);
 
   return (
     <tr className="border-t border-border-default align-top">
@@ -335,8 +338,6 @@ function YearRow({
               className="h-8 w-24 text-right"
               errorClassName="mt-1 text-left"
               changed={ratesChanged}
-              failure={ratesFailure}
-              retryLabel={`Retry saving the ${year} day rate of ${country.name}`}
               onChange={(dayRate) => onDayRate?.(year, dayRate)}
             />
           </div>

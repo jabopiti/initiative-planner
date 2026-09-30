@@ -27,6 +27,8 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
   const [drafting, setDrafting] = useState(false);
+  // Locking closes an unsaved new role: nothing is added while the section is locked.
+  if (drafting && lock.locked) setDrafting(false);
   // Which initiatives a cost-factor change affects, by role id: shown until that role's cost factor is edited again (§5.9).
   const [impact, setImpact] = useState<Record<string, number>>({});
 
