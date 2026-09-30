@@ -30,7 +30,7 @@ export interface FileConflict extends MergeConflict {
 }
 
 /** The kinds of entity a commit can touch (§10.3). Slice 038 renders the entity as a trailer. */
-export type EntityKind = 'initiative' | 'person' | 'team' | 'membership' | 'role' | 'country';
+export type EntityKind = 'initiative' | 'person' | 'team' | 'membership' | 'role' | 'country' | 'dataset';
 
 /**
  * One edit, as the commit message describes it (§10.3). Edits to the same `field` of the same entity within one

@@ -17,6 +17,9 @@ export function RepositoryProvider({ token, children }: { token: string; childre
   // §3: pull when the tab regains focus and at least every 5 minutes while it is visible.
   useEffect(() => repository.startPulling(), [repository]);
 
+  // §7.2: a year entering the tracked window gets its rates, by the first client that needs them.
+  useEffect(() => repository.keepTrackedYears(), [repository]);
+
   useEffect(() => {
     const onUnload = () => {
       void repository.flushPending();
