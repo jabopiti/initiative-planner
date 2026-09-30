@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { activeFilterCount, attentionRank, filterRows, inactiveLabel, initiativeRows, type InitiativeRow, NO_FILTERS, NONE, type InitiativeFilters } from '../data/initiativeList';
+import { activeFilterCount, attentionRank, filterRows, inactiveLabel, initiativeRows, NO_FILTERS, NONE, type InitiativeFilters } from '../data/initiativeList';
 import { sortRows } from '../data/sortRows';
 import { FILE_PATHS } from '../data/types';
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
@@ -11,13 +11,13 @@ import { CopyButton } from './CopyButton';
 import { EmptyState } from './EmptyState';
 import { FilterChip, type FilterOption } from './FilterChip';
 import { formatAmount } from './formatAmount';
+import { AttentionMarker } from './AttentionMarker';
 import { KIND_CONFIG } from './NeedsAttentionStrip';
 import { NoInitiatives } from './NoInitiatives';
 import { SortableHeader } from './SortableHeader';
 import { TruncatedText } from './TruncatedText';
 import { useTableSort } from './tableSort';
 import { useSessionFilters } from './sessionFilters';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const STATUSES = ['Active', 'On Hold', 'Cancelled', 'Closed'];
 
@@ -28,21 +28,6 @@ const CHIPS: [keyof InitiativeFilters, string][] = [
   ['track', 'Approval track'],
   ['status', 'Status'],
 ];
-
-/** The icon-only Needs attention marker (§9.10): the kind is its accessible name, kind and reason its tooltip. */
-function AttentionMarker({ item }: { item: NonNullable<InitiativeRow['attention']> }) {
-  const config = KIND_CONFIG[item.kind];
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span role="img" aria-label={config.label} tabIndex={0} className={`inline-flex ${config.colorClass}`}>
-          <config.Icon width={16} height={16} />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{`${config.label}: ${item.reason}`}</TooltipContent>
-    </Tooltip>
-  );
-}
 
 /** The Initiatives overview (§5.3): every initiative in every status, filterable, sortable and copyable. */
 export function InitiativesTable() {
