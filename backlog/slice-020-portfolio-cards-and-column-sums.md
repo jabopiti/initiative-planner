@@ -110,3 +110,10 @@ formatter alone if the brand needs otherwise.
   estimate + approval track badge (+ status chip when not Active).
 - **Split:** cards and column sums here; filters, year filter, metrics and
   Copy in 021.
+- **Status chip:** not built here. 014's icon does not exist and the board shows
+  only Active initiatives until 021's status filter; 021 adds the chip with it.
+  The "status chip" line in Scope's card line 3 moves to 021.
+- **Compact amounts:** rounded from the exact value; 999,500 and above reads
+  "€1.0 M" (never "€1000 k"); millions always show one decimal.
+- **Attention marker:** the `AttentionMarker` from `InitiativesTable`, moved to
+  a shared file and reused, with the truncated name shrinking beside it.
