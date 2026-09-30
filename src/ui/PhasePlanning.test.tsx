@@ -579,7 +579,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
   // An earlier test's Undo toast would otherwise still be on screen.
   beforeEach(() => void toast.dismiss());
   // A person costs €8,000 (40 days × 50% × 500 × 0.8) over the period.
-  const added = () => puts.find((p) => p.message.includes('cost item added'));
+  const added = () => puts.find((p) => p.message.includes(' added to Validation at €'));
 
   async function openDraft(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByRole('button', { name: 'Add cost item to Validation' }));
@@ -606,7 +606,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     expect(month).toHaveValue('Oct 2026'); // the phase's first month
     await user.clear(month);
     await user.type(month, 'Nov 2026{Enter}');
-    expect(puts.some((p) => p.message.includes('cost item added'))).toBe(false); // nothing saved before Add
+    expect(puts.some((p) => p.message.includes(' added to Validation at €'))).toBe(false); // nothing saved before Add
     await user.click(within(draft).getByRole('button', { name: 'Add' }));
 
     const row = screen.getByRole('row', { name: /Penetration test/ });
@@ -617,7 +617,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     expect(validationRow()).toHaveTextContent('€20,000'); // 8,000 people + 12,000 item
 
     await vi.waitFor(() => expect(added()).toBeDefined(), { timeout: 3000 });
-    expect(added()!.message).toBe('Payments API: Validation cost item added (Penetration test, €12,000)');
+    expect(added()!.message).toBe('Payments API: Penetration test added to Validation at €12,000');
     expect(added()!.content.phases![id].costItems).toEqual([{ id: expect.any(String), label: 'Penetration test', amount: 12000, timing: 'month', month: '2026-11' }]);
   });
 
@@ -690,8 +690,8 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     expect(screen.getByLabelText('Label of Licence')).toBeInTheDocument();
     const set = () => puts.find((p) => p.message.includes('amount set'));
     await vi.waitFor(() => expect(set()).toBeDefined(), { timeout: 3000 });
-    // The two edits landed in one commit, each named.
-    expect(set()!.message).toBe('Payments API: Validation cost item Load-testing licence amount set to €9,000; Payments API: Validation cost item renamed to Licence');
+    // The two edits landed in one commit, named once.
+    expect(set()!.message).toBe('Payments API: Validation cost item Load-testing licence renamed to Licence, amount set to €9,000');
   });
 
   it('treats a label that only gained a space as unchanged: the saved label comes back and nothing is committed', async () => {

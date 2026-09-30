@@ -1755,6 +1755,11 @@ dataset changes onto the app branch instead of the data branch with no error
 Commit messages are written by the app in plain words, for example "Payments
 API: Development period set to Apr–Sep", with the entity's id in a trailer
 line, so the history reads as a change log.
+Edits grouped into one commit are described by their net effect: what
+changed between the saved state before and after, per entity and field. An
+added-then-changed entity reads as added with its final values, an
+added-then-removed one leaves no note, and a change back to the saved value
+leaves none; when no note remains there is no commit.
 
 ### 10.4 Browser storage
 

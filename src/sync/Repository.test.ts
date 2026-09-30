@@ -311,7 +311,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     expect(messagesFor(mock, 'teams.json')).toEqual(['Payments: team created']);
     expect(messagesFor(mock, 'people.json')).toEqual([
       'Ada Lovelace: person added',
-      'Ada Lovelace: capacity set to 80%; Ada Lovelace: deactivated',
+      'Ada Lovelace: capacity set to 80%, deactivated',
     ]);
     expect(messagesFor(mock, 'memberships.json')).toEqual([
       'Ada Lovelace: added to Payments at 80%',
@@ -468,12 +468,41 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     expect(commits).toHaveLength(1);
     expect(commits[0].message).toContain('Payments API: Validation start date set to 1 Oct 2026');
     expect(commits[0].message).toContain('Payments API: Validation end date set to 30 Nov 2026');
-    expect(commits[0].message).toContain('Payments API: Validation allocation of Ana Ruiz set to 80%');
+    expect(commits[0].message).toContain('Payments API: Ana Ruiz added to Validation at 80%');
     expect(commits[0].content.phases?.validation).toEqual({
       startDate: '2026-10-01',
       endDate: '2026-11-30',
       allocations: [{ id: added.allocation.id, personId: member.id, allocationPct: 80 }],
     });
+  });
+
+  it('describes an allocation added then changed as one add, and an added-then-removed one as no commit (§10.3)', async () => {
+    const { repo, initiative, member } = await repoWithInitiative();
+    const added = repo.addAllocation(initiative.id, 'validation', member.id);
+    if (!added.ok) throw new Error('expected the allocation to be added');
+    repo.updateAllocation(initiative.id, 'validation', added.allocation.id, 40);
+    await repo.flushPending();
+    expect(commits.map((c) => c.message)).toEqual(['Payments API: Ana Ruiz added to Validation at 40%']);
+
+    commits.length = 0;
+    repo.updateAllocation(initiative.id, 'validation', added.allocation.id, 30);
+    repo.updateAllocation(initiative.id, 'validation', added.allocation.id, 40);
+    const removed = repo.removeAllocation(initiative.id, 'validation', added.allocation.id);
+    repo.restoreAllocation(initiative.id, 'validation', removed!.allocation, removed!.index);
+    await repo.flushPending();
+    expect(commits).toEqual([]);
+
+    repo.removeAllocation(initiative.id, 'validation', added.allocation.id);
+    await repo.flushPending();
+    expect(commits.map((c) => c.message)).toEqual(['Payments API: Ana Ruiz removed from Validation']);
+  });
+
+  it('reads a double rename from the saved name to the last one', async () => {
+    const { repo, initiative } = await repoWithInitiative();
+    repo.renameInitiative(initiative.id, 'B');
+    repo.renameInitiative(initiative.id, 'C');
+    await repo.flushPending();
+    expect(commits.map((c) => c.message)).toEqual(['Payments API: renamed to C']);
   });
 
   it('renames an initiative in place with a commit naming the old and new name, and refuses an empty name', async () => {
@@ -554,6 +583,17 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       expect(result.removed).toEqual([]);
       await repo.flushPending();
       expect(commits.map((c) => c.message)).toEqual(['Payments API: team changed from Payments to Growth']);
+    });
+
+    it('reads two moves in one window as one, keeping the allocations lost on the first', async () => {
+      const { repo, initiative, growth } = await withTwoTeams();
+      const third = repo.createTeam('Platform');
+      await repo.flushPending();
+      commits.length = 0;
+      repo.changeTeam(initiative.id, growth.id);
+      repo.changeTeam(initiative.id, third.id);
+      await repo.flushPending();
+      expect(commits.map((c) => c.message)).toEqual(['Payments API: team changed from Payments to Platform, 3 allocations removed']);
     });
 
     it('says "1 allocation" for one', async () => {

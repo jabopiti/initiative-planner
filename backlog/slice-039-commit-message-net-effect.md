@@ -8,7 +8,7 @@ depends_on: ["005g"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Promoted from the backlog tail (Commit-message notes). Notes are keyed so a later edit replaces an earlier note: several edits to one allocation inside the 1-second window keep only the last ('added' is lost), and a double rename reads as a single one."
+change_summary: "Decided in review: one wording pattern, saved name as rename subject, commas within an entity. Promoted from the backlog tail (Commit-message notes). Notes are keyed so a later edit replaces an earlier note: several edits to one allocation inside the 1-second window keep only the last ('added' is lost), and a double rename reads as a single one."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "A small change to how the file writer combines notes, needing a note shape that carries before/after values; each combination is a direct unit test."
 spec_sections: ["§10.3 Writing"]
@@ -65,6 +65,11 @@ changed between the saved state before and after it — the net effect.
       from A to C".
 - [ ] Given a change and a change back to the saved value, then no note for it
       remains (and no commit if nothing else changed).
+- [ ] Given a person added and a person renamed A → B → C in one window, each
+      with the rename subject the saved name ("A: renamed to C").
+- [ ] Given a removal and its Undo in one window, then no note and no commit.
+- [ ] Given several fields of one person changed in one window, then one
+      subject with the changes joined by commas.
 - [ ] Given edits to two different entities, then both notes appear, joined as
       today.
 
@@ -81,3 +86,23 @@ back-to-back slices (039, then 038) on the same note shape.
 ## Decided in review (pre-implementation)
 
 - **Combination:** net effect, not every step.
+- **Wording (one pattern):** "<person> added to <phase> at <%>", "<person> set
+  to <%> in <phase>", "<person> removed from <phase>"; cost items the same
+  ("Licences added to Development at €4,000", "Licences removed from
+  Development"). The initiative prefix stays: "Checkout Redesign: …".
+- **Rename:** the saved name is the subject: "Ana Lee: renamed to Ana Berg"
+  (initiatives, roles, people alike; people change from "<new>: renamed from
+  <old>"). The criterion's "renamed from A to C" reads "A: renamed to C".
+- **Several changes to one entity in a window:** one subject, changes joined
+  by commas ("Ana Lee: renamed to Ana Berg, capacity set to 80%, role set
+  to Designer"); different entities are joined with "; " as today.
+- **Note shape:** `{ entity: {kind, id}, field, from, to, words(from, to) }`,
+  `absent` for an entity or value that did not exist; the writer calls `words`
+  once on flush with the first `from` and the last `to`. "Saved" is the state
+  before the first edit in the batch; merged-in changes of another writer are
+  not described.
+- **No commit** only when the window had notes, all cancelled, and the pending
+  document equals the synced one; creating a file is never skipped. Remove
+  then Undo in one window cancels out. An added entity keeps its add note's
+  fields with final values; later edits to other fields fold in silently. The
+  conflict suffix stays a verbatim internal note.
