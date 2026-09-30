@@ -59,7 +59,7 @@ export function PortfolioBoard() {
   const teamsById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
 
   const totals = useMemo(
-    () => new Map(initiatives.map((i) => [i.id, grandEstimate(i, brand.process, people, { roles, countries })])),
+    () => new Map(initiatives.filter((i) => i.status === 'Active').map((i) => [i.id, grandEstimate(i, brand.process, people, { roles, countries })])),
     [initiatives, brand.process, people, roles, countries],
   );
 

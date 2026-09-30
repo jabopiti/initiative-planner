@@ -83,8 +83,8 @@ async function renderBoard(list: Initiative[], brand = defaultBrandPack) {
   await screen.findAllByRole('link', { name: /Big One|Small One|Gap One|A very long/ });
 }
 
-/** A board card, not the Needs attention strip's link to the same initiative: cards are the links that contain a figure. */
-const card = (name: string | RegExp) => screen.getAllByRole('link', { name }).find((a) => a.className.includes('rounded-lg'))!;
+/** A board card, not the Needs attention strip's link to the same initiative (strip links sit in list items). */
+const card = (name: string | RegExp) => screen.getAllByRole('link', { name }).find((a) => !a.closest('li'))!;
 
 describe('Portfolio board cards (§5.2)', () => {
   it('shows team · owner, the compact estimate and the real approval track', async () => {
