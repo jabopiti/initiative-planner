@@ -15,6 +15,10 @@ export function AmountInput({
   placeholder,
   changed,
   failure = null,
+  refusal = REFUSAL,
+  retryLabel,
+  className = 'w-28',
+  errorClassName,
   onChange,
 }: {
   value: number | undefined;
@@ -25,6 +29,12 @@ export function AmountInput({
   changed?: boolean;
   /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
   failure?: FieldFailure | null;
+  /** The refusal for anything but a non-negative number, when the field names what it holds (a day rate). */
+  refusal?: string;
+  retryLabel?: string;
+  /** The field's width and alignment. */
+  className?: string;
+  errorClassName?: string;
   onChange: (value: number) => void;
 }) {
   return (
@@ -37,13 +47,15 @@ export function AmountInput({
         inputMode="decimal"
         step="any"
         min={0}
-        className="w-28"
+        className={className}
+        errorClassName={errorClassName}
+        retryLabel={retryLabel}
         aria-label={label}
         placeholder={placeholder}
         value={value === undefined ? '' : String(value)}
         onCommit={(text) => {
           const parsed = parseAmount(text);
-          if (parsed === null) return REFUSAL;
+          if (parsed === null) return refusal;
           if (parsed === value) return false;
           onChange(parsed);
         }}

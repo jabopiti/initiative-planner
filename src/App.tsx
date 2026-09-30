@@ -54,7 +54,7 @@ function Screen({ route }: { route: string }) {
 function MainApp({ token }: { token: string }) {
   const route = useHashRoute();
   return (
-    <RepositoryProvider token={token}>
+    <RepositoryProvider token={token} keepTrackedYears>
       <NeedsAttentionProvider>
         <TopBar route={route} />
         <ReadOnlyBanner />

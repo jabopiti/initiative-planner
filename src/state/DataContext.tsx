@@ -6,7 +6,11 @@ import { changeCovers, changeKey, Repository, type RateLimit, type RepositorySta
 
 export const RepositoryContext = createContext<Repository | null>(null);
 
-export function RepositoryProvider({ token, children }: { token: string; children: ReactNode }) {
+/**
+ * The dataset for `token`. `keepTrackedYears` runs the §7.2 rollover — a system write that reads today's date —
+ * after each pull; the app turns it on, and a test that renders a provider leaves it off unless it is about that.
+ */
+export function RepositoryProvider({ token, keepTrackedYears = false, children }: { token: string; keepTrackedYears?: boolean; children: ReactNode }) {
   const brand = useBrand();
   const repository = useMemo(() => new Repository(brand, token), [brand, token]);
 
@@ -18,7 +22,7 @@ export function RepositoryProvider({ token, children }: { token: string; childre
   useEffect(() => repository.startPulling(), [repository]);
 
   // §7.2: a year entering the tracked window gets its rates, by the first client that needs them.
-  useEffect(() => repository.keepTrackedYears(), [repository]);
+  useEffect(() => (keepTrackedYears ? repository.keepTrackedYears() : undefined), [repository, keepTrackedYears]);
 
   useEffect(() => {
     const onUnload = () => {

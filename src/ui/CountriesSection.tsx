@@ -1,17 +1,19 @@
-import { Fragment, useId, useMemo, useState, type ComponentProps } from 'react';
+import { Fragment, useId, useMemo, useState } from 'react';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
-import { parseAmount, trackedYears, yearRecord } from '../data/cost';
+import { daysInMonth, parseAmount, trackedYears, yearRecord } from '../data/cost';
 import { MONTHS, formatMonth, monthKey } from '../data/dates';
-import { daysInMonth, initiativesAffectedByRate, weekdaysByMonth, type RateEdit } from '../data/rates';
+import { initiativesAffectedByRate, weekdaysByMonth, type RateEdit } from '../data/rates';
 import { FILE_PATHS, type Country, type CountryYearRateRecord } from '../data/types';
-import { CommitInput, Refusal } from './CommitInput';
+import { AmountInput } from './AmountInput';
+import { CommitInput } from './CommitInput';
+import { DraftField } from './DraftField';
 import { formatAmount } from './formatAmount';
+import { initiativeCount } from './impactNote';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
 import { LockToggle } from './LockToggle';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const NAME_REFUSAL = 'Enter a name.';
@@ -26,8 +28,7 @@ function parseWorkingDays(text: string, max: number): number | null {
 
 /** "changes the estimate of N initiative(s).": 029's impact note, after the edit's own subject. */
 function changes(n: number): string {
-  if (n === 0) return 'changes no estimates.';
-  return `changes the estimate of ${n} ${n === 1 ? 'initiative' : 'initiatives'}.`;
+  return n === 0 ? 'changes no estimates.' : `changes the estimate of ${initiativeCount(n)}.`;
 }
 
 /** "2026, 2027 and 2028". */
@@ -263,7 +264,6 @@ function YearTable({
             country={country}
             record={record}
             readOnly={locked}
-            showReset={!locked}
             currencySymbol={currencySymbol}
             onDayRate={onDayRate}
             onWorkingDays={onWorkingDays}
@@ -284,7 +284,7 @@ function YearTable({
       {earlier.length > 0 && showEarlier && (
         <tbody id={earlierId} className="text-text-secondary">
           {earlier.map((record) => (
-            <YearRow key={record.year} country={country} record={record} readOnly showReset={false} currencySymbol={currencySymbol} />
+            <YearRow key={record.year} country={country} record={record} readOnly currencySymbol={currencySymbol} />
           ))}
         </tbody>
       )}
@@ -296,7 +296,6 @@ function YearRow({
   country,
   record,
   readOnly,
-  showReset,
   currencySymbol,
   onDayRate,
   onWorkingDays,
@@ -305,7 +304,6 @@ function YearRow({
   country: Country;
   record: CountryYearRateRecord;
   readOnly: boolean;
-  showReset: boolean;
   currencySymbol: string;
   onDayRate?: (year: number, dayRate: number) => void;
   onWorkingDays?: (year: number, month: number, days: number) => void;
@@ -328,29 +326,19 @@ function YearRow({
         {readOnly ? (
           <span className="inline-flex h-8 items-center tabular-nums">{formatAmount(record.dayRate, currencySymbol)}</span>
         ) : (
-          <div className="flex flex-col items-end">
-            <div className="flex items-center gap-1">
-              <span className="leading-8 text-text-secondary">{currencySymbol}</span>
-              <CommitInput
-                type="number"
-                inputMode="decimal"
-                min={0}
-                step="any"
-                aria-label={`Day rate ${year}, ${country.name}`}
-                className="h-8 w-24 text-right"
-                errorClassName="mt-1 text-left"
-                value={String(record.dayRate)}
-                changed={ratesChanged}
-                failure={ratesFailure}
-                retryLabel={`Retry saving the ${year} day rate of ${country.name}`}
-                onCommit={(text) => {
-                  const dayRate = parseAmount(text);
-                  if (dayRate === null) return DAY_RATE_REFUSAL;
-                  if (dayRate === record.dayRate) return false;
-                  onDayRate?.(year, dayRate);
-                }}
-              />
-            </div>
+          <div className="flex justify-end">
+            <AmountInput
+              label={`Day rate ${year}, ${country.name}`}
+              currencySymbol={currencySymbol}
+              value={record.dayRate}
+              refusal={DAY_RATE_REFUSAL}
+              className="h-8 w-24 text-right"
+              errorClassName="mt-1 text-left"
+              changed={ratesChanged}
+              failure={ratesFailure}
+              retryLabel={`Retry saving the ${year} day rate of ${country.name}`}
+              onChange={(dayRate) => onDayRate?.(year, dayRate)}
+            />
           </div>
         )}
       </td>
@@ -369,7 +357,7 @@ function YearRow({
         </td>
       ))}
       <td className="py-1.5 pl-2 text-right">
-        {showReset && (
+        {!readOnly && (
           <Button
             type="button"
             variant="ghost"
@@ -411,15 +399,15 @@ function WorkingDaysCell({
   onCommit: (days: number) => void;
 }) {
   const differs = days !== weekdays;
-  const differsText = `Differs from ${weekdays} weekdays`;
+  const differsText = `differs from ${weekdays} weekdays`;
   const max = daysInMonth(year, month);
-  const name = `Working days in ${formatMonth(monthKey(year, month))}, ${country.name}${differs ? `, differs from ${weekdays} weekdays` : ''}`;
+  const name = `Working days in ${formatMonth(monthKey(year, month))}, ${country.name}${differs ? `, ${differsText}` : ''}`;
   const tint = differs ? 'border-border-strong bg-surface-subtle' : '';
 
   const cell = readOnly ? (
     <span className={`relative inline-flex h-8 w-11 items-center justify-center rounded-md border tabular-nums ${differs ? tint : 'border-transparent'}`}>
       {days}
-      {differs && <span className="sr-only">, {differsText.toLowerCase()}</span>}
+      {differs && <span className="sr-only">, {differsText}</span>}
       {differs && <Dot />}
     </span>
   ) : (
@@ -451,7 +439,7 @@ function WorkingDaysCell({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{cell}</TooltipTrigger>
-      <TooltipContent>{differsText}</TooltipContent>
+      <TooltipContent>{differsText[0].toUpperCase() + differsText.slice(1)}</TooltipContent>
     </Tooltip>
   );
 }
@@ -535,17 +523,6 @@ function DraftCountryRow({
           Cancel
         </Button>
       </div>
-    </div>
-  );
-}
-
-/** One draft-row field: an `Input` with its refusal message wired up via `aria-invalid`/`aria-describedby`. */
-function DraftField({ errorId, error, hintId, ...input }: ComponentProps<typeof Input> & { errorId: string; error?: string; hintId?: string }) {
-  const describedBy = [error ? errorId : null, hintId ?? null].filter(Boolean).join(' ') || undefined;
-  return (
-    <div className="flex flex-col gap-1">
-      <Input aria-invalid={error ? true : undefined} aria-describedby={describedBy} {...input} />
-      {error && <Refusal id={errorId}>{error}</Refusal>}
     </div>
   );
 }

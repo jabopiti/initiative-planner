@@ -13,8 +13,7 @@ import { rootListing } from '../sync/testing/rootListing';
 const twenty = Array(12).fill(20);
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
 const countries: Country[] = [
-  // Every tracked year has an entry, as in a real dataset, so the provider's §7.2 rollover has nothing to add.
-  { id: 'de', name: 'Germany', active: true, ratesByYear: [2026, 2027, 2028].map((year) => ({ year, dayRate: 500, workingDaysByMonth: twenty })) },
+  { id: 'de', name: 'Germany', active: true, ratesByYear: [{ year: 2026, dayRate: 500, workingDaysByMonth: twenty }] },
 ];
 const ana: Person = { id: 'ana', name: 'Ana Ruiz', countryId: 'de', roleId: 'dev', capacityPct: 100, active: true };
 const membership = (id: string, personId: string, teamFtePct: number): Membership => ({ id, personId, teamId: 't1', teamFtePct, active: true });

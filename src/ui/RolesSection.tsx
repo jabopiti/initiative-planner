@@ -1,14 +1,15 @@
-import { useId, useMemo, useState, type ComponentProps } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { parseAmount } from '../data/cost';
 import { initiativesAffectedByRole } from '../data/roleImpact';
 import { FILE_PATHS } from '../data/types';
-import { CommitInput, Refusal } from './CommitInput';
+import { CommitInput } from './CommitInput';
+import { DraftField } from './DraftField';
+import { initiativeCount } from './impactNote';
 import { DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
 import { LockToggle } from './LockToggle';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 
 const NAME_REFUSAL = 'Enter a name.';
 const ABBREVIATION_REFUSAL = 'Enter an abbreviation.';
@@ -17,11 +18,6 @@ const COST_FACTOR_REFUSAL = 'Enter a cost factor above 0.';
 function parseCostFactor(text: string): number | null {
   const value = parseAmount(text);
   return value !== null && value > 0 ? value : null;
-}
-
-/** "N initiative(s)": the one spelling of the impact note's count. */
-function initiativeCount(n: number): string {
-  return `${n} ${n === 1 ? 'initiative' : 'initiatives'}`;
 }
 
 /** Settings' Roles section (§5.9): a lockable table, edited in place, with Add role and an impact note after a cost-factor edit. */
@@ -242,16 +238,6 @@ function DraftRoleRow({
           Cancel
         </Button>
       </div>
-    </div>
-  );
-}
-
-/** One draft-row field: an `Input` with its refusal message wired up via `aria-invalid`/`aria-describedby`. */
-function DraftField({ errorId, error, ...input }: ComponentProps<typeof Input> & { errorId: string; error?: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <Input aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined} {...input} />
-      {error && <Refusal id={errorId}>{error}</Refusal>}
     </div>
   );
 }

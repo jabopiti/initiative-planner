@@ -1,4 +1,4 @@
-import { monthsInRange, weekdaysInMonth, yearRecord } from './cost';
+import { periodMonths, weekdaysInMonth, yearRecord } from './cost';
 import { isPhaseFrozen } from './frozen';
 import type { Country, CountryYearRateRecord, Initiative, Person } from './types';
 
@@ -7,56 +7,54 @@ export function weekdaysByMonth(year: number): number[] {
   return Array.from({ length: 12 }, (_, month) => weekdaysInMonth(year, month));
 }
 
-/** Calendar days in a month (`month` 0-based): the most working days it can have. */
-export function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-}
-
 /** A new country's entry for each year of the window (§5.9): one day rate for all, working days as weekdays. */
 export function newCountryRates(dayRate: number, years: number[]): CountryYearRateRecord[] {
   return years.map((year) => ({ year, dayRate, workingDaysByMonth: weekdaysByMonth(year) }));
 }
 
-/** The window's years missing from `records`, in order: what the rollover adds (§7.2). None while nothing exists to copy from. */
-function missingYears(records: { year: number }[], tracked: number[]): number[] {
-  if (records.length === 0) return [];
-  return tracked.filter((year) => !records.some((r) => r.year === year));
+/**
+ * `records` with an entry for each tracked year it lacks (§7.2), made by `make` from the preceding year's entry
+ * (the nearest earlier one, or the earliest when none is earlier). Null when nothing is missing — or nothing
+ * exists to copy from — so the rollover is idempotent.
+ */
+function rolledForward<R extends { year: number }>(records: R[], tracked: number[], make: (year: number, previous: R) => R): R[] | null {
+  const missing = records.length === 0 ? [] : tracked.filter((year) => !records.some((r) => r.year === year));
+  if (missing.length === 0) return null;
+  const next = [...records];
+  for (const year of missing) next.push(make(year, yearRecord(next, year - 1)!));
+  return next.sort((a, b) => a.year - b.year);
 }
 
-/**
- * The §7.2 rollover for countries: each tracked year a country has no entry for gets one, its day rate copied
- * from the preceding year (the nearest earlier entry, or the earliest when none is earlier) and its working days
- * prefilled with weekdays. Null when nothing is missing, so the system write is idempotent.
- */
-export function countriesRolledForward(countries: Country[], tracked: number[]): Country[] | null {
+/** Each list item `roll` changes, or null when it changes none. */
+function mapChanged<T>(items: T[], roll: (item: T) => T | null): T[] | null {
   let changed = false;
-  const next = countries.map((country) => {
-    const years = missingYears(country.ratesByYear, tracked);
-    if (years.length === 0) return country;
-    changed = true;
-    const ratesByYear = [...country.ratesByYear];
-    for (const year of years) {
-      ratesByYear.push({ year, dayRate: yearRecord(ratesByYear, year - 1)!.dayRate, workingDaysByMonth: weekdaysByMonth(year) });
-    }
-    return { ...country, ratesByYear: ratesByYear.sort((a, b) => a.year - b.year) };
+  const next = items.map((item) => {
+    const rolled = roll(item);
+    if (rolled) changed = true;
+    return rolled ?? item;
   });
   return changed ? next : null;
+}
+
+/** The §7.2 rollover for countries: a new year's day rate copied from the preceding year, working days prefilled with weekdays. */
+export function countriesRolledForward(countries: Country[], tracked: number[]): Country[] | null {
+  return mapChanged(countries, (country) => {
+    const ratesByYear = rolledForward(country.ratesByYear, tracked, (year, previous) => ({
+      year,
+      dayRate: previous.dayRate,
+      workingDaysByMonth: weekdaysByMonth(year),
+    }));
+    return ratesByYear && { ...country, ratesByYear };
+  });
 }
 
 /** The same rollover for custom roles' day rates (§6, §7.2), active or not, so they are there when switched back on. */
 export function peopleRolledForward(people: Person[], tracked: number[]): Person[] | null {
-  let changed = false;
-  const next = people.map((person) => {
+  return mapChanged(people, (person) => {
     const custom = person.customRole;
-    if (!custom) return person;
-    const years = missingYears(custom.dayRatesByYear, tracked);
-    if (years.length === 0) return person;
-    changed = true;
-    const dayRatesByYear = [...custom.dayRatesByYear];
-    for (const year of years) dayRatesByYear.push({ year, dayRate: yearRecord(dayRatesByYear, year - 1)!.dayRate });
-    return { ...person, customRole: { ...custom, dayRatesByYear: dayRatesByYear.sort((a, b) => a.year - b.year) } };
+    const dayRatesByYear = custom && rolledForward(custom.dayRatesByYear, tracked, (year, previous) => ({ year, dayRate: previous.dayRate }));
+    return custom && dayRatesByYear ? { ...person, customRole: { ...custom, dayRatesByYear } } : null;
   });
-  return changed ? next : null;
 }
 
 /** Which of a country's entries an edit touched: a year's day rate, a year's working days, or one month's. */
@@ -83,9 +81,8 @@ export function initiativesAffectedByRate(country: Country, edit: RateEdit, init
   let count = 0;
   for (const initiative of initiatives) {
     const hit = Object.entries(initiative.phases ?? {}).some(([phaseId, plan]) => {
-      if (isPhaseFrozen(initiative, phaseId) || !plan.startDate || !plan.endDate) return false;
-      if (!plan.allocations.some((a) => affected.has(a.personId))) return false;
-      return monthsInRange(plan.startDate, plan.endDate).some(monthHit);
+      if (isPhaseFrozen(initiative, phaseId) || !plan.allocations.some((a) => affected.has(a.personId))) return false;
+      return periodMonths(plan).some(monthHit);
     });
     if (hit) count += 1;
   }

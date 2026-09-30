@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { countriesRolledForward, daysInMonth, initiativesAffectedByRate, newCountryRates, peopleRolledForward, weekdaysByMonth } from './rates';
+import { daysInMonth } from './cost';
+import { countriesRolledForward, initiativesAffectedByRate, newCountryRates, peopleRolledForward, weekdaysByMonth } from './rates';
 import type { Country, Initiative, Person } from './types';
 
 const twenty = Array(12).fill(20);
