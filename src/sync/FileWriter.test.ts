@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
 import { cacheScope, FileCache } from '../cache/db';
 import { GithubClient } from '../github/client';
-import { FileWriter, type FileConflict, type WriteStatus } from './FileWriter';
+import { FileWriter, type CommitNote, type FileConflict, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey } from './merge';
 import { WriteQueue } from './WriteQueue';
 
@@ -426,6 +426,59 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
 
       await expect(writer.retry()).resolves.toBe('saved');
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('commit message: the net effect of grouped edits (§10.3)', () => {
+    const team = (name: string): Team => ({ id: 't1', name, active: true });
+    /** A note for the team's whole record, worded from the saved to the final name. */
+    const note = (from: Team | undefined, to: Team | undefined, other = 't1'): CommitNote => ({
+      entity: { kind: 'team', id: other },
+      field: 'record',
+      from,
+      to,
+      words: (f, t) => (!f ? `${(t as Team).name} added` : !t ? `${(f as Team).name} removed` : `${(f as Team).name} renamed to ${(t as Team).name}`),
+    });
+    const sentMessages = () => fetchMock.mock.calls.map(([, init]) => (JSON.parse((init as RequestInit).body as string) as { message: string }).message);
+
+    it('reads add then change as one added note with the final values', async () => {
+      const writer = makeWriter({ content: [], sha: 's0' });
+      fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's1' } }));
+      writer.schedule([team('Platform')], note(undefined, team('Platform')));
+      writer.schedule([team('Platform 2')], note(team('Platform'), team('Platform 2')));
+      await writer.flush();
+      expect(sentMessages()).toEqual(['Platform 2 added']);
+    });
+
+    it('makes no commit for add then remove, or for a change back to the saved value', async () => {
+      const writer = makeWriter({ content: [team('Platform')], sha: 's0' });
+      writer.schedule([team('Platform'), { id: 't2', name: 'Growth', active: true }], note(undefined, team('Growth'), 't2'));
+      writer.schedule([team('Platform')], note(team('Growth'), undefined, 't2'));
+      await writer.flush();
+      writer.schedule([team('Platform 2')], note(team('Platform'), team('Platform 2')));
+      writer.schedule([team('Platform')], note(team('Platform 2'), team('Platform')));
+      await writer.flush();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(statuses.at(-1)).toBe('synced');
+    });
+
+    it('reads a double rename from the saved name to the last', async () => {
+      const writer = makeWriter({ content: [team('A')], sha: 's0' });
+      fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's1' } }));
+      writer.schedule([team('B')], note(team('A'), team('B')));
+      writer.schedule([team('C')], note(team('B'), team('C')));
+      await writer.flush();
+      expect(sentMessages()).toEqual(['A renamed to C']);
+    });
+
+    it('joins the notes of two entities in first-edit order', async () => {
+      const writer = makeWriter({ content: [team('A')], sha: 's0' });
+      fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's1' } }));
+      writer.schedule([team('B')], note(team('A'), team('B')));
+      writer.schedule([team('B'), { id: 't2', name: 'Growth', active: true }], note(undefined, team('Growth'), 't2'));
+      writer.schedule([team('C'), { id: 't2', name: 'Growth', active: true }], note(team('B'), team('C')));
+      await writer.flush();
+      expect(sentMessages()).toEqual(['A renamed to C; Growth added']);
     });
   });
 });

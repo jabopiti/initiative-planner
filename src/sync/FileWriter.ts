@@ -29,6 +29,22 @@ export interface FileConflict extends MergeConflict {
   resolve: (choice: 'mine' | 'theirs') => Promise<boolean>;
 }
 
+/** The kinds of entity a commit can touch (§10.3). Slice 038 renders the entity as a trailer. */
+export type EntityKind = 'initiative' | 'person' | 'team' | 'membership' | 'role' | 'country';
+
+/**
+ * One edit, as the commit message describes it (§10.3). Edits to the same `field` of the same entity within one
+ * commit combine into one note, from the first `from` to the last `to`: `undefined` means it did not exist, and a
+ * change back to where it started leaves no note. `words` phrases the net change in plain words naming the entity.
+ */
+export interface CommitNote {
+  entity: { kind: EntityKind; id: string };
+  field: string;
+  from: unknown;
+  to: unknown;
+  words: (from: unknown, to: unknown) => string;
+}
+
 export interface SyncedFile<D> {
   content: D;
   sha: string;
@@ -80,8 +96,12 @@ export class FileWriter<D> {
   private screen: D | null;
   /** The newest edit that no save has taken yet. */
   private pending: D | null = null;
-  /** What changed since the last save, keyed so a repeated edit replaces its earlier note (§10.3). */
-  private readonly notes = new Map<string, string>();
+  /** What changed since the last save: one note per entity field, in first-edit order (§10.3). */
+  private readonly notes = new Map<string, CommitNote>();
+  /** Words added verbatim to the message, such as a conflict's outcome. */
+  private readonly extras = new Map<string, string>();
+  /** An edit with a note was made since the last save, even if its note has cancelled out. */
+  private noted = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
   /** Saves are chained so each starts after the one before it has finished. */
   private tail: Promise<unknown> = Promise.resolve();
@@ -103,14 +123,13 @@ export class FileWriter<D> {
 
   /**
    * Apply an edit to the on-screen document now and save it once edits settle. `note` describes the change
-   * in plain words naming the entity (§10.3); edits within one window are joined, and a later note with
-   * the same `key` replaces an earlier one.
+   * in plain words naming the entity (§10.3); edits within one window are combined into their net effect.
    */
-  schedule(next: D, note?: { key: string; text: string }): void {
+  schedule(next: D, note?: CommitNote): void {
     this.screen = next;
     this.pending = next;
     this.clearFailure();
-    if (note) this.notes.set(note.key, note.text);
+    if (note) this.note(note);
     this.options.onStatus('syncing');
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
@@ -156,6 +175,11 @@ export class FileWriter<D> {
     return this.failedCause;
   }
 
+  /** An edit is waiting to be saved: typed or made, and no save has taken it yet. */
+  get hasPending(): boolean {
+    return this.pending !== null;
+  }
+
   /** The paths that changed in the edit that failed to save, against what is actually on GitHub (§9.9): only
    * these are shown as "Not saved" on screen, so a field the failed edit never touched is not implicated. */
   get failedPaths(): Path[] {
@@ -198,8 +222,22 @@ export class FileWriter<D> {
     return { changed: changedPaths(before, next) };
   }
 
+  private note(note: CommitNote): void {
+    const key = `${note.entity.kind}/${note.entity.id}/${note.field}`;
+    const from = this.notes.has(key) ? (this.notes.get(key) as CommitNote).from : note.from;
+    this.noted = true;
+    if (sameValue(from, note.to)) this.notes.delete(key);
+    else this.notes.set(key, { ...note, from });
+  }
+
+  /** The net effect of the edits since the last save, in plain words; null when none remains. */
+  private describe(): string | null {
+    const parts = [...[...this.notes.values()].map((n) => n.words(n.from, n.to)), ...this.extras.values()];
+    return parts.length > 0 ? parts.join('; ') : null;
+  }
+
   private commitMessage(): string {
-    return this.notes.size > 0 ? [...this.notes.values()].join('; ') : `${this.options.path}: update`;
+    return this.describe() ?? `${this.options.path}: update`;
   }
 
   private async saveNext(): Promise<SaveResult> {
@@ -211,7 +249,15 @@ export class FileWriter<D> {
     const mine = this.pending;
     this.pending = null;
     const message = this.commitMessage();
+    const cancelled = this.noted && this.describe() === null && this.synced !== null && sameValue(mine, this.synced.content);
     this.notes.clear();
+    this.extras.clear();
+    this.noted = false;
+    if (cancelled) {
+      // The edits undid each other, nothing changed, so nothing to commit (§10.3).
+      this.reportIdle();
+      return 'saved';
+    }
     this.saving = true;
     try {
       return await this.save(mine, message);
@@ -366,7 +412,7 @@ export class FileWriter<D> {
         return 'saved';
       }
       this.pending = doc;
-      this.notes.set(`conflict:${pathKey(conflict.path)}`, `${message} (conflict: ${choice === 'mine' ? 'used mine' : 'kept theirs'})`);
+      this.extras.set(`conflict:${pathKey(conflict.path)}`, `${message} (conflict: ${choice === 'mine' ? 'used mine' : 'kept theirs'})`);
       return this.saveNext();
     });
     if (result === 'failed') this.openConflicts.push(conflict);

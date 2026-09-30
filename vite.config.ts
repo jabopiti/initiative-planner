@@ -1,4 +1,6 @@
 /// <reference types="vitest/config" />
+import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -35,7 +37,19 @@ function cspMetaTag(): Plugin {
   };
 }
 
+/** The build's identity for Settings → About (§5.9): the package version and, where git is available, the short commit. */
+function buildVersion(): string {
+  const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
+  try {
+    const commit = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    return commit ? `${version} (${commit})` : version;
+  } catch {
+    return version;
+  }
+}
+
 export default defineConfig({
+  define: { __BUILD_VERSION__: JSON.stringify(buildVersion()) },
   plugins: [react(), tailwindcss(), cspMetaTag()],
   base: './',
   resolve: {

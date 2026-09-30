@@ -6,8 +6,8 @@ import type { Initiative } from './types';
 const TODAY = '2026-09-24';
 
 const process: PhaseDef[] = [
-  { id: 'discovery', label: 'Discovery', description: '', costed: false, exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: false, skippable: true, checklistItems: [] } },
-  { id: 'validation', label: 'Validation', description: '', costed: true, exitGate: { id: 'g2', label: 'G2', description: '', requiresEstimates: true, skippable: true, checklistItems: [] } },
+  { id: 'discovery', icon: 'search', label: 'Discovery', description: '', costed: false, exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: false, skippable: true, checklistItems: [] } },
+  { id: 'validation', icon: 'search', label: 'Validation', description: '', costed: true, exitGate: { id: 'g2', label: 'G2', description: '', requiresEstimates: true, skippable: true, checklistItems: [] } },
 ];
 const initiative = (gates?: Initiative['gates']): Initiative => ({ id: 'i1', name: 'Checkout', teamId: 't1', status: 'Active', gates });
 

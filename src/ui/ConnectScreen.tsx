@@ -3,6 +3,7 @@ import { useBrand } from '../state/BrandContext';
 import { checkToken, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
 import { tokenCreationUrl, tokenManagementUrl } from '../auth/tokenCreationUrl';
 import { ChevronDown, KeyRound, ShieldCheck } from 'lucide-react';
+import { TokenSteps } from './TokenSteps';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,10 +18,9 @@ const MESSAGE_STYLES: Record<TokenCheckResult['outcome'], string> = {
   unreachable: 'bg-warning-tint text-warning-text',
 };
 
-export function ConnectScreen({ onConnected }: { onConnected: (token: string, remember: boolean) => void }) {
+export function ConnectScreen({ onConnected }: { onConnected: (token: string, remember: boolean, login: string) => void }) {
   const [token, setToken] = useState('');
   const [remember, setRemember] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<TokenCheckResult | null>(null);
   const brand = useBrand();
@@ -35,17 +35,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
     setChecking(false);
     setResult(outcome);
     if (outcome.outcome === 'works' || outcome.outcome === 'classic-warning') {
-      onConnected(token.trim(), remember);
-    }
-  }
-
-  async function copyRepoName() {
-    try {
-      await navigator.clipboard.writeText(repoLabel);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard access can be refused; the name is also shown as plain text.
+      onConnected(token.trim(), remember, outcome.login);
     }
   }
 
@@ -119,8 +109,9 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
         <h2 id="guide-heading" className="m-0 mb-3 text-base">
           No token yet? Create one in 4 steps
         </h2>
-        <ol className="m-0 flex list-decimal flex-col gap-3 pl-5 text-text-secondary marker:font-semibold marker:text-text-primary">
-          <li>
+        <TokenSteps
+          className="text-text-secondary"
+          first={
             <a
               className="inline-block rounded-lg bg-brand-accent-tint px-3 py-1.5 font-semibold text-brand-accent-text no-underline"
               href={tokenSettingsUrl}
@@ -129,20 +120,8 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
             >
               Open GitHub token settings{newTab}
             </a>
-          </li>
-          <li>Set the expiry to 1 year.</li>
-          <li>
-            Under Repository access, choose &ldquo;Only select repositories&rdquo; and pick{' '}
-            <code className="rounded bg-surface-subtle px-1.5 py-0.5">{repoLabel}</code>{' '}
-            <Button type="button" variant="outline" size="xs" onClick={copyRepoName} aria-label={`Copy ${repoLabel}`}>
-              {copied ? 'Copied' : 'Copy'}
-            </Button>
-            <span className="sr-only" aria-live="polite">
-              {copied ? 'Copied to clipboard' : ''}
-            </span>
-          </li>
-          <li>Under Permissions, add Contents and set it to Read and write. Leave everything else at No access.</li>
-        </ol>
+          }
+        />
         <p className="m-0 mt-3 text-text-secondary">Then select Generate token, copy it and paste it above.</p>
         <p className="m-0 mt-4 flex items-start gap-2 rounded-lg bg-surface-subtle px-3 py-2.5 text-sm text-text-primary">
           <KeyRound className="mt-0.5 size-4 shrink-0 text-text-secondary" aria-hidden="true" />
