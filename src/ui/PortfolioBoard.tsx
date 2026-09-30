@@ -2,49 +2,37 @@ import { useMemo } from 'react';
 import { useIsChangedByOthers, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { grandEstimate } from '../data/cost';
-import { inactiveLabel } from '../data/initiativeList';
+import { ownerLabel } from '../data/initiativeList';
 import { currentPhaseId } from '../data/processState';
 import { FILE_PATHS, type Initiative } from '../data/types';
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
 import { AttentionMarker } from './AttentionMarker';
-import { formatAmount, formatCompactAmount } from './formatAmount';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { CompactAmount } from './CompactAmount';
+import { TruncatedText } from './TruncatedText';
 import { NoInitiatives } from './NoInitiatives';
 import { NeedsAttentionStrip } from './NeedsAttentionStrip';
 
 /** One initiative's card (§5.2): name and attention marker, team · owner, compact estimate and approval track; the whole card is the link. */
 function BoardCard({ initiative, teamName, total }: { initiative: Initiative; teamName: string; total: number }) {
-  const { currencySymbol } = useBrand();
   const { people } = useRepositoryState();
   const attention = useNeedsAttentionItems();
   const changed = useIsChangedByOthers();
   const item = attention.find((i) => i.initiativeId === initiative.id);
-  const owner = initiative.ownerId ? people.find((p) => p.id === initiative.ownerId) : undefined;
   return (
     <a
       className={`block rounded-lg border border-border-default px-3 py-2.5 text-inherit no-underline transition-colors duration-500 ${changed(FILE_PATHS.initiative(initiative.id), []) ? 'bg-met-tint' : 'bg-surface-card'}`}
       href={`#/initiatives/${initiative.id}`}
     >
       <div className="flex items-center justify-between gap-1.5 text-sm font-semibold">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="min-w-0 truncate">{initiative.name}</span>
-          </TooltipTrigger>
-          <TooltipContent>{initiative.name}</TooltipContent>
-        </Tooltip>
+        <TruncatedText text={initiative.name} className="min-w-0" />
         {item && <AttentionMarker item={item} />}
       </div>
       <div className="mb-1.5 mt-0.5 truncate text-xs text-text-secondary">
-        {teamName} · {initiative.ownerId ? (owner ? inactiveLabel(owner.name, owner.active) : 'Unknown person') : 'No owner'}
+        {teamName} · {initiative.ownerId ? ownerLabel(initiative.ownerId, people) : 'No owner'}
       </div>
       <div className="flex items-center justify-between text-xs">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span>{formatCompactAmount(total, currencySymbol)}</span>
-          </TooltipTrigger>
-          <TooltipContent>{formatAmount(total, currencySymbol)}</TooltipContent>
-        </Tooltip>
+        <CompactAmount value={total} />
         <ApprovalTrackBadge initiative={initiative} />
       </div>
     </a>
@@ -88,12 +76,7 @@ export function PortfolioBoard() {
             <div key={phase.id} className="min-w-55 flex-[1_0_220px] rounded-[10px] bg-surface-subtle p-3">
               <div className="mb-2.5 flex items-center justify-between px-0.5 text-sm font-semibold">
                 <span>{phase.label}</span>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="font-medium text-text-secondary">{`${phaseInitiatives.length} · ${formatCompactAmount(columnSum, brand.currencySymbol)}`}</span>
-                  </TooltipTrigger>
-                  <TooltipContent>{formatAmount(columnSum, brand.currencySymbol)}</TooltipContent>
-                </Tooltip>
+                <CompactAmount value={columnSum} prefix={`${phaseInitiatives.length} · `} className="font-medium text-text-secondary" />
               </div>
               <div className="flex flex-col gap-2">
                 {phaseInitiatives.map((initiative) => (
