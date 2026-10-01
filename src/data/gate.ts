@@ -183,13 +183,18 @@ function freezePhase(plan: NonNullable<Initiative['phases']>[string], people: Pe
   return { startDate: plan.startDate!, endDate: plan.endDate!, allocations, costItems: plan.costItems ?? [], estimateByMonth };
 }
 
+/** The gate's checklist as it stands, as a gate record holds it (§8.1, §8.2). */
+function checklistRecord(initiative: Initiative, phase: PhaseDef): ChecklistItemRecord[] {
+  return checklistItems(initiative, phase.id, phase.exitGate).map(({ id, name, description, status, note }) => ({ id, name, description, status, note }));
+}
+
 /**
  * The gate record for passing `phase`'s exit gate now. The grand estimate is read from the initiative as it
  * stands the instant before this record is written, so an already-frozen earlier phase uses its own snapshot
  * and this phase (still live) uses the same rates its own freeze is about to snapshot — one figure, computed once.
  */
 function buildGateRecord(process: PhaseDef[], initiative: Initiative, phase: PhaseDef, people: Person[], data: RateData, approvalTracks: ApprovalTrackDef[], takenAt: string): GateRecord {
-  const checklist: ChecklistItemRecord[] = checklistItems(initiative, phase.id, phase.exitGate).map(({ id, name, description, status, note }) => ({ id, name, description, status, note }));
+  const checklist = checklistRecord(initiative, phase);
 
   if (!phase.costed) return { outcome: 'passed', passedOn: takenAt, checklist };
 
@@ -206,12 +211,21 @@ function buildGateRecord(process: PhaseDef[], initiative: Initiative, phase: Pha
   };
 }
 
-export type PassGateResult = { ok: true; initiative: Initiative; phase: PhaseDef; record: GateRecord } | { ok: false; blockers: string[] };
+export type GateRecorded = { ok: true; initiative: Initiative; phase: PhaseDef; record: GateRecord };
 
-/** What selecting Pass gate says on an On Hold initiative (§5.4, §8.4); `passGate` refuses with it too. */
-export function onHoldMessage(initiative: Initiative, process: PhaseDef[]): string {
+/** The initiative with `record` written on `phase`'s gate; the final gate closes it, passed or skipped (§8.4). */
+function recordGate(process: PhaseDef[], initiative: Initiative, phase: PhaseDef, record: GateRecord): GateRecorded {
+  const isFinal = process[process.length - 1].id === phase.id;
+  const next: Initiative = { ...initiative, gates: { ...initiative.gates, [phase.id]: record }, ...(isFinal && { status: 'Closed' as const }) };
+  return { ok: true, initiative: next, phase, record };
+}
+
+export type PassGateResult = GateRecorded | { ok: false; blockers: string[] };
+
+/** What selecting Pass gate (or Skip <gate>) says on an On Hold initiative (§5.4, §8.4); `passGate` and `skipGate` refuse with it too. */
+export function onHoldMessage(initiative: Initiative, process: PhaseDef[], verb: 'pass' | 'skip' = 'pass'): string {
   const phase = process.find((p) => p.id === currentPhaseId(initiative, process))!;
-  return `${initiative.name} is on hold. Resume it to pass ${phase.exitGate.label}.`;
+  return `${initiative.name} is on hold. Resume it to ${verb} ${phase.exitGate.label}.`;
 }
 
 /** Pass the initiative's current gate (§8.1): freezes the exited phase if costed, records the gate, and moves on — the final gate closes the initiative. */
@@ -222,15 +236,33 @@ export function passGate(process: PhaseDef[], initiative: Initiative, people: Pe
   const blockers = gateBlockers(gateRequirements(process, initiative, phaseId));
   if (blockers.length > 0) return { ok: false, blockers };
 
-  const record = buildGateRecord(process, initiative, phase, people, data, approvalTracks, takenAt);
-  const isFinal = process[process.length - 1].id === phaseId;
-  const next: Initiative = { ...initiative, gates: { ...initiative.gates, [phaseId]: record }, ...(isFinal && { status: 'Closed' as const }) };
-  return { ok: true, initiative: next, phase, record };
+  return recordGate(process, initiative, phase, buildGateRecord(process, initiative, phase, people, data, approvalTracks, takenAt));
+}
+
+export type SkipGateResult = GateRecorded | { ok: false; reason: string };
+
+/**
+ * Skip the initiative's current gate (§8.2): only where the brand pack marks it skippable, and only with a reason.
+ * Both checks are bypassed; the record holds the trimmed reason and the checklist as it stood, and no date, figure,
+ * approval track or frozen snapshot — so the phase stays editable and the escalation baseline is untouched (§7.4).
+ * Skipping the final gate closes the initiative, exactly as passing it does (§8.4).
+ */
+export function skipGate(process: PhaseDef[], initiative: Initiative, reason: string): SkipGateResult {
+  if (initiative.status === 'On Hold') return { ok: false, reason: onHoldMessage(initiative, process, 'skip') };
+  const phaseId = currentPhaseId(initiative, process);
+  const phase = process.find((p) => p.id === phaseId)!;
+  if (!phase.exitGate.skippable) return { ok: false, reason: `${phase.exitGate.label} cannot be skipped.` };
+  const skipReason = reason.trim();
+  if (!skipReason) return { ok: false, reason: `Skipping ${phase.exitGate.label} needs a reason.` };
+
+  return recordGate(process, initiative, phase, { outcome: 'skipped', skipReason, checklist: checklistRecord(initiative, phase) });
 }
 
 export interface ReopenGateResult {
   initiative: Initiative;
   phase: PhaseDef;
+  /** The record reopening removes. */
+  record: GateRecord;
 }
 
 /** The phase behind the gate before the current one, or null when the current phase is first (§8.3). */
@@ -243,13 +275,15 @@ function previousPhaseId(process: PhaseDef[], initiative: Initiative): string | 
 export function reopenGate(process: PhaseDef[], initiative: Initiative): ReopenGateResult | null {
   if (initiative.status === 'Cancelled') return null;
   const phaseId = initiative.status === 'Closed' ? process[process.length - 1].id : previousPhaseId(process, initiative);
-  if (phaseId === null || !initiative.gates?.[phaseId]) return null;
+  if (phaseId === null) return null;
+  const record = initiative.gates?.[phaseId];
+  if (!record) return null;
 
   const phase = process.find((p) => p.id === phaseId)!;
   const gates = { ...initiative.gates };
   delete gates[phaseId];
   const next: Initiative = { ...initiative, gates, ...(initiative.status === 'Closed' && { status: 'Active' as const }) };
-  return { initiative: next, phase };
+  return { initiative: next, phase, record };
 }
 
 /** The gate record that sets the escalation baseline (§7.4): the last *passed* gate whose exited phase was costed — a skipped gate, or one behind a non-costed phase, was never approved at a figure. */

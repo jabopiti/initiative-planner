@@ -23,7 +23,7 @@ import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysB
 import { localToday } from '../data/dates';
 import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
 import { frozenPaths, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
-import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, withChecklistItem } from '../data/gate';
+import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type BranchHead } from '../github/client';
@@ -1491,13 +1491,28 @@ export class Repository {
     const result = evaluatePassGate(this.brand.process, initiative, this.state.people, this.state, this.brand.approvalTracks, takenAt);
     if (!result.ok) return result;
 
-    this.replaceInitiative(result.initiative);
     const approved = result.record.recordedGrandEstimate !== undefined ? `, approved at ${this.money(result.record.recordedGrandEstimate)}` : '';
-    const [name, gateLabel] = [initiative.name, result.phase.exitGate.label];
-    this.initiativeWriters
-      .get(initiativeId)
-      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, 'open', 'passed', () => `${name}: ${gateLabel} passed${approved}`));
+    this.commitGateOutcome(initiative.name, result, `passed${approved}`);
     return { ok: true };
+  }
+
+  /** Skip the initiative's current gate with a reason (§8.2): skippable gates only, no checks, nothing frozen, one commit. */
+  skipGate(initiativeId: string, reason: string): { ok: true } | { ok: false; reason: string } {
+    const initiative = this.editableInitiative(initiativeId);
+    if (!initiative) return { ok: false, reason: 'This initiative could not be found.' };
+    const result = evaluateSkipGate(this.brand.process, initiative, reason);
+    if (!result.ok) return result;
+
+    this.commitGateOutcome(initiative.name, result, 'skipped');
+    return { ok: true };
+  }
+  /** Writes a passed or skipped gate record in one commit, "<name>: <gate> <what>" (§10.3). */
+  private commitGateOutcome(name: string, result: GateRecorded, what: string): void {
+    const { initiative, phase, record } = result;
+    this.replaceInitiative(initiative);
+    this.initiativeWriters
+      .get(initiative.id)
+      ?.schedule(initiative, this.note('initiative', initiative.id, `gate:${phase.id}`, 'open', record.outcome, () => `${name}: ${phase.exitGate.label} ${what}`));
   }
 
   /**
@@ -1513,7 +1528,7 @@ export class Repository {
     const [name, gateLabel] = [initiative.name, result.phase.exitGate.label];
     this.initiativeWriters
       .get(initiativeId)
-      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, 'passed', 'open', () => `${name}: ${gateLabel} reopened`));
+      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, result.record.outcome, 'open', () => `${name}: ${gateLabel} reopened`));
   }
 
   /** Put an Active initiative On Hold (§8.4): a plain status change, one click and no reason. A no-op for any other status. */

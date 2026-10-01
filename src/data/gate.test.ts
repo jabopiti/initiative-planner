@@ -11,6 +11,7 @@ import {
   onHoldMessage,
   passGate,
   reopenGate,
+  skipGate,
   withChecklistItem,
 } from './gate';
 import type { Country, Initiative, Person, Role } from './types';
@@ -218,6 +219,54 @@ describe('passGate (§8.1)', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.initiative.status).toBe('Closed');
+  });
+});
+
+describe('skipGate (§8.2)', () => {
+  it('records the trimmed reason and the checklist, bypassing both checks, with no date, figure, track or snapshot', () => {
+    // Alpha's checklist item is Incomplete and Beta has no estimate: both would block a pass.
+    const result = skipGate(process, planned(), '  Problem validated in the Q2 pilot.  ');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.initiative.gates!.alpha).toEqual({
+      outcome: 'skipped',
+      skipReason: 'Problem validated in the Q2 pilot.',
+      checklist: [{ id: 'a1', name: 'Business case approved', description: '', status: 'incomplete', note: '' }],
+    });
+    expect(currentPhaseId(result.initiative, process)).toBe('beta');
+    expect(lastCostedPassedGate(process, result.initiative)).toBeNull();
+    expect(result.initiative.phases).toEqual(planned().phases);
+  });
+
+  it('does not carry a skipped gate\'s Tentative items forward', () => {
+    const result = skipGate(process, withChecklistItem(planned(), 'alpha', 'a1', 'tentative', 'Draft only'), 'Not applicable');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(carriedForwardItems(process, result.initiative, 'beta')).toEqual([]);
+  });
+
+  it('refuses a blank reason, a non-skippable gate and an On Hold initiative', () => {
+    expect(skipGate(process, planned(), '   ')).toEqual({ ok: false, reason: 'Skipping G1 needs a reason.' });
+    const atBeta = planned({ gates: { ...planned().gates, alpha: { outcome: 'passed', passedOn: '2026-01-31', checklist: [] } } });
+    expect(skipGate(process, atBeta, 'Because')).toEqual({ ok: false, reason: 'G2 cannot be skipped.' });
+    expect(skipGate(process, planned({ status: 'On Hold' }), 'Because')).toEqual({ ok: false, reason: 'Checkout Redesign is on hold. Resume it to skip G1.' });
+  });
+
+  it('closes the initiative when the final gate is skippable and skipped', () => {
+    const skippableFinal = process.map((p) => (p.id === 'gamma' ? { ...p, exitGate: { ...p.exitGate, skippable: true } } : p));
+    const passed = { outcome: 'passed' as const, passedOn: '2026-01-01', checklist: [] };
+    const result = skipGate(skippableFinal, planned({ gates: { discovery: passed, alpha: passed, beta: passed } }), 'Rolled out by the vendor');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.initiative.status).toBe('Closed');
+  });
+
+  it('is reversed by reopenGate, which removes the record', () => {
+    const result = skipGate(process, planned(), 'Not applicable');
+    if (!result.ok) throw new Error('expected a skip');
+    const reopened = reopenGate(process, result.initiative);
+    expect(reopened?.phase.id).toBe('alpha');
+    expect(reopened?.initiative.gates?.alpha).toBeUndefined();
   });
 });
 
