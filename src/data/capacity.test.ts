@@ -5,6 +5,8 @@ import {
   claimedFtePct,
   isPhaseConfirmed,
   loadsIn,
+  raiseFix,
+  reduceFix,
   teamCapacity,
   teamHasCapacityWarning,
   unclaimedCapacityPct,
@@ -309,5 +311,87 @@ describe('an inactive team\'s initiatives are not counted (§7.2, §9.3)', () =>
   it('treats a team that does not exist as not counting', () => {
     const d = { ...data(inits, mems), teams: [{ id: 't1', name: 'T1', active: true }] };
     expect(teamCapacity('t1', d).rows[0].cells.find((c) => c.month === '2026-10')?.totalPct).toBe(60);
+  });
+});
+
+describe('fix suggestions (§5.11)', () => {
+  // Felix: Team FTE 60% on Platform, Capacity 100%, 80% on Checkout's Validation in Oct–Nov.
+  const checkout = (pct: number, extra: Partial<Initiative> = {}) => initiative('checkout', 't1', { validation: plan('2026-10-01', '2026-11-30', ['ana', pct]) }, extra);
+
+  it('reduces to the value that fits, and raises Team FTE % to cover the peak', () => {
+    const d = data([checkout(80)], [mem('ana', 't1', 60)]);
+    expect(reduceFix(d.initiatives[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(60);
+    expect(raiseFix('ana', 't1', d)).toEqual({ membershipId: 'm-ana-t1', teamFtePct: 80 });
+  });
+
+  it('offers nothing when there is no warning', () => {
+    const d = data([checkout(60)], [mem('ana', 't1', 60)]);
+    expect(reduceFix(d.initiatives[0], 'validation', 'ana', d)?.allocationPct ?? null).toBeNull();
+    expect(raiseFix('ana', 't1', d)).toBeNull();
+  });
+
+  it('takes the minimum over the phase\'s months when the fit varies by month', () => {
+    const inits = [checkout(80), initiative('fraud', 't1', { validation: plan('2026-10-15', '2026-10-31', ['ana', 25]) })];
+    const d = data(inits, [mem('ana', 't1', 60)]);
+    expect(reduceFix(inits[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(35);
+  });
+
+  it('rounds the reduce down and the raise up to a whole percent', () => {
+    const inits = [checkout(80), initiative('fraud', 't1', { validation: plan('2026-10-01', '2026-11-30', ['ana', 10.4]) })];
+    const d = data(inits, [mem('ana', 't1', 60)]);
+    expect(reduceFix(inits[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(49);
+    expect(raiseFix('ana', 't1', d)?.teamFtePct).toBe(91);
+  });
+
+  it('offers only the reduce for an over Capacity % warning, and the reduce clears both ceilings', () => {
+    const inits = [checkout(50), initiative('growth', 't2', { validation: plan('2026-10-01', '2026-11-30', ['ana', 70]) })];
+    const d = data(inits, [mem('ana', 't1', 60), mem('ana', 't2', 40)]);
+    expect(allocationWarnings(inits[0], 'validation', 'ana', d).overTeamFteMonths).toEqual([]);
+    expect(raiseFix('ana', 't1', d)).toBeNull();
+    expect(reduceFix(inits[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(30);
+  });
+
+  it('does not offer the raise when it would exceed Capacity % minus other teams\' Team FTE %s', () => {
+    const d = data([checkout(80)], [mem('ana', 't1', 60), mem('ana', 't2', 30)]);
+    expect(raiseFix('ana', 't1', d)).toBeNull();
+    expect(raiseFix('ana', 't1', data([checkout(70)], [mem('ana', 't1', 60), mem('ana', 't2', 30)]))?.teamFtePct).toBe(70);
+  });
+
+  it('does not offer the reduce when no positive value fits', () => {
+    const inits = [checkout(20), initiative('fraud', 't1', { validation: plan('2026-10-01', '2026-11-30', ['ana', 60]) })];
+    const d = data(inits, [mem('ana', 't1', 60)]);
+    expect(reduceFix(inits[0], 'validation', 'ana', d)?.allocationPct ?? null).toBeNull();
+  });
+
+  it('leaves Provisional phases and On Hold initiatives out of the suggested values', () => {
+    const inits = [
+      checkout(80),
+      initiative('later', 't1', { validation: plan('2026-10-01', '2026-11-30'), development: plan('2027-03-01', '2027-04-30', ['ana', 50]) }),
+      initiative('held', 't1', { validation: plan('2026-10-01', '2026-11-30', ['ana', 30]) }, { status: 'On Hold' }),
+    ];
+    const d = data(inits, [mem('ana', 't1', 60)]);
+    expect(reduceFix(inits[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(60);
+    expect(raiseFix('ana', 't1', d)?.teamFtePct).toBe(80);
+    // A Provisional or On Hold allocation is itself not fixed: it carries no warning.
+    expect(reduceFix(inits[2], 'validation', 'ana', d)?.allocationPct ?? null).toBeNull();
+  });
+
+  it('raises to cover the highest month across every phase on the team, from the current month on', () => {
+    const inits = [checkout(80), initiative('fraud', 't1', { validation: plan('2026-09-01', '2026-09-30', ['ana', 90]), discovery: plan('2026-01-01', '2026-08-31', ['ana', 100]) })];
+    const d = data(inits, [mem('ana', 't1', 60)]);
+    expect(raiseFix('ana', 't1', d)?.teamFtePct).toBe(90);
+  });
+
+  it('offers no reduce on a frozen phase, but the raise still applies', () => {
+    const frozen = checkout(80, { gates: { validation: { outcome: 'passed' } } as unknown as Initiative['gates'] });
+    const d = data([frozen], [mem('ana', 't1', 60)]);
+    expect(reduceFix(frozen, 'validation', 'ana', d)?.allocationPct ?? null).toBeNull();
+    expect(raiseFix('ana', 't1', d)?.teamFtePct).toBe(80);
+  });
+
+  it('offers no raise to a person who is no longer a member, but still the reduce for Capacity %', () => {
+    const d = data([checkout(120)], []);
+    expect(raiseFix('ana', 't1', d)).toBeNull();
+    expect(reduceFix(d.initiatives[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(100);
   });
 });

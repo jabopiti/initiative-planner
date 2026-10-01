@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useBrand } from '../state/BrandContext';
-import { useRepositoryState } from '../state/DataContext';
-import { loadsIn, teamCapacity, type CapacityCell, type CapacityRow, type Load, type TeamCapacity } from '../data/capacity';
+import { useRepository, useRepositoryState } from '../state/DataContext';
+import { loadsIn, raiseFix, reduceFix, teamCapacity, type CapacityCell, type CapacityData, type CapacityRow, type Load, type TeamCapacity } from '../data/capacity';
 import { formatMonth, formatMonthRanges, formatMonthShort, formatPeriod, localToday } from '../data/dates';
 import type { Team } from '../data/types';
+import { RaiseFixButton, ReduceFixButton } from './CapacityFixButtons';
 import { CopyButton } from './CopyButton';
 import { InlineWarning } from './InlineWarning';
 import { OverCapacityIcon, OverTeamFteIcon, WarningIcon } from './icons';
@@ -54,7 +55,8 @@ export function CapacityGrid({ team }: { team: Team }) {
   /** The cell or name that opened the detail, so closing it puts focus back there. */
   const opener = useRef<HTMLElement | null>(null);
   const today = localToday();
-  const capacity = useMemo(() => teamCapacity(team.id, { initiatives, teams, people, memberships, process, today }), [team.id, initiatives, teams, people, memberships, process, today]);
+  const data = useMemo(() => ({ initiatives, teams, people, memberships, process, today }), [initiatives, teams, people, memberships, process, today]);
+  const capacity = useMemo(() => teamCapacity(team.id, data), [team.id, data]);
 
   function copyData() {
     return {
@@ -167,7 +169,7 @@ export function CapacityGrid({ team }: { team: Team }) {
         </>
       )}
 
-      {team.active && selection && selectedRow && <Detail row={selectedRow} month={selection.month} team={team} capacity={capacity} onClose={close} />}
+      {team.active && selection && selectedRow && <Detail row={selectedRow} month={selection.month} team={team} capacity={capacity} data={data} onClose={close} />}
     </section>
   );
 }
@@ -198,8 +200,9 @@ function CellButton({ name, cell, selected, onSelect }: { name: string; cell: Ca
   );
 }
 
-function Detail({ row, month, team, capacity, onClose }: { row: CapacityRow; month: string | null; team: Team; capacity: TeamCapacity; onClose: () => void }) {
-  const { teams } = useRepositoryState();
+function Detail({ row, month, team, capacity, data, onClose }: { row: CapacityRow; month: string | null; team: Team; capacity: TeamCapacity; data: CapacityData; onClose: () => void }) {
+  const repository = useRepository();
+  const { initiatives, teams } = data;
   const { person } = row;
   const cell = month ? row.cells.find((c) => c.month === month) : undefined;
 
@@ -224,6 +227,31 @@ function Detail({ row, month, team, capacity, onClose }: { row: CapacityRow; mon
   const provisional = loads.filter((l) => !l.confirmed);
   const teamName = (l: Load) => (l.teamId === team.id ? null : teams.find((t) => t.id === l.teamId)?.name ?? 'another team');
 
+  // Fix suggestions (§5.11): the raise once, under the warnings, since Team FTE % is the person's; the reduce
+  // beside each of this team's counted allocations. Other teams' allocations are named, not fixed from here.
+  const shown = month && cell ? [cell] : row.cells;
+  const raise = shown.some((c) => c.overTeamFte) ? raiseFix(person.id, team.id, data, capacity.loads) : null;
+  const warned = shown.some((c) => c.overTeamFte || c.overCapacity);
+  /** After a fix its button is gone, so focus goes back to the detail's heading. */
+  const refocus = () => heading.current?.focus();
+  const reduceButton = (l: Load) => {
+    const initiative = l.teamId === team.id && warned ? initiatives.find((i) => i.id === l.initiativeId) : undefined;
+    const reduce = initiative ? reduceFix(initiative, l.phaseId, person.id, data, capacity.loads) : null;
+    if (!reduce) return null;
+    return (
+      <ReduceFixButton
+        name={person.name}
+        to={reduce.allocationPct}
+        where={`${l.initiativeName}, ${l.phaseLabel}`}
+        className="ml-1.5"
+        onClick={() => {
+          repository.updateAllocation(l.initiativeId, l.phaseId, reduce.allocationId, reduce.allocationPct);
+          refocus();
+        }}
+      />
+    );
+  };
+
   return (
     <section aria-label="Capacity detail" className="mt-4 rounded-lg border border-border-default bg-surface-card p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -247,14 +275,27 @@ function Detail({ row, month, team, capacity, onClose }: { row: CapacityRow; mon
           ))}
         </ul>
       )}
+      {raise && (
+        <div className="-mt-1 mb-3">
+          <RaiseFixButton
+            name={person.name}
+            teamName={team.name}
+            to={raise.teamFtePct}
+            onClick={() => {
+              repository.updateMembership(raise.membershipId, { teamFtePct: raise.teamFtePct });
+              refocus();
+            }}
+          />
+        </div>
+      )}
 
-      <LoadList heading="Counted" loads={counted} showPeriod={!month} teamName={teamName} />
+      <LoadList heading="Counted" loads={counted} showPeriod={!month} teamName={teamName} fix={reduceButton} />
       <LoadList heading="Not counted (Provisional)" loads={provisional} showPeriod={!month} teamName={teamName} />
     </section>
   );
 }
 
-function LoadList({ heading, loads, showPeriod, teamName }: { heading: string; loads: Load[]; showPeriod: boolean; teamName: (l: Load) => string | null }) {
+function LoadList({ heading, loads, showPeriod, teamName, fix }: { heading: string; loads: Load[]; showPeriod: boolean; teamName: (l: Load) => string | null; fix?: (l: Load) => ReactNode }) {
   if (loads.length === 0) return null;
   return (
     <div className="mb-2">
@@ -268,6 +309,7 @@ function LoadList({ heading, loads, showPeriod, teamName }: { heading: string; l
               {showPeriod && ` · ${formatPeriod(l.startDate, l.endDate)}`}
               {teamName(l) && ` · ${teamName(l)} (other team)`} · {pct(l.allocationPct)}
             </span>
+            {fix?.(l)}
           </li>
         ))}
       </ul>

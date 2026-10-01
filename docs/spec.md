@@ -1063,7 +1063,21 @@ local time, determined the same way as Confirmed vs. Provisional in §4.
   capacity grid's detail (§5.4, §5.8) offers up to two fixes: reduce the
   person's Allocation % to the value that fits for every month of the phase,
   or, for a Team FTE % warning that fits within their Capacity %, raise
-  their Team FTE % on the team.
+  their Team FTE % on the team. Both look at the same months as the
+  warnings (the current month on) and leave out Provisional phases and
+  initiatives that do not count (§7.2). The reduce value is the highest
+  whole percent at which the allocation is over neither ceiling in any of
+  those months, offered when above 0% and below the current value. The
+  raise value is the lowest whole percent covering the person's highest
+  month on the team's counted initiatives from the current month on, so it
+  clears every Team FTE % warning on that team at once, offered only when
+  it is within their Capacity % minus their other teams' Team FTE %s. Each
+  fix is a small button naming the result ("Set to 60%", "Raise Team FTE %
+  to 80%") and one edit. On an allocation row the fixes sit on one line
+  under its warnings. In the grid's cell or row detail the raise shows once
+  under the warnings and the reduce beside each of this team's counted
+  allocations; other teams' allocations are named, not fixed from there.
+  A frozen allocation offers no reduce.
 - **Undo.** Removing an allocation, a cost item or a membership shows
   "Removed. Undo" for 10 seconds; Undo restores it as a normal edit.
   Deleting an initiative is not undoable; it is protected by an inline

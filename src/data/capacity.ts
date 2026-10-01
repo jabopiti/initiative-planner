@@ -1,6 +1,7 @@
 import type { PhaseDef } from '../brand/types';
 import { monthsInRange } from './cost';
 import { monthOf } from './dates';
+import { isPhaseFrozen } from './frozen';
 import { currentPhaseId, isPhaseConfirmed as isConfirmedByStart } from './processState';
 import { activeMembers, activeMembership } from './teamMembers';
 import type { Initiative, Membership, Person, Team } from './types';
@@ -209,21 +210,86 @@ export interface AllocationWarnings {
  */
 export function allocationWarnings(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): AllocationWarnings {
   const person = data.people.find((p) => p.id === personId);
-  // A deactivated person is a member of no team (§4), so no Team FTE % applies to them.
-  const membership = person?.active ? activeMembership(personId, initiative.teamId, data.memberships) : undefined;
   // A dangling person is shown as "Unknown person" on the row already; that is not a membership matter.
-  const none: AllocationWarnings = { notMember: person !== undefined && !membership, overTeamFteMonths: [], overCapacityMonths: [] };
-  const plan = initiative.phases?.[phaseId];
-  if (!person || !countsTowardCapacity(initiative, data.teams) || !plan?.startDate || !plan.endDate) return none;
-  if (!isPhaseConfirmed(initiative, phaseId, data.process, data.today)) return none;
-
-  const loads = allLoads.filter((l) => l.confirmed && l.personId === personId);
-  const teamLoads = loads.filter((l) => l.teamId === initiative.teamId);
-  // Like the grid, from the current month on: earlier months are history.
-  const months = monthsInRange(plan.startDate, plan.endDate).filter((m) => m >= monthOf(data.today));
+  const none: AllocationWarnings = { notMember: person !== undefined && !memberOf(person, initiative.teamId, data), overTeamFteMonths: [], overCapacityMonths: [] };
+  const ctx = ceilingContext(initiative, phaseId, personId, data, allLoads);
+  if (!ctx) return none;
+  const { membership, months, loads, teamLoads } = ctx;
   return {
     ...none,
     overTeamFteMonths: membership ? months.filter((m) => sum(loadsIn(teamLoads, personId, m)) > membership.teamFtePct + EPSILON) : [],
-    overCapacityMonths: person.active ? months.filter((m) => sum(loadsIn(loads, personId, m)) > person.capacityPct + EPSILON) : [],
+    overCapacityMonths: ctx.person.active ? months.filter((m) => sum(loadsIn(loads, personId, m)) > ctx.person.capacityPct + EPSILON) : [],
   };
+}
+
+/** A deactivated person is a member of no team (§4), so no Team FTE % applies to them. */
+function memberOf(person: Person, teamId: string, data: CapacityData): Membership | undefined {
+  return person.active ? activeMembership(person.id, teamId, data.memberships) : undefined;
+}
+
+/**
+ * What the two ceilings look at for one allocation (§7.2), shared by its warnings and its fix so they can't
+ * disagree: the person's confirmed loads (all teams, and the initiative's team) and the phase's months from the
+ * current month on — earlier months are history, like the grid. Null when the allocation isn't counted.
+ */
+function ceilingContext(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[]) {
+  const person = data.people.find((p) => p.id === personId);
+  const plan = initiative.phases?.[phaseId];
+  if (!person || !countsTowardCapacity(initiative, data.teams) || !plan?.startDate || !plan.endDate) return null;
+  if (!isPhaseConfirmed(initiative, phaseId, data.process, data.today)) return null;
+  const loads = allLoads.filter((l) => l.confirmed && l.personId === personId);
+  return {
+    person,
+    plan,
+    membership: memberOf(person, initiative.teamId, data),
+    months: monthsInRange(plan.startDate, plan.endDate).filter((m) => m >= monthOf(data.today)),
+    loads,
+    teamLoads: loads.filter((l) => l.teamId === initiative.teamId),
+  };
+}
+
+// ---- Fix suggestions (§5.11) ----
+
+/**
+ * The Allocation % to reduce one allocation to so it is over neither ceiling in any month the warnings look at
+ * (§5.11): the highest whole percent that fits, with every other load unchanged. Null when there is nothing to
+ * fix (no warning), nothing positive fits, or the allocation can't be edited (a frozen phase or initiative) or
+ * isn't counted (a Provisional phase, an initiative that does not count).
+ */
+export function reduceFix(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): { allocationId: string; allocationPct: number } | null {
+  // A Closed or Cancelled initiative isn't counted, so only a frozen phase needs its own check here.
+  const ctx = isPhaseFrozen(initiative, phaseId) ? null : ceilingContext(initiative, phaseId, personId, data, allLoads);
+  const allocation = ctx?.plan.allocations.find((a) => a.personId === personId);
+  if (!ctx || !allocation) return null;
+  const { person, membership, months } = ctx;
+  const isOwn = (l: Load) => l.initiativeId === initiative.id && l.phaseId === phaseId;
+  const others = ctx.loads.filter((l) => !isOwn(l));
+  const teamOthers = ctx.teamLoads.filter((l) => !isOwn(l));
+  let fit = Infinity;
+  for (const month of months) {
+    if (membership) fit = Math.min(fit, membership.teamFtePct - sum(loadsIn(teamOthers, personId, month)));
+    if (person.active) fit = Math.min(fit, person.capacityPct - sum(loadsIn(others, personId, month)));
+  }
+  if (fit === Infinity) return null;
+  const value = Math.floor(fit + EPSILON);
+  return value > 0 && value < allocation.allocationPct - EPSILON ? { allocationId: allocation.id, allocationPct: value } : null;
+}
+
+/**
+ * The Team FTE % to raise a person's membership to (§5.11): the lowest whole percent covering their highest month
+ * on the team's counted initiatives from the current month on, so every over Team FTE % warning on that team
+ * clears at once. Null when they are not over it, or when the raise would not fit within their Capacity % minus
+ * their other teams' Team FTE %s.
+ */
+export function raiseFix(personId: string, teamId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): { membershipId: string; teamFtePct: number } | null {
+  const person = data.people.find((p) => p.id === personId);
+  const membership = person && memberOf(person, teamId, data);
+  if (!person || !membership) return null;
+  const first = monthOf(data.today);
+  const teamLoads = allLoads.filter((l) => l.confirmed && l.personId === personId && l.teamId === teamId);
+  const months = [...new Set(teamLoads.flatMap((l) => l.months))].filter((m) => m >= first);
+  const peak = months.reduce((max, m) => Math.max(max, sum(loadsIn(teamLoads, personId, m))), 0);
+  if (peak <= membership.teamFtePct + EPSILON) return null;
+  const value = Math.ceil(peak - EPSILON);
+  return value <= unclaimedCapacityPct(person, data.memberships, membership.id) + EPSILON ? { membershipId: membership.id, teamFtePct: value } : null;
 }
