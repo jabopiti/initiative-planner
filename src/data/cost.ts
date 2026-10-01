@@ -333,7 +333,6 @@ function phaseDeviationByMonth(initiative: Initiative, phaseId: string, people: 
 
 /** Sums a per-month figure over every costed phase, keeping only the months `keep` accepts. */
 function sumCostedMonths(
-  initiative: Initiative,
   process: PhaseDef[],
   byMonth: (phaseId: string) => Record<string, number>,
   keep: (month: string) => boolean = () => true,
@@ -361,7 +360,7 @@ export function grandEstimate(initiative: Initiative, process: PhaseDef[], peopl
 
 /** The part of the grand estimate falling in one calendar year (§5.2's year filter), month by month. */
 export function yearEstimate(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData, year: number): number {
-  return sumCostedMonths(initiative, process, (id) => phaseEffectiveByMonth(initiative, id, people, data), inYear(year));
+  return sumCostedMonths(process, (id) => phaseEffectiveByMonth(initiative, id, people, data), inYear(year));
 }
 
 /** Every year an initiative has non-zero cost in, ascending (§5.2's year filter choices). */
@@ -379,12 +378,12 @@ export function costYears(initiative: Initiative, process: PhaseDef[], people: P
  * every month that has one. Zero, not undefined, when nothing has been recorded yet.
  */
 export function grandDeviation(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): number {
-  return sumCostedMonths(initiative, process, (id) => phaseDeviationByMonth(initiative, id, people, data));
+  return sumCostedMonths(process, (id) => phaseDeviationByMonth(initiative, id, people, data));
 }
 
 /** The deviation over one calendar year's months only (§5.2's year filter). */
 export function yearDeviation(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData, year: number): number {
-  return sumCostedMonths(initiative, process, (id) => phaseDeviationByMonth(initiative, id, people, data), inYear(year));
+  return sumCostedMonths(process, (id) => phaseDeviationByMonth(initiative, id, people, data), inYear(year));
 }
 
 /** The approval track a total resolves to (§7.4): bounds lower-inclusive, upper-exclusive; `null` when no band covers it. */

@@ -35,7 +35,7 @@ export function InitiativesTable() {
   const { initiatives, teams, people, roles, countries } = useRepositoryState();
   const attention = useNeedsAttentionItems();
   const changed = useIsChangedByOthers();
-  const [filters, setFilters] = useSessionFilters('initiatives');
+  const [filters, setFilters] = useSessionFilters('initiatives', NO_FILTERS);
   const sort = useTableSort('attention');
 
   const rows = useMemo(
