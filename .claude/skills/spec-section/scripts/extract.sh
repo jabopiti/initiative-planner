@@ -54,11 +54,10 @@ out="$(awk -v want="$section" '
     if (lvl > 0) {
       rest = $0
       sub(/^#+[ \t]+/, "", rest)
-      split(rest, arr, " ")
-      numtok = arr[1]
-      gsub(/\.$/, "", numtok)
       if (found && lvl <= foundLevel) exit
-      if (!found && numtok == want) {
+      # String prefix match, number then a space (or "N." then a space):
+      # a plain == lets awk compare "9.10" and "9.1" as equal numbers.
+      if (!found && (index(rest, want " ") == 1 || index(rest, want ". ") == 1)) {
         found = 1
         foundLevel = lvl
         print
