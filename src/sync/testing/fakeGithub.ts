@@ -48,6 +48,13 @@ export function fakeGithub() {
   const tokenBehaviours = new Map<string, TokenBehaviour>();
   let counter = 0;
   let head = 1;
+  /** The Git data API (§10.3's many-file commits): blobs, trees and commits made, and commits that moved the branch. */
+  const blobs = new Map<string, string>();
+  const trees = new Map<string, { path: string; sha: string | null }[]>();
+  const newCommits = new Map<string, { message: string; tree: string; parents: string[] }>();
+  const gitCommits: { message: string; files: string[]; deleted: string[] }[] = [];
+  const gitFailures: { prefix: string; status: number }[] = [];
+  const beforeRefUpdates: (() => void)[] = [];
 
   const take = <T extends { prefix: string }>(queue: T[], path: string): T | undefined => {
     const index = queue.findIndex((entry) => path.startsWith(entry.prefix));
@@ -70,6 +77,38 @@ export function fakeGithub() {
       const etag = `"head-${head}"`;
       if (new Headers(init.headers).get('If-None-Match') === etag) return new Response(null, { status: 304 });
       return new Response(JSON.stringify({ object: { sha: `commit-${head}` } }), { status: 200, headers: { etag } });
+    }
+
+    const git = pathname.match(/\/git\/(blobs|trees|commits|refs)(?:\/(.*))?$/);
+    if (git && !(method === 'GET' && git[1] === 'refs')) {
+      const [, kind, rest] = git;
+      const failure = take(gitFailures, kind);
+      if (failure) return json({ message: 'failed' }, failure.status);
+      const body = init.body ? (JSON.parse(init.body as string) as Record<string, unknown>) : {};
+      if (kind === 'commits' && method === 'GET') return json({ sha: rest, tree: { sha: `tree-of-${rest}` } });
+      const sha = `${kind}-${(counter += 1)}`;
+      if (kind === 'blobs') blobs.set(sha, decodeBase64Utf8(body.content as string));
+      if (kind === 'trees') trees.set(sha, body.tree as { path: string; sha: string | null }[]);
+      if (kind === 'commits') newCommits.set(sha, body as { message: string; tree: string; parents: string[] });
+      if (kind === 'refs') {
+        if (rest !== `heads/${DATA_BRANCH}`) throw new Error(`A ref update named the wrong branch: ${rest}`);
+        beforeRefUpdates.shift()?.();
+        const commit = newCommits.get(body.sha as string)!;
+        if (commit.parents[0] !== `commit-${head}`) return json({ message: 'Update is not a fast forward' }, 422);
+        const entries = trees.get(commit.tree)!;
+        for (const entry of entries) {
+          if (entry.sha === null) files.delete(entry.path);
+          else files.set(entry.path, { content: blobs.get(entry.sha)!, sha: entry.sha });
+        }
+        head += 1;
+        gitCommits.push({
+          message: commit.message,
+          files: entries.filter((e) => e.sha !== null).map((e) => e.path),
+          deleted: entries.filter((e) => e.sha === null).map((e) => e.path),
+        });
+        return json({ object: { sha: `commit-${head}` } });
+      }
+      return json({ sha }, 201);
     }
 
     // The §5.10 token check: who the bearer is, and what it may do to the repository.
@@ -144,6 +183,12 @@ export function fakeGithub() {
   return {
     fetchMock,
     puts,
+    /** Many-file commits that moved the data branch (§10.3), oldest first. */
+    gitCommits,
+    /** The next Git data request of this kind (`blobs`, `trees`, `commits`, `refs`) is refused with `status`. */
+    failGit: (kind: 'blobs' | 'trees' | 'commits' | 'refs', status: number) => void gitFailures.push({ prefix: kind, status }),
+    /** Runs `act` (another writer's commit, say) just before the next ref update is decided. */
+    beforeRefUpdate: (act: () => void) => void beforeRefUpdates.push(act),
     /** Every delete that reached the server, refused ones included. */
     deletes,
     has: (path: string) => files.has(path),

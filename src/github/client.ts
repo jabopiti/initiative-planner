@@ -240,6 +240,72 @@ export class GithubClient {
   }
 
   /**
+   * Replace and delete several files on an existing branch as one commit through the Git data API (§10.3): Reset and
+   * Load example data. `build` is asked what to write against the head the commit will sit on, and may read the
+   * branch at that commit (`at`) to decide; null stops without committing. Only the final ref update changes the
+   * branch, so a failure before it leaves the branch as it was. When another commit lands first, the ref update is
+   * refused as not a fast-forward (422) and the whole commit is built again on the new head, up to three times.
+   */
+  async commitOnHead(args: {
+    branch: string;
+    message: string;
+    build: (at: string) => Promise<{ files: { path: string; content: string }[]; deletes: string[] } | null>;
+  }): Promise<{ commitSha: string } | 'stopped'> {
+    assertBranch(args.branch);
+    const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
+    for (let attempt = 0; ; attempt += 1) {
+      const refResponse = await this.request(refUrl, { method: 'GET' });
+      assertOk(refResponse, 'GET ref');
+      const head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
+      const commitResponse = await this.request(this.repoUrl(`git/commits/${head}`), { method: 'GET' });
+      assertOk(commitResponse, 'GET commit');
+      const baseTree = ((await commitResponse.json()) as { tree: { sha: string } }).tree.sha;
+
+      const changes = await args.build(head);
+      if (changes === null) return 'stopped';
+
+      const blobs = await Promise.all(
+        changes.files.map(async (file) => {
+          const blobResponse = await this.request(this.repoUrl('git/blobs'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: encodeBase64Utf8(file.content), encoding: 'base64' }),
+          });
+          assertOk(blobResponse, 'Blob create');
+          return { path: file.path, mode: '100644', type: 'blob', sha: ((await blobResponse.json()) as { sha: string }).sha };
+        }),
+      );
+      // A null sha removes the path from the base tree.
+      const removed = changes.deletes.map((path) => ({ path, mode: '100644', type: 'blob', sha: null }));
+      const treeResponse = await this.request(this.repoUrl('git/trees'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base_tree: baseTree, tree: [...blobs, ...removed] }),
+      });
+      assertOk(treeResponse, 'Tree create');
+      const tree = ((await treeResponse.json()) as { sha: string }).sha;
+
+      const newCommitResponse = await this.request(this.repoUrl('git/commits'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: args.message, tree, parents: [head] }),
+      });
+      assertOk(newCommitResponse, 'Commit create');
+      const commitSha = ((await newCommitResponse.json()) as { sha: string }).sha;
+
+      const updateResponse = await this.request(this.repoUrl(`git/refs/heads/${encodePath(args.branch)}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sha: commitSha }),
+      });
+      if (updateResponse.status === 422 && attempt < 3) continue; // the head moved: build again on the new one
+      if (updateResponse.status === 422) throw new GithubApiError('The data branch kept changing — please retry.', 'conflict', 422);
+      assertOk(updateResponse, 'Ref update');
+      return { commitSha };
+    }
+  }
+
+  /**
    * Create or update several files as one commit through the Git Data API
    * (§10.3: "Operations that change many files ... are a single commit
    * through the Git data API"). Used for the fresh-install baseline bootstrap

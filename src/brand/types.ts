@@ -1,7 +1,6 @@
 /**
  * Brand pack shape (spec §2). Only the fields the built slices read are
- * modelled here — checklist requirement flags, skip rules and the example
- * dataset belong to later slices and can be added when something reads them.
+ * modelled here — anything else can be added when something reads it.
  */
 
 export interface ChecklistItemDef {
@@ -115,6 +114,26 @@ export interface CountryBaseline {
   ratesByYear: CountryYearRates[];
 }
 
+/**
+ * The example dataset (§2, §5.9): plain data, loaded from the Danger zone into an empty dataset. Entities refer to
+ * each other by `key`, people to roles by abbreviation and to countries by name; months are offsets from the month
+ * it is loaded in, so it never goes stale. A phase runs from the first day of `fromMonth` to the last of `toMonth`.
+ */
+export interface ExampleDataset {
+  teams: { key: string; name: string }[];
+  people: { key: string; name: string; role: string; country: string; team: string }[];
+  initiatives: {
+    name: string;
+    description: string;
+    owner?: string;
+    team: string;
+    /** Per costed phase id; absent while nothing is planned. */
+    phases?: Record<string, { fromMonth: number; toMonth: number; allocations: { person: string; pct: number }[] }>;
+    /** Gates passed at load, in process order, each by the phase it exits, on the first day of `month`. */
+    passedGates: { phase: string; month: number }[];
+  }[];
+}
+
 export interface BrandPack {
   productName: string;
   currencySymbol: string;
@@ -127,4 +146,5 @@ export interface BrandPack {
     roles: RoleBaseline[];
     countries: CountryBaseline[];
   };
+  exampleDataset: ExampleDataset;
 }

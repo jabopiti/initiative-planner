@@ -511,6 +511,31 @@ export class FileWriter<D> {
     }
   }
 
+  /**
+   * Drop every edit not saved yet, with its failure and open choices, once any save in flight has finished, and show
+   * the file as last saved (Reset, §5.9): the writer stays, and the next pull brings in what replaced the file.
+   */
+  async drop(): Promise<void> {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.pending = null;
+    await this.enqueue(async () => {});
+    this.pending = null;
+    this.notes.clear();
+    this.extras.clear();
+    this.replaced = false;
+    this.noted = false;
+    this.clearFailure();
+    const open = this.openConflicts;
+    this.openConflicts = [];
+    for (const c of open) this.options.onConflictClosed?.(c);
+    if (this.synced) {
+      this.screen = this.synced.content;
+      this.options.onDocument(this.synced.content);
+    }
+    this.reportIdle();
+  }
+
   /** Nothing of this file is saved any more: its edits, open choices and failure go with it. */
   private dispose(): void {
     if (this.timer) clearTimeout(this.timer);
