@@ -1,6 +1,7 @@
 import type { Repository } from '../sync/Repository';
 import type { Initiative } from '../data/types';
-import { OnHoldIcon, ResumeIcon } from './icons';
+import { isInitiativeFrozen } from '../data/frozen';
+import { CancelledIcon, OnHoldIcon, ReopenIcon, ResumeIcon } from './icons';
 
 /** One entry of the header's Actions menu (§5.4). */
 export interface InitiativeAction {
@@ -19,4 +20,6 @@ export interface InitiativeAction {
 export const initiativeActions: InitiativeAction[] = [
   { id: 'put-on-hold', label: 'Put on hold', icon: OnHoldIcon, applies: (i) => i.status === 'Active', run: (repository, i) => repository.putOnHold(i.id) },
   { id: 'resume', label: 'Resume', icon: ResumeIcon, applies: (i) => i.status === 'On Hold', run: (repository, i) => repository.resume(i.id) },
+  { id: 'cancel', label: 'Cancel', icon: CancelledIcon, applies: (i) => !isInitiativeFrozen(i), run: (repository, i) => repository.cancel(i.id) },
+  { id: 'reopen', label: 'Reopen', icon: ReopenIcon, applies: (i) => i.status === 'Cancelled', run: (repository, i) => repository.reopen(i.id) },
 ];

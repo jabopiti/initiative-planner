@@ -22,7 +22,7 @@ import { formatDate, formatMonth, monthKey } from '../data/dates';
 import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysByMonth } from '../data/rates';
 import { localToday } from '../data/dates';
 import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
-import { frozenPaths, isPhaseFrozen } from '../data/frozen';
+import { frozenPaths, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
 import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, withChecklistItem } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
@@ -1150,7 +1150,7 @@ export class Repository {
 
   /** Rename an initiative in place (§5.4). An empty name is refused (returns false) and the old one stays. */
   renameInitiative(initiativeId: string, name: string): boolean {
-    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    const initiative = this.editableInitiative(initiativeId);
     const trimmed = name.trim();
     if (!initiative || !trimmed) return false;
     if (trimmed === initiative.name) return true;
@@ -1165,7 +1165,7 @@ export class Repository {
 
   /** Set or clear the initiative's description in place (§5.4). Trimmed; empty clears it. */
   setDescription(initiativeId: string, text: string): boolean {
-    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    const initiative = this.editableInitiative(initiativeId);
     if (!initiative) return false;
     const trimmed = text.trim();
     if (trimmed === (initiative.description ?? '')) return true;
@@ -1181,13 +1181,22 @@ export class Repository {
 
   /** Set or clear (`undefined`) the initiative's owner in place (§5.4). */
   setOwner(initiativeId: string, ownerId: string | undefined): void {
-    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    const initiative = this.editableInitiative(initiativeId);
     if (!initiative || ownerId === initiative.ownerId) return;
     const next: Initiative = { ...initiative, ownerId };
     if (ownerId === undefined) delete next.ownerId;
     this.replaceInitiative(next);
     const words = (_: unknown, to: string | undefined) => (to ? `${initiative.name}: owner set to ${this.personName(to)}` : `${initiative.name}: owner cleared`);
     this.initiativeWriters.get(initiativeId)?.schedule(next, this.note('initiative', initiativeId, 'ownerId', initiative.ownerId, ownerId, words));
+  }
+
+  /**
+   * The initiative, unless it is missing or frozen (§8.4): every edit starts here, so a Closed or Cancelled
+   * initiative refuses it in the data layer, not only in the page. Notes and actuals bypass it on purpose.
+   */
+  private editableInitiative(initiativeId: string): Initiative | undefined {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    return initiative && !isInitiativeFrozen(initiative) ? initiative : undefined;
   }
 
   private phaseLabel(phaseId: string): string {
@@ -1200,8 +1209,10 @@ export class Repository {
     phaseId: string,
     change: (plan: PhasePlan) => PhasePlan,
     note: { field: string; from: T | undefined; to: T | undefined; words: (from: T | undefined, to: T | undefined, initiativeName: string, phase: string) => string },
+    /** Only a recorded actual is still accepted on a frozen initiative (§8.4). */
+    { allowFrozen = false }: { allowFrozen?: boolean } = {},
   ): boolean {
-    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    const initiative = allowFrozen ? this.state.initiatives.find((i) => i.id === initiativeId) : this.editableInitiative(initiativeId);
     if (!initiative) return false;
     const plan = initiative.phases?.[phaseId] ?? { allocations: [] };
     // The first edit to the plan ends the suggestion: from here on the dates are the user's (§8.2).
@@ -1256,7 +1267,7 @@ export class Repository {
    * phase picker passes the person's free capacity, §5.11), else the person's Team FTE % on the team.
    */
   addAllocation(initiativeId: string, phaseId: string, personId: string, allocationPct?: number): AddAllocationResult {
-    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    const initiative = this.editableInitiative(initiativeId);
     const person = this.state.people.find((p) => p.id === personId);
     const team = initiative && this.state.teams.find((t) => t.id === initiative.teamId);
     if (!initiative || !person || !team) return { ok: false, reason: 'That person or initiative could not be found.' };
@@ -1299,13 +1310,13 @@ export class Repository {
     const index = items.findIndex((item) => item.id === itemId);
     if (index < 0) return null;
     const item = items[index];
-    this.editPhase<T>(
+    const removed = this.editPhase<T>(
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, [list]: itemsOf<T>(plan, list).filter((other) => other.id !== itemId) }),
       { field: `${list}:${itemId}`, from: item, to: undefined, words: this.describeItem(list) },
     );
-    return { item, index };
+    return removed ? { item, index } : null;
   }
 
   /** Undo of {@link removeFromList}: the same item, same id, back in its place, as a normal edit. Nothing happens when it is already there again. */
@@ -1412,6 +1423,7 @@ export class Repository {
         to: amount,
         words: (_, to, name, phase) => `${name}: ${phase} actual for ${formatMonth(month)} recorded (${this.brand.currencySymbol}${Math.round(to as number)})`,
       },
+      { allowFrozen: true },
     );
   }
 
@@ -1425,16 +1437,47 @@ export class Repository {
    * they're clicked; Tentative is saved together with its (required) note in one act.
    */
   setChecklistItem(initiativeId: string, phaseId: string, itemId: string, status: ChecklistStatus, note: string): void {
-    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    const initiative = this.editableInitiative(initiativeId);
     if (!initiative) return;
-    const next = withChecklistItem(initiative, phaseId, itemId, status, note);
-    this.replaceInitiative(next);
     const before = initiative.checklist?.[phaseId]?.[itemId];
-    const words = (_: unknown, to: { status: ChecklistStatus } | undefined) =>
-      `${initiative.name}: "${this.checklistItemName(phaseId, itemId)}" set to ${to ? to.status[0].toUpperCase() + to.status.slice(1) : 'Incomplete'}`;
+    this.writeChecklistItem(initiative, phaseId, itemId, { status, note }, '', before, { status, note }, (name, item, _, to) =>
+      `${name}: "${item}" set to ${to ? to.status[0].toUpperCase() + to.status.slice(1) : 'Incomplete'}`,
+    );
+  }
+
+  /**
+   * Change a checklist item's note alone, keeping its status (§8.4): the one checklist edit a Closed or Cancelled
+   * initiative still accepts. Trimmed; a Tentative item's note is required, so clearing it is refused (false).
+   */
+  setChecklistNote(initiativeId: string, phaseId: string, itemId: string, note: string): boolean {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    if (!initiative) return false;
+    const entry = initiative.checklist?.[phaseId]?.[itemId];
+    const status = entry?.status ?? 'incomplete';
+    const trimmed = note.trim();
+    if (status === 'tentative' && !trimmed) return false;
+    if (trimmed === (entry?.note ?? '')) return true;
+    this.writeChecklistItem(initiative, phaseId, itemId, { status, note: trimmed }, ':note', entry?.note ?? '', trimmed, (name, item) => `${name}: note on "${item}" changed`);
+    return true;
+  }
+
+  /** Write one checklist entry and schedule its commit; `fieldSuffix` keeps a note-only change its own field (§10.3). */
+  private writeChecklistItem<T>(
+    initiative: Initiative,
+    phaseId: string,
+    itemId: string,
+    entry: { status: ChecklistStatus; note: string },
+    fieldSuffix: string,
+    from: T | undefined,
+    to: T,
+    words: (initiativeName: string, itemName: string, from: T | undefined, to: T | undefined) => string,
+  ): void {
+    const next = withChecklistItem(initiative, phaseId, itemId, entry.status, entry.note);
+    this.replaceInitiative(next);
+    const name = initiative.name;
     this.initiativeWriters
-      .get(initiativeId)
-      ?.schedule(next, this.note('initiative', initiativeId, `checklist:${phaseId}:${itemId}`, before, next.checklist?.[phaseId]?.[itemId], words));
+      .get(initiative.id)
+      ?.schedule(next, this.note('initiative', initiative.id, `checklist:${phaseId}:${itemId}${fieldSuffix}`, from, to, (f, t) => words(name, this.checklistItemName(phaseId, itemId), f, t)));
   }
 
   /**
@@ -1443,7 +1486,7 @@ export class Repository {
    * the final gate).
    */
   passGate(initiativeId: string, takenAt: string = localToday()): { ok: true } | { ok: false; blockers: string[] } {
-    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    const initiative = this.editableInitiative(initiativeId);
     if (!initiative) return { ok: false, blockers: ['This initiative could not be found.'] };
     const result = evaluatePassGate(this.brand.process, initiative, this.state.people, this.state, this.brand.approvalTracks, takenAt);
     if (!result.ok) return result;
@@ -1457,7 +1500,10 @@ export class Repository {
     return { ok: true };
   }
 
-  /** Reopen the initiative's most recently passed gate (§8.3): reversible only one transition at a time. A no-op when there is none. */
+  /**
+   * Reopen the initiative's most recently passed gate (§8.3): reversible only one transition at a time. A no-op when
+   * there is none, including on a Cancelled initiative, whose way back is {@link reopen} (§8.4).
+   */
   reopenGate(initiativeId: string): void {
     const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
     if (!initiative) return;
@@ -1472,20 +1518,32 @@ export class Repository {
 
   /** Put an Active initiative On Hold (§8.4): a plain status change, one click and no reason. A no-op for any other status. */
   putOnHold(initiativeId: string): void {
-    this.changeStatus(initiativeId, 'Active', 'On Hold', (name) => `${name}: put on hold`);
+    this.changeStatus(initiativeId, ['Active'], 'On Hold', (name) => `${name}: put on hold`);
   }
 
   /** Resume an On Hold initiative (§8.4): back to Active. A no-op for any other status. */
   resume(initiativeId: string): void {
-    this.changeStatus(initiativeId, 'On Hold', 'Active', (name) => `${name}: resumed`);
+    this.changeStatus(initiativeId, ['On Hold'], 'Active', (name) => `${name}: resumed`);
   }
 
-  private changeStatus(initiativeId: string, from: InitiativeStatus, to: InitiativeStatus, words: (name: string) => string): void {
+  /** Cancel an Active or On Hold initiative (§8.4): a plain status change, one click, no reason; it freezes the initiative. */
+  cancel(initiativeId: string): void {
+    this.changeStatus(initiativeId, ['Active', 'On Hold'], 'Cancelled', (name) => `${name}: cancelled`);
+  }
+
+  /** Reopen a Cancelled initiative (§8.4): always back to Active, even if it was On Hold before. A no-op for any other status. */
+  reopen(initiativeId: string): void {
+    this.changeStatus(initiativeId, ['Cancelled'], 'Active', (name) => `${name}: reopened`);
+  }
+
+  private changeStatus(initiativeId: string, from: InitiativeStatus[], to: InitiativeStatus, words: (name: string) => string): void {
     const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
-    if (!initiative || initiative.status !== from) return;
+    if (!initiative || !from.includes(initiative.status)) return;
     const next: Initiative = { ...initiative, status: to };
     this.replaceInitiative(next);
-    this.initiativeWriters.get(initiativeId)?.schedule(next, this.note('initiative', initiativeId, 'status', from, to, () => words(initiative.name)));
+    this.initiativeWriters
+      .get(initiativeId)
+      ?.schedule(next, this.note('initiative', initiativeId, 'status', initiative.status, to, () => words(initiative.name)));
   }
 
   /**
@@ -1495,7 +1553,7 @@ export class Repository {
    */
   previewTeamChange(initiativeId: string, teamId: string, isLocked?: (phaseId: string) => boolean): TeamChangePlan | null {
     const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
-    if (!initiative || initiative.teamId === teamId || initiative.status === 'Closed' || initiative.status === 'Cancelled') return null;
+    if (!initiative || initiative.teamId === teamId || isInitiativeFrozen(initiative)) return null;
     if (!this.state.teams.some((t) => t.id === teamId)) return null;
     return planTeamChange({
       initiative,
@@ -1539,7 +1597,7 @@ export class Repository {
    * already there is not added twice.
    */
   restoreTeam(initiativeId: string, change: TeamChange, isLocked?: (phaseId: string) => boolean): void {
-    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    const initiative = this.editableInitiative(initiativeId);
     if (!initiative) return;
     const locked = isLocked ?? ((phaseId) => isPhaseFrozen(initiative, phaseId));
     const phases = { ...initiative.phases };

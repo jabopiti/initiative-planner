@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { frozenPaths, isPhaseFrozen } from './frozen';
+import { frozenPaths, isInitiativeFrozen, isPhaseFrozen } from './frozen';
 import type { Initiative } from './types';
 
 const initiative = (gates: Initiative['gates']): Initiative => ({ id: 'i1', name: 'Checkout', teamId: 't1', status: 'Active', gates });
@@ -34,5 +34,16 @@ describe('frozenPaths (§10.5, §8.1)', () => {
   it('pins nothing for a phase with no gate record', () => {
     const doc: Initiative = { id: 'i1', name: 'Checkout', teamId: 't1', status: 'Active', phases: { validation: { startDate: '2026-01-01', endDate: '2026-02-01', allocations: [] } } };
     expect(frozenPaths(doc)).toEqual([]);
+  });
+});
+
+describe('isInitiativeFrozen (§8.4)', () => {
+  it.each([
+    ['Active', false],
+    ['On Hold', false],
+    ['Cancelled', true],
+    ['Closed', true],
+  ] as const)('is %s → %s', (status, frozen) => {
+    expect(isInitiativeFrozen({ ...initiative(undefined), status })).toBe(frozen);
   });
 });

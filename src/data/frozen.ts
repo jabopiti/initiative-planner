@@ -6,6 +6,12 @@ export type PhaseFrozen = (initiative: Initiative, phaseId: string) => boolean;
 /** A phase is frozen once its own exit gate has been passed (never for a skipped gate, §8.2), and not since reopened (§8.3). */
 export const isPhaseFrozen: PhaseFrozen = (initiative, phaseId) => initiative.gates?.[phaseId]?.outcome === 'passed';
 
+/**
+ * Whether the whole initiative is frozen (§8.4): Closed and Cancelled refuse every edit but checklist-item notes and
+ * recorded actuals, and the lifecycle actions that end the freeze (Reopen) or don't change it (Delete, Duplicate).
+ */
+export const isInitiativeFrozen = (initiative: Initiative): boolean => initiative.status === 'Closed' || initiative.status === 'Cancelled';
+
 /** What passing a gate freezes in its phase (§8.1). Actuals stay recordable on a frozen phase (§6, §8.4), so they are not here. */
 const FROZEN_PHASE_FIELDS = ['startDate', 'endDate', 'allocations', 'costItems'];
 

@@ -797,3 +797,160 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     expect(repo.getState().initiatives[0].phases!.validation).toEqual({ startDate: '2026-09-24', allocations: [] });
   });
 });
+
+describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const commits: { message: string; content: Initiative }[] = [];
+
+  /** Fraud Detection Upgrade with a period, an allocation and a cost item in Validation, every commit so far flushed and forgotten. */
+  async function repoWithPlannedInitiative() {
+    commits.length = 0;
+    vi.stubGlobal(
+      'fetch',
+      routingFetchMock({
+        'PUT /repos/jabopiti/initiative-planner/contents/initiatives': (_url, init) => {
+          const body = JSON.parse(init!.body as string) as { message: string; content: string };
+          commits.push({ message: body.message, content: JSON.parse(atob(body.content)) });
+          return jsonResponse({ content: { sha: `sha-${commits.length}` } });
+        },
+      }),
+    );
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const team = repo.createTeam('Platform');
+    const other = repo.createTeam('Growth');
+    const member = repo.createPerson({ name: 'Mara Voss', countryId: 'c1', roleId: 'r1' });
+    repo.addMembership(member.id, team.id);
+    const initiative = await repo.createInitiative('Fraud Detection Upgrade', team.id, '2026-09-24');
+    repo.setPhaseDate(initiative.id, 'validation', 'startDate', '2026-01-01');
+    repo.setPhaseDate(initiative.id, 'validation', 'endDate', '2026-03-31');
+    const added = repo.addAllocation(initiative.id, 'validation', member.id);
+    if (!added.ok) throw new Error('expected the allocation to be added');
+    const item = repo.addCostItem(initiative.id, 'validation', { label: 'Licences', amount: 1000, timing: 'spread' })!;
+    repo.setChecklistItem(initiative.id, 'discovery', 'g1-problem-statement', 'tentative', 'Waiting on Risk');
+    await repo.flushPending();
+    commits.length = 0;
+    const current = () => repo.getState().initiatives.find((i) => i.id === initiative.id)!;
+    return { repo, id: initiative.id, member, team, other, allocationId: added.allocation.id, itemId: item.id, current };
+  }
+
+  /** Put the initiative straight into `status`, as a pulled change would, without a commit of its own. */
+  function forceStatus(repo: Repository, initiative: Initiative, status: Initiative['status']) {
+    (repo as unknown as { replaceInitiative(next: Initiative): void }).replaceInitiative({ ...initiative, status });
+  }
+
+  it('cancels an Active initiative in one commit, and an On Hold one too', async () => {
+    const { repo, id, current } = await repoWithPlannedInitiative();
+    repo.cancel(id);
+    await repo.flushPending();
+    expect(commits.map((c) => c.message)).toEqual(['Fraud Detection Upgrade: cancelled']);
+    expect(current().status).toBe('Cancelled');
+
+    const { repo: held, id: heldId, current: heldNow } = await repoWithPlannedInitiative();
+    held.putOnHold(heldId);
+    held.cancel(heldId);
+    await held.flushPending();
+    expect(heldNow().status).toBe('Cancelled');
+  });
+
+  it('reopens a Cancelled initiative to Active, also when it was On Hold before', async () => {
+    const { repo, id, current } = await repoWithPlannedInitiative();
+    repo.putOnHold(id);
+    repo.cancel(id);
+    await repo.flushPending();
+    commits.length = 0;
+    repo.reopen(id);
+    await repo.flushPending();
+    expect(current().status).toBe('Active');
+    expect(commits.map((c) => c.message)).toEqual(['Fraud Detection Upgrade: reopened']);
+  });
+
+  it('does not cancel a Closed initiative, nor reopen one that is not Cancelled', async () => {
+    const { repo, id, current } = await repoWithPlannedInitiative();
+    forceStatus(repo, current(), 'Closed');
+    repo.cancel(id);
+    repo.reopen(id);
+    await repo.flushPending();
+    expect(current().status).toBe('Closed');
+    expect(commits).toEqual([]);
+  });
+
+  describe.each(['Cancelled', 'Closed'] as const)('a %s initiative refuses every edit but notes and actuals', (status) => {
+    const refusals: [string, (r: Awaited<ReturnType<typeof repoWithPlannedInitiative>>) => void][] = [
+      ['renameInitiative', ({ repo, id }) => repo.renameInitiative(id, 'Fraud Detection v2')],
+      ['setDescription', ({ repo, id }) => repo.setDescription(id, 'Stopped')],
+      ['setOwner', ({ repo, id, member }) => repo.setOwner(id, member.id)],
+      ['changeTeam', ({ repo, id, other }) => repo.changeTeam(id, other.id)],
+      ['restoreTeam', ({ repo, id, team, other }) => repo.restoreTeam(id, { fromTeamId: other.id, toTeamId: team.id, removed: [] })],
+      ['setPhaseDate', ({ repo, id }) => repo.setPhaseDate(id, 'validation', 'endDate', '2026-04-30')],
+      ['extendPhase', ({ repo, id }) => repo.extendPhase(id, 'validation')],
+      ['addAllocation', ({ repo, id, member }) => repo.addAllocation(id, 'development', member.id)],
+      ['updateAllocation', ({ repo, id, allocationId }) => repo.updateAllocation(id, 'validation', allocationId, 10)],
+      ['removeAllocation', ({ repo, id, allocationId }) => repo.removeAllocation(id, 'validation', allocationId)],
+      ['restoreAllocation', ({ repo, id, member }) => repo.restoreAllocation(id, 'validation', { id: 'gone', personId: member.id, allocationPct: 5 }, 0)],
+      ['addCostItem', ({ repo, id }) => repo.addCostItem(id, 'validation', { label: 'Travel', amount: 5, timing: 'spread' })],
+      ['updateCostItem', ({ repo, id, itemId }) => repo.updateCostItem(id, 'validation', itemId, { amount: 2000 })],
+      ['removeCostItem', ({ repo, id, itemId }) => repo.removeCostItem(id, 'validation', itemId)],
+      ['restoreCostItem', ({ repo, id }) => repo.restoreCostItem(id, 'validation', { id: 'gone', label: 'Old', amount: 1, timing: 'spread' }, 0)],
+      ['setChecklistItem', ({ repo, id }) => repo.setChecklistItem(id, 'discovery', 'g1-problem-statement', 'complete', 'Waiting on Risk')],
+      ['passGate', ({ repo, id }) => repo.passGate(id, '2026-09-24')],
+      ['putOnHold', ({ repo, id }) => repo.putOnHold(id)],
+      ['resume', ({ repo, id }) => repo.resume(id)],
+    ];
+
+    it.each(refusals)('%s is refused and commits nothing', async (_name, attempt) => {
+      const setup = await repoWithPlannedInitiative();
+      forceStatus(setup.repo, setup.current(), status);
+      const before = setup.current();
+      attempt(setup);
+      await setup.repo.flushPending();
+      expect(setup.current()).toEqual(before);
+      expect(commits).toEqual([]);
+    });
+
+    it('records a month’s actual', async () => {
+      const { repo, id, current } = await repoWithPlannedInitiative();
+      forceStatus(repo, current(), status);
+      repo.setActual(id, 'validation', '2026-01', 900);
+      await repo.flushPending();
+      expect(current().phases?.validation.actualMonths).toEqual({ '2026-01': 900 });
+      expect(commits).toHaveLength(1);
+    });
+
+    it('records a checklist note and keeps the status', async () => {
+      const { repo, id, current } = await repoWithPlannedInitiative();
+      forceStatus(repo, current(), status);
+      expect(repo.setChecklistNote(id, 'discovery', 'g1-problem-statement', 'Risk withdrew sign-off')).toBe(true);
+      await repo.flushPending();
+      expect(current().checklist?.discovery?.['g1-problem-statement']).toEqual({ status: 'tentative', note: 'Risk withdrew sign-off' });
+      expect(commits.map((c) => c.message)).toEqual(['Fraud Detection Upgrade: note on "Problem statement validated" changed']);
+    });
+
+    it('refuses to clear a Tentative item’s note', async () => {
+      const { repo, id, current } = await repoWithPlannedInitiative();
+      forceStatus(repo, current(), status);
+      expect(repo.setChecklistNote(id, 'discovery', 'g1-problem-statement', '  ')).toBe(false);
+      await repo.flushPending();
+      expect(commits).toEqual([]);
+    });
+  });
+
+  it('reopens the final gate of a Closed initiative, but no gate of a Cancelled one', async () => {
+    const { repo, id, current } = await repoWithPlannedInitiative();
+    const passed = { outcome: 'passed' as const, passedOn: '2026-01-01', checklist: [] };
+    const gates = Object.fromEntries(defaultBrandPack.process.map((p) => [p.id, passed]));
+    forceStatus(repo, { ...current(), gates }, 'Cancelled');
+    repo.reopenGate(id);
+    await repo.flushPending();
+    expect(commits).toEqual([]);
+
+    forceStatus(repo, current(), 'Closed');
+    repo.reopenGate(id);
+    await repo.flushPending();
+    expect(current().status).toBe('Active');
+    expect(commits).toHaveLength(1);
+  });
+});

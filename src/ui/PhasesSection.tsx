@@ -5,12 +5,12 @@ import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
 import { actualOrEstimate, allocationFigures } from '../data/cost';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
-import { currentPhaseId } from '../data/gate';
-import { isPhaseFrozen } from '../data/frozen';
+import { allocationsWithCost, currentPhaseId } from '../data/gate';
+import { isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
 import { allocatablePeople } from '../data/personLoad';
 import { nextStepPhase, overlapWithPrevious, phaseSummary, planningGap } from '../data/phaseSummary';
 import { roleLabel } from '../data/roleLabel';
-import { FILE_PATHS, type FrozenPhaseSnapshot, type Initiative, type PhasePlan, type Person, type Role, type Team } from '../data/types';
+import { FILE_PATHS, type FrozenAllocation, type FrozenPhaseSnapshot, type Initiative, type PhasePlan, type Person, type Role, type Team } from '../data/types';
 import { AmountInput } from './AmountInput';
 import { CostItemsTable } from './CostItemsTable';
 import { TIMING_LABELS } from './costItemTiming';
@@ -53,8 +53,9 @@ export function PhasesSection({ initiative, team, openPhaseId }: { initiative: I
       return next;
     });
 
-  // One next step at a time: the first costed phase still missing its period or its people.
-  const nextStepId = nextStepPhase(initiative, process)?.id;
+  // One next step at a time: the first costed phase still missing its period or its people. None on a frozen initiative (§8.4).
+  const initiativeFrozen = isInitiativeFrozen(initiative);
+  const nextStepId = initiativeFrozen ? undefined : nextStepPhase(initiative, process)?.id;
   const currentId = currentPhaseId(initiative, process);
 
   return (
@@ -62,7 +63,7 @@ export function PhasesSection({ initiative, team, openPhaseId }: { initiative: I
       <h2 id="phases-heading" className="m-0 mb-3 text-lg">
         Phases
       </h2>
-      {initiative.defaultPlan && (
+      {initiative.defaultPlan && !initiativeFrozen && (
         <p
           className="m-0 mb-3 flex items-start gap-2 rounded-md border border-brand-accent bg-brand-accent-tint p-3 text-sm text-brand-accent-text"
           data-testid="suggested-dates-note"
@@ -141,6 +142,8 @@ function CostedPhase({
 
   const plan = initiative.phases?.[phase.id] ?? UNPLANNED;
   const rateData = { roles, countries };
+  // A Closed or Cancelled initiative shows every phase read-only (§8.4); its actuals stay recordable.
+  const initiativeFrozen = isInitiativeFrozen(initiative);
   // A phase whose own gate passed shows its frozen snapshot: locked, and immune to a later master-data change (§8.1).
   const { hasPeriod, inverted, costed, frozen, snapshot, estimateByMonth, total, hasCost, coverage, months } = phaseSummary(initiative, phase.id, plan, people, rateData);
   // The next missing thing is highlighted, in one phase only: the period first, then the people.
@@ -218,10 +221,10 @@ function CostedPhase({
         {hasPeriod ? (
           <span className="text-text-secondary">{formatPeriod(plan.startDate!, plan.endDate!)}</span>
         ) : (
-          <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>Set period</span>
+          !initiativeFrozen && <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>Set period</span>
         )}
         {overlap && <WarningIcon width={16} height={16} className="shrink-0 text-warning-text" role="img" aria-hidden={false} aria-label={`Overlaps ${previous!.label}`} />}
-        {plan.allocations.length === 0 && (
+        {plan.allocations.length === 0 && !initiativeFrozen && (
           <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>· Add people</span>
         )}
         <span className="ml-auto font-medium tabular-nums">{costed && hasCost ? formatAmount(total, currencySymbol) : '—'}</span>
@@ -231,7 +234,14 @@ function CostedPhase({
       {expanded && (
         <div id={bodyId} className="flex flex-col gap-4 border-t border-border-default px-3 py-3">
           {frozen && snapshot ? (
-            <FrozenPhaseBody snapshot={snapshot} people={people} roles={roles} currencySymbol={currencySymbol} />
+            <ReadOnlyPhaseBody phase={snapshot} people={people} roles={roles} currencySymbol={currencySymbol} />
+          ) : initiativeFrozen ? (
+            <ReadOnlyPhaseBody
+              phase={{ ...plan, costItems: plan.costItems ?? [], allocations: costed ? allocationsWithCost(plan, people, rateData) : plan.allocations }}
+              people={people}
+              roles={roles}
+              currencySymbol={currencySymbol}
+            />
           ) : (
             <>
               <div
@@ -407,21 +417,32 @@ function CostedPhase({
   );
 }
 
-/** A frozen phase's period, allocations and cost items (§8.1, §9.9): read-only, from the gate's snapshot, never the live rates. Actuals stay outside this — they're rendered by the shared Actuals table below. */
-function FrozenPhaseBody({ snapshot, people, roles, currencySymbol }: { snapshot: FrozenPhaseSnapshot; people: Person[]; roles: Role[]; currencySymbol: string }) {
+/** What a read-only phase body shows: a gate's frozen snapshot, or the live plan of a Closed or Cancelled initiative's other phases. */
+type ReadOnlyPhase = Pick<FrozenPhaseSnapshot, 'costItems'> & {
+  startDate?: string;
+  endDate?: string;
+  allocations: (Omit<FrozenAllocation, 'cost'> & { cost?: number })[];
+};
+
+/**
+ * A phase's period, allocations and cost items, read-only and muted (§8.1, §8.4, §9.9): a frozen phase from its gate's
+ * snapshot, never the live rates, or any other phase of a Closed or Cancelled initiative. Actuals stay outside this —
+ * they're rendered by the shared Actuals table below.
+ */
+function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: ReadOnlyPhase; people: Person[]; roles: Role[]; currencySymbol: string }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-text-secondary">Start date</span>
-          <span className="text-text-muted">{formatDate(snapshot.startDate)}</span>
+          <span className="text-text-muted">{phase.startDate ? formatDate(phase.startDate) : '—'}</span>
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-xs text-text-secondary">End date</span>
-          <span className="text-text-muted">{formatDate(snapshot.endDate)}</span>
+          <span className="text-text-muted">{phase.endDate ? formatDate(phase.endDate) : '—'}</span>
         </div>
       </div>
-      {snapshot.allocations.length > 0 && (
+      {phase.allocations.length > 0 && (
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">Frozen allocations</caption>
           <thead>
@@ -432,7 +453,7 @@ function FrozenPhaseBody({ snapshot, people, roles, currencySymbol }: { snapshot
             </tr>
           </thead>
           <tbody>
-            {snapshot.allocations.map((allocation) => {
+            {phase.allocations.map((allocation) => {
               const person = people.find((p) => p.id === allocation.personId);
               return (
                 <tr key={allocation.id} className="border-t border-border-default">
@@ -441,14 +462,14 @@ function FrozenPhaseBody({ snapshot, people, roles, currencySymbol }: { snapshot
                     {person && <div className="text-xs text-text-muted">{roleLabel(person, roles)}</div>}
                   </td>
                   <td className="py-1.5 pr-2 tabular-nums text-text-muted">{allocation.allocationPct}%</td>
-                  <td className="py-1.5 pr-2 text-right tabular-nums text-text-muted">{formatAmount(allocation.cost, currencySymbol)}</td>
+                  <td className="py-1.5 pr-2 text-right tabular-nums text-text-muted">{allocation.cost === undefined ? '—' : formatAmount(allocation.cost, currencySymbol)}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       )}
-      {snapshot.costItems.length > 0 && (
+      {phase.costItems.length > 0 && (
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">Frozen cost items</caption>
           <thead>
@@ -459,7 +480,7 @@ function FrozenPhaseBody({ snapshot, people, roles, currencySymbol }: { snapshot
             </tr>
           </thead>
           <tbody>
-            {snapshot.costItems.map((item) => (
+            {phase.costItems.map((item) => (
               <tr key={item.id} className="border-t border-border-default">
                 <td className="py-1.5 pr-2 text-text-muted">{item.label}</td>
                 <td className="py-1.5 pr-2 tabular-nums text-text-muted">{formatAmount(item.amount, currencySymbol)}</td>
