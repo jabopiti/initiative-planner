@@ -3,15 +3,20 @@ import { toast } from 'sonner';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { reopenGate } from '../data/gate';
+import { isInitiativeFrozen } from '../data/frozen';
 import { allocationCount, describeTeamChange } from '../data/teamChange';
-import type { Initiative, Team } from '../data/types';
+import type { Initiative, InitiativeStatus, Team } from '../data/types';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
 import { formatAmount } from './formatAmount';
 import { InitiativeActionsMenu } from './InitiativeActionsMenu';
-import { OnHoldIcon } from './icons';
+import { FrozenStrip } from './FrozenStrip';
+import { CancelledIcon, FrozenIcon, OnHoldIcon } from './icons';
 import { OwnerSelect } from './OwnerSelect';
 import { TeamSelect } from './TeamSelect';
 import { Button } from '@/components/ui/button';
+
+/** The status chip's icon (§9.10); Active has none. */
+const STATUS_ICON: Partial<Record<InitiativeStatus, typeof OnHoldIcon>> = { 'On Hold': OnHoldIcon, Cancelled: CancelledIcon, Closed: FrozenIcon };
 
 /**
  * The initiative header's meta row (§5.4): team, owner, status badge and approval track badge. The team is a
@@ -24,7 +29,9 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   const repository = useRepository();
   const { currencySymbol, process } = useBrand();
   const { teams, people, memberships } = useRepositoryState();
-  const reopenable = reopenGate(process, initiative);
+  const frozen = isInitiativeFrozen(initiative);
+  // A frozen initiative's way back is in its strip (§8.4): Reopen for Cancelled, Reopen <final gate> for Closed.
+  const reopenable = frozen ? null : reopenGate(process, initiative);
   const [pendingTeamId, setPendingTeamId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const applyRef = useRef<HTMLButtonElement>(null);
@@ -32,11 +39,12 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   const bodyId = useId();
 
   const currentTeam = teams.find((t) => t.id === initiative.teamId);
-  const canChange = initiative.status === 'Active' || initiative.status === 'On Hold';
+  const StatusIcon = STATUS_ICON[initiative.status];
 
   // Worked out on every render, so the names and figures shown are the ones that would be removed now.
   const pendingTeam = teams.find((t) => t.id === pendingTeamId);
   const plan = pendingTeam && repository.previewTeamChange(initiative.id, pendingTeam.id);
+  // Null once the initiative is frozen, since previewTeamChange refuses then: an open confirmation closes (§8.4).
   const confirming = pendingTeam && plan && plan.removed.length > 0 ? { team: pendingTeam, plan } : null;
 
   const apply = (team: Team) => {
@@ -64,7 +72,7 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   return (
     <div className="mb-6">
       <div className="flex items-center gap-3 text-text-secondary">
-        {canChange ? (
+        {!frozen ? (
           <TeamSelect
             ref={triggerRef}
             teams={teams}
@@ -89,10 +97,11 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
           teamName={currentTeam?.name ?? 'Unknown team'}
           value={initiative.ownerId}
           onValueChange={(ownerId) => repository.setOwner(initiative.id, ownerId)}
+          readOnly={frozen}
           className="border-transparent bg-transparent text-text-secondary shadow-none hover:border-border-default"
         />
         <span className="inline-flex items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-xs">
-          {initiative.status === 'On Hold' && <OnHoldIcon width={12} height={12} />}
+          {StatusIcon && <StatusIcon width={12} height={12} />}
           {initiative.status}
         </span>
         <ApprovalTrackBadge initiative={initiative} />
@@ -103,6 +112,8 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
           </Button>
         )}
       </div>
+
+      <FrozenStrip initiative={initiative} />
 
       {confirming && (
         <div

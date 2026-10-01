@@ -3,7 +3,7 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { Archive, ArchiveRestore, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Play, Plus, RefreshCw, Rocket, Search, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, Ban, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, CirclePause, CircleX, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Play, Plus, RefreshCw, Rocket, RotateCcw, Search, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
 import type { PhaseIconName } from '../brand/types';
 
@@ -46,6 +46,13 @@ export const UnlockedIcon = iconWrapper(Unlock);
 /** On Hold (§8.4, §9.10): the status chip, the Put on hold action and the magic bar's on-hold line; Resume is its counterpart. */
 export const OnHoldIcon = iconWrapper(Pause);
 export const ResumeIcon = iconWrapper(Play);
+/** Cancelled (§8.4, §9.10): the status chip and the Cancel action; Reopen is its way back (also a gate's reopen, §8.3). */
+export const CancelledIcon = iconWrapper(Ban);
+export const ReopenIcon = iconWrapper(RotateCcw);
+/** A non-Active status on a Portfolio card (§5.2, §9.10): one circled icon per status. */
+export const StatusOnHoldIcon = iconWrapper(CirclePause);
+export const StatusCancelledIcon = iconWrapper(CircleX);
+export const StatusClosedIcon = iconWrapper(CircleCheck);
 /** The header's Actions menu button (§5.4). */
 export const ActionsIcon = iconWrapper(Ellipsis);
 /** The one thing worth real alarm colour (§8.1, §9.8): the phase behind the current gate running past its own estimated end date. */
