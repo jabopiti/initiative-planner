@@ -93,7 +93,7 @@ describe('Actions menu (§5.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel', 'Reopen G1']);
     await user.click(screen.getByRole('menuitem', { name: 'Put on hold' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(); // no confirmation
@@ -108,7 +108,7 @@ describe('Actions menu (§5.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel', 'Reopen G1']);
     expect(screen.getAllByText('On Hold').length).toBeGreaterThan(0);
   });
 

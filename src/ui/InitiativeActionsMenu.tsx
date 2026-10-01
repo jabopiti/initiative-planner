@@ -1,3 +1,4 @@
+import { useBrand } from '../state/BrandContext';
 import { useRepository } from '../state/DataContext';
 import type { Initiative } from '../data/types';
 import { ActionsIcon } from './icons';
@@ -12,7 +13,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
  */
 export function InitiativeActionsMenu({ initiative }: { initiative: Initiative }) {
   const repository = useRepository();
-  const actions = initiativeActions.filter((action) => action.applies(initiative));
+  const { process } = useBrand();
+  const actions = initiativeActions.filter((action) => action.applies(initiative, process));
   if (actions.length === 0) return null;
 
   return (
@@ -31,7 +33,7 @@ export function InitiativeActionsMenu({ initiative }: { initiative: Initiative }
         {actions.map(({ id, label, icon: Icon, run }) => (
           <DropdownMenuItem key={id} onSelect={() => run(repository, initiative)}>
             <Icon />
-            {label}
+            {label(initiative, process)}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
