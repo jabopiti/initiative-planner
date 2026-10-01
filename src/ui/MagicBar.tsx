@@ -4,6 +4,7 @@ import { localToday } from '../data/dates';
 import { useBrand } from '../state/BrandContext';
 import { useRepository } from '../state/DataContext';
 import type { Initiative } from '../data/types';
+import { isInitiativeFrozen } from '../data/frozen';
 import { jumpTargetId, jumpTo } from './jumpTo';
 import { OnHoldIcon, OverrunIcon, ResumeIcon } from './icons';
 import { Button } from '@/components/ui/button';
@@ -39,7 +40,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
     return () => clearTimeout(timer);
   }, [passed]);
 
-  if (initiative.status === 'Closed' || initiative.status === 'Cancelled') return null;
+  if (isInitiativeFrozen(initiative)) return null;
 
   const phaseId = currentPhaseId(initiative, process);
   const phase = process.find((p) => p.id === phaseId)!;

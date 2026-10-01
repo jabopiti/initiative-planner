@@ -13,7 +13,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const STATUS_LABEL: Record<ChecklistStatus, string> = { incomplete: 'Incomplete', tentative: 'Tentative', complete: 'Complete' };
-const STATUS_ICON = { incomplete: IncompleteIcon, tentative: TentativeIcon, complete: CompleteIcon } satisfies Record<ChecklistStatus, unknown>;
+const STATUS_ICON: Record<ChecklistStatus, typeof IncompleteIcon> = { incomplete: IncompleteIcon, tentative: TentativeIcon, complete: CompleteIcon };
 
 /** The panel's row anchor, for the magic bar's "jump to the first open item" (§5.4). */
 export const checklistItemAnchor = (writePhaseId: string, itemId: string) => `checklist-${writePhaseId}-${itemId}`;
@@ -93,39 +93,27 @@ function ChecklistItemRow({
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
   const noteErrorId = useId();
+  const FrozenStatusIcon = STATUS_ICON[item.status];
 
   const setStatus = (status: ChecklistStatus, note: string) => repository.setChecklistItem(initiativeId, writePhaseId, item.id, status, note);
 
-  const startTentative = () => {
-    setDraftNote(item.note);
-    setRefused(null);
-    setEditingNote(true);
-  };
-  const commitTentative = () => {
-    const note = draftNote.trim();
-    if (note === '') {
-      setRefused('Enter a note.');
-      return;
-    }
-    setStatus('tentative', note);
-    setEditingNote(false);
-    setRefused(null);
-  };
   const startNote = () => {
     setDraftNote(item.note);
     setRefused(null);
     setEditingNote(true);
   };
-  const commitNote = () => {
-    if (!repository.setChecklistNote(initiativeId, writePhaseId, item.id, draftNote)) {
+  // A frozen initiative saves the note alone, keeping the status (§8.4); otherwise saving the note sets Tentative.
+  const commit = () => {
+    const note = draftNote.trim();
+    if (frozen ? !repository.setChecklistNote(initiativeId, writePhaseId, item.id, note) : note === '') {
       setRefused('Enter a note.');
       return;
     }
+    if (!frozen) setStatus('tentative', note);
     setEditingNote(false);
     setRefused(null);
   };
-  const commit = frozen ? commitNote : commitTentative;
-  const cancelTentative = () => {
+  const cancelNote = () => {
     setEditingNote(false);
     setRefused(null);
   };
@@ -150,7 +138,7 @@ function ChecklistItemRow({
         <div className={`flex items-center gap-2 transition-colors duration-500 ${changed(file, ['checklist', writePhaseId, item.id]) ? 'rounded-md bg-met-tint' : ''}`}>
           {frozen ? (
             <>
-              <FrozenStatusIcon status={item.status} />
+              <FrozenStatusIcon width={16} height={16} className="text-text-muted" />
               <span className="text-xs text-text-muted">{STATUS_LABEL[item.status]}</span>
               <span className="text-xs text-text-muted" aria-hidden="true">
                 ·
@@ -169,27 +157,21 @@ function ChecklistItemRow({
                 aria-label={`Status of "${item.name}"`}
                 onValueChange={(next) => {
                   if (!next) return;
-                  if (next === 'tentative') startTentative();
+                  if (next === 'tentative') startNote();
                   else {
-                    cancelTentative();
+                    cancelNote();
                     setStatus(next as ChecklistStatus, item.note);
                   }
                 }}
               >
-                {(
-                  [
-                    ['incomplete', 'Incomplete', IncompleteIcon],
-                    ['tentative', 'Tentative', TentativeIcon],
-                    ['complete', 'Complete', CompleteIcon],
-                  ] as const
-                ).map(([value, label, Icon]) => (
+                {(Object.entries(STATUS_ICON) as [ChecklistStatus, typeof IncompleteIcon][]).map(([value, Icon]) => (
                   <Tooltip key={value}>
                     <TooltipTrigger asChild>
-                      <ToggleGroupItem value={value} aria-label={label}>
+                      <ToggleGroupItem value={value} aria-label={STATUS_LABEL[value]}>
                         <Icon width={16} height={16} />
                       </ToggleGroupItem>
                     </TooltipTrigger>
-                    <TooltipContent>{label}</TooltipContent>
+                    <TooltipContent>{STATUS_LABEL[value]}</TooltipContent>
                   </Tooltip>
                 ))}
               </ToggleGroup>
@@ -214,7 +196,7 @@ function ChecklistItemRow({
                 if (e.key === 'Enter') commit();
                 if (e.key === 'Escape') {
                   e.stopPropagation();
-                  cancelTentative();
+                  cancelNote();
                 }
               }}
             />
@@ -223,7 +205,7 @@ function ChecklistItemRow({
           <Button type="button" size="sm" onClick={commit}>
             Save
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={cancelTentative}>
+          <Button type="button" variant="ghost" size="sm" onClick={cancelNote}>
             Cancel
           </Button>
         </div>
@@ -234,8 +216,3 @@ function ChecklistItemRow({
   );
 }
 
-/** A frozen item's status, shown not set (§8.4): its icon, muted, beside the status named in text (§9.5). */
-function FrozenStatusIcon({ status }: { status: ChecklistStatus }) {
-  const Icon = STATUS_ICON[status];
-  return <Icon width={16} height={16} className="text-text-muted" />;
-}

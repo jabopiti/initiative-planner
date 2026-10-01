@@ -5,7 +5,7 @@ import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
 import { actualOrEstimate, allocationFigures } from '../data/cost';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
-import { currentPhaseId } from '../data/gate';
+import { allocationsWithCost, currentPhaseId } from '../data/gate';
 import { isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
 import { allocatablePeople } from '../data/personLoad';
 import { nextStepPhase, overlapWithPrevious, phaseSummary, planningGap } from '../data/phaseSummary';
@@ -237,14 +237,7 @@ function CostedPhase({
             <ReadOnlyPhaseBody phase={snapshot} people={people} roles={roles} currencySymbol={currencySymbol} />
           ) : initiativeFrozen ? (
             <ReadOnlyPhaseBody
-              phase={{
-                ...plan,
-                costItems: plan.costItems ?? [],
-                allocations: plan.allocations.map((allocation) => {
-                  const person = people.find((p) => p.id === allocation.personId);
-                  return { ...allocation, cost: costed && person ? allocationFigures(plan, person, allocation.allocationPct, rateData).cost : undefined };
-                }),
-              }}
+              phase={{ ...plan, costItems: plan.costItems ?? [], allocations: costed ? allocationsWithCost(plan, people, rateData) : plan.allocations }}
               people={people}
               roles={roles}
               currencySymbol={currencySymbol}
@@ -436,20 +429,20 @@ type ReadOnlyPhase = Pick<FrozenPhaseSnapshot, 'costItems'> & {
  * snapshot, never the live rates, or any other phase of a Closed or Cancelled initiative. Actuals stay outside this —
  * they're rendered by the shared Actuals table below.
  */
-function ReadOnlyPhaseBody({ phase: snapshot, people, roles, currencySymbol }: { phase: ReadOnlyPhase; people: Person[]; roles: Role[]; currencySymbol: string }) {
+function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: ReadOnlyPhase; people: Person[]; roles: Role[]; currencySymbol: string }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-xs text-text-secondary">Start date</span>
-          <span className="text-text-muted">{snapshot.startDate ? formatDate(snapshot.startDate) : '—'}</span>
+          <span className="text-text-muted">{phase.startDate ? formatDate(phase.startDate) : '—'}</span>
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-xs text-text-secondary">End date</span>
-          <span className="text-text-muted">{snapshot.endDate ? formatDate(snapshot.endDate) : '—'}</span>
+          <span className="text-text-muted">{phase.endDate ? formatDate(phase.endDate) : '—'}</span>
         </div>
       </div>
-      {snapshot.allocations.length > 0 && (
+      {phase.allocations.length > 0 && (
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">Frozen allocations</caption>
           <thead>
@@ -460,7 +453,7 @@ function ReadOnlyPhaseBody({ phase: snapshot, people, roles, currencySymbol }: {
             </tr>
           </thead>
           <tbody>
-            {snapshot.allocations.map((allocation) => {
+            {phase.allocations.map((allocation) => {
               const person = people.find((p) => p.id === allocation.personId);
               return (
                 <tr key={allocation.id} className="border-t border-border-default">
@@ -476,7 +469,7 @@ function ReadOnlyPhaseBody({ phase: snapshot, people, roles, currencySymbol }: {
           </tbody>
         </table>
       )}
-      {snapshot.costItems.length > 0 && (
+      {phase.costItems.length > 0 && (
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">Frozen cost items</caption>
           <thead>
@@ -487,7 +480,7 @@ function ReadOnlyPhaseBody({ phase: snapshot, people, roles, currencySymbol }: {
             </tr>
           </thead>
           <tbody>
-            {snapshot.costItems.map((item) => (
+            {phase.costItems.map((item) => (
               <tr key={item.id} className="border-t border-border-default">
                 <td className="py-1.5 pr-2 text-text-muted">{item.label}</td>
                 <td className="py-1.5 pr-2 tabular-nums text-text-muted">{formatAmount(item.amount, currencySymbol)}</td>

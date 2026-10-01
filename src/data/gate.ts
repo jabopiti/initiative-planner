@@ -168,14 +168,18 @@ export function overrunMessage(phase: PhaseDef, endDate: string, today: string):
   return `${phase.label} is ${daysBetween(endDate, today)} days overrun`;
 }
 
+/** Each of a phase plan's allocations with its cost at today's rates; undefined for a person who no longer exists. */
+export function allocationsWithCost(plan: NonNullable<Initiative['phases']>[string], people: Person[], data: RateData): (Omit<FrozenAllocation, 'cost'> & { cost?: number })[] {
+  return plan.allocations.map(({ id, personId, allocationPct }) => {
+    const person = people.find((p) => p.id === personId);
+    return { id, personId, allocationPct, cost: person ? allocationFigures(plan, person, allocationPct, data).cost : undefined };
+  });
+}
+
 /** Snapshot everything an approved figure depends on, so it can never move (§8.1). */
 function freezePhase(plan: NonNullable<Initiative['phases']>[string], people: Person[], data: RateData): FrozenPhaseSnapshot {
   const estimateByMonth = phaseByMonth(plan, people, data);
-  const allocations: FrozenAllocation[] = plan.allocations.map((allocation) => {
-    const person = people.find((p) => p.id === allocation.personId);
-    const cost = person ? allocationFigures(plan, person, allocation.allocationPct, data).cost : 0;
-    return { id: allocation.id, personId: allocation.personId, allocationPct: allocation.allocationPct, cost };
-  });
+  const allocations: FrozenAllocation[] = allocationsWithCost(plan, people, data).map((allocation) => ({ ...allocation, cost: allocation.cost ?? 0 }));
   return { startDate: plan.startDate!, endDate: plan.endDate!, allocations, costItems: plan.costItems ?? [], estimateByMonth };
 }
 
@@ -235,8 +239,9 @@ function previousPhaseId(process: PhaseDef[], initiative: Initiative): string | 
   return index > 0 ? process[index - 1].id : null;
 }
 
-/** Reverse exactly the most recent transition (§8.3): clears that gate's record and discards its frozen snapshot; checklist statuses and notes are kept. Null when there is none to reverse. */
+/** Reverse exactly the most recent transition (§8.3): clears that gate's record and discards its frozen snapshot; checklist statuses and notes are kept. Null when there is none to reverse, and on a Cancelled initiative, whose way back is Reopen (§8.4). */
 export function reopenGate(process: PhaseDef[], initiative: Initiative): ReopenGateResult | null {
+  if (initiative.status === 'Cancelled') return null;
   const phaseId = initiative.status === 'Closed' ? process[process.length - 1].id : previousPhaseId(process, initiative);
   if (phaseId === null || !initiative.gates?.[phaseId]) return null;
 

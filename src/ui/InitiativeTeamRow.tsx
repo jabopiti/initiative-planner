@@ -5,7 +5,7 @@ import { useRepository, useRepositoryState } from '../state/DataContext';
 import { reopenGate } from '../data/gate';
 import { isInitiativeFrozen } from '../data/frozen';
 import { allocationCount, describeTeamChange } from '../data/teamChange';
-import type { Initiative, Team } from '../data/types';
+import type { Initiative, InitiativeStatus, Team } from '../data/types';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
 import { formatAmount } from './formatAmount';
 import { InitiativeActionsMenu } from './InitiativeActionsMenu';
@@ -14,6 +14,9 @@ import { CancelledIcon, FrozenIcon, OnHoldIcon } from './icons';
 import { OwnerSelect } from './OwnerSelect';
 import { TeamSelect } from './TeamSelect';
 import { Button } from '@/components/ui/button';
+
+/** The status chip's icon (§9.10); Active has none. */
+const STATUS_ICON: Partial<Record<InitiativeStatus, typeof OnHoldIcon>> = { 'On Hold': OnHoldIcon, Cancelled: CancelledIcon, Closed: FrozenIcon };
 
 /**
  * The initiative header's meta row (§5.4): team, owner, status badge and approval track badge. The team is a
@@ -36,7 +39,7 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   const bodyId = useId();
 
   const currentTeam = teams.find((t) => t.id === initiative.teamId);
-  const canChange = !frozen;
+  const StatusIcon = STATUS_ICON[initiative.status];
 
   // Worked out on every render, so the names and figures shown are the ones that would be removed now.
   const pendingTeam = teams.find((t) => t.id === pendingTeamId);
@@ -69,7 +72,7 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   return (
     <div className="mb-6">
       <div className="flex items-center gap-3 text-text-secondary">
-        {canChange ? (
+        {!frozen ? (
           <TeamSelect
             ref={triggerRef}
             teams={teams}
@@ -98,9 +101,7 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
           className="border-transparent bg-transparent text-text-secondary shadow-none hover:border-border-default"
         />
         <span className="inline-flex items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-xs">
-          {initiative.status === 'On Hold' && <OnHoldIcon width={12} height={12} />}
-          {initiative.status === 'Cancelled' && <CancelledIcon width={12} height={12} />}
-          {initiative.status === 'Closed' && <FrozenIcon width={12} height={12} />}
+          {StatusIcon && <StatusIcon width={12} height={12} />}
           {initiative.status}
         </span>
         <ApprovalTrackBadge initiative={initiative} />

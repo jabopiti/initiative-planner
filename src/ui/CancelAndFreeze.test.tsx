@@ -17,7 +17,11 @@ const membership: Membership = { id: 'm1', personId: 'ana', teamId: 't1', teamFt
 
 const [discoveryId, validationId] = defaultBrandPack.process.map((p) => p.id);
 const [g1] = defaultBrandPack.process.map((p) => p.exitGate);
-const discoveryPassed: GateRecord = { outcome: 'passed', passedOn: '2026-01-01', checklist: g1.checklistItems.map((i) => ({ ...i, status: 'complete', note: '' })) };
+const passed = (gate: (typeof defaultBrandPack.process)[number]['exitGate']): GateRecord => ({
+  outcome: 'passed',
+  passedOn: '2026-01-01',
+  checklist: gate.checklistItems.map((i) => ({ ...i, status: 'complete', note: '' })),
+});
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
@@ -30,7 +34,7 @@ const initiativeWith = (overrides: Partial<Initiative> = {}): Initiative => ({
   name: 'Fraud Detection Upgrade',
   teamId: 't1',
   status: 'Active',
-  gates: { [discoveryId]: discoveryPassed },
+  gates: { [discoveryId]: passed(g1) },
   phases: {
     [validationId]: {
       startDate: '2026-07-01',
@@ -60,13 +64,7 @@ beforeAll(() => {
       if (url.includes('/contents/people.json')) return file([ana], 'p');
       if (url.includes('/contents/memberships.json')) return file([membership], 'm');
       if (url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives/i2.json')) return file({ ...initiative, id: 'i2', name: 'Fraud Detection Upgrade' }, 'i2');
-      if (url.includes('/contents/initiatives')) {
-        return json([
-          { name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' },
-          { name: 'i2.json', path: 'initiatives/i2.json', sha: 'sha-i2', type: 'file' },
-        ]);
-      }
+      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
       return json({ message: 'Not Found' }, 404);
     }),
   );
@@ -80,24 +78,17 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-const page = (id: string) => (
-  <BrandProvider brand={defaultBrandPack}>
-    <TooltipProvider>
-      <RepositoryProvider token="token">
-        <InitiativeDetail id={id} />
-      </RepositoryProvider>
-    </TooltipProvider>
-  </BrandProvider>
-);
-const renderPage = () => render(page('i1'));
+const renderPage = () =>
+  render(
+    <BrandProvider brand={defaultBrandPack}>
+      <TooltipProvider>
+        <RepositoryProvider token="token">
+          <InitiativeDetail id="i1" />
+        </RepositoryProvider>
+      </TooltipProvider>
+    </BrandProvider>,
+  );
 
-
-
-const passed = (gate: (typeof defaultBrandPack.process)[number]['exitGate']): GateRecord => ({
-  outcome: 'passed',
-  passedOn: '2026-01-01',
-  checklist: gate.checklistItems.map((i) => ({ ...i, status: 'complete', note: '' })),
-});
 const closed = (): Initiative =>
   initiativeWith({ status: 'Closed', gates: Object.fromEntries(defaultBrandPack.process.map((p) => [p.id, passed(p.exitGate)])) });
 

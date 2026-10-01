@@ -28,10 +28,6 @@ interface OwnerSelectProps {
  * text, since that text only exists for the people actually rendered.
  */
 export function OwnerSelect({ people, memberships, teamId, teamName, value, onValueChange, className, readOnly }: OwnerSelectProps) {
-  const teamMembers = activeMembers(teamId, memberships, people).sort((a, b) => a.name.localeCompare(b.name));
-  const teamMemberIds = new Set(teamMembers.map((p) => p.id));
-  const others = people.filter((p) => p.active && !teamMemberIds.has(p.id)).sort((a, b) => a.name.localeCompare(b.name));
-
   const owner = value ? people.find((p) => p.id === value) : undefined;
   const label = !value ? 'No owner' : owner ? (owner.active ? owner.name : `${owner.name} (inactive)`) : 'Unknown person';
 
@@ -51,6 +47,10 @@ export function OwnerSelect({ people, memberships, teamId, teamName, value, onVa
       </span>
     );
   }
+
+  const teamMembers = activeMembers(teamId, memberships, people).sort((a, b) => a.name.localeCompare(b.name));
+  const teamMemberIds = new Set(teamMembers.map((p) => p.id));
+  const others = people.filter((p) => p.active && !teamMemberIds.has(p.id)).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <Select value={value ?? NO_OWNER} onValueChange={(next) => onValueChange(next === NO_OWNER ? undefined : next)}>

@@ -1210,7 +1210,7 @@ export class Repository {
     change: (plan: PhasePlan) => PhasePlan,
     note: { field: string; from: T | undefined; to: T | undefined; words: (from: T | undefined, to: T | undefined, initiativeName: string, phase: string) => string },
     /** Only a recorded actual is still accepted on a frozen initiative (§8.4). */
-    allowFrozen = false,
+    { allowFrozen = false }: { allowFrozen?: boolean } = {},
   ): boolean {
     const initiative = allowFrozen ? this.state.initiatives.find((i) => i.id === initiativeId) : this.editableInitiative(initiativeId);
     if (!initiative) return false;
@@ -1423,7 +1423,7 @@ export class Repository {
         to: amount,
         words: (_, to, name, phase) => `${name}: ${phase} actual for ${formatMonth(month)} recorded (${this.brand.currencySymbol}${Math.round(to as number)})`,
       },
-      true,
+      { allowFrozen: true },
     );
   }
 
@@ -1439,14 +1439,10 @@ export class Repository {
   setChecklistItem(initiativeId: string, phaseId: string, itemId: string, status: ChecklistStatus, note: string): void {
     const initiative = this.editableInitiative(initiativeId);
     if (!initiative) return;
-    const next = withChecklistItem(initiative, phaseId, itemId, status, note);
-    this.replaceInitiative(next);
     const before = initiative.checklist?.[phaseId]?.[itemId];
-    const words = (_: unknown, to: { status: ChecklistStatus } | undefined) =>
-      `${initiative.name}: "${this.checklistItemName(phaseId, itemId)}" set to ${to ? to.status[0].toUpperCase() + to.status.slice(1) : 'Incomplete'}`;
-    this.initiativeWriters
-      .get(initiativeId)
-      ?.schedule(next, this.note('initiative', initiativeId, `checklist:${phaseId}:${itemId}`, before, next.checklist?.[phaseId]?.[itemId], words));
+    this.writeChecklistItem(initiative, phaseId, itemId, { status, note }, '', before, { status, note }, (name, item, _, to) =>
+      `${name}: "${item}" set to ${to ? to.status[0].toUpperCase() + to.status.slice(1) : 'Incomplete'}`,
+    );
   }
 
   /**
@@ -1461,13 +1457,27 @@ export class Repository {
     const trimmed = note.trim();
     if (status === 'tentative' && !trimmed) return false;
     if (trimmed === (entry?.note ?? '')) return true;
-    const next = withChecklistItem(initiative, phaseId, itemId, status, trimmed);
-    this.replaceInitiative(next);
-    const words = () => `${initiative.name}: note on "${this.checklistItemName(phaseId, itemId)}" changed`;
-    this.initiativeWriters
-      .get(initiativeId)
-      ?.schedule(next, this.note('initiative', initiativeId, `checklist:${phaseId}:${itemId}:note`, entry?.note ?? '', trimmed, words));
+    this.writeChecklistItem(initiative, phaseId, itemId, { status, note: trimmed }, ':note', entry?.note ?? '', trimmed, (name, item) => `${name}: note on "${item}" changed`);
     return true;
+  }
+
+  /** Write one checklist entry and schedule its commit; `fieldSuffix` keeps a note-only change its own field (§10.3). */
+  private writeChecklistItem<T>(
+    initiative: Initiative,
+    phaseId: string,
+    itemId: string,
+    entry: { status: ChecklistStatus; note: string },
+    fieldSuffix: string,
+    from: T | undefined,
+    to: T,
+    words: (initiativeName: string, itemName: string, from: T | undefined, to: T | undefined) => string,
+  ): void {
+    const next = withChecklistItem(initiative, phaseId, itemId, entry.status, entry.note);
+    this.replaceInitiative(next);
+    const name = initiative.name;
+    this.initiativeWriters
+      .get(initiative.id)
+      ?.schedule(next, this.note('initiative', initiative.id, `checklist:${phaseId}:${itemId}${fieldSuffix}`, from, to, (f, t) => words(name, this.checklistItemName(phaseId, itemId), f, t)));
   }
 
   /**
@@ -1492,11 +1502,11 @@ export class Repository {
 
   /**
    * Reopen the initiative's most recently passed gate (§8.3): reversible only one transition at a time. A no-op when
-   * there is none, and on a Cancelled initiative, whose way back is {@link reopen} (§8.4).
+   * there is none, including on a Cancelled initiative, whose way back is {@link reopen} (§8.4).
    */
   reopenGate(initiativeId: string): void {
     const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
-    if (!initiative || initiative.status === 'Cancelled') return;
+    if (!initiative) return;
     const result = evaluateReopenGate(this.brand.process, initiative);
     if (!result) return;
     this.replaceInitiative(result.initiative);
@@ -1508,12 +1518,12 @@ export class Repository {
 
   /** Put an Active initiative On Hold (§8.4): a plain status change, one click and no reason. A no-op for any other status. */
   putOnHold(initiativeId: string): void {
-    this.changeStatus(initiativeId, 'Active', 'On Hold', (name) => `${name}: put on hold`);
+    this.changeStatus(initiativeId, ['Active'], 'On Hold', (name) => `${name}: put on hold`);
   }
 
   /** Resume an On Hold initiative (§8.4): back to Active. A no-op for any other status. */
   resume(initiativeId: string): void {
-    this.changeStatus(initiativeId, 'On Hold', 'Active', (name) => `${name}: resumed`);
+    this.changeStatus(initiativeId, ['On Hold'], 'Active', (name) => `${name}: resumed`);
   }
 
   /** Cancel an Active or On Hold initiative (§8.4): a plain status change, one click, no reason; it freezes the initiative. */
@@ -1523,12 +1533,12 @@ export class Repository {
 
   /** Reopen a Cancelled initiative (§8.4): always back to Active, even if it was On Hold before. A no-op for any other status. */
   reopen(initiativeId: string): void {
-    this.changeStatus(initiativeId, 'Cancelled', 'Active', (name) => `${name}: reopened`);
+    this.changeStatus(initiativeId, ['Cancelled'], 'Active', (name) => `${name}: reopened`);
   }
 
-  private changeStatus(initiativeId: string, from: InitiativeStatus | InitiativeStatus[], to: InitiativeStatus, words: (name: string) => string): void {
+  private changeStatus(initiativeId: string, from: InitiativeStatus[], to: InitiativeStatus, words: (name: string) => string): void {
     const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
-    if (!initiative || ![from].flat().includes(initiative.status)) return;
+    if (!initiative || !from.includes(initiative.status)) return;
     const next: Initiative = { ...initiative, status: to };
     this.replaceInitiative(next);
     this.initiativeWriters
@@ -1543,7 +1553,7 @@ export class Repository {
    */
   previewTeamChange(initiativeId: string, teamId: string, isLocked?: (phaseId: string) => boolean): TeamChangePlan | null {
     const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
-    if (!initiative || initiative.teamId === teamId || initiative.status === 'Closed' || initiative.status === 'Cancelled') return null;
+    if (!initiative || initiative.teamId === teamId || isInitiativeFrozen(initiative)) return null;
     if (!this.state.teams.some((t) => t.id === teamId)) return null;
     return planTeamChange({
       initiative,
