@@ -18,11 +18,12 @@ import { TIMING_LABELS } from './costItemTiming';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
 import { GateChecklistPanel } from './GateChecklistPanel';
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, FrozenIcon, InfoIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, FrozenIcon, InfoIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
 import { PercentInput } from './PercentInput';
 import { undoToast } from './undoToast';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 /** A phase nobody has planned yet. One shared object, so the picker's memo isn't invalidated on every render. */
@@ -91,8 +92,10 @@ export function PhasesSection({ initiative, team, openPhaseId }: { initiative: I
             ) : (
               <div className="flex items-center gap-2 px-3 py-2.5 text-sm">
                 {isPhaseFrozen(initiative, phase.id) && <FrozenIcon width={16} height={16} className="shrink-0 text-text-secondary" />}
+                {skipReason(initiative, phase.id) !== undefined && <SkippedMarker />}
                 <span className="font-medium">{phase.label}</span>
                 <span className="text-text-muted">· not costed</span>
+                <SkippedLabel initiative={initiative} phase={phase} withReason />
               </div>
             )}
           </li>
@@ -153,6 +156,8 @@ function CostedPhase({
   const needsPeople = gap === 'people';
   const overlapEnd = previous ? overlapWithPrevious(initiative.phases?.[previous.id], plan) : null;
   const overlap = previous && overlapEnd ? `Starts before ${previous.label} ends (${formatDate(overlapEnd)}). The two phases overlap.` : null;
+  // A phase behind a skipped gate stays editable, and says so with its reason (§8.2).
+  const skipped = skipReason(initiative, phase.id);
   const coverageLabel = { frozen: 'Frozen', actual: 'Actual', forecast: 'Forecast', estimate: 'Estimate' }[coverage];
 
   // Who can still be added, and what each has free for the phase's months (§5.11), most free first. Free capacity
@@ -219,12 +224,14 @@ function CostedPhase({
       >
         <Chevron width={16} height={16} className="shrink-0 text-text-secondary" />
         {frozen && <FrozenIcon width={16} height={16} className="shrink-0 text-text-secondary" />}
+        {skipped !== undefined && <SkippedMarker />}
         <span className="font-medium">{phase.label}</span>
         {hasPeriod ? (
           <span className="text-text-secondary">{formatPeriod(plan.startDate!, plan.endDate!)}</span>
         ) : (
           !initiativeFrozen && <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>Set period</span>
         )}
+        <SkippedLabel initiative={initiative} phase={phase} />
         {overlap && <WarningIcon width={16} height={16} className="shrink-0 text-warning-text" role="img" aria-hidden={false} aria-label={`Overlaps ${previous!.label}`} />}
         {plan.allocations.length === 0 && !initiativeFrozen && (
           <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>· Add people</span>
@@ -235,6 +242,14 @@ function CostedPhase({
 
       {expanded && (
         <div id={bodyId} className="flex flex-col gap-4 border-t border-border-default px-3 py-3">
+          {skipped !== undefined && (
+            <p className="m-0 flex items-start gap-2 rounded-md bg-surface-subtle px-2.5 py-2 text-sm text-text-secondary">
+              <SkippedIcon width={16} height={16} className="mt-0.5 shrink-0" />
+              <span>
+                <span className="font-medium">Skipped {phase.exitGate.label}:</span> {skipped}
+              </span>
+            </p>
+          )}
           {frozen && snapshot ? (
             <ReadOnlyPhaseBody phase={snapshot} people={people} roles={roles} currencySymbol={currencySymbol} />
           ) : initiativeFrozen ? (
@@ -590,4 +605,35 @@ function ActualCell({
     );
   }
   return <span className="flex justify-end text-text-secondary">not closed yet</span>;
+}
+
+/** The reason a phase's exit gate was skipped (§8.2), or undefined when it was not skipped. */
+function skipReason(initiative: Initiative, phaseId: string): string | undefined {
+  const record = initiative.gates?.[phaseId];
+  return record?.outcome === 'skipped' ? (record.skipReason ?? '') : undefined;
+}
+
+/** The skip icon in the lock icon's place on a phase line (§8.2, §9.10). */
+function SkippedMarker() {
+  return <SkippedIcon width={16} height={16} className="shrink-0 text-text-secondary" role="img" aria-hidden={false} aria-label="Skipped" />;
+}
+
+/**
+ * "· Skipped G2" on a phase line, the reason as its tooltip (§8.2). A phase that can't expand (not costed) shows the
+ * reason inline as well, truncated, since the line is the only place it appears (§9.8).
+ */
+function SkippedLabel({ initiative, phase, withReason = false }: { initiative: Initiative; phase: PhaseDef; withReason?: boolean }) {
+  const reason = skipReason(initiative, phase.id);
+  if (reason === undefined) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="flex min-w-0 items-center gap-1.5 text-text-secondary">
+          <span className="whitespace-nowrap">· Skipped {phase.exitGate.label}</span>
+          {withReason && <span className="truncate text-text-muted">· {reason}</span>}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{reason}</TooltipContent>
+    </Tooltip>
+  );
 }

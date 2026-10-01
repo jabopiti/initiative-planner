@@ -23,7 +23,7 @@ import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysB
 import { localToday } from '../data/dates';
 import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
 import { frozenPaths, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
-import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, withChecklistItem } from '../data/gate';
+import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type BranchHead } from '../github/client';
@@ -1500,6 +1500,21 @@ export class Repository {
     return { ok: true };
   }
 
+  /** Skip the initiative's current gate with a reason (§8.2): skippable gates only, no checks, nothing frozen, one commit. */
+  skipGate(initiativeId: string, reason: string): { ok: true } | { ok: false; reason: string } {
+    const initiative = this.editableInitiative(initiativeId);
+    if (!initiative) return { ok: false, reason: 'This initiative could not be found.' };
+    const result = evaluateSkipGate(this.brand.process, initiative, reason);
+    if (!result.ok) return result;
+
+    this.replaceInitiative(result.initiative);
+    const [name, gateLabel] = [initiative.name, result.phase.exitGate.label];
+    this.initiativeWriters
+      .get(initiativeId)
+      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, 'open', 'skipped', () => `${name}: ${gateLabel} skipped`));
+    return { ok: true };
+  }
+
   /**
    * Reopen the initiative's most recently passed gate (§8.3): reversible only one transition at a time. A no-op when
    * there is none, including on a Cancelled initiative, whose way back is {@link reopen} (§8.4).
@@ -1511,9 +1526,10 @@ export class Repository {
     if (!result) return;
     this.replaceInitiative(result.initiative);
     const [name, gateLabel] = [initiative.name, result.phase.exitGate.label];
+    const outcome = initiative.gates![result.phase.id].outcome;
     this.initiativeWriters
       .get(initiativeId)
-      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, 'passed', 'open', () => `${name}: ${gateLabel} reopened`));
+      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, outcome, 'open', () => `${name}: ${gateLabel} reopened`));
   }
 
   /** Put an Active initiative On Hold (§8.4): a plain status change, one click and no reason. A no-op for any other status. */
