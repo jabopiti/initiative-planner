@@ -268,6 +268,28 @@ describe('frozen phases never merge (§8.1)', () => {
     expect(merge(frozenBase, extended, frozenBase).merged.phases!.validation.endDate).toBe('2027-01-31');
     expect(merge(frozenBase, frozenBase, extended).merged.phases!.validation.endDate).toBe('2027-01-31');
   });
+
+  const repassedGate = { validation: { ...passedGate.validation, passedOn: '2027-01-31' } };
+  const repassed = withValidation({ ...frozenBase, gates: repassedGate }, { endDate: '2027-01-31' });
+
+  it('a gate reopened and passed again in one save keeps its new snapshot while the other side edits something else (§8.3)', () => {
+    const renamed: Initiative = { ...frozenBase, name: 'Payments' };
+    for (const [mine, theirs] of [[repassed, renamed], [renamed, repassed]]) {
+      const { merged, conflicts } = merge(frozenBase, mine, theirs);
+      expect(conflicts).toEqual([]);
+      expect(merged.gates).toEqual(repassedGate);
+      expect(merged.phases!.validation.endDate).toBe('2027-01-31');
+      expect(merged.name).toBe('Payments');
+    }
+  });
+
+  it('a snapshot follows its gate record: kept from base whole when the two sides changed the record differently', () => {
+    for (const [mine, theirs] of [[repassed, reopened], [reopened, repassed]]) {
+      const { merged } = merge(frozenBase, mine, theirs);
+      expect(merged.gates).toEqual(passedGate);
+      expect(merged.phases!.validation).toEqual(frozenBase.phases!.validation);
+    }
+  });
 });
 
 describe('master files merge by the same function', () => {
