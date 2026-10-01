@@ -86,39 +86,39 @@ people, teams, roles, countries (never deleted, §9.3); bulk delete.
 
 ## Acceptance criteria
 
-- [ ] Given an initiative with no passed gate (in any status), then the
+- [x] Given an initiative with no passed gate (in any status), then the
       Actions menu lists Delete; given one with a passed gate, it does not.
-- [ ] Given an initiative whose only gate record is skipped, then Delete is
+- [x] Given an initiative whose only gate record is skipped, then Delete is
       listed.
-- [ ] Given Delete is chosen, then the confirmation "Delete <name>? This
+- [x] Given Delete is chosen, then the confirmation "Delete <name>? This
       can't be undone." with Confirm delete and Cancel appears under the
       header, and focus is on Cancel.
-- [ ] Given Cancel or Esc, then the confirmation closes, nothing is deleted,
+- [x] Given Cancel or Esc, then the confirmation closes, nothing is deleted,
       and focus returns to the ⋯ button.
-- [ ] Given Confirm delete succeeds, then the file is deleted in one commit
+- [x] Given Confirm delete succeeds, then the file is deleted in one commit
       "<name>: deleted", the Initiatives table replaces the page in history,
       and the initiative is absent from every list and from the cache.
-- [ ] Given an edit to the initiative was still pending in the debounce
+- [x] Given an edit to the initiative was still pending in the debounce
       window, when Confirm delete is chosen, then that edit is not pushed.
-- [ ] Given another user passed a gate between confirm and delete (409, fake
+- [x] Given another user passed a gate between confirm and delete (409, fake
       repository), then nothing is deleted and the line reads "A gate was
       passed meanwhile, so <name> can't be deleted. Cancel it instead."
-- [ ] Given another user changed any other field meanwhile (409), then the
+- [x] Given another user changed any other field meanwhile (409), then the
       file is re-read and deleted at its new sha.
-- [ ] Given the file was already deleted by someone else, then the delete
+- [x] Given the file was already deleted by someone else, then the delete
       counts as done.
-- [ ] Given GitHub is unreachable, then nothing is removed locally, the
+- [x] Given GitHub is unreachable, then nothing is removed locally, the
       confirmation stays with the cause, and the read-only banner shows.
-- [ ] Given another user has the initiative open, when their pull sees the
+- [x] Given another user has the initiative open, when their pull sees the
       file gone, then their page shows "This initiative couldn't be found."
-- [ ] Given another user has an unsaved edit to it, when their save finds
+- [x] Given another user has an unsaved edit to it, when their save finds
       the file gone, then the edit is dropped, nothing is recreated, no
       read-only state remains, and their page shows "This initiative
       couldn't be found." with "<name> was deleted, so your last change to
       it wasn't saved."
-- [ ] Given a failed delete, then the confirmation shows "Not deleted:
+- [x] Given a failed delete, then the confirmation shows "Not deleted:
       <cause>." and Confirm delete tries again.
-- [ ] Delete is the last menu item, after a separator, in the destructive
+- [x] Delete is the last menu item, after a separator, in the destructive
       style.
 
 ## Delivery gate
