@@ -101,3 +101,9 @@ None.
 - **Scope:** Reopen from the menu in every case, not only Closed.
 - **Label:** the menu item names the gate ("Reopen G2"); "Reopen" alone only
   for a Cancelled initiative, where no gate is reversed.
+- **Placement:** the loose "Reopen <gate>" link beside ⋯ in the header
+  (built before the menu) is removed; Reopen lives only in the Actions menu
+  (§5.4), plus the Closed strip and the magic bar's "Passed — Reopen".
+- **Menu list:** an action's `label` and `applies` also receive the process,
+  so the item can name the gate; order stays Put on hold / Resume, Cancel,
+  Reopen. No new copy.

@@ -198,8 +198,8 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     renderPage();
 
     expect(await screen.findByText('Approved at (G2)')).toBeInTheDocument();
-    const reopen = screen.getAllByRole('button', { name: /^Reopen G2/ })[0];
-    await user.click(reopen);
+    await user.click(screen.getByRole('button', { name: 'Actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Reopen G2' }));
 
     await vi.waitFor(() => expect(puts.some((p) => p.message.includes('G2 reopened'))).toBe(true), { timeout: 3000 });
     expect(screen.queryByText('Approved at (G2)')).not.toBeInTheDocument();
@@ -208,5 +208,39 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     // Checklist note kept, not reset (AC5).
     expect(await screen.findByRole('heading', { name: /Gate \/ Checklist — G2/ })).toBeInTheDocument();
     expect(screen.getByText('Revisit after sign-off')).toBeInTheDocument();
+  });
+
+  it('lists no Reopen item before any gate has a record', async () => {
+    initiative = { id: 'i1', name: 'Checkout Redesign', teamId: 't1', status: 'Active' };
+    renderPage();
+
+    await screen.findByRole('heading', { name: /Gate \/ Checklist — G1/ });
+    // The Actions menu offers Put on hold and Cancel, so it is there, with no Reopen in it.
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.queryByRole('menuitem', { name: /^Reopen/ })).not.toBeInTheDocument();
+  });
+
+  it('reopens one gate per click: G2, then G1, and leaves On Hold as it is', async () => {
+    const user = userEvent.setup();
+    initiative = {
+      id: 'i1',
+      name: 'Checkout Redesign',
+      teamId: 't1',
+      status: 'On Hold',
+      gates: { [discoveryId]: discoveryPassed, [validationId]: { ...discoveryPassed, passedOn: '2026-11-30' } },
+      phases: { [validationId]: bothPlanned[validationId] },
+    };
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Reopen G2' }));
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    expect(screen.queryByRole('menuitem', { name: 'Reopen G2' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('menuitem', { name: 'Reopen G1' }));
+
+    await vi.waitFor(() => expect(puts.some((p) => p.message.includes('G1 reopened'))).toBe(true), { timeout: 3000 });
+    const last = puts[puts.length - 1];
+    expect(last.content.status).toBe('On Hold');
+    expect(last.content.gates ?? {}).toEqual({});
   });
 });
