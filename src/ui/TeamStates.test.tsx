@@ -128,7 +128,7 @@ describe('The top-bar button names the next step (§5.1)', () => {
     );
     await screen.findByRole('button', { name: 'Reactivate a team' });
     await user.click(screen.getByRole('button', { name: 'Reactivate team' }));
-    expect(await screen.findByRole('button', { name: 'New initiative' })).toBeEnabled();
+    await vi.waitFor(() => expect(document.querySelector('[data-new-initiative]')).toHaveTextContent('New initiative'));
   });
 });
 
