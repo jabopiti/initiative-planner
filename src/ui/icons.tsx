@@ -3,7 +3,7 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { Archive, ArchiveRestore, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Gauge, Info, Lock, Plus, RefreshCw, Rocket, Search, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Play, Plus, RefreshCw, Rocket, Search, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
 import type { PhaseIconName } from '../brand/types';
 
@@ -43,6 +43,11 @@ export const FrozenIcon = iconWrapper(Lock);
 /** A locked Settings section's toggle (§2, §9.9, §9.10), and its unlocked counterpart. */
 export const LockedIcon = iconWrapper(Lock);
 export const UnlockedIcon = iconWrapper(Unlock);
+/** On Hold (§8.4, §9.10): the status chip, the Put on hold action and the magic bar's on-hold line; Resume is its counterpart. */
+export const OnHoldIcon = iconWrapper(Pause);
+export const ResumeIcon = iconWrapper(Play);
+/** The header's Actions menu button (§5.4). */
+export const ActionsIcon = iconWrapper(Ellipsis);
 /** The one thing worth real alarm colour (§8.1, §9.8): the phase behind the current gate running past its own estimated end date. */
 export const OverrunIcon = iconWrapper(Flame);
 /** Needs attention's remaining four kinds (§8.5, §9.10), distinct from Overrun's Flame and Complete's CircleCheck. */

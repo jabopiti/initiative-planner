@@ -204,8 +204,15 @@ function buildGateRecord(process: PhaseDef[], initiative: Initiative, phase: Pha
 
 export type PassGateResult = { ok: true; initiative: Initiative; phase: PhaseDef; record: GateRecord } | { ok: false; blockers: string[] };
 
+/** What selecting Pass gate says on an On Hold initiative (§5.4, §8.4); `passGate` refuses with it too. */
+export function onHoldMessage(initiative: Initiative, process: PhaseDef[]): string {
+  const phase = process.find((p) => p.id === currentPhaseId(initiative, process))!;
+  return `${initiative.name} is on hold. Resume it to pass ${phase.exitGate.label}.`;
+}
+
 /** Pass the initiative's current gate (§8.1): freezes the exited phase if costed, records the gate, and moves on — the final gate closes the initiative. */
 export function passGate(process: PhaseDef[], initiative: Initiative, people: Person[], data: RateData, approvalTracks: ApprovalTrackDef[], takenAt: string): PassGateResult {
+  if (initiative.status === 'On Hold') return { ok: false, blockers: [onHoldMessage(initiative, process)] };
   const phaseId = currentPhaseId(initiative, process);
   const phase = process.find((p) => p.id === phaseId)!;
   const blockers = gateBlockers(gateRequirements(process, initiative, phaseId));
