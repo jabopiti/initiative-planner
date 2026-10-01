@@ -6,8 +6,11 @@ import {
   allocationRefusal,
   frozenBlendedTotal,
   frozenPhaseMonths,
+  costYears,
   grandDeviation,
   grandEstimate,
+  yearDeviation,
+  yearEstimate,
   isOutsidePeriod,
   monthsInRange,
   parseAmount,
@@ -431,5 +434,58 @@ describe('grandDeviation (§4)', () => {
       gates: { validation: { outcome: 'passed', passedOn: '2026-11-30', frozenSnapshot, checklist: [] } },
     };
     expect(grandDeviation(initiative, process, [ana], data)).toBe(500 - 500);
+  });
+});
+
+describe('year-scoped cost and deviation (§5.2 year filter)', () => {
+  const process: PhaseDef[] = [
+    { id: 'discovery', icon: 'search', label: 'Discovery', description: '', costed: false, exitGate: { id: 'g0', label: 'G0', description: '', requiresEstimates: false, skippable: true, checklistItems: [] } },
+    { id: 'validation', icon: 'search', label: 'Validation', description: '', costed: true, exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: true, skippable: true, checklistItems: [] } },
+  ];
+  // Nov 2026 – Feb 2027, Ana full time: 2026 months 20 × 500 × 0.8 = 8000, 2027 months 20 × 600 × 0.8 = 9600.
+  const spanning: Initiative = {
+    id: 'i1',
+    name: 'Checkout',
+    teamId: 't1',
+    status: 'Active',
+    phases: {
+      validation: {
+        startDate: '2026-11-01',
+        endDate: '2027-02-28',
+        allocations: [{ id: 'a1', personId: 'ana', allocationPct: 100 }],
+        actualMonths: { '2026-12': 8500, '2027-01': 9000 },
+      },
+    },
+  };
+
+  it('counts Nov and Dec in 2026 and Jan and Feb in 2027, actuals where recorded', () => {
+    expect(yearEstimate(spanning, process, [ana], data, 2026)).toBe(8000 + 8500);
+    expect(yearEstimate(spanning, process, [ana], data, 2027)).toBe(9000 + 9600);
+    expect(yearEstimate(spanning, process, [ana], data, 2028)).toBe(0);
+    expect(yearEstimate(spanning, process, [ana], data, 2026) + yearEstimate(spanning, process, [ana], data, 2027)).toBe(grandEstimate(spanning, process, [ana], data));
+  });
+
+  it('counts deviation only over the year’s months', () => {
+    expect(yearDeviation(spanning, process, [ana], data, 2026)).toBe(500);
+    expect(yearDeviation(spanning, process, [ana], data, 2027)).toBe(-600);
+    expect(grandDeviation(spanning, process, [ana], data)).toBe(-100);
+  });
+
+  it('lists the years with cost, and none for an unplanned initiative', () => {
+    expect(costYears(spanning, process, [ana], data)).toEqual([2026, 2027]);
+    expect(costYears({ ...spanning, phases: undefined }, process, [ana], data)).toEqual([]);
+  });
+
+  it('splits a frozen phase by its snapshot’s months, immune to live rates', () => {
+    const frozenSnapshot: FrozenPhaseSnapshot = { startDate: '2026-12-01', endDate: '2027-01-31', allocations: [], costItems: [], estimateByMonth: { '2026-12': 4000, '2027-01': 5000 } };
+    const frozen: Initiative = {
+      ...spanning,
+      phases: { validation: { startDate: '2026-12-01', endDate: '2027-01-31', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 100 }], actualMonths: { '2027-01': 5200 } } },
+      gates: { validation: { outcome: 'passed', passedOn: '2027-01-31', frozenSnapshot, checklist: [] } },
+    };
+    expect(yearEstimate(frozen, process, [ana], data, 2026)).toBe(4000);
+    expect(yearEstimate(frozen, process, [ana], data, 2027)).toBe(5200);
+    expect(yearDeviation(frozen, process, [ana], data, 2027)).toBe(200);
+    expect(yearDeviation(frozen, process, [ana], data, 2026)).toBe(0);
   });
 });

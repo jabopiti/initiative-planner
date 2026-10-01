@@ -308,6 +308,46 @@ export function phaseEffectiveTotal(initiative: Initiative, phaseId: string, peo
   return plan ? phaseBlendedTotal(plan, people, data, estimateByMonth) : 0;
 }
 
+/** A costed phase's blended amount by month (§7.3): its frozen snapshot's once its gate has passed, its live plan's otherwise. */
+function phaseEffectiveByMonth(initiative: Initiative, phaseId: string, people: Person[], data: RateData): Record<string, number> {
+  const plan = initiative.phases?.[phaseId];
+  const snapshot = isPhaseFrozen(initiative, phaseId) ? initiative.gates![phaseId].frozenSnapshot : undefined;
+  if (snapshot) {
+    const actuals = plan?.actualMonths ?? {};
+    return Object.fromEntries(frozenPhaseMonths(snapshot, plan?.actualMonths).map((m) => [m, actuals[m] ?? snapshot.estimateByMonth[m] ?? 0]));
+  }
+  return plan ? phaseBlendedByMonth(plan, people, data) : {};
+}
+
+/**
+ * A costed phase's deviation by month (§4): each recorded actual minus its estimate — a frozen phase's against its
+ * own frozen estimate, never a live recompute, for the same reason {@link grandEstimate} uses the snapshot.
+ */
+function phaseDeviationByMonth(initiative: Initiative, phaseId: string, people: Person[], data: RateData): Record<string, number> {
+  const plan = initiative.phases?.[phaseId];
+  const actuals = plan?.actualMonths ?? {};
+  if (!plan || Object.keys(actuals).length === 0) return {};
+  const estimate = isPhaseFrozen(initiative, phaseId) ? initiative.gates![phaseId].frozenSnapshot!.estimateByMonth : phaseByMonth(plan, people, data);
+  return Object.fromEntries(Object.entries(actuals).map(([m, amount]) => [m, amount - (estimate[m] ?? 0)]));
+}
+
+/** Sums a per-month figure over every costed phase, keeping only the months `keep` accepts. */
+function sumCostedMonths(
+  initiative: Initiative,
+  process: PhaseDef[],
+  byMonth: (phaseId: string) => Record<string, number>,
+  keep: (month: string) => boolean = () => true,
+): number {
+  let total = 0;
+  for (const phase of process) {
+    if (!phase.costed) continue;
+    for (const [month, amount] of Object.entries(byMonth(phase.id))) if (keep(month)) total += amount;
+  }
+  return total;
+}
+
+const inYear = (year: number) => (month: string) => month.startsWith(`${year}-`);
+
 /**
  * An initiative's grand estimate (§4): the blended total of every costed phase (see {@link phaseEffectiveTotal}).
  */
@@ -319,25 +359,32 @@ export function grandEstimate(initiative: Initiative, process: PhaseDef[], peopl
   return total;
 }
 
-/**
- * An initiative's deviation (§4): recorded actuals minus their estimates, summed over every costed phase and
- * every month that has one. A frozen phase compares against its own frozen estimate, never a live recompute,
- * for the same reason {@link grandEstimate} does. Zero, not undefined, when nothing has been recorded yet.
- */
-export function grandDeviation(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): number {
-  let total = 0;
+/** The part of the grand estimate falling in one calendar year (§5.2's year filter), month by month. */
+export function yearEstimate(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData, year: number): number {
+  return sumCostedMonths(initiative, process, (id) => phaseEffectiveByMonth(initiative, id, people, data), inYear(year));
+}
+
+/** Every year an initiative has non-zero cost in, ascending (§5.2's year filter choices). */
+export function costYears(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): number[] {
+  const years = new Set<number>();
   for (const phase of process) {
     if (!phase.costed) continue;
-    const plan = initiative.phases?.[phase.id];
-    if (!plan) continue;
-    if (isPhaseFrozen(initiative, phase.id)) {
-      const snapshot = initiative.gates![phase.id].frozenSnapshot!;
-      for (const [month, amount] of Object.entries(plan.actualMonths ?? {})) total += amount - (snapshot.estimateByMonth[month] ?? 0);
-      continue;
-    }
-    total += phaseDeviation(plan, people, data) ?? 0;
+    for (const [month, amount] of Object.entries(phaseEffectiveByMonth(initiative, phase.id, people, data))) if (amount !== 0) years.add(Number(month.slice(0, 4)));
   }
-  return total;
+  return [...years].sort((a, b) => a - b);
+}
+
+/**
+ * An initiative's deviation (§4): recorded actuals minus their estimates, summed over every costed phase and
+ * every month that has one. Zero, not undefined, when nothing has been recorded yet.
+ */
+export function grandDeviation(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): number {
+  return sumCostedMonths(initiative, process, (id) => phaseDeviationByMonth(initiative, id, people, data));
+}
+
+/** The deviation over one calendar year's months only (§5.2's year filter). */
+export function yearDeviation(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData, year: number): number {
+  return sumCostedMonths(initiative, process, (id) => phaseDeviationByMonth(initiative, id, people, data), inYear(year));
 }
 
 /** The approval track a total resolves to (§7.4): bounds lower-inclusive, upper-exclusive; `null` when no band covers it. */

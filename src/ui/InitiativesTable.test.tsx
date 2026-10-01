@@ -233,7 +233,7 @@ describe('Initiatives table filters (§9.11)', () => {
     await user.click(screen.getByRole('checkbox', { name: 'On Hold' }));
 
     expect(names()).toEqual(['On Hold Co']);
-    expect(screen.getByRole('button', { name: 'Status: 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Status: On Hold' })).toBeInTheDocument();
     expect(screen.getByText(/^1 of 3 initiatives/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
   });
@@ -278,7 +278,7 @@ describe('Initiatives table filters (§9.11)', () => {
     render(tree());
     await screen.findByRole('heading', { name: 'Initiatives' });
     expect(names()).toEqual(['On Hold Co']);
-    expect(screen.getByRole('button', { name: 'Status: 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Status: On Hold' })).toBeInTheDocument();
 
     act(() => resetSessionFilters());
     expect(names().sort()).toEqual(['On Hold Co', 'Overrun Co']);
