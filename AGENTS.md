@@ -70,8 +70,9 @@ While this repo's `data` branch is a development dataset (it is, until a
 real dataset is put there), you may empty or reset it at any time for
 testing, without asking — but only with `npm run dev:reset-data`, which
 empties teams, people and memberships and deletes initiative files,
-keeping roles and countries, or `npm run dev:seed-data`, which does that
-reset and then writes the example data from `backlog/example-data.md`.
+keeping roles and countries, or the app's own Settings → Danger zone
+(Reset, then Load example data for the brand pack's example teams, people
+and initiatives).
 This exception ends when real data lives on that branch: remove this
 section then.
 
@@ -85,9 +86,9 @@ section then.
   can still be set directly as a real environment variable — check for it
   (`[ -n "$VITE_DEV_TOKEN" ]`, never print it) before concluding there's
   no token; `npm run dev` picks it up either way, and the
-  `dev:reset-data`/`dev:seed-data` scripts (which invoke node with
+  `dev:reset-data` script (which invokes node with
   `--env-file=.env.local`) can be run directly as `node
-  scripts/<name>.mjs` to use the environment variable instead.
+  scripts/reset-dev-data.mjs` to use the environment variable instead.
 - Outbound requests: only the configured GitHub API host.
 - CSP forbids `eval`, `new Function`, inline scripts (§10.1, §10.9) —
   don't write code needing them.

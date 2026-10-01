@@ -20,9 +20,10 @@ description: Start and drive Initiative Planner in the browser pane — the dev 
 - The app reads and writes the real `data` branch, so every edit made in
   the browser is a real commit — fine while it is a development dataset
   (AGENTS.md, Development data).
-- For something to look at, run `npm run dev:seed-data` first (the example
-  teams, people and initiatives from `backlog/example-data.md`); after a
-  reset the app is empty.
+- For something to look at, load the example data in the app: Settings →
+  Danger zone → Unlock → Load example data (the brand pack's example teams,
+  people and initiatives). It needs an empty dataset: Reset there first, or
+  `npm run dev:reset-data`.
 
 ## Check
 - Text tools first (`read_page`, `find`); at most one screenshot, at the

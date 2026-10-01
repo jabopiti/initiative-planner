@@ -1,4 +1,4 @@
-// Shared by the development-dataset scripts (`dev:reset-data`, `dev:seed-data`). The target is the
+// Used by the development-dataset script (`dev:reset-data`). The target is the
 // brand pack's repo and data branch, and only that; the token comes from .env.local
 // (VITE_DEV_TOKEN, via `node --env-file`) and is never printed. AGENTS.md ("Development data") is
 // what allows these to run on this repo.
