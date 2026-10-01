@@ -4,11 +4,15 @@ import { fakeGithub } from './support/fakeGithub';
 import { addPerson, connect, createInitiative, createTeam, enterToken, FAKE_TOKEN, watchCspViolations } from './support/session';
 
 // WCAG 2.1 A and AA rules, the level the app aims for. Each screen is scanned in the state a user meets it.
+// A scan that lands mid-transition (a button fading back from disabled) measures a blended colour, so it is
+// retried until the screen settles; a real violation is still there on every attempt and fails the test.
 async function expectNoViolations(page: Page) {
-  const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
-  expect(
-    violations.map((v) => ({ rule: v.id, impact: v.impact, targets: v.nodes.map((n) => n.target.join(' ')) })),
-  ).toEqual([]);
+  await expect(async () => {
+    const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(
+      violations.map((v) => ({ rule: v.id, impact: v.impact, targets: v.nodes.map((n) => n.target.join(' ')) })),
+    ).toEqual([]);
+  }).toPass({ timeout: 5_000 });
 }
 
 test('the Connect screen has no accessibility violations', async ({ page }) => {
