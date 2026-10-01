@@ -148,8 +148,7 @@ numeric columns from the start instead of being retrofitted.
   plain status Select.
 - **Loading line dropped:** Repository loads the whole dataset in one pull
   (no staged loading exists), so "Still loading some initiatives…" has no
-  signal. It moves to the slice that builds staged loading (034 shares the
-  line); this slice has no loading state.
+  signal. Dropped for good in slice 034's review (a partial list is never shown).
 - **Chip build:** popover + checkbox + search input, no `cmdk`. Open with
   Enter or Space; the search field is focused; ↓ moves into the options,
   Space or Enter toggles one, ↑ from the first option returns to search,

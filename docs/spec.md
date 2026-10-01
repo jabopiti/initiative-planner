@@ -620,7 +620,14 @@ with the cause (§3).
 from the cached data, grouped as Initiatives (by name and description),
 People (by name) and Teams (by name). Enter or a click on a result opens it:
 an initiative's page, a person's side panel on the People page, or a team's
-page. Esc closes the overlay. This is the one way to find something by
+page. Esc closes the overlay. The overlay opens from the icon, from **Ctrl+K /
+⌘+K** anywhere, and from **/** when focus is not in a text field; the icon's
+tooltip names the shortcut. Matching is a case- and accent-insensitive
+substring; each group shows up to 5 results, name matches before description
+matches, with "5 of 12" in the group header when more match. An initiative
+shows its phase, a status chip when not Active, and a one-line description
+excerpt when only its description matched; inactive people and teams are
+marked "(inactive)". This is the one way to find something by
 name; the Initiatives and People tables are not separately searchable,
 since the specific-initiatives filter (§9.11) already narrows the board by
 name where that's the more natural place to do it.
@@ -1571,8 +1578,10 @@ The built-in UI targets **WCAG 2.2 Level AA**.
     the field stays in edit mode (§3, Sync failures).
   - Magic bar actions (§5.4) are reachable by keyboard, and those that point
     to a section move focus to it.
-  - The search overlay (§5.1) opens with a defined shortcut; Up and Down
-    move between grouped results, and Enter opens the selected one.
+  - The search overlay (§5.1) opens with Ctrl+K / ⌘+K anywhere, or / when
+    focus is not in a text field; Up and Down move between grouped results,
+    and Enter opens the selected one. Esc closes it and returns focus to
+    where it was.
   - No other global shortcuts are defined.
   - Animations (a tinted field, the "Passed — Reopen" fade, §9.9) are brief
     and non-essential; under `prefers-reduced-motion` they are skipped and
@@ -1672,9 +1681,9 @@ delay. Critical information is never only in a tooltip.
   stay until they are resolved or dismissed.
 - **Opening:** the cached data shows immediately and refreshes in the
   background; the sync indicator shows syncing (§3). On the very first load
-  the Portfolio appears once the master data and the Active initiatives are
-  in; the Initiatives table and the search include the other initiatives as
-  they arrive, and the indicator shows syncing until all are loaded.
+  (no cache) the app waits for the whole dataset in one pull, then shows the
+  Portfolio; the Initiatives table and the search never show a partial
+  list.
 - **Validation:** percent fields (Allocation %, Capacity %, Team FTE %)
   accept 0 to 100; anything else is refused inline with a message, because
   it would otherwise corrupt data (§7.2).
