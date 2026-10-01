@@ -4,8 +4,11 @@ import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { isInitiativeFrozen } from '../data/frozen';
 import { allocationCount, describeTeamChange } from '../data/teamChange';
+import { causeText } from '../github/errors';
+import { navigate, normalizeHash } from '../router/useHashRoute';
 import type { Initiative, InitiativeStatus, Team } from '../data/types';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
+import { DeleteConfirmation, type DeleteStep } from './DeleteConfirmation';
 import { formatAmount } from './formatAmount';
 import { InitiativeActionsMenu } from './InitiativeActionsMenu';
 import { FrozenStrip } from './FrozenStrip';
@@ -22,7 +25,8 @@ const STATUS_ICON: Partial<Record<InitiativeStatus, typeof OnHoldIcon>> = { 'On 
  * dropdown of the active teams; choosing another one that would take allocations out of the open phases asks
  * first, in place under the header (no modal), naming who goes and who stays (§7.2). The dropdown keeps
  * showing the current team until the change is confirmed. A Closed or Cancelled initiative keeps its team,
- * shown as text.
+ * shown as text. Delete, from the Actions menu, asks in the same place (§9.9); once deleted, the Initiatives table
+ * replaces the page in history.
  */
 export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   const repository = useRepository();
@@ -34,6 +38,9 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   const applyRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const bodyId = useId();
+  const [deleteStep, setDeleteStep] = useState<DeleteStep | null>(null);
+  const actionsRef = useRef<HTMLButtonElement>(null);
+  const deleteFocusRef = useRef<HTMLButtonElement>(null);
 
   const currentTeam = teams.find((t) => t.id === initiative.teamId);
   const StatusIcon = STATUS_ICON[initiative.status];
@@ -59,10 +66,29 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
     triggerRef.current?.focus();
   };
 
+  const closeDelete = () => {
+    setDeleteStep(null);
+    actionsRef.current?.focus();
+  };
+  const confirmDelete = async () => {
+    setDeleteStep('deleting');
+    // Only from this initiative's page: a delete that lands after the user has gone elsewhere leaves them there.
+    // The route changes first, so the page never shows the initiative missing on the way out.
+    const result = await repository.deleteInitiative(initiative.id, () => {
+      if (normalizeHash(window.location.hash).split('?')[0] !== `/initiatives/${initiative.id}`) return;
+      const left = new Promise<void>((resolve) => window.addEventListener('hashchange', () => resolve(), { once: true }));
+      navigate('/initiatives', { replace: true });
+      return left;
+    });
+    if (result === 'deleted') return;
+    setDeleteStep(result === 'refused' ? 'refused' : { failed: causeText(result.failed) });
+  };
+
   const choose = (teamId: string) => {
     const team = teams.find((t) => t.id === teamId);
     if (!team) return;
     if (repository.previewTeamChange(initiative.id, team.id)?.removed.length === 0) return apply(team);
+    if (deleteStep !== 'deleting') setDeleteStep(null);
     setPendingTeamId(team.id);
   };
 
@@ -102,10 +128,22 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
           {initiative.status}
         </span>
         <ApprovalTrackBadge initiative={initiative} />
-        <InitiativeActionsMenu initiative={initiative} />
+        <InitiativeActionsMenu
+          initiative={initiative}
+          triggerRef={actionsRef}
+          ui={{
+            confirmDelete: () => {
+              setPendingTeamId(null);
+              setDeleteStep('asking');
+            },
+            focusConfirmation: () => deleteFocusRef.current?.focus(),
+          }}
+        />
       </div>
 
       <FrozenStrip initiative={initiative} />
+
+      {deleteStep && <DeleteConfirmation initiative={initiative} step={deleteStep} focusRef={deleteFocusRef} onConfirm={() => void confirmDelete()} onClose={closeDelete} />}
 
       {confirming && (
         <div

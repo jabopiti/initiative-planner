@@ -22,7 +22,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
   const conflict = useFieldConflict();
-  const { initiatives, teams } = useRepositoryState();
+  const { initiatives, teams, deletedWithLostEdit } = useRepositoryState();
   const initiative = initiatives.find((i) => i.id === id);
   const team = initiative ? teams.find((t) => t.id === initiative.teamId) : undefined;
 
@@ -34,6 +34,10 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
     return (
       <div className="max-w-[720px] p-8">
         <p>This initiative couldn&apos;t be found.</p>
+        {/* Deleted by someone else while an edit here waited to be saved (§3): the edit is not lost silently. */}
+        {deletedWithLostEdit.has(id) && (
+          <p className="text-sm text-text-secondary">{deletedWithLostEdit.get(id)} was deleted, so your last change to it wasn&apos;t saved.</p>
+        )}
       </div>
     );
   }
