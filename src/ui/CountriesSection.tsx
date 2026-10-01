@@ -34,7 +34,6 @@ function changes(n: number): string {
   return n === 0 ? 'changes no estimates.' : `changes the estimate of ${initiativeCount(n)}.`;
 }
 
-/** "2026, 2027 and 2028". */
 /**
  * Settings' Countries & rates section (§5.9): a lockable list of countries, each opening in place to one table
  * with a row per tracked year — the day rate and twelve months of working days. Rates are correct confirms the

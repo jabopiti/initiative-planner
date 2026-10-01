@@ -71,7 +71,6 @@ export function planTeamChange(input: {
 /** "N allocation(s)": the one spelling of the count, for the confirmation, the Undo message and the commit. */
 export const allocationCount = (n: number): string => `${n} allocation${n === 1 ? '' : 's'}`;
 
-/** "A", "A and B", "A, B and C". */
 /**
  * What the confirmation says (§5.4): who is not an active member of the new team, how many allocations in which
  * open phases go and what they cost, and who is on both teams and stays.
