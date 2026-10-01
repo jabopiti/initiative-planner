@@ -3,7 +3,7 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { Archive, ArchiveRestore, Ban, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, CirclePause, CircleX, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Play, Plus, RefreshCw, Rocket, RotateCcw, Search, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, Ban, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, CirclePause, CircleX, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Play, Plus, RefreshCw, Rocket, RotateCcw, Search, SkipForward, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserCheck, UserX, Users, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
 import type { PhaseIconName } from '../brand/types';
 
@@ -40,6 +40,8 @@ export const TentativeIcon = iconWrapper(CircleDashed);
 export const CompleteIcon = iconWrapper(CircleCheck);
 /** A frozen phase, and a Closed or Cancelled initiative (§9.9, §9.10). */
 export const FrozenIcon = iconWrapper(Lock);
+/** A phase whose exit gate was skipped (§8.2): it stays editable, so it carries no lock. */
+export const SkippedIcon = iconWrapper(SkipForward);
 /** A locked Settings section's toggle (§2, §9.9, §9.10), and its unlocked counterpart. */
 export const LockedIcon = iconWrapper(Lock);
 export const UnlockedIcon = iconWrapper(Unlock);
