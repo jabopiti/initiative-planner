@@ -34,9 +34,12 @@ export function CostItemLabelInput({
   const open = suggestions.length > 0 && !dismissed;
   const optionId = (index: number) => `${listId}-${index}`;
 
-  const choose = (suggestion: CostItemSuggestion) => {
+  const close = () => {
     setDismissed(true);
     setActive(-1);
+  };
+  const choose = (suggestion: CostItemSuggestion) => {
+    close();
     onChoose(suggestion);
   };
   const keys = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -55,8 +58,7 @@ export function CostItemLabelInput({
     } else if (event.key === 'Escape' && open) {
       // Closes the list and keeps the text; the row's own Esc, which cancels it, is for the next press.
       event.preventDefault();
-      setDismissed(true);
-      setActive(-1);
+      close();
     } else {
       onKeyDown(event);
     }
@@ -82,7 +84,7 @@ export function CostItemLabelInput({
         onKeyDown={keys}
       />
       <span role="status" className="sr-only">
-        {open ? `${suggestions.length} ${suggestions.length === 1 ? 'suggestion' : 'suggestions'}` : ''}
+        {open ? `${suggestions.length} suggestion${suggestions.length === 1 ? '' : 's'}` : ''}
       </span>
       {open && (
         <ul id={listId} role="listbox" aria-label="Earlier cost items" className="absolute z-10 mt-1 w-max min-w-full max-w-sm list-none rounded-md border border-border-default bg-popover text-popover-foreground p-1 shadow-md">

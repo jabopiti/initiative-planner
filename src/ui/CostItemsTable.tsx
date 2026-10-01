@@ -233,10 +233,9 @@ function DraftRow({
   const [amount, setAmount] = useState('');
   const [timing, setTiming] = useState<CostItem['timing']>('spread');
   // Until one is picked, the month follows the phase's period, which may still change while the row is open.
-  const [pickedMonth, setMonth] = useState<string>();
-  // A one-month suggestion does not carry its month (it belongs to another phase): the field starts empty (§5.11).
-  const [monthCleared, setMonthCleared] = useState(false);
-  const month = monthCleared ? pickedMonth : (pickedMonth ?? defaultMonth(months));
+  // null: a one-month suggestion does not carry its month (it belongs to another phase), so the field starts empty (§5.11).
+  const [pickedMonth, setMonth] = useState<string | null>();
+  const month = pickedMonth === undefined ? defaultMonth(months) : (pickedMonth ?? undefined);
   const [refused, setRefused] = useState<{ label?: string; amount?: string; month?: string }>({});
   const labelErrorId = useId();
   const amountErrorId = useId();
@@ -245,16 +244,19 @@ function DraftRow({
   const add = () => {
     const parsed = parseAmount(amount);
     const text = label.trim();
-    const needsMonth = timing === 'month' && month === undefined;
-    setRefused({ label: text === '' ? LABEL_REFUSAL : undefined, amount: parsed === null ? AMOUNT_REFUSAL : undefined, month: needsMonth ? MONTH_REFUSAL : undefined });
-    if (text !== '' && parsed !== null && !needsMonth) onAdd({ label: text, amount: parsed, timing, ...(timing === 'month' && { month }) });
+    const next = {
+      label: text === '' ? LABEL_REFUSAL : undefined,
+      amount: parsed === null ? AMOUNT_REFUSAL : undefined,
+      month: timing === 'month' && month === undefined ? MONTH_REFUSAL : undefined,
+    };
+    setRefused(next);
+    if (parsed !== null && !next.label && !next.month) onAdd({ label: text, amount: parsed, timing, ...(timing === 'month' && { month }) });
   };
   const choose = (suggestion: CostItemSuggestion) => {
     setLabel(suggestion.label);
     setAmount(String(suggestion.amount));
     setTiming(suggestion.timing);
-    setMonth(undefined);
-    setMonthCleared(true);
+    setMonth(null);
     setRefused({});
   };
   const keys = (e: React.KeyboardEvent) => {
