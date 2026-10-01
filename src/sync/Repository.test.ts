@@ -939,6 +939,22 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     });
   });
 
+  it('starts an untouched initiative at Development in one commit, and refuses a touched one (§8.2)', async () => {
+    const { repo, id, team } = await repoWithPlannedInitiative();
+    expect(repo.startAtPhase(id, 'development', 'Under way').ok).toBe(false);
+
+    const fresh = await repo.createInitiative('Checkout Redesign', team.id, '2026-09-24');
+    await repo.flushPending();
+    commits.length = 0;
+    expect(repo.startAtPhase(fresh.id, 'development', 'In development since May, before the tool.', '2026-10-01')).toEqual({ ok: true });
+    await repo.flushPending();
+    expect(commits.map((c) => c.message)).toEqual(['Checkout Redesign: starts at Development']);
+    const saved = commits[0].content;
+    expect(Object.keys(saved.gates ?? {})).toEqual(['discovery', 'validation']);
+    expect(saved.gates?.validation).toMatchObject({ outcome: 'skipped', skipReason: 'In development since May, before the tool.', startingPhase: true });
+    expect(saved.phases).toEqual({ development: { startDate: '2026-10-01', endDate: '2027-03-31', allocations: [] } });
+  });
+
   it('reopens the final gate of a Closed initiative, but no gate of a Cancelled one', async () => {
     const { repo, id, current } = await repoWithPlannedInitiative();
     const passed = { outcome: 'passed' as const, passedOn: '2026-01-01', checklist: [] };

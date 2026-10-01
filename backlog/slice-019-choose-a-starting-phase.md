@@ -86,38 +86,38 @@ on the phase); choosing a starting phase on Duplicate (025).
 
 ## Acceptance criteria
 
-- [ ] Given a newly created initiative with its default plan only, then it is
+- [x] Given a newly created initiative with its default plan only, then it is
       untouched and the bar shows "Start at a later phase".
-- [ ] Given a description, owner or team change only, then it is still
+- [x] Given a description, owner or team change only, then it is still
       untouched.
-- [ ] Given an edited period, an allocation, a cost item, an actual, a
+- [x] Given an edited period, an allocation, a cost item, an actual, a
       checklist status or note, or a passed or skipped gate (018), then it is
       touched and the action is absent.
-- [ ] Given Start at a later phase, then a phase select, a reason field,
+- [x] Given Start at a later phase, then a phase select, a reason field,
       Start at <phase> (disabled until both are set) and Cancel replace the
       guidance line; Esc cancels with nothing saved.
-- [ ] Given Development and a reason are chosen, then G1 and G2 get skipped
+- [x] Given Development and a reason are chosen, then G1 and G2 get skipped
       records with that reason and the starting-phase marker, in one commit
       "<name>: starts at Development".
-- [ ] Given Rollout is chosen, then G3 is recorded skipped too, although the
+- [x] Given Rollout is chosen, then G3 is recorded skipped too, although the
       brand pack marks it not skippable.
-- [ ] Given Development is chosen, then Development's default period starts
+- [x] Given Development is chosen, then Development's default period starts
       today and later costed phases are chained after it; Validation has no
       period.
-- [ ] Given the initiative is still untouched, then the bar reads "Change
+- [x] Given the initiative is still untouched, then the bar reads "Change
       starting phase"; choosing Validation leaves only G1 skipped and
       re-chains from Validation; choosing Discovery removes every
       starting-phase skip.
-- [ ] Given an allocation is added after choosing a starting phase, then the
+- [x] Given an allocation is added after choosing a starting phase, then the
       action disappears, and Reopen G2 (016) is the only way back.
-- [ ] Given the final phase is chosen as start, then its own gate is not
+- [x] Given the final phase is chosen as start, then its own gate is not
       skipped and the initiative stays Active.
-- [ ] Given an On Hold initiative, then the action is not offered.
-- [ ] Given the form opens, then the select reads "Choose a phase", the
+- [x] Given an On Hold initiative, then the action is not offered.
+- [x] Given the form opens, then the select reads "Choose a phase", the
       reason is labelled "Reason" and the button reads "Start", disabled;
       once Development is chosen the label reads "Reason for skipping G1 and
       G2" and the button "Start at Development".
-- [ ] Given a starting phase is set and the first phase is chosen, then no
+- [x] Given a starting phase is set and the first phase is chosen, then no
       reason field shows and "Start at Discovery" is enabled at once.
 
 ## Delivery gate

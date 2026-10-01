@@ -83,11 +83,13 @@ function initiativeField(rest: Path, doc: Initiative | undefined, conflict: Merg
       return null;
     }
     case 'gates': {
-      // A gate record is pinned by frozenPaths once written (§10.5, §8.1) and never merges field by field, so
-      // these paths never appear in a real conflict; labelled defensively in case that ever changes.
+      // A gate record is pinned by frozenPaths once written (§10.5, §8.1) and never merges field by field, except a
+      // starting-phase skip (§8.2), whose reason two people can change at once; the rest is labelled defensively.
       if (typeof phaseId !== 'string' || rest.length !== 3) return null;
       const gateLabel = ctx.process.find((p) => p.id === phaseId)?.exitGate.label ?? phaseId;
       if (part === 'outcome') return { label: `${gateLabel} outcome`, format: text };
+      if (part === 'startingPhase') return { label: `${gateLabel} skipped by the starting phase`, format: () => 'Yes', unset: 'No' };
+      if (part === 'skipReason') return { label: `${gateLabel} skip reason`, format: text, unset: 'none' };
       if (part === 'passedOn') return { label: `${gateLabel} passed on`, format: date, unset: 'not passed' };
       if (part === 'checklist') return { label: `${gateLabel} recorded checklist`, format: fallbackValue, unset: 'none' };
       return null;
