@@ -3,12 +3,17 @@ import { expect, type Page } from '@playwright/test';
 /** A made-up token: the fake GitHub accepts any value, and nothing here may look like a real one. */
 export const FAKE_TOKEN = 'e2e-fake-token';
 
-/** Opens the app, pastes a token on the Connect screen and waits for the dataset to load. */
-export async function connect(page: Page, options: { remember?: boolean } = {}) {
+/** Opens the app and submits the fake token on the Connect screen, without waiting for the outcome. */
+export async function enterToken(page: Page, options: { remember?: boolean } = {}) {
   await page.goto('/');
   await page.getByLabel('GitHub token').fill(FAKE_TOKEN);
   if (options.remember) await page.getByLabel('Remember me on this device').check();
   await page.getByRole('button', { name: 'Connect' }).click();
+}
+
+/** Connects and waits for the dataset to load. */
+export async function connect(page: Page, options: { remember?: boolean } = {}) {
+  await enterToken(page, options);
   await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
 }
 
@@ -23,6 +28,24 @@ export async function createTeam(page: Page, name: string) {
   await page.getByPlaceholder('Team name').fill(name);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('link', { name })).toBeVisible();
+}
+
+/** Adds a person on the People screen and waits until they are listed. */
+export async function addPerson(page: Page, name: string) {
+  await page.goto('/#/people');
+  await page.getByLabel('Name').fill(name);
+  await page.getByRole('button', { name: 'Add person' }).click();
+  await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
+}
+
+/** Creates an initiative through the new-initiative form and waits for its page. */
+export async function createInitiative(page: Page, name: string, team: string) {
+  await page.goto('/#/initiatives/new');
+  await page.getByLabel('Initiative name').fill(name);
+  await page.getByRole('combobox', { name: 'Team' }).click();
+  await page.getByRole('option', { name: team }).click();
+  await page.getByRole('button', { name: 'Create initiative' }).click();
+  await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible();
 }
 
 /**

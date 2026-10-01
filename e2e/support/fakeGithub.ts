@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test';
+import { decodeBase64Utf8 as unb64, encodeBase64Utf8 as b64 } from '../../src/github/base64';
 
 /**
  * An in-memory GitHub for browser tests: just enough of the REST API the app uses (the token check, the
@@ -25,8 +26,6 @@ export function fakeGithub(page: Page, options: { login?: string; rejectedTokens
   let counter = 0;
   const next = (kind: string) => `${kind}-${(counter += 1)}`;
 
-  const b64 = (text: string) => Buffer.from(text, 'utf8').toString('base64');
-  const unb64 = (data: string) => Buffer.from(data, 'base64').toString('utf8');
   const json = (route: Route, body: unknown, status = 200, headers: Record<string, string> = {}) =>
     route.fulfill({
       status,
@@ -34,10 +33,6 @@ export function fakeGithub(page: Page, options: { login?: string; rejectedTokens
       headers: { 'access-control-allow-origin': '*', 'access-control-expose-headers': 'etag, x-oauth-scopes', ...headers },
       body: JSON.stringify(body),
     });
-
-  const bumpHead = () => {
-    headCommit = next('commit');
-  };
 
   function listing(dir: string) {
     const prefix = dir ? `${dir}/` : '';
@@ -114,7 +109,7 @@ export function fakeGithub(page: Page, options: { login?: string; rejectedTokens
         const sha = next('sha');
         files.set(path, { content: unb64(body.content), sha });
         writes.push({ path, message: body.message });
-        bumpHead();
+        headCommit = next('commit');
         return json(route, { content: { sha } });
       }
     }

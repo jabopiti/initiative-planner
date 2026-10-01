@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { fakeGithub } from './support/fakeGithub';
-import { connect, createTeam, watchCspViolations } from './support/session';
+import { addPerson, connect, createInitiative, createTeam, watchCspViolations } from './support/session';
 
 interface StoredInitiative {
   name: string;
@@ -19,10 +19,7 @@ test('a team, a person and an initiative are created, saved to the repository an
   // The screen updates first and the commit follows, so wait for the repository rather than read it at once.
   await expect.poll(() => github.read<{ name: string }[]>('teams.json')?.map((t) => t.name)).toEqual(['Platform']);
 
-  await page.goto('/#/people');
-  await page.getByLabel('Name').fill('Mara Voss');
-  await page.getByRole('button', { name: 'Add person' }).click();
-  await expect(page.getByRole('button', { name: 'Mara Voss', exact: true })).toBeVisible();
+  await addPerson(page, 'Mara Voss');
   await expect.poll(() => github.read<{ name: string }[]>('people.json')?.map((p) => p.name)).toEqual(['Mara Voss']);
 
   await page.goto('/#/initiatives');
@@ -55,12 +52,7 @@ test('renaming an initiative and describing it are committed to its file', async
   await connect(page);
   await createTeam(page, 'Platform');
 
-  await page.goto('/#/initiatives/new');
-  await page.getByLabel('Initiative name').fill('Checkout Redesign');
-  await page.getByRole('combobox', { name: 'Team' }).click();
-  await page.getByRole('option', { name: 'Platform' }).click();
-  await page.getByRole('button', { name: 'Create initiative' }).click();
-  await expect(page.getByRole('heading', { name: 'Checkout Redesign', level: 1 })).toBeVisible();
+  await createInitiative(page, 'Checkout Redesign', 'Platform');
   await expect.poll(() => github.paths('initiatives/').length).toBe(1);
   const [path] = github.paths('initiatives/');
 

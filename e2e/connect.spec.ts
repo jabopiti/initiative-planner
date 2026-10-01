@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { fakeGithub } from './support/fakeGithub';
-import { connect, FAKE_TOKEN } from './support/session';
+import { connect, enterToken, FAKE_TOKEN } from './support/session';
 
 test('connecting to an empty repository sets up the dataset and opens the app', async ({ page }) => {
   const github = fakeGithub(page, { login: 'ada' });
@@ -20,9 +20,7 @@ test('connecting to an empty repository sets up the dataset and opens the app', 
 test('a token GitHub rejects keeps the Connect screen and says so', async ({ page }) => {
   await fakeGithub(page, { rejectedTokens: [FAKE_TOKEN] }).install();
 
-  await page.goto('/');
-  await page.getByLabel('GitHub token').fill(FAKE_TOKEN);
-  await page.getByRole('button', { name: 'Connect' }).click();
+  await enterToken(page);
 
   await expect(page.getByRole('alert')).toHaveText("GitHub doesn't accept this token.");
   await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0);
