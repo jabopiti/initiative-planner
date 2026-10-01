@@ -42,7 +42,9 @@ function PersonDetails({ person }: { person: Person }) {
   const repository = useRepository();
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
-  const conflict = useFieldConflict();
+  const fieldConflict = useFieldConflict();
+  // An inactive person's fields are disabled, the choices with them: the banner resolves their conflicts (§9.9).
+  const conflict = person.active ? fieldConflict : () => null;
   const { roles, countries, teams, memberships } = useRepositoryState();
   const customRole = person.customRole;
   const customActive = customRole?.active === true;

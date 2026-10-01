@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { FILE_PATHS, type Initiative } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
-import { ConflictUiProvider, useFieldConflict } from '../state/ConflictUi';
+import { ConflictUiProvider, useConflictUi, useFieldConflict } from '../state/ConflictUi';
 import { RepositoryContext, useFieldFailure, useRepository, useRepositoryState } from '../state/DataContext';
 import type { Repository } from '../sync/Repository';
 import { fakeGithub, initiative, open, person } from '../sync/testing/fakeGithub';
@@ -141,7 +141,43 @@ describe('Same-field conflict inline under the field (§3, §9.9)', () => {
   });
 });
 
+/** Asks Show's way to the name conflict, and says where Show is still headed. */
+function RevealProbe() {
+  const { store, reveal } = useConflictUi();
+  return (
+    <>
+      <button type="button" onClick={() => store.reveal({ file, path: ['name'] })}>
+        Reveal name
+      </button>
+      <output aria-label="Reveal">{reveal ? 'pending' : 'none'}</output>
+    </>
+  );
+}
+
 describe('In a table, and reached from the banner (§9.9)', () => {
+  it('drops Show\'s target once a pull settles its conflict before the field is on screen', async () => {
+    const user = userEvent.setup();
+    const fake = fakeGithub();
+    const { repo } = await open(fake, { initiatives: [initiative()] });
+    fake.seed(file, initiative({ name: 'Payments Platform' }));
+    repo.renameInitiative('i1', 'Payments Core');
+    await repo.flushPending();
+    render(
+      <BrandProvider brand={defaultBrandPack}>
+        <RepositoryContext.Provider value={repo}>
+          <ConflictUiProvider>
+            <RevealProbe />
+          </ConflictUiProvider>
+        </RepositoryContext.Provider>
+      </BrandProvider>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Reveal name' }));
+    expect(screen.getByRole('status', { name: 'Reveal' }).textContent).toBe('pending');
+    fake.seed(file, { ...fake.read<Initiative>(file), name: 'Payments Core' });
+    await act(() => repo.pull());
+    await vi.waitFor(() => expect(screen.getByRole('status', { name: 'Reveal' }).textContent).toBe('none'));
+  });
+
   it('Show opens the collapsed phase, and the allocation conflict sits in a row under its row, focused on Keep theirs', async () => {
     Element.prototype.scrollIntoView = () => {};
     const user = userEvent.setup();

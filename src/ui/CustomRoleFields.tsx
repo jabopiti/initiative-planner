@@ -17,7 +17,9 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
   const repository = useRepository();
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
-  const conflict = useFieldConflict();
+  const fieldConflict = useFieldConflict();
+  // Inside an inactive person's disabled panel the banner resolves these instead (§9.9).
+  const conflict = person.active ? fieldConflict : () => null;
   const customPath = (field: string) => [{ id: person.id }, 'customRole', field];
   // The year rates merge as one value, so one block covers them all (§3, §9.9).
   const ratesConflict = conflict(FILE_PATHS.people, customPath('dayRatesByYear'));

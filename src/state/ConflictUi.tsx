@@ -68,6 +68,18 @@ export class ConflictUiStore {
   reveal(target: ConflictReveal | null): void {
     this.set({ reveal: target });
   }
+
+  /**
+   * Forgets what is about conflicts no longer open: a failed choice, and Show's target when its conflict closed
+   * before its block took the focus (a pull settled it), so it doesn't open a panel on a later visit.
+   */
+  retain(open: readonly FileConflict[]): void {
+    const { failed, reveal } = this.snapshot;
+    const next: Partial<Snapshot> = {};
+    if ([...failed].some((c) => !open.includes(c))) next.failed = new Set([...failed].filter((c) => open.includes(c)));
+    if (reveal && !open.some((c) => changeKey(c.file, c.path) === changeKey(reveal.file, reveal.path))) next.reveal = null;
+    if (Object.keys(next).length > 0) this.set(next);
+  }
 }
 
 const ConflictUiContext = createContext<ConflictUiStore | null>(null);
@@ -76,6 +88,8 @@ const fallback = new ConflictUiStore();
 
 export function ConflictUiProvider({ children }: { children: ReactNode }) {
   const [store] = useState(() => new ConflictUiStore());
+  const { conflicts } = useRepositoryState();
+  useEffect(() => store.retain(conflicts), [store, conflicts]);
   return <ConflictUiContext.Provider value={store}>{children}</ConflictUiContext.Provider>;
 }
 

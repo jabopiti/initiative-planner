@@ -1,4 +1,5 @@
-import { FILE_PATHS, type Initiative, type Membership } from '../data/types';
+import { isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
+import { FILE_PATHS, type Initiative, type Membership, type Person } from '../data/types';
 import type { Path } from '../sync/merge';
 
 /** One path segment's pattern: a key, any key (`*`), a list item (`{}`), or any of several keys. */
@@ -37,19 +38,38 @@ function matches(path: Path, pattern: Segment[]): boolean {
   );
 }
 
+/** Whether the initiative's page shows the field as an editable text field now: a Closed or Cancelled initiative
+ * keeps only its actuals editable (§8.4), and a phase behind a passed gate shows its frozen snapshot (§8.1). */
+function editableOnInitiative(initiative: Initiative, path: Path): boolean {
+  if (path[0] !== 'phases') return !isInitiativeFrozen(initiative);
+  if (path[2] === 'actualMonths') return true;
+  return !isInitiativeFrozen(initiative) && !isPhaseFrozen(initiative, path[1] as string);
+}
+
 /**
  * Where a conflict's field is edited, for the banner's Show (§9.9): the initiative's page, People (whose panel
  * opens on arrival), the membership's team, or the role's or country's Settings section. Null when no text
- * field shows it inline (a select, a toggle, a whole list item): the banner resolves those itself.
+ * field shows it inline (a select, a toggle, a whole list item, a field read-only or not shown just now — a
+ * frozen phase, an inactive person, an inactive custom role): the banner resolves those itself.
  */
-export function conflictHome(file: string, path: Path, ctx: { initiatives: Initiative[]; memberships: Membership[] }): string | null {
+export function conflictHome(
+  file: string,
+  path: Path,
+  ctx: { initiatives: Initiative[]; memberships: Membership[]; people: Person[] },
+): string | null {
   const initiative = ctx.initiatives.find((i) => FILE_PATHS.initiative(i.id) === file);
-  if (initiative) return INITIATIVE_FIELDS.some((p) => matches(path, p)) ? `/initiatives/${initiative.id}` : null;
+  if (initiative) {
+    return INITIATIVE_FIELDS.some((p) => matches(path, p)) && editableOnInitiative(initiative, path) ? `/initiatives/${initiative.id}` : null;
+  }
   if (!(MASTER_FIELDS[file] ?? []).some((p) => matches(path, p))) return null;
   const item = path[0] as { id: string };
   switch (file) {
-    case FILE_PATHS.people:
+    case FILE_PATHS.people: {
+      // An inactive person's panel is disabled, and a custom role's fields show only while it is active.
+      const person = ctx.people.find((p) => p.id === item.id);
+      if (!person?.active || (path[1] === 'customRole' && person.customRole?.active !== true)) return null;
       return '/people';
+    }
     case FILE_PATHS.memberships: {
       const teamId = ctx.memberships.find((m) => m.id === item.id)?.teamId;
       return teamId ? `/teams/${teamId}` : null;
