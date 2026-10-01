@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fakeGithub } from './support/fakeGithub';
 import { addPerson, connect, createInitiative, createTeam, enterToken, FAKE_TOKEN, watchCspViolations } from './support/session';
 
@@ -40,9 +40,22 @@ test('the app screens have no accessibility violations', async ({ page }) => {
   await createInitiative(page, 'Checkout Redesign', 'Platform');
   await expectNoViolations(page); // initiative detail
 
-  for (const route of ['/#/initiatives', '/#/portfolio', '/#/settings/roles', '/#/settings/countries', '/#/settings/process', '/#/settings/connection', '/#/settings/about']) {
+  // A hash navigation is same-document, so wait for something only the target screen shows before scanning.
+  const section = (label: string) => () =>
+    page.getByRole('navigation', { name: 'Settings sections' }).locator('[aria-current="page"]', { hasText: label });
+  const screens: [route: string, ready: () => Locator][] = [
+    ['/#/initiatives', () => page.getByRole('heading', { level: 1, name: 'Initiatives' })],
+    // The portfolio has no nav item of its own: it is the screen where Initiatives is no longer the current page.
+    ['/#/portfolio', () => page.getByRole('navigation', { name: 'Primary' }).locator('a:not([aria-current])', { hasText: 'Initiatives' })],
+    ['/#/settings/roles', section('Roles')],
+    ['/#/settings/countries', section('Countries & rates')],
+    ['/#/settings/process', section('Process')],
+    ['/#/settings/connection', section('Connection')],
+    ['/#/settings/about', section('About')],
+  ];
+  for (const [route, ready] of screens) {
     await page.goto(route);
-    await page.waitForLoadState('networkidle');
+    await expect(ready()).toBeVisible();
     await expectNoViolations(page);
   }
   expect(csp).toEqual([]);
