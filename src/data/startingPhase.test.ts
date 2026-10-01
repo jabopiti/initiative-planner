@@ -12,6 +12,8 @@ const created = '2026-03-02';
 const today = '2026-10-01';
 const fresh = (): Initiative => ({ id: 'i1', name: 'Checkout Redesign', teamId: 'platform', status: 'Active', phases: buildDefaultPlan(process, created), defaultPlan: true });
 const REASON = 'In development since May, before the tool.';
+// Development's default six months, chained from today.
+const DEVELOPMENT_FROM_TODAY = { development: { startDate: today, endDate: '2027-03-31', allocations: [] } };
 
 function start(initiative: Initiative, phaseId: string, reason = REASON): Initiative {
   const result = startAtPhase(process, initiative, phaseId, reason, today);
@@ -60,7 +62,7 @@ describe('startAtPhase (§8.2)', () => {
     expect(next.gates?.development).toBeUndefined();
     expect(next.gates?.discovery.passedOn).toBeUndefined();
     expect(currentPhaseId(next, process)).toBe('development');
-    expect(next.phases).toEqual({ development: { startDate: today, endDate: '2027-03-31', allocations: [] } });
+    expect(next.phases).toEqual(DEVELOPMENT_FROM_TODAY);
     expect(next.defaultPlan).toBe(true);
     expect(isUntouched(next)).toBe(true);
     expect(hasStartingPhase(next)).toBe(true);
@@ -96,7 +98,7 @@ describe('startAtPhase (§8.2)', () => {
 
   it('can be changed again from Rollout, after its periods were removed', () => {
     const back = start(start(fresh(), 'rollout'), 'development');
-    expect(back.phases).toEqual({ development: { startDate: today, endDate: '2027-03-31', allocations: [] } });
+    expect(back.phases).toEqual(DEVELOPMENT_FROM_TODAY);
     expect(Object.keys(back.gates ?? {})).toEqual(['discovery', 'validation']);
   });
 
@@ -118,8 +120,8 @@ describe('startAtPhase (§8.2)', () => {
 
 describe('startingPhaseChoices and gatesBehindLabel (§5.4)', () => {
   it('offers every phase but the current one, in process order', () => {
-    expect(startingPhaseChoices(process, fresh()).map((p) => p.id)).toEqual(['validation', 'development', 'rollout']);
-    expect(startingPhaseChoices(process, start(fresh(), 'development')).map((p) => p.id)).toEqual(['discovery', 'validation', 'rollout']);
+    expect(startingPhaseChoices(process, currentPhaseId(fresh(), process)).map((p) => p.id)).toEqual(['validation', 'development', 'rollout']);
+    expect(startingPhaseChoices(process, currentPhaseId(start(fresh(), 'development'), process)).map((p) => p.id)).toEqual(['discovery', 'validation', 'rollout']);
   });
 
   it('names the gates a start records as skipped', () => {

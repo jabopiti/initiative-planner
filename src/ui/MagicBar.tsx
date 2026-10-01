@@ -43,6 +43,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   const startButton = useRef<HTMLButtonElement>(null);
   const onHold = initiative.status === 'On Hold';
   const phaseId = currentPhaseId(initiative, process);
+  const canStart = canChooseStartingPhase(initiative);
   // The on-hold answer to a selected Pass gate lasts until the hold ends, however it ends (this bar's Resume or the menu's).
   if (!onHold && holdAsked) setHoldAsked(null);
   // Putting it on hold ends the "Passed <gate> — Reopen" message at once.
@@ -50,7 +51,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   // Skipping ends, with nothing saved, once the gate it was opened on is no longer the one to skip (§8.2).
   if (skipping && (initiative.status !== 'Active' || skipping.phaseId !== phaseId)) setSkipping(null);
   // Choosing a starting phase ends, with nothing saved, once the initiative is touched or no longer Active (§8.2).
-  if (starting && (!canChooseStartingPhase(initiative) || starting.phaseId === phaseId)) setStarting(null);
+  if (starting && (!canStart || starting.phaseId === phaseId)) setStarting(null);
 
   useEffect(() => {
     if (!doneMessage) return;
@@ -88,7 +89,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   const startChoice = starting ? process.find((p) => p.id === starting.phaseId) : undefined;
   const startGates = startChoice ? gatesBehindLabel(process, startChoice.id) : '';
   // The first phase removes every starting-phase skip, so it needs no reason (§8.2).
-  const startNeedsReason = !startChoice || startGates !== '';
+  const startNeedsReason = startChoice !== process[0];
   const startReady = Boolean(startChoice) && (!startNeedsReason || Boolean(starting?.reason.trim()));
   // Back to the action the form replaced, once it is rendered again (it reads "Change starting phase" after a start).
   const closeStart = () => {
@@ -99,7 +100,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
     if (!starting || !startReady) return;
     if (repository.startAtPhase(initiative.id, starting.phaseId, starting.reason).ok) closeStart();
   };
-  const offerStart = canChooseStartingPhase(initiative) && !skipping && !starting && !doneMessage;
+  const offerStart = canStart && !skipping && !starting && !doneMessage;
 
   const jump = () => jumpTo(jumpTargetId(requirements, phaseId));
   const extend = () => repository.extendPhase(initiative.id, phase.id);
@@ -166,7 +167,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
                 <SelectValue placeholder="Choose a phase" />
               </SelectTrigger>
               <SelectContent>
-                {startingPhaseChoices(process, initiative).map((p) => (
+                {startingPhaseChoices(process, phaseId).map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.label}
                   </SelectItem>

@@ -279,17 +279,22 @@ describe('Choose a starting phase for an untouched initiative (§8.2)', () => {
   });
   const REASON = 'In development since May, before the tool.';
 
+  /** A new initiative's page, with the starting-phase form open. */
+  async function openStartForm() {
+    const user = userEvent.setup();
+    initiative = untouched();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Start at a later phase' }));
+    return user;
+  }
+
   async function choose(user: ReturnType<typeof userEvent.setup>, phase: string) {
     await user.click(screen.getByRole('combobox', { name: 'Start at' }));
     await user.click(await screen.findByRole('option', { name: phase }));
   }
 
   it('offers Start at a later phase on a new initiative, and opens the form with nothing chosen (AC1, AC4)', async () => {
-    const user = userEvent.setup();
-    initiative = untouched();
-    renderPage();
-
-    await user.click(await screen.findByRole('button', { name: 'Start at a later phase' }));
+    await openStartForm();
     expect(screen.getByRole('combobox', { name: 'Start at' })).toHaveFocus();
     expect(screen.getByRole('combobox', { name: 'Start at' })).toHaveTextContent('Choose a phase');
     expect(screen.getByLabelText('Reason')).toBeInTheDocument();
@@ -298,11 +303,7 @@ describe('Choose a starting phase for an untouched initiative (§8.2)', () => {
   });
 
   it('names the skipped gates and records them in one commit, then reads Change starting phase (AC5)', async () => {
-    const user = userEvent.setup();
-    initiative = untouched();
-    renderPage();
-
-    await user.click(await screen.findByRole('button', { name: 'Start at a later phase' }));
+    const user = await openStartForm();
     await choose(user, 'Development');
     const reason = screen.getByLabelText('Reason for skipping G1 and G2');
     expect(screen.getByRole('button', { name: 'Start at Development' })).toBeDisabled();
@@ -317,11 +318,7 @@ describe('Choose a starting phase for an untouched initiative (§8.2)', () => {
   });
 
   it('names G3 too for Rollout, and needs no reason for Discovery once a start is set (AC6)', async () => {
-    const user = userEvent.setup();
-    initiative = untouched();
-    renderPage();
-
-    await user.click(await screen.findByRole('button', { name: 'Start at a later phase' }));
+    const user = await openStartForm();
     await choose(user, 'Rollout');
     expect(screen.getByLabelText('Reason for skipping G1, G2 and G3')).toBeInTheDocument();
     await user.type(screen.getByLabelText('Reason for skipping G1, G2 and G3'), 'Live already{Enter}');
@@ -333,11 +330,7 @@ describe('Choose a starting phase for an untouched initiative (§8.2)', () => {
   });
 
   it('cancels with Esc, nothing saved, focus back on the action (AC4)', async () => {
-    const user = userEvent.setup();
-    initiative = untouched();
-    renderPage();
-
-    await user.click(await screen.findByRole('button', { name: 'Start at a later phase' }));
+    const user = await openStartForm();
     await choose(user, 'Validation');
     await user.type(screen.getByLabelText('Reason for skipping G1'), 'Half done{Escape}');
     expect(screen.getByRole('button', { name: 'Start at a later phase' })).toHaveFocus();

@@ -1,4 +1,4 @@
-import type { Initiative } from './types';
+import type { GateRecord, Initiative } from './types';
 
 /** Whether a phase is frozen by its passed exit gate (§8.1). */
 export type PhaseFrozen = (initiative: Initiative, phaseId: string) => boolean;
@@ -10,6 +10,11 @@ export const isPhaseFrozen: PhaseFrozen = (initiative, phaseId) => initiative.ga
 export function skipReason(initiative: Initiative, phaseId: string): string | undefined {
   const record = initiative.gates?.[phaseId];
   return record?.outcome === 'skipped' ? (record.skipReason ?? '') : undefined;
+}
+
+/** A skip recorded by choosing a starting phase (§8.2), as opposed to one taken with Skip <gate>. */
+export function isStartingPhaseSkip(record: GateRecord | undefined): boolean {
+  return record?.startingPhase === true;
 }
 
 /**
@@ -34,7 +39,7 @@ export function frozenPaths(initiative: Initiative, frozen: PhaseFrozen = isPhas
     .filter((phaseId) => frozen(initiative, phaseId))
     .flatMap((phaseId) => FROZEN_PHASE_FIELDS.map((field) => ['phases', phaseId, field]));
   const gatePaths = Object.entries(initiative.gates ?? {})
-    .filter(([, record]) => !record.startingPhase)
+    .filter(([, record]) => !isStartingPhaseSkip(record))
     .map(([phaseId]) => ['gates', phaseId]);
   return [...phasePaths, ...gatePaths];
 }

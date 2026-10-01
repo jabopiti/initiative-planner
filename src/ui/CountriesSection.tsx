@@ -4,6 +4,7 @@ import { useBrand } from '../state/BrandContext';
 import { useFieldConflict, useRevealTarget } from '../state/ConflictUi';
 import { daysInMonth, parseAmount, trackedYears, yearRecord } from '../data/cost';
 import { MONTHS, formatMonth, monthKey } from '../data/dates';
+import { joinList } from '../data/joinList';
 import { initiativesAffectedByRate, weekdaysByMonth, type RateEdit } from '../data/rates';
 import { FILE_PATHS, type Country, type CountryYearRateRecord } from '../data/types';
 import { AmountInput } from './AmountInput';
@@ -34,10 +35,6 @@ function changes(n: number): string {
 }
 
 /** "2026, 2027 and 2028". */
-function listYears(years: number[]): string {
-  return years.length < 2 ? years.join('') : `${years.slice(0, -1).join(', ')} and ${years[years.length - 1]}`;
-}
-
 /**
  * Settings' Countries & rates section (§5.9): a lockable list of countries, each opening in place to one table
  * with a row per tracked year — the day rate and twelve months of working days. Rates are correct confirms the
@@ -527,7 +524,7 @@ function DraftCountryRow({
         </div>
       </div>
       <p id={hintId} className="m-0 text-xs text-text-secondary">
-        Used for {listYears(years)}. Working days start as the weekdays of each month.
+        Used for {joinList(years.map(String))}. Working days start as the weekdays of each month.
       </p>
       <div className="flex gap-2">
         <Button type="button" size="sm" disabled={!name.trim()} onClick={add}>

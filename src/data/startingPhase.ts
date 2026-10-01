@@ -1,17 +1,14 @@
 import type { PhaseDef } from '../brand/types';
 import { buildDefaultPlan } from './defaultPlan';
+import { isStartingPhaseSkip } from './frozen';
 import { checklistRecord } from './gate';
-import { currentPhaseId } from './processState';
+import { joinList } from './joinList';
+import { planHasCostData } from './phaseSummary';
 import type { GateRecord, Initiative, PhasePlan } from './types';
-
-/** A skip recorded by choosing a starting phase (§8.2), as opposed to one taken with Skip <gate>. */
-export function isStartingPhaseSkip(record: GateRecord | undefined): boolean {
-  return record?.outcome === 'skipped' && record.startingPhase === true;
-}
 
 /** A phase plan holding nothing a user entered: no period, allocation, cost item or actual. */
 function planIsEmpty(plan: PhasePlan): boolean {
-  return !plan.startDate && !plan.endDate && plan.allocations.length === 0 && !plan.costItems?.length && Object.keys(plan.actualMonths ?? {}).length === 0;
+  return !plan.startDate && !plan.endDate && !planHasCostData(plan);
 }
 
 /**
@@ -37,23 +34,17 @@ export function hasStartingPhase(initiative: Initiative): boolean {
 }
 
 /** The phases the select offers (§8.2): every phase but the current one, in process order. */
-export function startingPhaseChoices(process: PhaseDef[], initiative: Initiative): PhaseDef[] {
-  const current = currentPhaseId(initiative, process);
-  return process.filter((p) => p.id !== current);
-}
-
-/** "G1", "G1 and G2", "G1, G2 and G3". */
-function joinLabels(labels: string[]): string {
-  return labels.length <= 1 ? (labels[0] ?? '') : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+export function startingPhaseChoices(process: PhaseDef[], currentId: string): PhaseDef[] {
+  return process.filter((p) => p.id !== currentId);
 }
 
 /** The gates starting at `phaseId` records as skipped, joined for the reason's label ("G1 and G2"); empty for the first phase. */
 export function gatesBehindLabel(process: PhaseDef[], phaseId: string): string {
   const index = process.findIndex((p) => p.id === phaseId);
-  return joinLabels(process.slice(0, Math.max(index, 0)).map((p) => p.exitGate.label));
+  return joinList(process.slice(0, Math.max(index, 0)).map((p) => p.exitGate.label));
 }
 
-export type StartAtResult = { ok: true; initiative: Initiative; phase: PhaseDef } | { ok: false; reason: string };
+type StartAtResult = { ok: true; initiative: Initiative; phase: PhaseDef } | { ok: false; reason: string };
 
 /**
  * Start the initiative at `phaseId` (§8.2): every gate behind it is recorded skipped with the one reason and the
