@@ -327,6 +327,8 @@ describe('Choose a starting phase for an untouched initiative (§8.2)', () => {
     await choose(user, 'Discovery');
     expect(screen.queryByLabelText(/^Reason/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start at Discovery' })).toBeEnabled();
+    // The start's save settles here, not in the next test's capture.
+    await vi.waitFor(() => expect(puts.map((p) => p.message)).toEqual(['Checkout Redesign: starts at Rollout']), { timeout: 3000 });
   });
 
   it('cancels with Esc, nothing saved, focus back on the action (AC4)', async () => {
