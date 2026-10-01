@@ -117,7 +117,8 @@ None.
   counted, non-frozen allocations in the Counted list; other teams' lines
   get no button.
 - **Not shown** on frozen phases (reduce only; the raise is a membership
-  edit), in read-only mode, or where no warning shows.
+  edit) or where no warning shows. In read-only mode they behave like every
+  other edit control (the app hides none of them there).
 - **Controls:** shadcn `Button` `variant="secondary"` `size="xs"`; accessible
   name adds context ("Set Felix Brandt to 60% in Development"). After a fix,
   focus moves to the row's Allocation % field, or the detail heading.

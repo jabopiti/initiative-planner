@@ -34,6 +34,9 @@ export const fixture: { teams: Team[]; people: Person[]; memberships: Membership
   initiatives: [],
 };
 
+/** Every write the app made, in order: its commit message and the file's new content. */
+export const puts: { message: string; content: unknown }[] = [];
+
 /** What the last Copy put on the clipboard, by MIME type. */
 export const written: Record<string, string> = {};
 
@@ -75,7 +78,11 @@ export function installCapacityFixture() {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init: RequestInit = {}) => {
-        if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
+        if ((init.method ?? 'GET') === 'PUT') {
+          const body = JSON.parse(String(init.body)) as { message: string; content: string };
+          puts.push({ message: body.message, content: JSON.parse(atob(body.content)) });
+          return json({ content: { sha: 'next' } });
+        }
         if (url.includes('/git/ref/heads/')) return json({ message: 'Not Found' }, 404);
         if (new URL(url).pathname.endsWith('/contents/')) {
           return rootListing({ 'dataset.json': 'd', 'roles.json': 'r', 'countries.json': 'c', 'teams.json': 't', 'people.json': 'p', 'memberships.json': 'm' });
@@ -101,6 +108,7 @@ export function installCapacityFixture() {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 8, 24, 10) });
     for (const key of Object.keys(written)) delete written[key];
+    puts.length = 0;
     vi.stubGlobal('ClipboardItem', class { constructor(public items: Record<string, Blob>) {} });
     resetFixture();
     window.location.hash = '';

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState, type FieldFailure } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
-import { activeLoads, allocationWarnings, type Load } from '../data/capacity';
+import { activeLoads, allocationWarnings, raiseFix, reduceFix, type Load } from '../data/capacity';
 import { actualOrEstimate, allocationFigures } from '../data/cost';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { allocationsWithCost, currentPhaseId } from '../data/gate';
@@ -311,7 +311,13 @@ function CostedPhase({
                       const person = people.find((p) => p.id === allocation.personId);
                       const figures = person ? allocationFigures(plan, person, allocation.allocationPct, rateData) : null;
                       const name = person?.name ?? 'Unknown person';
-                      const warnings = allocationWarnings(initiative, phase.id, allocation.personId, { initiatives, teams, people, memberships, process, today }, loads);
+                      const capacityData = { initiatives, teams, people, memberships, process, today };
+                      const warnings = allocationWarnings(initiative, phase.id, allocation.personId, capacityData, loads);
+                      // Up to two exact fixes for a capacity warning (§5.11), on one line under the warnings.
+                      const reduceTo = warnings.overTeamFteMonths.length + warnings.overCapacityMonths.length > 0 ? reduceFix(initiative, phase.id, allocation.personId, capacityData, loads) : null;
+                      const raise = warnings.overTeamFteMonths.length > 0 ? raiseFix(allocation.personId, initiative.teamId, capacityData, loads) : null;
+                      /** After a fix its button is gone, so focus goes to the row's Allocation % field. */
+                      const focusField = (from: HTMLElement) => from.closest('tr')?.querySelector('input')?.focus();
                       return (
                         <tr key={allocation.id} className="border-t border-border-default">
                           <td className="py-1.5 pr-2">
@@ -327,6 +333,40 @@ function CostedPhase({
                               <InlineWarning icon={OverCapacityIcon} className="mt-1">
                                 Over Capacity % in {formatMonthRanges(warnings.overCapacityMonths)}
                               </InlineWarning>
+                            )}
+                            {(reduceTo !== null || raise) && (
+                              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                {reduceTo !== null && (
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="xs"
+                                    aria-label={`Set ${name} to ${reduceTo}% in ${phase.label}`}
+                                    onClick={(e) => {
+                                      const from = e.currentTarget;
+                                      repository.updateAllocation(initiative.id, phase.id, allocation.id, reduceTo);
+                                      focusField(from);
+                                    }}
+                                  >
+                                    Set to {reduceTo}%
+                                  </Button>
+                                )}
+                                {raise && (
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="xs"
+                                    aria-label={`Raise ${name}'s Team FTE % on ${team?.name ?? 'the team'} to ${raise.teamFtePct}%`}
+                                    onClick={(e) => {
+                                      const from = e.currentTarget;
+                                      repository.updateMembership(raise.membershipId, { teamFtePct: raise.teamFtePct });
+                                      focusField(from);
+                                    }}
+                                  >
+                                    Raise Team FTE % to {raise.teamFtePct}%
+                                  </Button>
+                                )}
+                              </div>
                             )}
                           </td>
                           <td className="py-1.5 pr-2">
