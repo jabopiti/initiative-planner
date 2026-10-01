@@ -430,6 +430,13 @@ always points at an entity that still exists. An allocation whose
 membership was removed at the same moment stays and shows the warning of
 §7.2.
 
+An initiative deleted by one user (§9.3) while another has an unsaved edit
+to it stays deleted: the edit is dropped, and that user's page shows "This
+initiative couldn't be found." with the line "<name> was deleted, so your
+last change to it wasn't saved." A delete that meets a newer version of the
+file re-reads it and deletes that version, unless a gate was passed
+meanwhile, which refuses it.
+
 ### Data integrity
 
 The dataset in the repository carries a **schema version** and the **process

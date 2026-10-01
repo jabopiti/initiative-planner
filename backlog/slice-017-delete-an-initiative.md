@@ -8,7 +8,7 @@ depends_on: ["013", "014"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Found while slicing the backlog tail: §5.4's Actions menu lists Delete and §9.3 allows it while no gate was passed, but it was in neither the sliced backlog nor the tail. Needs the one GitHub write the client doesn't have yet — deleting a file."
+change_summary: "Found while slicing the backlog tail: §5.4's Actions menu lists Delete and §9.3 allows it while no gate was passed, but it was in neither the sliced backlog nor the tail. Needs the one GitHub write the client doesn't have yet — deleting a file. Review: Delete last in the menu after a separator, in red; \"Not deleted: <cause>.\" on failure; another user's unsaved edit to a deleted initiative is dropped and named on their not-found page instead of leaving a stuck failure."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "The first file deletion in a dataset that has only ever added and changed files: a new GitHub call, the writer's pending edits for that file, the cache, and a race with another user passing a gate between confirm and delete. The UI is small; the sync correctness is the work, and it needs fake-repository tests of each race."
 spec_sections: ["§9.3 Deletion rules", "§9.9 Interface states (Confirmations, Messages)", "§5.4 Initiative detail view (Design principles, Actions menu)", "§5.11 Suggestions and shortcuts (Undo)", "§3 Storage & sync (Sync behaviour, Conflict edge cases)", "§10.2 Data layout", "§10.3 Writing", "§10.4 Browser storage"]
@@ -59,8 +59,9 @@ be put on hold or cancelled (§9.3).
   as usual; nothing is removed locally until GitHub confirms.
 - **Other users.** Their next pull already removes an initiative whose file
   is gone (005i); a user with the page open sees the existing "This
-  initiative couldn't be found." A user with an unsaved edit to it keeps it
-  until their writer is idle (existing rule).
+  initiative couldn't be found." A user with an unsaved edit to it loses
+  that edit when their save finds the file gone, and their page adds
+  "<name> was deleted, so your last change to it wasn't saved." (§3).
 
 **Explicitly excluded:** Undo (§5.11: deleting is not undoable); deleting
 people, teams, roles, countries (never deleted, §9.3); bulk delete.
@@ -110,6 +111,15 @@ people, teams, roles, countries (never deleted, §9.3); bulk delete.
       confirmation stays with the cause, and the read-only banner shows.
 - [ ] Given another user has the initiative open, when their pull sees the
       file gone, then their page shows "This initiative couldn't be found."
+- [ ] Given another user has an unsaved edit to it, when their save finds
+      the file gone, then the edit is dropped, nothing is recreated, no
+      read-only state remains, and their page shows "This initiative
+      couldn't be found." with "<name> was deleted, so your last change to
+      it wasn't saved."
+- [ ] Given a failed delete, then the confirmation shows "Not deleted:
+      <cause>." and Confirm delete tries again.
+- [ ] Delete is the last menu item, after a separator, in the destructive
+      style.
 
 ## Delivery gate
 
@@ -135,3 +145,31 @@ a file, not files).
   otherwise delete at the new sha.
 - **A skipped gate does not block deletion**, following §9.3's "no gate was
   passed" literally.
+- **Menu item:** Delete is the last item, after a separator, in the
+  dropdown's destructive (red) variant; Duplicate (025) goes above the
+  separator.
+- **Confirmation block:** reuses the team-change block — title "Delete
+  <name>?", body "This can't be undone.", then Confirm delete (destructive)
+  and Cancel. While the delete runs, both are inactive and Confirm delete
+  reads "Deleting…". Choosing Delete closes an open team-change
+  confirmation.
+- **Failure line:** "Not deleted: <cause>." under the body (the "Not saved:
+  <cause>." pattern, cause from §3); Confirm delete tries again. The failure
+  feeds the read-only banner until the next successful pull; the banner's
+  Retry retries the pull, not the delete. If the user has left the page,
+  only the banner shows and the initiative stays.
+- **Refused line:** "Cancel it instead." is left out when the initiative is
+  already Cancelled. A pull that shows a passed gate while the confirmation
+  is open (before Confirm) switches it to the refused line.
+- **In-flight save:** the delete waits for a save already running and
+  deletes at the sha it produced; it goes through the global write queue
+  (§10.3). `forgetInitiative(id)` also drops the file's open conflicts and
+  failed-save state.
+- **Already gone:** a 404 on DELETE, or a re-read after 409 that finds no
+  file, counts as deleted.
+- **Another user's unsaved edit (found in review):** today their save would
+  hit "The file is gone from the repository." and stay failed. Instead the
+  deletion wins: the edit is dropped, the initiative is forgotten, and their
+  page shows "This initiative couldn't be found." plus "<name> was deleted,
+  so your last change to it wasn't saved." (§3, an edit is never lost
+  silently).
