@@ -172,4 +172,7 @@ a file, not files).
   deletion wins: the edit is dropped, the initiative is forgotten, and their
   page shows "This initiative couldn't be found." plus "<name> was deleted,
   so your last change to it wasn't saved." (§3, an edit is never lost
-  silently).
+  silently). Found in code review, checked against GitHub: a PUT naming a
+  sha for a file deleted since is not refused, it recreates the file (201).
+  A save of an existing file that comes back 201 therefore deletes it
+  again ("<name>: deleted") and drops the edit the same way.
