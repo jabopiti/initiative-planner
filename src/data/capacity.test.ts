@@ -320,26 +320,26 @@ describe('fix suggestions (§5.11)', () => {
 
   it('reduces to the value that fits, and raises Team FTE % to cover the peak', () => {
     const d = data([checkout(80)], [mem('ana', 't1', 60)]);
-    expect(reduceFix(d.initiatives[0], 'validation', 'ana', d)).toBe(60);
+    expect(reduceFix(d.initiatives[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(60);
     expect(raiseFix('ana', 't1', d)).toEqual({ membershipId: 'm-ana-t1', teamFtePct: 80 });
   });
 
   it('offers nothing when there is no warning', () => {
     const d = data([checkout(60)], [mem('ana', 't1', 60)]);
-    expect(reduceFix(d.initiatives[0], 'validation', 'ana', d)).toBeNull();
+    expect(reduceFix(d.initiatives[0], 'validation', 'ana', d)?.allocationPct ?? null).toBeNull();
     expect(raiseFix('ana', 't1', d)).toBeNull();
   });
 
   it('takes the minimum over the phase\'s months when the fit varies by month', () => {
     const inits = [checkout(80), initiative('fraud', 't1', { validation: plan('2026-10-15', '2026-10-31', ['ana', 25]) })];
     const d = data(inits, [mem('ana', 't1', 60)]);
-    expect(reduceFix(inits[0], 'validation', 'ana', d)).toBe(35);
+    expect(reduceFix(inits[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(35);
   });
 
   it('rounds the reduce down and the raise up to a whole percent', () => {
     const inits = [checkout(80), initiative('fraud', 't1', { validation: plan('2026-10-01', '2026-11-30', ['ana', 10.4]) })];
     const d = data(inits, [mem('ana', 't1', 60)]);
-    expect(reduceFix(inits[0], 'validation', 'ana', d)).toBe(49);
+    expect(reduceFix(inits[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(49);
     expect(raiseFix('ana', 't1', d)?.teamFtePct).toBe(91);
   });
 
@@ -348,7 +348,7 @@ describe('fix suggestions (§5.11)', () => {
     const d = data(inits, [mem('ana', 't1', 60), mem('ana', 't2', 40)]);
     expect(allocationWarnings(inits[0], 'validation', 'ana', d).overTeamFteMonths).toEqual([]);
     expect(raiseFix('ana', 't1', d)).toBeNull();
-    expect(reduceFix(inits[0], 'validation', 'ana', d)).toBe(30);
+    expect(reduceFix(inits[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(30);
   });
 
   it('does not offer the raise when it would exceed Capacity % minus other teams\' Team FTE %s', () => {
@@ -360,7 +360,7 @@ describe('fix suggestions (§5.11)', () => {
   it('does not offer the reduce when no positive value fits', () => {
     const inits = [checkout(20), initiative('fraud', 't1', { validation: plan('2026-10-01', '2026-11-30', ['ana', 60]) })];
     const d = data(inits, [mem('ana', 't1', 60)]);
-    expect(reduceFix(inits[0], 'validation', 'ana', d)).toBeNull();
+    expect(reduceFix(inits[0], 'validation', 'ana', d)?.allocationPct ?? null).toBeNull();
   });
 
   it('leaves Provisional phases and On Hold initiatives out of the suggested values', () => {
@@ -370,10 +370,10 @@ describe('fix suggestions (§5.11)', () => {
       initiative('held', 't1', { validation: plan('2026-10-01', '2026-11-30', ['ana', 30]) }, { status: 'On Hold' }),
     ];
     const d = data(inits, [mem('ana', 't1', 60)]);
-    expect(reduceFix(inits[0], 'validation', 'ana', d)).toBe(60);
+    expect(reduceFix(inits[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(60);
     expect(raiseFix('ana', 't1', d)?.teamFtePct).toBe(80);
     // A Provisional or On Hold allocation is itself not fixed: it carries no warning.
-    expect(reduceFix(inits[2], 'validation', 'ana', d)).toBeNull();
+    expect(reduceFix(inits[2], 'validation', 'ana', d)?.allocationPct ?? null).toBeNull();
   });
 
   it('raises to cover the highest month across every phase on the team, from the current month on', () => {
@@ -385,13 +385,13 @@ describe('fix suggestions (§5.11)', () => {
   it('offers no reduce on a frozen phase, but the raise still applies', () => {
     const frozen = checkout(80, { gates: { validation: { outcome: 'passed' } } as unknown as Initiative['gates'] });
     const d = data([frozen], [mem('ana', 't1', 60)]);
-    expect(reduceFix(frozen, 'validation', 'ana', d)).toBeNull();
+    expect(reduceFix(frozen, 'validation', 'ana', d)?.allocationPct ?? null).toBeNull();
     expect(raiseFix('ana', 't1', d)?.teamFtePct).toBe(80);
   });
 
   it('offers no raise to a person who is no longer a member, but still the reduce for Capacity %', () => {
     const d = data([checkout(120)], []);
     expect(raiseFix('ana', 't1', d)).toBeNull();
-    expect(reduceFix(d.initiatives[0], 'validation', 'ana', d)).toBe(100);
+    expect(reduceFix(d.initiatives[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(100);
   });
 });

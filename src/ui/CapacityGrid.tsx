@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
-import { loadsIn, raiseFix, reduceFix, teamCapacity, type CapacityCell, type CapacityRow, type Load, type TeamCapacity } from '../data/capacity';
+import { loadsIn, raiseFix, reduceFix, teamCapacity, type CapacityCell, type CapacityData, type CapacityRow, type Load, type TeamCapacity } from '../data/capacity';
 import { formatMonth, formatMonthRanges, formatMonthShort, formatPeriod, localToday } from '../data/dates';
 import type { Team } from '../data/types';
+import { RaiseFixButton, ReduceFixButton } from './CapacityFixButtons';
 import { CopyButton } from './CopyButton';
 import { InlineWarning } from './InlineWarning';
 import { OverCapacityIcon, OverTeamFteIcon, WarningIcon } from './icons';
@@ -54,7 +55,8 @@ export function CapacityGrid({ team }: { team: Team }) {
   /** The cell or name that opened the detail, so closing it puts focus back there. */
   const opener = useRef<HTMLElement | null>(null);
   const today = localToday();
-  const capacity = useMemo(() => teamCapacity(team.id, { initiatives, teams, people, memberships, process, today }), [team.id, initiatives, teams, people, memberships, process, today]);
+  const data = useMemo(() => ({ initiatives, teams, people, memberships, process, today }), [initiatives, teams, people, memberships, process, today]);
+  const capacity = useMemo(() => teamCapacity(team.id, data), [team.id, data]);
 
   function copyData() {
     return {
@@ -167,7 +169,7 @@ export function CapacityGrid({ team }: { team: Team }) {
         </>
       )}
 
-      {team.active && selection && selectedRow && <Detail row={selectedRow} month={selection.month} team={team} capacity={capacity} today={today} onClose={close} />}
+      {team.active && selection && selectedRow && <Detail row={selectedRow} month={selection.month} team={team} capacity={capacity} data={data} onClose={close} />}
     </section>
   );
 }
@@ -198,10 +200,9 @@ function CellButton({ name, cell, selected, onSelect }: { name: string; cell: Ca
   );
 }
 
-function Detail({ row, month, team, capacity, today, onClose }: { row: CapacityRow; month: string | null; team: Team; capacity: TeamCapacity; today: string; onClose: () => void }) {
-  const { process } = useBrand();
+function Detail({ row, month, team, capacity, data, onClose }: { row: CapacityRow; month: string | null; team: Team; capacity: TeamCapacity; data: CapacityData; onClose: () => void }) {
   const repository = useRepository();
-  const { initiatives, teams, people, memberships } = useRepositoryState();
+  const { initiatives, teams } = data;
   const { person } = row;
   const cell = month ? row.cells.find((c) => c.month === month) : undefined;
 
@@ -229,30 +230,25 @@ function Detail({ row, month, team, capacity, today, onClose }: { row: CapacityR
   // Fix suggestions (§5.11): the raise once, under the warnings, since Team FTE % is the person's; the reduce
   // beside each of this team's counted allocations. Other teams' allocations are named, not fixed from here.
   const shown = month && cell ? [cell] : row.cells;
-  const data = { initiatives, teams, people, memberships, process, today };
   const raise = shown.some((c) => c.overTeamFte) ? raiseFix(person.id, team.id, data, capacity.loads) : null;
   const warned = shown.some((c) => c.overTeamFte || c.overCapacity);
   /** After a fix its button is gone, so focus goes back to the detail's heading. */
   const refocus = () => heading.current?.focus();
   const reduceButton = (l: Load) => {
     const initiative = l.teamId === team.id && warned ? initiatives.find((i) => i.id === l.initiativeId) : undefined;
-    const to = initiative ? reduceFix(initiative, l.phaseId, person.id, data, capacity.loads) : null;
-    const allocation = initiative?.phases?.[l.phaseId]?.allocations.find((a) => a.personId === person.id);
-    if (to === null || !allocation) return null;
+    const reduce = initiative ? reduceFix(initiative, l.phaseId, person.id, data, capacity.loads) : null;
+    if (!reduce) return null;
     return (
-      <Button
-        type="button"
-        variant="secondary"
-        size="xs"
+      <ReduceFixButton
+        name={person.name}
+        to={reduce.allocationPct}
+        where={`${l.initiativeName}, ${l.phaseLabel}`}
         className="ml-1.5"
-        aria-label={`Set ${person.name} to ${to}% in ${l.initiativeName}, ${l.phaseLabel}`}
         onClick={() => {
-          repository.updateAllocation(l.initiativeId, l.phaseId, allocation.id, to);
+          repository.updateAllocation(l.initiativeId, l.phaseId, reduce.allocationId, reduce.allocationPct);
           refocus();
         }}
-      >
-        Set to {to}%
-      </Button>
+      />
     );
   };
 
@@ -281,18 +277,15 @@ function Detail({ row, month, team, capacity, today, onClose }: { row: CapacityR
       )}
       {raise && (
         <div className="-mt-1 mb-3">
-          <Button
-            type="button"
-            variant="secondary"
-            size="xs"
-            aria-label={`Raise ${person.name}'s Team FTE % on ${team.name} to ${raise.teamFtePct}%`}
+          <RaiseFixButton
+            name={person.name}
+            teamName={team.name}
+            to={raise.teamFtePct}
             onClick={() => {
               repository.updateMembership(raise.membershipId, { teamFtePct: raise.teamFtePct });
               refocus();
             }}
-          >
-            Raise Team FTE % to {raise.teamFtePct}%
-          </Button>
+          />
         </div>
       )}
 
