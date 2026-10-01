@@ -1,7 +1,7 @@
 import type { PhaseDef } from '../brand/types';
 import { planCopy } from './copyAllocations';
 import { addDays, addMonths } from './defaultPlan';
-import { daysBetween, monthOf, nextMonth } from './dates';
+import { daysBetween, monthOf } from './dates';
 import { newId } from './ids';
 import type { CostItem, Initiative, Membership, Person, PhasePlan, Team } from './types';
 
@@ -36,14 +36,14 @@ export function copyName(name: string, existingNames: string[]): string {
 const hasPeriod = (plan: { startDate?: string; endDate?: string }): plan is { startDate: string; endDate: string } =>
   !!plan.startDate && !!plan.endDate && plan.startDate <= plan.endDate;
 
-/** A period's length: whole months when its end is the day before the same day n months on, else its day count (§5.11). */
-function lengthOf(startDate: string, endDate: string): { months: number } | { days: number } {
+/** The end of a period of the same length as startDate–endDate, starting at `from`: whole months when its end is the day before the same day n months on, else its day count (§5.11). */
+function endFrom(startDate: string, endDate: string, from: string): string {
   for (let months = 1; months <= 120; months++) {
     const end = addDays(addMonths(startDate, months), -1);
-    if (end === endDate) return { months };
+    if (end === endDate) return addDays(addMonths(from, months), -1);
     if (end > endDate) break;
   }
-  return { days: daysBetween(startDate, endDate) + 1 };
+  return addDays(from, daysBetween(startDate, endDate));
 }
 
 const monthIndex = (key: string): number => {
@@ -51,15 +51,10 @@ const monthIndex = (key: string): number => {
   return y * 12 + m - 1;
 };
 
-function previousMonth(key: string): string {
-  const [y, m] = key.split('-').map(Number);
-  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
-}
-
+/** A month key moved by `by` months (negative moves back). */
 function shiftMonth(key: string, by: number): string {
-  let result = key;
-  for (let i = 0; i < Math.abs(by); i++) result = by > 0 ? nextMonth(result) : previousMonth(result);
-  return result;
+  const index = monthIndex(key) + by;
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`;
 }
 
 /** A phase's plan as Duplicate reads it: a passed gate's frozen snapshot where there is one, else the live plan (§8.1). */
@@ -89,21 +84,18 @@ export function duplicateInitiative(source: Initiative, ctx: DuplicateContext): 
     for (const person of left) skipped.set(person.id, person);
     const copied: PhasePlan = { allocations: copy.map((a) => ({ id: newId(), ...a })) };
 
-    let startMonth: string | undefined;
-    let originMonth: string | undefined;
+    let monthOffset: number | undefined; // how far the copy's period starts after the original's, in months
     if (hasPeriod(plan)) {
-      const length = lengthOf(plan.startDate, plan.endDate);
-      const endDate = addDays('months' in length ? addMonths(cursor, length.months) : addDays(cursor, length.days), -1);
+      const endDate = endFrom(plan.startDate, plan.endDate, cursor);
       copied.startDate = cursor;
       copied.endDate = endDate;
-      startMonth = monthOf(cursor);
-      originMonth = monthOf(plan.startDate);
+      monthOffset = monthIndex(monthOf(cursor)) - monthIndex(monthOf(plan.startDate));
       cursor = addDays(endDate, 1);
     }
     if (costItems.length > 0) {
       copied.costItems = costItems.map((item): CostItem => {
         const { month, ...rest } = item;
-        const moved = month && startMonth && originMonth ? shiftMonth(startMonth, monthIndex(month) - monthIndex(originMonth)) : month;
+        const moved = month && monthOffset !== undefined ? shiftMonth(month, monthOffset) : month;
         return { ...rest, id: newId(), ...(moved && { month: moved }) };
       });
     }
