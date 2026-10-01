@@ -1,1 +1,0 @@
-{"id":"9091514d-de8a-4962-861d-82b487679d5a","name":"Fraud Detection Upgrade","description":"Replace the rules engine with a scored model.","teamId":"8e83f03e-f915-4802-8416-8c149c10a69b","status":"Active","phases":{"validation":{"allocations":[],"costItems":[{"id":"c1298ff4-fb77-437a-8d83-23d15515c69c","label":"Penetration test","amount":12000,"timing":"spread"}]}}}
