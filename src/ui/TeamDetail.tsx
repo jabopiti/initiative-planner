@@ -7,6 +7,7 @@ import { PercentInput } from './PercentInput';
 import { CopyButton } from './CopyButton';
 import { SortableHeader } from './SortableHeader';
 import { CapacityGrid } from './CapacityGrid';
+import { TeamInitiatives } from './TeamInitiatives';
 import { PersonPanel } from './PersonPanel';
 import { TruncatedText } from './TruncatedText';
 import { sortRows } from '../data/sortRows';
@@ -16,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FILE_PATHS } from '../data/types';
 
-/** Team detail (§5.8): the Members list and the Capacity view. */
+/** Team detail (§5.8): the Members list, the Initiatives list and the Capacity view. */
 export function TeamDetail({ id }: { id: string }) {
   const repository = useRepository();
   const changed = useIsChangedByOthers();
@@ -258,6 +259,7 @@ export function TeamDetail({ id }: { id: string }) {
           </table>
         )}
       </section>
+      <TeamInitiatives team={team} />
       <CapacityGrid team={team} />
       <PersonPanel person={people.find((p) => p.id === personId) ?? null} onClose={() => setPersonId(null)} />
     </div>

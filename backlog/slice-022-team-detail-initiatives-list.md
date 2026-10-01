@@ -85,3 +85,15 @@ entry. Record that reading in §5.1 when this ships.
 
 - **Placement:** between Members and Capacity, with New initiative in its
   header.
+- **Button:** an outline button with a plus icon, labelled "New initiative",
+  right-aligned in the section header (not the filled primary style).
+- **Empty state:** the line "No initiatives yet — New initiative" with the
+  action as a link inside the line; the header button is hidden while the list
+  is empty, so there is one action (§9.4). Inactive team: "No initiatives."
+- **Preset:** the draft route carries the team as `#/initiatives/new?team=<id>`
+  (the query-suffix pattern the initiative page uses). The draft starts with
+  that team only when it exists and is active; otherwise on "Select team".
+  Esc still returns to the Portfolio.
+- **Table:** Name (link, truncated with tooltip), Phase (the final phase when
+  Closed) and Status as plain text; every status listed; no Copy button.
+  Inactive team: the list still shows, only the button is hidden.
