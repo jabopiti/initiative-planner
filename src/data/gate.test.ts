@@ -8,6 +8,7 @@ import {
   gateProgress,
   gateRequirements,
   lastCostedPassedGate,
+  onHoldMessage,
   passGate,
   reopenGate,
   withChecklistItem,
@@ -166,6 +167,13 @@ describe('passGate (§8.1)', () => {
   it('refuses with the blockers when the gate is not ready', () => {
     const result = passGate(process, planned(), people, data, tracks, takenAt);
     expect(result).toEqual({ ok: false, blockers: expect.arrayContaining(['"Business case approved" is not resolved']) });
+  });
+
+  it('refuses while the initiative is On Hold, naming the initiative and the gate, even when nothing blocks', () => {
+    const initiative = planned({ status: 'On Hold' });
+    const result = passGate(process, initiative, people, data, tracks, takenAt);
+    expect(result).toEqual({ ok: false, blockers: ['Checkout Redesign is on hold. Resume it to pass G1.'] });
+    expect(onHoldMessage(initiative, process)).toBe('Checkout Redesign is on hold. Resume it to pass G1.');
   });
 
   it('freezes the exited costed phase, records the grand estimate and approval track, and advances', () => {

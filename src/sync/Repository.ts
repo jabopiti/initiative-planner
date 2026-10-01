@@ -24,7 +24,7 @@ import { localToday } from '../data/dates';
 import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
 import { frozenPaths, isPhaseFrozen } from '../data/frozen';
 import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, withChecklistItem } from '../data/gate';
-import type { ChecklistStatus } from '../data/types';
+import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type BranchHead } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
@@ -1468,6 +1468,24 @@ export class Repository {
     this.initiativeWriters
       .get(initiativeId)
       ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, 'passed', 'open', () => `${name}: ${gateLabel} reopened`));
+  }
+
+  /** Put an Active initiative On Hold (§8.4): a plain status change, one click and no reason. A no-op for any other status. */
+  putOnHold(initiativeId: string): void {
+    this.changeStatus(initiativeId, 'Active', 'On Hold', (name) => `${name}: put on hold`);
+  }
+
+  /** Resume an On Hold initiative (§8.4): back to Active. A no-op for any other status. */
+  resume(initiativeId: string): void {
+    this.changeStatus(initiativeId, 'On Hold', 'Active', (name) => `${name}: resumed`);
+  }
+
+  private changeStatus(initiativeId: string, from: InitiativeStatus, to: InitiativeStatus, words: (name: string) => string): void {
+    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+    if (!initiative || initiative.status !== from) return;
+    const next: Initiative = { ...initiative, status: to };
+    this.replaceInitiative(next);
+    this.initiativeWriters.get(initiativeId)?.schedule(next, this.note('initiative', initiativeId, 'status', from, to, () => words(initiative.name)));
   }
 
   /**

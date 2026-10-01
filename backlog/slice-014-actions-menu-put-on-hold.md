@@ -134,3 +134,17 @@ None.
   for On Hold; Ban and Lock for Cancelled and Closed in 015); no colour.
 - **No confirmation and no reason** for Put on hold, per §9.9's one-click rule
   for reversible actions.
+- **⋯ placement (mockup A):** inline right after the approval track badge; the
+  "Reopen <gate>" link, when shown, follows it.
+- **Resume in the bar (mockup A):** a filled primary button beside the "On
+  hold" line, with a Play icon; Pass gate stays muted on the right.
+- **Data-layer guard:** `Repository.passGate` refuses while the initiative is
+  On Hold, with "<name> is on hold. Resume it to pass <gate>." — the same text
+  the bar shows when the muted Pass gate is selected.
+- **Undo:** Resume (bar or menu) is the undo of Put on hold; no toast (§9.9).
+- **Assumptions:** the on-hold message stays until Resume, another state
+  change or leaving the page; the stepper stays; overrun and "Extend by one
+  month" are hidden on hold; if "Passed <gate> — Reopen" is showing, on hold
+  wins at once and the header's Reopen link stays; after Resume in the bar,
+  focus moves to Pass gate; `putOnHold` and `resume` are additive
+  `Repository` methods sharing one status-change path.

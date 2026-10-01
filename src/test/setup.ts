@@ -11,3 +11,10 @@ defaultTiming.delay = () => Promise.resolve();
 afterEach(async () => {
   await clearAllFileCaches();
 });
+
+// jsdom has no ResizeObserver, which Radix's popper-positioned content (dropdown menu) measures with.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};

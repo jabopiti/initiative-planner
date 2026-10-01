@@ -7,6 +7,8 @@ import { allocationCount, describeTeamChange } from '../data/teamChange';
 import type { Initiative, Team } from '../data/types';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
 import { formatAmount } from './formatAmount';
+import { InitiativeActionsMenu } from './InitiativeActionsMenu';
+import { OnHoldIcon } from './icons';
 import { OwnerSelect } from './OwnerSelect';
 import { TeamSelect } from './TeamSelect';
 import { Button } from '@/components/ui/button';
@@ -89,8 +91,12 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
           onValueChange={(ownerId) => repository.setOwner(initiative.id, ownerId)}
           className="border-transparent bg-transparent text-text-secondary shadow-none hover:border-border-default"
         />
-        <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs">{initiative.status}</span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-xs">
+          {initiative.status === 'On Hold' && <OnHoldIcon width={12} height={12} />}
+          {initiative.status}
+        </span>
         <ApprovalTrackBadge initiative={initiative} />
+        <InitiativeActionsMenu initiative={initiative} />
         {reopenable && (
           <Button type="button" variant="link" size="sm" className="h-auto p-0 text-text-secondary" onClick={() => repository.reopenGate(initiative.id)}>
             Reopen {reopenable.phase.exitGate.label}

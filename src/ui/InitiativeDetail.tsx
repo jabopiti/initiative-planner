@@ -62,7 +62,8 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
         <CostSummary initiative={initiative} />
         <PhasesSection initiative={initiative} team={team} openPhaseId={openPhaseId} />
       </div>
-      <MagicBar initiative={initiative} />
+      {/* Keyed so its own state (a selected Pass gate, "Passed <gate>") never carries over when the route moves to another initiative. */}
+      <MagicBar key={initiative.id} initiative={initiative} />
     </div>
   );
 }
