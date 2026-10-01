@@ -599,7 +599,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     planned();
     renderPage();
     const draft = await openDraft(user);
-    await user.type(within(draft).getByRole('textbox', { name: 'Label' }), 'Penetration test');
+    await user.type(within(draft).getByRole('combobox', { name: 'Label' }), 'Penetration test');
     await user.type(within(draft).getByRole('spinbutton', { name: 'Amount' }), '12000');
     await user.click(within(draft).getByRole('radio', { name: 'One month' }));
     const month = within(draft).getByRole('textbox', { name: 'Month' });
@@ -628,7 +628,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     const draft = await openDraft(user);
     expect(within(draft).getByRole('radio', { name: 'Spread over the phase' })).toBeChecked();
     expect(within(draft).queryByRole('textbox', { name: 'Month' })).not.toBeInTheDocument();
-    await user.type(within(draft).getByRole('textbox', { name: 'Label' }), 'Load-testing licence');
+    await user.type(within(draft).getByRole('combobox', { name: 'Label' }), 'Load-testing licence');
     await user.type(within(draft).getByRole('spinbutton', { name: 'Amount' }), '6000{Enter}');
     expect(screen.getByRole('row', { name: /Load-testing licence/ })).toBeInTheDocument();
     expect(validationRow()).toHaveTextContent('€14,000');
@@ -646,7 +646,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     planned();
     renderPage();
     const draft = await openDraft(user);
-    if (label) await user.type(within(draft).getByRole('textbox', { name: 'Label' }), label);
+    if (label) await user.type(within(draft).getByRole('combobox', { name: 'Label' }), label);
     if (amount) await user.type(within(draft).getByRole('spinbutton', { name: 'Amount' }), amount);
     await user.click(within(draft).getByRole('button', { name: 'Add' }));
     expect(within(draft).getAllByRole('alert').map((a) => a.textContent)).toEqual(messages);
@@ -659,13 +659,96 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     planned();
     renderPage();
     const draft = await openDraft(user);
-    await user.type(within(draft).getByRole('textbox', { name: 'Label' }), 'Penetration');
+    await user.type(within(draft).getByRole('combobox', { name: 'Label' }), 'Penetration');
     await user.click(within(draft).getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('group', { name: 'New cost item for Validation' })).not.toBeInTheDocument();
     await openDraft(user);
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('group', { name: 'New cost item for Validation' })).not.toBeInTheDocument();
     expect(added()).toBeUndefined();
+  });
+
+  describe('label suggestions (§5.11)', () => {
+    const earlier = (id: string, startDate: string, costItems: CostItemFixture[]): Initiative => ({
+      id,
+      name: id,
+      teamId: 't1',
+      status: 'Active',
+      phases: { [defaultBrandPack.process[0].id]: { startDate, endDate: '2026-02-28', allocations: [], costItems } },
+    });
+    const draftLabel = (draft: HTMLElement) => within(draft).getByRole('combobox', { name: 'Label' });
+
+    it('lists earlier labels, most used first, with uses, amount and timing, and announces the count', async () => {
+      const user = userEvent.setup();
+      planned();
+      others = [
+        earlier('i2', '2026-01-01', [{ id: 'x1', label: 'Penetration test', amount: 9000, timing: 'month', month: '2026-01' }, { id: 'x2', label: 'Pension fee', amount: 100, timing: 'spread' }]),
+        earlier('i3', '2026-03-01', [{ id: 'x3', label: 'penetration test ', amount: 12000, timing: 'month', month: '2026-03' }]),
+      ];
+      renderPage();
+      const draft = await openDraft(user);
+      await user.type(draftLabel(draft), 'pen');
+      const options = await screen.findAllByRole('option');
+      expect(options.map((o) => o.textContent)).toEqual(['penetration test2× · €12,000 · One month', 'Pension fee1× · €100 · Spread']);
+      expect(screen.getByRole('status')).toHaveTextContent('2 suggestions');
+      expect(draftLabel(draft)).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('prefills label, amount and timing from the most recent use, leaves the month empty, and saves nothing until Add', async () => {
+      const user = userEvent.setup();
+      planned();
+      others = [earlier('i2', '2026-03-01', [{ id: 'x1', label: 'Penetration test', amount: 12000, timing: 'month', month: '2026-03' }])];
+      renderPage();
+      const draft = await openDraft(user);
+      await user.type(draftLabel(draft), 'pen');
+      await user.click(await screen.findByRole('option', { name: /Penetration test/ }));
+      expect(draftLabel(draft)).toHaveValue('Penetration test');
+      expect(within(draft).getByRole('spinbutton', { name: 'Amount' })).toHaveValue(12000);
+      expect(within(draft).getByRole('radio', { name: 'One month' })).toBeChecked();
+      expect(within(draft).getByRole('textbox', { name: 'Month' })).toHaveValue('');
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+      await user.click(within(draft).getByRole('button', { name: 'Add' }));
+      expect(within(draft).getByRole('alert')).toHaveTextContent('Enter a month.');
+      expect(added()).toBeUndefined();
+      await user.type(within(draft).getByRole('textbox', { name: 'Month' }), 'Nov 2026{Enter}');
+      expect(within(draft).queryByRole('alert')).not.toBeInTheDocument();
+      await user.click(within(draft).getByRole('button', { name: 'Add' }));
+      await vi.waitFor(() => expect(added()).toBeDefined(), { timeout: 3000 });
+      expect(added()!.content.phases![id].costItems).toEqual([{ id: expect.any(String), label: 'Penetration test', amount: 12000, timing: 'month', month: '2026-11' }]);
+    });
+
+    it('moves with the arrow keys, chooses with Enter, and Esc closes the list before the row, keeping the text', async () => {
+      const user = userEvent.setup();
+      planned();
+      others = [earlier('i2', '2026-01-01', [{ id: 'x1', label: 'Penetration test', amount: 1, timing: 'spread' }, { id: 'x2', label: 'Pension fee', amount: 2, timing: 'spread' }])];
+      renderPage();
+      const draft = await openDraft(user);
+      await user.type(draftLabel(draft), 'pen');
+      expect(screen.getAllByRole('option').every((o) => o.getAttribute('aria-selected') === 'false')).toBe(true); // nothing highlighted yet
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+      expect(draftLabel(draft)).toHaveValue('pen');
+      expect(screen.getByRole('group', { name: 'New cost item for Validation' })).toBeInTheDocument();
+
+      await user.keyboard('{ArrowDown}'); // reopens
+      await user.keyboard('{ArrowDown}{ArrowDown}');
+      expect(screen.getByRole('option', { name: /Pension fee/ })).toHaveAttribute('aria-selected', 'true');
+      await user.keyboard('{Enter}');
+      expect(draftLabel(draft)).toHaveValue('Pension fee');
+      expect(within(draft).getByRole('spinbutton', { name: 'Amount' })).toHaveValue(2);
+    });
+
+    it('shows no list for text no earlier label contains', async () => {
+      const user = userEvent.setup();
+      planned();
+      others = [earlier('i2', '2026-01-01', [{ id: 'x1', label: 'Penetration test', amount: 1, timing: 'spread' }])];
+      renderPage();
+      const draft = await openDraft(user);
+      await user.type(draftLabel(draft), 'zzz');
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+      expect(draftLabel(draft)).toHaveAttribute('aria-expanded', 'false');
+    });
   });
 
   it('edits an item in place: label and amount on Enter, with refusals', async () => {

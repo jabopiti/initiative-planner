@@ -2,8 +2,14 @@ import type { Repository } from '../sync/Repository';
 import type { Initiative } from '../data/types';
 import type { PhaseDef } from '../brand/types';
 import { reopenGate } from '../data/gate';
-import { isInitiativeFrozen } from '../data/frozen';
-import { CancelledIcon, OnHoldIcon, ReopenIcon, ResumeIcon } from './icons';
+import { hasPassedGate, isInitiativeFrozen } from '../data/frozen';
+import { CancelledIcon, OnHoldIcon, RemoveIcon, ReopenIcon, ResumeIcon } from './icons';
+
+/** What an action can ask of the page around the menu, for an action that does not act in one click. */
+export interface InitiativeActionUi {
+  /** Open the inline delete confirmation under the header (§9.9); returns how to focus it once the menu has closed. */
+  confirmDelete: () => () => void;
+}
 
 /** One entry of the header's Actions menu (§5.4). */
 export interface InitiativeAction {
@@ -13,7 +19,10 @@ export interface InitiativeAction {
   icon: typeof OnHoldIcon;
   /** Whether it applies to the initiative now; an action that doesn't is left out of the menu, never shown disabled. */
   applies: (initiative: Initiative, process: PhaseDef[]) => boolean;
-  run: (repository: Repository, initiative: Initiative) => void;
+  /** May return where focus goes once the menu has closed, for an action that opens something (it would otherwise return to ⋯). */
+  run: (repository: Repository, initiative: Initiative, ui: InitiativeActionUi) => void | (() => void);
+  /** Irreversible: listed last, after a separator, in the destructive style. */
+  destructive?: boolean;
 }
 
 /**
@@ -32,4 +41,6 @@ export const initiativeActions: InitiativeAction[] = [
     applies: (i, process) => reopenGate(process, i) !== null,
     run: (repository, i) => repository.reopenGate(i.id),
   },
+  // In any status, while no gate was passed (§9.3); a skipped gate approved nothing, so it does not count.
+  { id: 'delete', label: () => 'Delete', icon: RemoveIcon, applies: (i) => !hasPassedGate(i), run: (_, __, ui) => ui.confirmDelete(), destructive: true },
 ];

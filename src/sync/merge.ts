@@ -28,9 +28,15 @@ export interface MergeOutcome<D> {
 /** How a file's document is merged: what the one writer is parameterised by. */
 export type DocumentMerge<D> = (base: D, mine: D, theirs: D) => MergeOutcome<D>;
 
+/** A path frozen in a version of the document (§8.1), and the path of the record that froze it (itself, for that record). */
+export interface FrozenPath {
+  path: Path;
+  by: Path;
+}
+
 export interface MergeOptions<D> {
   /** Paths frozen in a version of the document (§8.1): they keep their snapshot and never merge. */
-  frozen?: (doc: D) => Path[];
+  frozen?: (doc: D) => FrozenPath[];
 }
 
 type Plain = Record<string, unknown>;
@@ -102,9 +108,9 @@ export function setAtPath<D>(doc: D, path: Path, value: unknown): D {
  * An item removed on one side and changed on the other is a conflict too, never a silent choice.
  */
 export function mergeDocument<D>(base: D, mine: D, theirs: D, options: MergeOptions<D> = {}): MergeOutcome<D> {
-  const frozenKeys = (doc: D) => new Set((options.frozen?.(doc) ?? []).map(pathKey));
-  const frozen = { base: frozenKeys(base), mine: frozenKeys(mine), theirs: frozenKeys(theirs) };
-  const anyFrozen = [...new Set([...frozen.base, ...frozen.mine, ...frozen.theirs])];
+  const frozenIn = (doc: D) => new Map((options.frozen?.(doc) ?? []).map(({ path, by }) => [pathKey(path), by]));
+  const frozen = { base: frozenIn(base), mine: frozenIn(mine), theirs: frozenIn(theirs) };
+  const anyFrozen = [...new Set([...frozen.base.keys(), ...frozen.mine.keys(), ...frozen.theirs.keys()])];
   const conflicts: MergeConflict[] = [];
 
   /** Whether a frozen path lies under this one, so a whole-subtree shortcut would skip it. */
@@ -118,12 +124,28 @@ export function mergeDocument<D>(base: D, mine: D, theirs: D, options: MergeOpti
     return null;
   }
 
+  /**
+   * Which version a snapshot frozen in base follows, by what happened to the record that froze it: changing that
+   * record (a gate reopened, or reopened and passed again, §8.3) is the only way to change the snapshot. Changed
+   * on one side only, that side's; on both, alike, neither (the base freeze is gone); otherwise the base.
+   */
+  function snapshotSide(by: Path): 'base' | 'mine' | 'theirs' | null {
+    const [b, m, t] = [base, mine, theirs].map((doc) => getAtPath(doc, by));
+    const mineChanged = !sameValue(m, b);
+    const theirsChanged = !sameValue(t, b);
+    if (mineChanged && theirsChanged) return sameValue(m, t) ? null : 'base';
+    return mineChanged ? 'mine' : theirsChanged ? 'theirs' : 'base';
+  }
+
   function merge(path: Path, b: unknown, m: unknown, t: unknown): unknown {
     const key = pathKey(path);
-    // A frozen snapshot is never merged: it stays as it was frozen, whatever either side holds.
-    // Frozen before both edits, it keeps the base; frozen by one side's edit (a gate passed), that side's.
-    if (frozen.theirs.has(key)) return frozen.base.has(key) ? b : t;
-    if (frozen.mine.has(key)) return frozen.base.has(key) ? t : m;
+    // A frozen snapshot is never merged: it is taken whole from one version. Frozen before both edits, it follows
+    // its record (snapshotSide). Frozen by one side's edit (a gate passed), that side's.
+    const by = frozen.base.get(key);
+    const side = by && snapshotSide(by);
+    if (side) return { base: b, mine: m, theirs: t }[side];
+    if (frozen.theirs.has(key)) return t;
+    if (frozen.mine.has(key)) return m;
 
     // A whole subtree changed on one side only is taken as is, unless a frozen path lies inside it.
     const settled = oneSided(b, m, t);

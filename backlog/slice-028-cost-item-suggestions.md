@@ -8,7 +8,7 @@ depends_on: ["007"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Promoted from the backlog tail (Cost item suggestions, §5.11)."
+change_summary: "Promoted from the backlog tail (Cost item suggestions, §5.11). Decided in review: suggestion rows show uses, amount and timing; a one-month suggestion leaves the month empty and Add asks for it."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "A combobox on 007's draft row with keyboard rules, plus a small aggregation over all cached initiatives' cost items; the combobox accessibility is the main care."
 spec_sections: ["§5.11 Suggestions and shortcuts (Cost item suggestions)", "§5.4 Initiative detail view (cost items table)", "§9.5 Accessibility", "§9.11 Lists, filters, inputs and amounts"]
@@ -95,3 +95,17 @@ creation date; decided in review to avoid a data-shape change.
 
 - **Most recent:** the use in the phase with the latest start date; no
   `createdAt` added to cost items.
+- **Suggestion row:** label on the left; on the right a muted "3× · €12,000 ·
+  One month" (uses, full amount with the brand currency symbol, timing).
+- **Month after choosing a one-month suggestion:** empty. The draft row's
+  month is unset until picked, and Add refuses with "Enter a month." (same
+  pattern as "Enter a label."). This applies only to a suggestion-prefilled
+  one-month draft; a typed draft keeps its phase-first-month default.
+- **Behaviour assumptions:** uses count cost items across all initiatives of
+  any status, including the one being edited; blank typed text shows no list;
+  an exact match still shows; nothing is highlighted until an arrow key, so
+  Enter on typed text still adds; Esc closes the list first, a second Esc
+  cancels the draft row; choosing overwrites typed amount and timing; a
+  visually hidden live region announces "N suggestions" / "1 suggestion".
+  Ties for "most recent": a phase without a start date ranks lowest, then
+  the later initiative in the list, then the later item in the phase.

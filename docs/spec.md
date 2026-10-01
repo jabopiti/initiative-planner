@@ -430,6 +430,13 @@ always points at an entity that still exists. An allocation whose
 membership was removed at the same moment stays and shows the warning of
 §7.2.
 
+An initiative deleted by one user (§9.3) while another has an unsaved edit
+to it stays deleted: the edit is dropped, and that user's page shows "This
+initiative couldn't be found." with the line "<name> was deleted, so your
+last change to it wasn't saved." A delete that meets a newer version of the
+file re-reads it and deletes that version, unless a gate was passed
+meanwhile, which refuses it.
+
 ### Data integrity
 
 The dataset in the repository carries a **schema version** and the **process
@@ -1098,7 +1105,8 @@ local time, determined the same way as Confirmed vs. Provisional in §4.
   confirmation and the rules in §9.3.
 - **Cost item suggestions.** Typing a cost item's label suggests earlier
   labels from all initiatives, most frequent first. Choosing one prefills
-  its most recent amount and timing, all editable.
+  its most recent amount and timing, all editable A one-month
+  item's month is not copied: the month starts empty and Add asks for it.
 - **Duplicate.** **Duplicate** in the Actions menu creates a new initiative
   with the same team, owner and description, and for each costed phase the
   same length, allocations (active team members only) and cost items,

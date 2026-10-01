@@ -241,3 +241,50 @@ describe('GithubClient — edge cases (slice 040)', () => {
     expect(result).toBeNull();
   });
 });
+
+describe('GithubClient — deleteFile (slice 017)', () => {
+  it('refuses deleteFile when branch is omitted, without ever calling fetch', async () => {
+    const client = new GithubClient(location, () => 'token');
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      client.deleteFile({ path: 'initiatives/i1.json', branch: '' as any, message: 'x', sha: 'sha-1' }),
+    ).rejects.toThrow(GithubApiError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends DELETE with the sha, message and data branch in the body', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ commit: {} }), { status: 200 }));
+    const client = new GithubClient(location, () => 'token');
+
+    await expect(client.deleteFile({ path: 'initiatives/i1.json', branch: location.dataBranch, message: 'Payments API: deleted', sha: 'sha-1' })).resolves.toBe('deleted');
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.github.com/repos/jabopiti/initiative-planner/contents/initiatives/i1.json');
+    expect(init.method).toBe('DELETE');
+    expect(JSON.parse(init.body as string)).toEqual({ message: 'Payments API: deleted', sha: 'sha-1', branch: 'data' });
+  });
+
+  it('reports a file that is already gone, and a stale sha as a conflict', async () => {
+    const client = new GithubClient(location, () => 'token');
+    const args = { path: 'initiatives/i1.json', branch: location.dataBranch, message: 'x', sha: 'sha-1' };
+
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 404 }));
+    await expect(client.deleteFile(args)).resolves.toBe('gone');
+
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 409 }));
+    await expect(client.deleteFile(args)).rejects.toMatchObject({ cause_: 'conflict', status: 409 });
+  });
+});
+
+describe('GithubClient — putFile on a file that is gone (slice 017)', () => {
+  it('says the file was created when GitHub answers 201, as it does for a sha whose file was deleted since', async () => {
+    const client = new GithubClient(location, () => 'token');
+    const args = { path: 'initiatives/i1.json', branch: location.dataBranch, content: '{}', message: 'x', sha: 'sha-1' };
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'sha-2' } }), { status: 201 }));
+    await expect(client.putFile(args)).resolves.toEqual({ sha: 'sha-2', created: true });
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'sha-3' } }), { status: 200 }));
+    await expect(client.putFile(args)).resolves.toEqual({ sha: 'sha-3', created: false });
+  });
+});
