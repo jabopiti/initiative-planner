@@ -66,6 +66,13 @@ export default defineConfig({
     // Tests must never pick up a developer's real token from .env.local.
     env: { VITE_DEV_TOKEN: '' },
     exclude: ['**/node_modules/**', 'e2e/**', '.claude/worktrees/**'],
-    coverage: { provider: 'v8', include: ['src/**'], reporter: ['text-summary', 'json-summary'] },
+    coverage: {
+      provider: 'v8',
+      include: ['src/**'],
+      reporter: ['text-summary', 'json-summary'],
+      // A ratchet just under the measured 93.4 / 87.5 / 92.9 / 95.4 (statements / branches / functions / lines):
+      // `npm run test:coverage` fails if a change lowers coverage. Raise these as coverage grows, never lower them.
+      thresholds: { statements: 92, branches: 86, functions: 91, lines: 94 },
+    },
   },
 });
