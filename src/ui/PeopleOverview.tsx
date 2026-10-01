@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { useRevealTarget } from '../state/ConflictUi';
 import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { roleLabel } from '../data/roleLabel';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
@@ -24,6 +25,11 @@ export function PeopleOverview() {
   const changed = useIsChangedByOthers();
   const [filter, setFilter] = useState<StatusFilter>('active');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The banner's Show opens the person whose field is in conflict (§9.9).
+  useRevealTarget(FILE_PATHS.people, (path) => {
+    const item = path[0];
+    if (typeof item === 'object') setSelectedId(item.id);
+  });
   const [name, setName] = useState('');
   const [countryId, setCountryId] = useState(() => defaultCountryId(countries));
   const [roleId, setRoleId] = useState(() => defaultRoleId(roles));

@@ -417,7 +417,9 @@ When two users modify the **same field** on the same entity simultaneously
 (a true conflict), the tool never overwrites silently. The second writer's
 edit is rejected: the field shows both values, the saved one and the typed
 one, and offers **Keep theirs** or **Use mine**. Choosing **Use mine** is a
-new edit like any other and is pushed again.
+new edit like any other and is pushed again. A pull that arrives while the
+choice is open can settle it: if the repository now holds the user's value,
+the conflict closes; if it holds yet another value, that becomes "theirs".
 
 List items (allocations, memberships, checklist items) merge per item by
 stable id, so two users adding different items at the same time keep both.
@@ -1618,7 +1620,15 @@ delay. Critical information is never only in a tooltip.
 - **Saving:** a field shows a subtle saving state within 100 ms (§9.6). If
   the push fails, it stays in edit mode with the error and **Retry** (§3).
 - **Same-field conflict:** shown inline under the field, with both values
-  and **Keep theirs** / **Use mine** (§3).
+  and **Keep theirs** / **Use mine** (§3): "Changed by someone else while
+  you were editing. Theirs: 60% · Yours: 80%". In a table it is a
+  full-width row under the field's row. Typing and committing a new value
+  in the field settles it too. A conflict whose field is not on screen is
+  pointed to by a banner below the top bar, one line per entity ("1
+  unresolved change on Checkout Redesign — Show"), where Show opens the
+  page and brings the field into view. A conflict on a select or toggle,
+  or on a list item removed on one side and changed on the other, is
+  resolved in that banner, which names the thing and both values.
 - **Locked sections:** values are read-only with the hint "Locked. Unlock to
   edit." (§2).
 - **Using the estimate:** a closed month without a recorded actual shows the

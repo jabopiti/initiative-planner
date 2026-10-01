@@ -1,5 +1,7 @@
 import type { ComponentProps, ReactNode } from 'react';
+import type { FieldConflict } from '../state/ConflictUi';
 import type { FieldFailure } from '../state/DataContext';
+import { ConflictBlock } from './ConflictBlock';
 import { useCommitField } from './commitField';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,7 +42,8 @@ export function FailedEdit({ id, retryLabel, failure, className = '' }: { id?: s
 }
 
 /** The refusal/failed-save messages under a commit field (§9.9), in the precedence a fresh edit takes over the
- * field's message slot from a stale failure. */
+ * field's message slot from a stale failure, then the field's same-field conflict, unless its table shows that
+ * in a row of its own. */
 export function CommitFieldMessages({
   error,
   errorId,
@@ -48,7 +51,12 @@ export function CommitFieldMessages({
   failureId,
   errorClassName,
   retryLabel,
+  conflict = null,
+  label,
 }: {
+  conflict?: FieldConflict | null;
+  /** The field's name, for the conflict's accessible names. */
+  label: string;
   error: string | null;
   errorId: string;
   showFailure: FieldFailure | null;
@@ -64,6 +72,7 @@ export function CommitFieldMessages({
         </Refusal>
       )}
       {showFailure && <FailedEdit id={failureId} className={errorClassName} failure={showFailure} retryLabel={retryLabel} />}
+      {conflict && !conflict.inRow && <ConflictBlock conflict={conflict} label={label} className={errorClassName} />}
     </>
   );
 }
@@ -86,6 +95,8 @@ export function CommitInput({
   errorClassName = '',
   changed = false,
   failure = null,
+  conflict = null,
+  conflictLabel,
   retryLabel,
   className,
   ...props
@@ -102,6 +113,10 @@ export function CommitInput({
   failure?: FieldFailure | null;
   /** The failed edit's Retry button's accessible name, distinct from every other Retry on screen (§9.5, §9.9). */
   retryLabel?: string;
+  /** A same-field conflict at this field's path (§3, §9.9): shown under it, or in its table's row when `inRow`. */
+  conflict?: FieldConflict | null;
+  /** The field's name in the conflict's accessible names, when it has a visible label rather than an `aria-label`. */
+  conflictLabel?: string;
 }) {
   const { draft, setDraft, error, errorId, failureId, commit, cancel } = useCommitField(value, onCommit);
 
@@ -115,7 +130,7 @@ export function CommitInput({
         className={`transition-colors duration-500 ${className ?? ''} ${changed ? 'bg-met-tint' : ''}`}
         value={draft}
         aria-invalid={error ? true : props['aria-invalid']}
-        aria-describedby={error ? errorId : showFailure !== null ? failureId : props['aria-describedby']}
+        aria-describedby={error ? errorId : showFailure !== null ? failureId : (conflict?.id ?? props['aria-describedby'])}
         onChange={(e) => {
           setDraft(e.target.value);
           onDraftChange?.(e.target.value);
@@ -137,6 +152,8 @@ export function CommitInput({
         failureId={failureId}
         errorClassName={errorClassName}
         retryLabel={retryLabel ?? `Retry saving ${props['aria-label'] ?? 'this field'}`}
+        conflict={conflict}
+        label={conflictLabel ?? props['aria-label'] ?? 'this field'}
       />
     </>
   );

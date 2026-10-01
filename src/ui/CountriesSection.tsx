@@ -1,12 +1,14 @@
 import { Fragment, useId, useMemo, useState } from 'react';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
+import { useFieldConflict, useRevealTarget } from '../state/ConflictUi';
 import { daysInMonth, parseAmount, trackedYears, yearRecord } from '../data/cost';
 import { MONTHS, formatMonth, monthKey } from '../data/dates';
 import { initiativesAffectedByRate, weekdaysByMonth, type RateEdit } from '../data/rates';
 import { FILE_PATHS, type Country, type CountryYearRateRecord } from '../data/types';
 import { AmountInput } from './AmountInput';
 import { CommitInput, FailedEdit } from './CommitInput';
+import { ConflictBlock, ConflictRow, inRow } from './ConflictBlock';
 import { DraftField } from './DraftField';
 import { formatAmount } from './formatAmount';
 import { initiativeCount } from './impactNote';
@@ -46,8 +48,14 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
   const { countries, initiatives, people, datasetFlags } = useRepositoryState();
   const { currencySymbol } = useBrand();
   const failure = useFieldFailure();
+  const conflict = useFieldConflict();
   const changed = useIsChangedByOthers();
   const [openId, setOpenId] = useState<string | null>(null);
+  // The banner's Show opens the country whose rates are in conflict (§9.9).
+  useRevealTarget(FILE_PATHS.countries, (path) => {
+    const item = path[0];
+    if (path[1] === 'ratesByYear' && typeof item === 'object') setOpenId(item.id);
+  });
   const [drafting, setDrafting] = useState(false);
   // Locking closes an unsaved new country: nothing is added while the section is locked.
   if (drafting && lock.locked) setDrafting(false);
@@ -106,6 +114,8 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
             const tableId = `country-rates-${country.id}`;
             // The year entries merge and save as one value (§5.9 review), so a failed save is the country's rates as a whole.
             const ratesFailure = failure(FILE_PATHS.countries, [{ id: country.id }, 'ratesByYear']);
+            const ratesConflict = conflict(FILE_PATHS.countries, [{ id: country.id }, 'ratesByYear']);
+            const nameConflict = conflict(FILE_PATHS.countries, [{ id: country.id }, 'name']);
             return (
               <Fragment key={country.id}>
                 <tr
@@ -138,6 +148,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                           value={country.name}
                           changed={changed(FILE_PATHS.countries, [{ id: country.id }, 'name'])}
                           failure={failure(FILE_PATHS.countries, [{ id: country.id }, 'name'])}
+                          conflict={inRow(nameConflict)}
                           retryLabel={`Retry saving the name of ${country.name}`}
                           onCommit={(text) => {
                             const name = text.trim();
@@ -169,11 +180,13 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                     </Button>
                   </td>
                 </tr>
+                <ConflictRow conflict={nameConflict} label={`Name of ${country.name}`} colSpan={3} />
                 {open && (
                   <tr>
                     <td id={tableId} colSpan={3} className="border-t border-border-default bg-surface-card px-4 pt-2 pb-3">
                       {impact?.countryId === country.id && <p className="m-0 mb-2 text-xs text-text-secondary">{impact.text}</p>}
                       {ratesFailure && <FailedEdit className="mb-2" failure={ratesFailure} retryLabel={`Retry saving ${country.name}’s rates`} />}
+                      {ratesConflict && <ConflictBlock className="mb-2" conflict={ratesConflict} label={`${country.name}’s rates`} />}
                       <YearTable
                         country={country}
                         tracked={tracked}

@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useBrand } from '../state/BrandContext';
+import { useFieldConflict, useRevealTarget, type FieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState, type FieldFailure } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, raiseFix, reduceFix, type Load } from '../data/capacity';
@@ -13,6 +14,7 @@ import { nextStepPhase, overlapWithPrevious, phaseSummary, planningGap } from '.
 import { roleLabel } from '../data/roleLabel';
 import { FILE_PATHS, type FrozenAllocation, type FrozenPhaseSnapshot, type Initiative, type PhasePlan, type Person, type Role, type Team } from '../data/types';
 import { AmountInput } from './AmountInput';
+import { ConflictRow, inRow } from './ConflictBlock';
 import { CostItemsTable } from './CostItemsTable';
 import { TIMING_LABELS } from './costItemTiming';
 import { DateInput } from './DateInput';
@@ -47,6 +49,10 @@ export function PhasesSection({ initiative, team, openPhaseId }: { initiative: I
     // A Needs attention deep link into a collapsed phase's actuals table (§8.5 Overdue) opens it on arrival.
     if (openPhaseId) initial.add(openPhaseId);
     return initial;
+  });
+  // The banner's Show opens the phase its conflict is in (§9.9).
+  useRevealTarget(FILE_PATHS.initiative(initiative.id), (path) => {
+    if (path[0] === 'phases' && typeof path[1] === 'string') setOpen((current) => new Set(current).add(path[1] as string));
   });
   const toggle = (id: string) =>
     setOpen((current) => {
@@ -138,6 +144,7 @@ function CostedPhase({
   const repository = useRepository();
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
+  const conflict = useFieldConflict();
   const file = FILE_PATHS.initiative(initiative.id);
   const { currencySymbol, process } = useBrand();
   const { people, roles, countries, memberships, initiatives, teams } = useRepositoryState();
@@ -272,6 +279,7 @@ function CostedPhase({
                       value={plan.startDate}
                       changed={changed(file, ['phases', phase.id, 'startDate'])}
                       failure={failure(file, ['phases', phase.id, 'startDate'])}
+                      conflict={conflict(file, ['phases', phase.id, 'startDate'])}
                       highlight={needsPeriod}
                       onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'startDate', v)}
                     />
@@ -283,6 +291,7 @@ function CostedPhase({
                       value={plan.endDate}
                       changed={changed(file, ['phases', phase.id, 'endDate'])}
                       failure={failure(file, ['phases', phase.id, 'endDate'])}
+                      conflict={conflict(file, ['phases', phase.id, 'endDate'])}
                       openOn={plan.startDate}
                       highlight={needsPeriod}
                       onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'endDate', v)}
@@ -332,8 +341,10 @@ function CostedPhase({
                       const raise = warnings.overTeamFteMonths.length > 0 ? raiseFix(allocation.personId, initiative.teamId, capacityData, loads) : null;
                       /** After a fix its button is gone, so focus goes to the row's Allocation % field. */
                       const focusField = (from: HTMLElement) => from.closest('tr')?.querySelector('input')?.focus();
+                      const pctConflict = conflict(file, ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct']);
                       return (
-                        <tr key={allocation.id} className="border-t border-border-default">
+                        <Fragment key={allocation.id}>
+                        <tr className="border-t border-border-default">
                           <td className="py-1.5 pr-2">
                             <div>{name}</div>
                             {person && <div className="text-xs text-text-muted">{roleLabel(person, roles)}</div>}
@@ -380,6 +391,7 @@ function CostedPhase({
                               label={`Allocation % for ${name}`}
                               changed={changed(file, ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct'])}
                               failure={failure(file, ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct'])}
+                              conflict={inRow(pctConflict)}
                               value={allocation.allocationPct}
                               onChange={(pct) => repository.updateAllocation(initiative.id, phase.id, allocation.id, pct)}
                             />
@@ -404,6 +416,8 @@ function CostedPhase({
                             </Button>
                           </td>
                         </tr>
+                        <ConflictRow conflict={pctConflict} label={`Allocation % for ${name}`} colSpan={5} />
+                        </Fragment>
                       );
                     })}
                   </tbody>
@@ -435,8 +449,11 @@ function CostedPhase({
                   </tr>
                 </thead>
                 <tbody>
-                  {months.map((month) => (
-                    <tr key={month} id={actualCellAnchor(phase.id, month)} className="border-t border-border-default">
+                  {months.map((month) => {
+                    const actualConflict = conflict(file, ['phases', phase.id, 'actualMonths', month]);
+                    return (
+                    <Fragment key={month}>
+                    <tr id={actualCellAnchor(phase.id, month)} className="border-t border-border-default">
                       <td className="py-1.5 pr-2">{formatMonth(month)}</td>
                       <td className="py-1.5 pr-2 text-right tabular-nums">{formatAmount(estimateByMonth[month] ?? 0, currencySymbol)}</td>
                       <td className="py-1.5 pr-2">
@@ -448,11 +465,15 @@ function CostedPhase({
                           currencySymbol={currencySymbol}
                           changed={changed(file, ['phases', phase.id, 'actualMonths', month])}
                           failure={failure(file, ['phases', phase.id, 'actualMonths', month])}
+                          conflict={inRow(actualConflict)}
                           onChange={(amount) => repository.setActual(initiative.id, phase.id, month, amount)}
                         />
                       </td>
                     </tr>
-                  ))}
+                    <ConflictRow conflict={actualConflict} label={`Actual for ${phase.label} ${formatMonth(month)}`} colSpan={3} />
+                    </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -549,6 +570,7 @@ function ActualCell({
   currencySymbol,
   changed,
   failure,
+  conflict,
   onChange,
 }: {
   phase: PhaseDef;
@@ -561,6 +583,8 @@ function ActualCell({
   changed: boolean;
   /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
   failure: FieldFailure | null;
+  /** A same-field conflict on this month's actual (§3, §9.9), shown in the row under it. */
+  conflict: FieldConflict | null;
   onChange: (amount: number) => void;
 }) {
   if (recorded !== undefined) {
@@ -572,6 +596,7 @@ function ActualCell({
           value={recorded}
           changed={changed}
           failure={failure}
+          conflict={conflict}
           onChange={onChange}
         />
       </div>
@@ -597,6 +622,7 @@ function ActualCell({
           placeholder="Enter amount"
           changed={changed}
           failure={failure}
+          conflict={conflict}
           onChange={onChange}
         />
       </div>

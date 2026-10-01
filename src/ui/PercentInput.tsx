@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { parseAmount } from '../data/cost';
+import type { FieldConflict } from '../state/ConflictUi';
 import type { FieldFailure } from '../state/DataContext';
 import { CommitInput } from './CommitInput';
 import { InlineWarning } from './InlineWarning';
@@ -19,6 +20,7 @@ export function PercentInput({
   flat,
   changed,
   failure = null,
+  conflict = null,
   onChange,
 }: {
   value: number;
@@ -31,6 +33,8 @@ export function PercentInput({
   changed?: boolean;
   /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
   failure?: FieldFailure | null;
+  /** A same-field conflict at this field's path (§3, §9.9). */
+  conflict?: FieldConflict | null;
   onChange: (value: number) => void;
 }) {
   const [over, setOver] = useState(false);
@@ -44,6 +48,7 @@ export function PercentInput({
       <CommitInput
         changed={changed}
         failure={failure}
+        conflict={conflict}
         type="number"
         inputMode="numeric"
         min={0}
