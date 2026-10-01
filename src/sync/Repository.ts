@@ -1557,10 +1557,11 @@ export class Repository {
     if (!result.ok) return result;
 
     this.replaceInitiative(result.initiative);
-    const [name, from] = [initiative.name, this.phaseLabel(currentPhaseId(initiative, this.brand.process))];
-    this.initiativeWriters
-      .get(initiativeId)
-      ?.schedule(result.initiative, this.note('initiative', initiativeId, 'startingPhase', from, result.phase.label, (_, to) => `${name}: starts at ${to}`));
+    // The periods are part of the change: changed back to the same phase on a later day, they still start today.
+    const name = initiative.name;
+    const from = { phase: this.phaseLabel(currentPhaseId(initiative, this.brand.process)), phases: initiative.phases };
+    const to = { phase: result.phase.label, phases: result.initiative.phases };
+    this.initiativeWriters.get(initiativeId)?.schedule(result.initiative, this.note('initiative', initiativeId, 'startingPhase', from, to, (_, t) => `${name}: starts at ${t?.phase}`));
     return { ok: true };
   }
 

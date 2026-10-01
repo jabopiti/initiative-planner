@@ -988,6 +988,17 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     expect(saved.phases).toEqual({ development: { startDate: '2026-10-01', endDate: '2027-03-31', allocations: [] } });
   });
 
+  it('names a start changed back to the first phase in one save, as its periods now start today (§8.2, §10.3)', async () => {
+    const { repo, team } = await repoWithPlannedInitiative();
+    const fresh = await repo.createInitiative('Checkout Redesign', team.id, '2026-09-24');
+    await repo.flushPending();
+    commits.length = 0;
+    repo.startAtPhase(fresh.id, 'development', 'Under way', '2026-10-01');
+    repo.startAtPhase(fresh.id, 'discovery', '', '2026-10-01');
+    await repo.flushPending();
+    expect(commits.map((c) => c.message)).toEqual(['Checkout Redesign: starts at Discovery']);
+  });
+
   it('reopens the final gate of a Closed initiative, but no gate of a Cancelled one', async () => {
     const { repo, id, current } = await repoWithPlannedInitiative();
     const passed = { outcome: 'passed' as const, passedOn: '2026-01-01', checklist: [] };
