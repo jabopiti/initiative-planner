@@ -1,21 +1,21 @@
 import { isActiveMember } from './teamMembers';
-import type { Allocation, FrozenPhaseSnapshot, Initiative, Membership, PhasePlan, Person, Team } from './types';
+import type { Allocation, Initiative, Membership, Person, Team } from './types';
+
+type AllocationShare = Pick<Allocation, 'personId' | 'allocationPct'>;
 
 /** What Copy from <previous phase> would do: who carries over with the same Allocation %, and who is skipped (§5.11). */
 export interface CopyPlan {
-  copy: Pick<Allocation, 'personId' | 'allocationPct'>[];
+  copy: AllocationShare[];
   skipped: Person[];
 }
 
 /** The allocations to copy from: a passed gate's frozen snapshot, else the phase's live plan (§8.1). */
-export function copySource(initiative: Initiative, phaseId: string): Pick<Allocation, 'personId' | 'allocationPct'>[] {
-  const snapshot: FrozenPhaseSnapshot | undefined = initiative.gates?.[phaseId]?.frozenSnapshot;
-  const plan: PhasePlan | undefined = initiative.phases?.[phaseId];
-  return snapshot?.allocations ?? plan?.allocations ?? [];
+export function copySource(initiative: Initiative, phaseId: string): AllocationShare[] {
+  return initiative.gates?.[phaseId]?.frozenSnapshot?.allocations ?? initiative.phases?.[phaseId]?.allocations ?? [];
 }
 
 /** Each source allocation whose person is an active member of the team is copied, in order; everyone else is skipped. */
-export function planCopy(source: Pick<Allocation, 'personId' | 'allocationPct'>[], team: Team, people: Person[], memberships: Membership[]): CopyPlan {
+export function planCopy(source: AllocationShare[], team: Team, people: Person[], memberships: Membership[]): CopyPlan {
   const plan: CopyPlan = { copy: [], skipped: [] };
   for (const { personId, allocationPct } of source) {
     const person = people.find((p) => p.id === personId);

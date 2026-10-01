@@ -126,10 +126,10 @@ export interface NewPersonInput {
   roleId: string;
 }
 
-/** Why an allocation wasn't added (§7.2), in words the page can show as is. */
 /** What Copy from <previous phase> did: how many allocations were added and who was skipped (§5.11). */
 export type CopyAllocationsResult = { copied: number; skipped: Person[] };
 
+/** Why an allocation wasn't added (§7.2), in words the page can show as is. */
 export type AddAllocationResult = { ok: true; allocation: Allocation } | { ok: false; reason: string };
 
 /** What a team change did, kept by the page for the 10 seconds it can be undone (§5.11). */
