@@ -2,7 +2,6 @@ import { useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
-import { reopenGate } from '../data/gate';
 import { isInitiativeFrozen } from '../data/frozen';
 import { allocationCount, describeTeamChange } from '../data/teamChange';
 import type { Initiative, InitiativeStatus, Team } from '../data/types';
@@ -27,11 +26,9 @@ const STATUS_ICON: Partial<Record<InitiativeStatus, typeof OnHoldIcon>> = { 'On 
  */
 export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   const repository = useRepository();
-  const { currencySymbol, process } = useBrand();
+  const { currencySymbol } = useBrand();
   const { teams, people, memberships } = useRepositoryState();
   const frozen = isInitiativeFrozen(initiative);
-  // A frozen initiative's way back is in its strip (§8.4): Reopen for Cancelled, Reopen <final gate> for Closed.
-  const reopenable = frozen ? null : reopenGate(process, initiative);
   const [pendingTeamId, setPendingTeamId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const applyRef = useRef<HTMLButtonElement>(null);
@@ -106,11 +103,6 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
         </span>
         <ApprovalTrackBadge initiative={initiative} />
         <InitiativeActionsMenu initiative={initiative} />
-        {reopenable && (
-          <Button type="button" variant="link" size="sm" className="h-auto p-0 text-text-secondary" onClick={() => repository.reopenGate(initiative.id)}>
-            Reopen {reopenable.phase.exitGate.label}
-          </Button>
-        )}
       </div>
 
       <FrozenStrip initiative={initiative} />
