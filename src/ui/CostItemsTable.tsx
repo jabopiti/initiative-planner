@@ -5,8 +5,10 @@ import { useFieldFailure, useIsChangedByOthers, useRepository } from '../state/D
 import type { PhaseDef } from '../brand/types';
 import { isOutsidePeriod, parseAmount, periodMonths } from '../data/cost';
 import { formatMonth, localToday, monthOf } from '../data/dates';
+import type { CostItemSuggestion } from '../data/costItemSuggestions';
 import { FILE_PATHS, type CostItem, type PhasePlan } from '../data/types';
 import { CommitInput, Refusal } from './CommitInput';
+import { CostItemLabelInput } from './CostItemLabelInput';
 import { ConflictRow, inRow } from './ConflictBlock';
 import { InlineWarning } from './InlineWarning';
 import { MonthInput } from './MonthInput';
@@ -19,6 +21,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const LABEL_REFUSAL = 'Enter a label.';
 const AMOUNT_REFUSAL = 'Enter an amount of 0 or more.';
+const MONTH_REFUSAL = 'Enter a month.';
 
 /** The month a new one-month item starts on: the phase's first month, or this month while the period is unset. */
 const defaultMonth = (months: string[]): string => months[0] ?? monthOf(localToday());
@@ -230,17 +233,30 @@ function DraftRow({
   const [amount, setAmount] = useState('');
   const [timing, setTiming] = useState<CostItem['timing']>('spread');
   // Until one is picked, the month follows the phase's period, which may still change while the row is open.
-  const [pickedMonth, setMonth] = useState<string>();
-  const month = pickedMonth ?? defaultMonth(months);
-  const [refused, setRefused] = useState<{ label?: string; amount?: string }>({});
+  // null: a one-month suggestion does not carry its month (it belongs to another phase), so the field starts empty (§5.11).
+  const [pickedMonth, setMonth] = useState<string | null>();
+  const month = pickedMonth === undefined ? defaultMonth(months) : (pickedMonth ?? undefined);
+  const [refused, setRefused] = useState<{ label?: string; amount?: string; month?: string }>({});
   const labelErrorId = useId();
   const amountErrorId = useId();
 
   const add = () => {
     const parsed = parseAmount(amount);
     const text = label.trim();
-    setRefused({ label: text === '' ? LABEL_REFUSAL : undefined, amount: parsed === null ? AMOUNT_REFUSAL : undefined });
-    if (text !== '' && parsed !== null) onAdd({ label: text, amount: parsed, timing, ...(timing === 'month' && { month }) });
+    const next = {
+      label: text === '' ? LABEL_REFUSAL : undefined,
+      amount: parsed === null ? AMOUNT_REFUSAL : undefined,
+      month: timing === 'month' && month === undefined ? MONTH_REFUSAL : undefined,
+    };
+    setRefused(next);
+    if (parsed !== null && !next.label && !next.month) onAdd({ label: text, amount: parsed, timing, ...(timing === 'month' && { month }) });
+  };
+  const choose = (suggestion: CostItemSuggestion) => {
+    setLabel(suggestion.label);
+    setAmount(String(suggestion.amount));
+    setTiming(suggestion.timing);
+    setMonth(null);
+    setRefused({});
   };
   const keys = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') add();
@@ -251,7 +267,7 @@ function DraftRow({
     <div className="flex flex-col gap-2 rounded-md border border-border-strong p-3" role="group" aria-label={`New cost item for ${phase.label}`}>
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex flex-col gap-1">
-          <Input
+          <CostItemLabelInput
             aria-label="Label"
             placeholder="Label"
             className="w-56"
@@ -259,7 +275,8 @@ function DraftRow({
             value={label}
             aria-invalid={refused.label ? true : undefined}
             aria-describedby={refused.label ? labelErrorId : undefined}
-            onChange={(e) => setLabel(e.target.value)}
+            onChange={setLabel}
+            onChoose={choose}
             onKeyDown={keys}
           />
           {refused.label && <Refusal id={labelErrorId}>{refused.label}</Refusal>}
@@ -285,7 +302,21 @@ function DraftRow({
           {refused.amount && <Refusal id={amountErrorId}>{refused.amount}</Refusal>}
         </div>
         <TimingToggle value={timing} label="When" onChange={setTiming} />
-        {timing === 'month' && <MonthInput required label="Month" value={month} onChange={(next) => next && setMonth(next)} />}
+        {timing === 'month' && (
+          <div className="flex flex-col gap-1">
+            <MonthInput
+              required
+              label="Month"
+              value={month}
+              onChange={(next) => {
+                if (!next) return;
+                setMonth(next);
+                setRefused((current) => ({ ...current, month: undefined }));
+              }}
+            />
+            {refused.month && <Refusal>{refused.month}</Refusal>}
+          </div>
+        )}
       </div>
       <div className="flex gap-2">
         <Button type="button" size="sm" onClick={add}>

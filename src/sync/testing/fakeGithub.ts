@@ -6,7 +6,8 @@ import { Repository, type RepositoryState } from '../Repository';
 
 /**
  * An in-memory GitHub for tests that need the real rules: a stale sha is a 409, a missing sha on an
- * existing file is a 422, and a write can be held in flight or refused on demand.
+ * existing file is a 422, a write to a file that is gone creates it (201, as GitHub does even when it names a sha),
+ * and a write can be held in flight or refused on demand.
  */
 
 const DATA_BRANCH = defaultBrandPack.github.dataBranch;
@@ -21,6 +22,13 @@ interface PutRecord {
   newSha?: string;
 }
 
+interface DeleteRecord {
+  path: string;
+  message: string;
+  sha: string;
+  status: number;
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
 }
@@ -31,6 +39,7 @@ export type TokenBehaviour = 'invalid' | 'read-only' | 'cannot-see';
 export function fakeGithub() {
   const files = new Map<string, { content: string; sha: string }>();
   const puts: PutRecord[] = [];
+  const deletes: DeleteRecord[] = [];
   const arrivals = new Map<string, number>();
   const holds: { prefix: string; gate: Promise<void> }[] = [];
   const failures: { prefix: string; status: number }[] = [];
@@ -101,6 +110,18 @@ export function fakeGithub() {
     const hold = take(holds, path);
     if (hold) await hold.gate;
 
+    if (method === 'DELETE') {
+      const record: DeleteRecord = { path, message: body.message, sha: body.sha!, status: 200 };
+      deletes.push(record);
+      const failure = take(failures, path);
+      const existing = files.get(path);
+      record.status = failure?.status ?? (!existing ? 404 : body.sha !== existing.sha ? 409 : 200);
+      if (record.status !== 200) return json({ message: 'failed' }, record.status);
+      files.delete(path);
+      head += 1;
+      return json({ commit: { sha: `commit-${head}` } });
+    }
+
     const record: PutRecord = { path, message: body.message, sha: body.sha, content: JSON.parse(decodeBase64Utf8(body.content)), status: 200 };
     puts.push(record);
 
@@ -114,16 +135,20 @@ export function fakeGithub() {
       record.status = body.sha ? 409 : 422; // a stale sha is a 409; none at all for an existing file is a 422
       return json({ message: 'sha does not match' }, record.status);
     }
+    if (!existing) record.status = 201;
 
     record.newSha = put(path, record.content);
-    return json({ content: { sha: record.newSha } });
+    return json({ content: { sha: record.newSha } }, record.status);
   });
 
   return {
     fetchMock,
     puts,
+    /** Every delete that reached the server, refused ones included. */
+    deletes,
+    has: (path: string) => files.has(path),
     /** Writes the repository actually accepted to `path`, oldest first. */
-    commits: (path: string) => puts.filter((p) => p.path === path && p.status === 200),
+    commits: (path: string) => puts.filter((p) => p.path === path && (p.status === 200 || p.status === 201)),
     /** How many writes to `path` have reached the server (held ones included). */
     arrived: (path: string) => arrivals.get(path) ?? 0,
     read: <T>(path: string): T => JSON.parse(files.get(path)!.content) as T,
@@ -148,7 +173,7 @@ export function fakeGithub() {
     },
     /** What the token check (§5.10) finds for this token: rejected, read-only or unable to see the repository. Every other token works. */
     setTokenBehaviour: (token: string, behaviour: TokenBehaviour) => void tokenBehaviours.set(token, behaviour),
-    /** The next write to a path starting with `prefix` is refused with `status` and changes nothing. */
+    /** The next write (put or delete) to a path starting with `prefix` is refused with `status` and changes nothing. */
     fail: (prefix: string, status: number) => void failures.push({ prefix, status }),
   };
 }
@@ -163,8 +188,9 @@ export function holdNetwork(fake: Fake, only: (url: string, init?: RequestInit) 
   return release;
 }
 
-export async function open(fake: Fake, seeded: { teams?: Team[]; people?: Person[]; initiatives?: Initiative[] } = {}) {
-  fake.seed('dataset.json', { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: false });
+/** A dataset with these teams, people and initiatives, served to `fetch`. */
+export function seedDataset(fake: Fake, seeded: { teams?: Team[]; people?: Person[]; initiatives?: Initiative[]; ratesReviewed?: boolean } = {}) {
+  fake.seed('dataset.json', { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: seeded.ratesReviewed ?? false });
   fake.seed('roles.json', []);
   fake.seed('countries.json', []);
   fake.seed('teams.json', seeded.teams ?? []);
@@ -172,6 +198,10 @@ export async function open(fake: Fake, seeded: { teams?: Team[]; people?: Person
   fake.seed('memberships.json', []);
   for (const initiative of seeded.initiatives ?? []) fake.seed(`initiatives/${initiative.id}.json`, initiative);
   vi.stubGlobal('fetch', fake.fetchMock);
+}
+
+export async function open(fake: Fake, seeded: { teams?: Team[]; people?: Person[]; initiatives?: Initiative[] } = {}) {
+  seedDataset(fake, seeded);
   const repo = new Repository(defaultBrandPack, 'token');
   await repo.initialize();
   const seen: RepositoryState[] = [];
