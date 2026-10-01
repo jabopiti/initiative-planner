@@ -257,52 +257,80 @@ export class GithubClient {
       const refResponse = await this.request(refUrl, { method: 'GET' });
       assertOk(refResponse, 'GET ref');
       const head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
-      const commitResponse = await this.request(this.repoUrl(`git/commits/${head}`), { method: 'GET' });
-      assertOk(commitResponse, 'GET commit');
-      const baseTree = ((await commitResponse.json()) as { tree: { sha: string } }).tree.sha;
+      // The base tree only matters once there is something to write; fetch it while `build` reads.
+      const baseTree = this.treeOf(head);
+      baseTree.catch(() => {}); // awaited below unless `build` stops or throws first
 
       const changes = await args.build(head);
       if (changes === null) return 'stopped';
 
-      const blobs = await Promise.all(
-        changes.files.map(async (file) => {
-          const blobResponse = await this.request(this.repoUrl('git/blobs'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: encodeBase64Utf8(file.content), encoding: 'base64' }),
-          });
-          assertOk(blobResponse, 'Blob create');
-          return { path: file.path, mode: '100644', type: 'blob', sha: ((await blobResponse.json()) as { sha: string }).sha };
-        }),
-      );
+      const blobs = await this.createBlobs(changes.files);
       // A null sha removes the path from the base tree.
-      const removed = changes.deletes.map((path) => ({ path, mode: '100644', type: 'blob', sha: null }));
-      const treeResponse = await this.request(this.repoUrl('git/trees'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base_tree: baseTree, tree: [...blobs, ...removed] }),
-      });
-      assertOk(treeResponse, 'Tree create');
-      const tree = ((await treeResponse.json()) as { sha: string }).sha;
+      const removed = changes.deletes.map((path) => ({ path, sha: null }));
+      const commitSha = await this.createCommit({ baseTree: await baseTree, parent: head, entries: [...blobs, ...removed], message: args.message });
 
-      const newCommitResponse = await this.request(this.repoUrl('git/commits'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: args.message, tree, parents: [head] }),
-      });
-      assertOk(newCommitResponse, 'Commit create');
-      const commitSha = ((await newCommitResponse.json()) as { sha: string }).sha;
-
-      const updateResponse = await this.request(this.repoUrl(`git/refs/heads/${encodePath(args.branch)}`), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sha: commitSha }),
-      });
+      const updateResponse = await this.updateRef(args.branch, commitSha);
       if (updateResponse.status === 422 && attempt < 3) continue; // the head moved: build again on the new one
       if (updateResponse.status === 422) throw new GithubApiError('The data branch kept changing — please retry.', 'conflict', 422);
       assertOk(updateResponse, 'Ref update');
       return { commitSha };
     }
+  }
+
+  private async treeOf(commitSha: string): Promise<string> {
+    const commitResponse = await this.request(this.repoUrl(`git/commits/${commitSha}`), { method: 'GET' });
+    assertOk(commitResponse, 'GET commit');
+    return ((await commitResponse.json()) as { tree: { sha: string } }).tree.sha;
+  }
+
+  private createBlobs(files: { path: string; content: string }[]): Promise<{ path: string; sha: string }[]> {
+    return Promise.all(
+      files.map(async (file) => {
+        const blobResponse = await this.request(this.repoUrl('git/blobs'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: encodeBase64Utf8(file.content), encoding: 'base64' }),
+        });
+        assertOk(blobResponse, 'Blob create');
+        return { path: file.path, sha: ((await blobResponse.json()) as { sha: string }).sha };
+      }),
+    );
+  }
+
+  /** A tree on `baseTree` with `entries` (a null sha removes the path), then a commit of it on `parent`; returns the commit's sha. */
+  private async createCommit(args: {
+    baseTree?: string;
+    parent?: string;
+    entries: { path: string; sha: string | null }[];
+    message: string;
+  }): Promise<string> {
+    const treeResponse = await this.request(this.repoUrl('git/trees'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...(args.baseTree ? { base_tree: args.baseTree } : {}),
+        tree: args.entries.map((e) => ({ path: e.path, mode: '100644', type: 'blob', sha: e.sha })),
+      }),
+    });
+    assertOk(treeResponse, 'Tree create');
+    const tree = ((await treeResponse.json()) as { sha: string }).sha;
+
+    const commitResponse = await this.request(this.repoUrl('git/commits'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: args.message, tree, parents: args.parent ? [args.parent] : [] }),
+    });
+    assertOk(commitResponse, 'Commit create');
+    return ((await commitResponse.json()) as { sha: string }).sha;
+  }
+
+  /** Updating a ref is PATCH .../git/refs/heads/{branch} (plural); only the GET is `git/ref/...` (singular) — PATCHing the singular URL is a 404. */
+  private updateRef(branch: string, commitSha: string): Promise<Response> {
+    return this.request(this.repoUrl(`git/refs/heads/${encodePath(branch)}`), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sha: commitSha }),
+    });
   }
 
   /**
@@ -321,18 +349,7 @@ export class GithubClient {
     assertBranch(args.branch);
 
     // Blob content doesn't depend on the branch/ref lookup below, so start both concurrently.
-    const blobsPromise = Promise.all(
-      args.files.map(async (file) => {
-        const blobResponse = await this.request(this.repoUrl('git/blobs'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: encodeBase64Utf8(file.content), encoding: 'base64' }),
-        });
-        assertOk(blobResponse, 'Blob create');
-        const blob = (await blobResponse.json()) as { sha: string };
-        return { path: file.path, sha: blob.sha };
-      }),
-    );
+    const blobsPromise = this.createBlobs(args.files);
     // If the ref/commit lookup below throws first, this function returns without ever
     // reaching `await blobsPromise` — if a blob upload then fails on its own, nothing would
     // be listening for that rejection. This no-op catch just keeps that from ever being
@@ -342,64 +359,31 @@ export class GithubClient {
     const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
     const refResponse = await this.request(refUrl, { method: 'GET' });
 
-    let baseTreeSha: string | undefined;
-    let parentCommitSha: string | undefined;
+    let baseTree: string | undefined;
+    let parent: string | undefined;
     const branchExists = refResponse.status !== 404;
 
     if (branchExists) {
       assertOk(refResponse, 'GET ref');
-      const ref = (await refResponse.json()) as { object: { sha: string } };
-      parentCommitSha = ref.object.sha;
-      const commitResponse = await this.request(this.repoUrl(`git/commits/${parentCommitSha}`), { method: 'GET' });
-      assertOk(commitResponse, 'GET commit');
-      const commit = (await commitResponse.json()) as { tree: { sha: string } };
-      baseTreeSha = commit.tree.sha;
+      parent = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
+      baseTree = await this.treeOf(parent);
     }
 
-    const blobs = await blobsPromise;
-
-    const treeResponse = await this.request(this.repoUrl('git/trees'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...(baseTreeSha ? { base_tree: baseTreeSha } : {}),
-        tree: blobs.map((b) => ({ path: b.path, mode: '100644', type: 'blob', sha: b.sha })),
-      }),
-    });
-    assertOk(treeResponse, 'Tree create');
-    const tree = (await treeResponse.json()) as { sha: string };
-
-    const commitResponse = await this.request(this.repoUrl('git/commits'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: args.message,
-        tree: tree.sha,
-        parents: parentCommitSha ? [parentCommitSha] : [],
-      }),
-    });
-    assertOk(commitResponse, 'Commit create');
-    const newCommit = (await commitResponse.json()) as { sha: string };
+    const commitSha = await this.createCommit({ baseTree, parent, entries: await blobsPromise, message: args.message });
 
     if (branchExists) {
-      // Updating a ref is PATCH .../git/refs/heads/{branch} (plural); only the GET is `git/ref/...` (singular) — PATCHing the singular URL is a 404.
-      const updateRefResponse = await this.request(this.repoUrl(`git/refs/heads/${encodePath(args.branch)}`), {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sha: newCommit.sha }),
-      });
-      assertOk(updateRefResponse, 'Ref update');
-      return { commitSha: newCommit.sha };
+      assertOk(await this.updateRef(args.branch, commitSha), 'Ref update');
+      return { commitSha };
     }
 
     const createRefResponse = await this.request(this.repoUrl('git/refs'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ref: `refs/heads/${args.branch}`, sha: newCommit.sha }),
+      body: JSON.stringify({ ref: `refs/heads/${args.branch}`, sha: commitSha }),
     });
     // 422 "Reference already exists" — another client won the bootstrap race (§3 "System writes":
     // concurrent attempts converge, no duplicates). Our own commit never got attached to the
-    // branch in that case, so `newCommit.sha` would be a dangling sha — return the ref's actual
+    // branch in that case, so `commitSha` would be a dangling sha — return the ref's actual
     // (winning) commit instead of our own, so a future caller never trusts an unreachable sha.
     if (createRefResponse.status === 422) {
       const wonRefResponse = await this.request(refUrl, { method: 'GET' });
@@ -408,6 +392,6 @@ export class GithubClient {
       return { commitSha: wonRef.object.sha };
     }
     assertOk(createRefResponse, 'Ref create');
-    return { commitSha: newCommit.sha };
+    return { commitSha };
   }
 }

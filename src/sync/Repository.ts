@@ -105,14 +105,16 @@ interface PulledFile {
 /** The commit message deleting an initiative (§10.3). */
 const deletedMessage = (initiative: Initiative): string => `${initiative.name}: deleted`;
 
+const jsonFile = (path: string, value: unknown) => ({ path, content: JSON.stringify(value) });
+
 /** The master files of a fresh-install baseline (§2), as written. */
 const baselineFiles = (baseline: BaselineDataset) => [
-  { path: FILE_PATHS.datasetFlags, content: JSON.stringify(baseline.datasetFlags) },
-  { path: FILE_PATHS.roles, content: JSON.stringify(baseline.roles) },
-  { path: FILE_PATHS.countries, content: JSON.stringify(baseline.countries) },
-  { path: FILE_PATHS.teams, content: JSON.stringify(baseline.teams) },
-  { path: FILE_PATHS.people, content: JSON.stringify(baseline.people) },
-  { path: FILE_PATHS.memberships, content: JSON.stringify(baseline.memberships) },
+  jsonFile(FILE_PATHS.datasetFlags, baseline.datasetFlags),
+  jsonFile(FILE_PATHS.roles, baseline.roles),
+  jsonFile(FILE_PATHS.countries, baseline.countries),
+  jsonFile(FILE_PATHS.teams, baseline.teams),
+  jsonFile(FILE_PATHS.people, baseline.people),
+  jsonFile(FILE_PATHS.memberships, baseline.memberships),
 ];
 
 /** How Load example data ended (§5.9): loaded, stopped because the dataset has data, or failed with the cause. */
@@ -1784,44 +1786,34 @@ export class Repository {
    * branch, read at the head the commit builds on, has any person, team, membership or initiative.
    */
   async loadExampleData(today: Date = new Date()): Promise<LoadExampleResult> {
-    const branch = this.brand.github.dataBranch;
-    await Promise.all(this.allWriters().map(([, writer]) => writer.flush()));
-    try {
-      const result = await this.queue.run(() =>
-        this.github.commitOnHead({
-          branch,
-          message: 'Example data loaded',
-          build: async (at) => {
-            const read = async <T>(path: string, fallback: T): Promise<T> => parseJsonFile(await this.github.getFile({ path, branch: at }), fallback);
-            const [teams, people, memberships, initiatives, roles, countries] = await Promise.all([
-              read<Team[]>(FILE_PATHS.teams, []),
-              read<Person[]>(FILE_PATHS.people, []),
-              read<Membership[]>(FILE_PATHS.memberships, []),
-              this.github.listDirectory({ path: 'initiatives', branch: at }),
-              read<Role[]>(FILE_PATHS.roles, []),
-              read<Country[]>(FILE_PATHS.countries, []),
-            ]);
-            if (teams.length + people.length + memberships.length + initiatives.length > 0) return null;
-            const data = buildExampleData(this.brand, { roles, countries }, today);
-            return {
-              files: [
-                { path: FILE_PATHS.teams, content: JSON.stringify(data.teams) },
-                { path: FILE_PATHS.people, content: JSON.stringify(data.people) },
-                { path: FILE_PATHS.memberships, content: JSON.stringify(data.memberships) },
-                ...(data.addedRoles ? [{ path: FILE_PATHS.roles, content: JSON.stringify(data.roles) }] : []),
-                ...(data.addedCountries ? [{ path: FILE_PATHS.countries, content: JSON.stringify(data.countries) }] : []),
-                ...data.initiatives.map((i) => ({ path: FILE_PATHS.initiative(i.id), content: JSON.stringify(i) })),
-              ],
-              deletes: [],
-            };
-          },
-        }),
-      );
-      await this.pullOwnCommit();
-      return result === 'stopped' ? 'not-empty' : 'loaded';
-    } catch (error) {
-      return { failed: toReadOnlyState(error, 'Something went wrong loading the example data.') };
-    }
+    await this.flushPending();
+    const result = await this.commitDataset('Example data loaded', 'Something went wrong loading the example data.', async (at) => {
+      const read = async <T>(path: string, fallback: T): Promise<T> => parseJsonFile(await this.github.getFile({ path, branch: at }), fallback);
+      const [teams, people, memberships, initiatives, roles, countries] = await Promise.all([
+        read<Team[]>(FILE_PATHS.teams, []),
+        read<Person[]>(FILE_PATHS.people, []),
+        read<Membership[]>(FILE_PATHS.memberships, []),
+        this.github.listDirectory({ path: 'initiatives', branch: at }),
+        read<Role[]>(FILE_PATHS.roles, []),
+        read<Country[]>(FILE_PATHS.countries, []),
+      ]);
+      if (teams.length + people.length + memberships.length + initiatives.length > 0) return null;
+      const data = buildExampleData(this.brand, { roles, countries }, today);
+      return {
+        files: [
+          jsonFile(FILE_PATHS.teams, data.teams),
+          jsonFile(FILE_PATHS.people, data.people),
+          jsonFile(FILE_PATHS.memberships, data.memberships),
+          // Roles and countries only grow when one the example needs was added from the baseline.
+          ...(data.roles.length > roles.length ? [jsonFile(FILE_PATHS.roles, data.roles)] : []),
+          ...(data.countries.length > countries.length ? [jsonFile(FILE_PATHS.countries, data.countries)] : []),
+          ...data.initiatives.map((i) => jsonFile(FILE_PATHS.initiative(i.id), i)),
+        ],
+        deletes: [],
+      };
+    });
+    if (typeof result === 'object') return result;
+    return result === 'stopped' ? 'not-empty' : 'loaded';
   }
 
   /**
@@ -1831,27 +1823,31 @@ export class Repository {
    * files removed are those the data branch lists at the head the commit builds on, so one created meanwhile goes too.
    */
   async resetDataset(): Promise<ResetResult> {
-    const branch = this.brand.github.dataBranch;
     await Promise.all(this.allWriters().map(([, writer]) => writer.drop()));
+    const result = await this.commitDataset('Dataset reset', 'Something went wrong resetting the dataset.', async (at) => {
+      const listed = await this.github.listDirectory({ path: 'initiatives', branch: at });
+      return {
+        files: baselineFiles(buildBaselineDataset(this.brand)),
+        deletes: listed.filter((entry) => entry.type === 'file').map((entry) => entry.path),
+      };
+    });
+    return typeof result === 'object' ? result : 'reset';
+  }
+
+  /** One many-file commit on the data branch through the write queue (§10.3), then this client pulls it in. */
+  private async commitDataset(
+    message: string,
+    failureText: string,
+    build: Parameters<GithubClient['commitOnHead']>[0]['build'],
+  ): Promise<'done' | 'stopped' | { failed: ReadOnlyState }> {
+    let result: { commitSha: string } | 'stopped';
     try {
-      await this.queue.run(() =>
-        this.github.commitOnHead({
-          branch,
-          message: 'Dataset reset',
-          build: async (at) => {
-            const listed = await this.github.listDirectory({ path: 'initiatives', branch: at });
-            return {
-              files: baselineFiles(buildBaselineDataset(this.brand)),
-              deletes: listed.filter((entry) => entry.type === 'file').map((entry) => entry.path),
-            };
-          },
-        }),
-      );
+      result = await this.queue.run(() => this.github.commitOnHead({ branch: this.brand.github.dataBranch, message, build }));
     } catch (error) {
-      return { failed: toReadOnlyState(error, 'Something went wrong resetting the dataset.') };
+      return { failed: toReadOnlyState(error, failureText) };
     }
     await this.pullOwnCommit();
-    return 'reset';
+    return result === 'stopped' ? 'stopped' : 'done';
   }
 
   /** Brings in this client's own many-file commit at once, through the ordinary pull (§3), without the "updated by others" tint. */

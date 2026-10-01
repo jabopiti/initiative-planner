@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { causeText } from '../github/errors';
 import { navigate } from '../router/useHashRoute';
 import { useRepository, useRepositoryState } from '../state/DataContext';
-import { WarningIcon } from './icons';
+import { ActionError } from './ActionError';
 import { LockToggle } from './LockToggle';
 import { resetLine } from './resetLine';
 import type { SectionLock } from './useSectionLock';
@@ -117,14 +117,5 @@ export function DangerZoneSection({ lock }: { lock: SectionLock }) {
         </div>
       </div>
     </section>
-  );
-}
-
-function ActionError({ text }: { text: string }) {
-  return (
-    <p role="alert" className="m-0 mt-2 flex items-center gap-1 text-xs text-alarm-text">
-      <WarningIcon width={13} height={13} />
-      {text}
-    </p>
   );
 }

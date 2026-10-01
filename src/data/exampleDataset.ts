@@ -1,9 +1,12 @@
 import type { BrandPack } from '../brand/types';
+import { buildBaselineDataset, type BaselineDataset } from './baseline';
+import { daysInMonth } from './cost';
+import { iso } from './dates';
 import { passGate } from './gate';
 import { newId } from './ids';
 import type { ChecklistState, Country, Initiative, Membership, Person, PhasePlan, Role, Team } from './types';
 
-/** What loading the example dataset (§2, §5.9) writes: its own entities, and the roles and countries it needed to add. */
+/** What loading the example dataset (§2, §5.9) writes: its own entities, and the roles and countries with any it needed added. */
 export interface ExampleData {
   roles: Role[];
   countries: Country[];
@@ -11,19 +14,13 @@ export interface ExampleData {
   people: Person[];
   memberships: Membership[];
   initiatives: Initiative[];
-  /** Whether `roles` or `countries` gained one from the fresh-install baseline, so that file needs writing too. */
-  addedRoles: boolean;
-  addedCountries: boolean;
 }
-
-const iso = (year: number, month: number, day: number) =>
-  `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
 /** The first or last day of the month `offset` months from `today`'s, as an ISO date. */
 function monthDay(today: Date, offset: number, which: 'first' | 'last'): string {
-  const first = new Date(today.getFullYear(), today.getMonth() + offset, 1);
-  const day = which === 'first' ? 1 : new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
-  return iso(first.getFullYear(), first.getMonth(), day);
+  const month = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+  const [year, index] = [month.getFullYear(), month.getMonth()];
+  return iso(year, index + 1, which === 'first' ? 1 : daysInMonth(year, index));
 }
 
 /**
@@ -36,32 +33,23 @@ export function buildExampleData(brand: BrandPack, current: { roles: Role[]; cou
   const example = brand.exampleDataset;
   const roles = [...current.roles];
   const countries = [...current.countries];
-  let addedRoles = false;
-  let addedCountries = false;
+  let baseline: BaselineDataset | undefined;
+  const fromBaseline = () => (baseline ??= buildBaselineDataset(brand));
 
   const roleId = (abbreviation: string): string => {
     const found = roles.find((r) => r.active && r.abbreviation === abbreviation);
     if (found) return found.id;
-    const baseline = brand.freshInstallBaseline.roles.find((r) => r.abbreviation === abbreviation);
-    if (!baseline) throw new Error(`The example dataset needs a role ${abbreviation} the brand pack doesn't have.`);
-    const role: Role = { id: newId(), ...baseline, active: true };
+    const role = fromBaseline().roles.find((r) => r.abbreviation === abbreviation);
+    if (!role) throw new Error(`The example dataset needs a role ${abbreviation} the brand pack doesn't have.`);
     roles.push(role);
-    addedRoles = true;
     return role.id;
   };
   const countryId = (name: string): string => {
     const found = countries.find((c) => c.active && c.name === name);
     if (found) return found.id;
-    const baseline = brand.freshInstallBaseline.countries.find((c) => c.name === name);
-    if (!baseline) throw new Error(`The example dataset needs a country ${name} the brand pack doesn't have.`);
-    const country: Country = {
-      id: newId(),
-      name,
-      active: true,
-      ratesByYear: baseline.ratesByYear.map((r) => ({ ...r, workingDaysByMonth: [...r.workingDaysByMonth] })),
-    };
+    const country = fromBaseline().countries.find((c) => c.name === name);
+    if (!country) throw new Error(`The example dataset needs a country ${name} the brand pack doesn't have.`);
     countries.push(country);
-    addedCountries = true;
     return country.id;
   };
 
@@ -127,5 +115,5 @@ export function buildExampleData(brand: BrandPack, current: { roles: Role[]; cou
     return initiative;
   });
 
-  return { roles, countries, teams, people, memberships, initiatives, addedRoles, addedCountries };
+  return { roles, countries, teams, people, memberships, initiatives };
 }

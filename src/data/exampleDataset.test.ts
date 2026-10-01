@@ -17,9 +17,8 @@ describe('buildExampleData (§2, §5.9)', () => {
     const mara = data.people.find((p) => p.name === 'Mara Voss')!;
     expect(mara.roleId).toBe(roles.find((r) => r.abbreviation === 'PM')!.id);
     expect(mara.countryId).toBe(countries.find((c) => c.name === 'Germany')!.id);
-    expect(data.addedRoles).toBe(false);
-    expect(data.addedCountries).toBe(false);
     expect(data.roles).toEqual(roles);
+    expect(data.countries).toEqual(countries);
   });
 
   it('puts the initiatives in their phases, earlier gates passed with a frozen snapshot', () => {
@@ -53,8 +52,6 @@ describe('buildExampleData (§2, §5.9)', () => {
     const { roles, countries } = baseline();
     const edited = roles.map((r) => (r.abbreviation === 'XD' ? { ...r, active: false } : r)).filter((r) => r.abbreviation !== 'TL');
     const data = buildExampleData(defaultBrandPack, { roles: edited, countries: countries.filter((c) => c.name !== 'Spain') }, today);
-    expect(data.addedRoles).toBe(true);
-    expect(data.addedCountries).toBe(true);
     expect(data.roles.filter((r) => r.abbreviation === 'XD').map((r) => r.active)).toEqual([false, true]);
     expect(data.roles.some((r) => r.abbreviation === 'TL' && r.active)).toBe(true);
     expect(data.countries.find((c) => c.name === 'Spain')!.ratesByYear[0].dayRate).toBe(800);

@@ -21,7 +21,7 @@ if (!owner || !repo || !branch || !api || branch === 'main') {
 export const target = `${owner}/${repo}@${branch}`;
 
 /** One GitHub Contents API call on the data branch; a missing file on GET is `null`. */
-export async function call(method, path, body) {
+async function call(method, path, body) {
   const query = method === 'GET' ? `?ref=${branch}` : '';
   const res = await fetch(`${api}/repos/${owner}/${repo}/contents/${path}${query}`, {
     method,
@@ -31,14 +31,6 @@ export async function call(method, path, body) {
   if (res.status === 404 && method === 'GET') return null;
   if (!res.ok) throw new Error(`${method} ${path} failed: ${res.status}`);
   return res.json();
-}
-
-export const readJson = (file) => (file ? JSON.parse(Buffer.from(file.content, 'base64').toString('utf8')) : null);
-
-/** Writes a master file (or creates/replaces an initiative file) as compact JSON, in one commit. */
-export async function writeJson(path, value, message) {
-  const current = await call('GET', path);
-  await call('PUT', path, { message, content: Buffer.from(JSON.stringify(value)).toString('base64'), sha: current?.sha });
 }
 
 /** Empties teams, people and memberships and deletes every initiative file; roles, countries and dataset.json stay. */

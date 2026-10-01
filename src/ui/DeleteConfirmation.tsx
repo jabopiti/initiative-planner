@@ -1,7 +1,7 @@
 import { useEffect, useId, type RefObject } from 'react';
 import { hasPassedGate } from '../data/frozen';
 import type { Initiative } from '../data/types';
-import { WarningIcon } from './icons';
+import { ActionError } from './ActionError';
 import { Button } from '@/components/ui/button';
 
 /** Where the delete confirmation is: asked, running, failed with the cause, or refused because a gate was passed. */
@@ -67,12 +67,7 @@ export function DeleteConfirmation({
           <p id={bodyId} className="m-0">
             This can&apos;t be undone.
           </p>
-          {failed !== null && (
-            <p role="alert" className="m-0 mt-2 flex items-center gap-1 text-xs text-alarm-text">
-              <WarningIcon width={13} height={13} />
-              Not deleted: {failed}.
-            </p>
-          )}
+          {failed !== null && <ActionError text={`Not deleted: ${failed}.`} />}
           <div className="mt-3 flex gap-2">
             <Button size="sm" variant="destructive" disabled={deleting} onClick={onConfirm}>
               {deleting ? 'Deleting…' : 'Confirm delete'}
