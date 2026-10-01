@@ -25,10 +25,10 @@ export function PeopleOverview() {
   const changed = useIsChangedByOthers();
   const [filter, setFilter] = useState<StatusFilter>('active');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  usePersonRequests(setSelectedId);
   const [name, setName] = useState('');
   const [countryId, setCountryId] = useState(() => defaultCountryId(countries));
   const [roleId, setRoleId] = useState(() => defaultRoleId(roles));
+  usePersonRequests(setSelectedId);
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const effectiveCountry = countries.some((c) => c.id === countryId && c.active) ? countryId : defaultCountryId(countries);

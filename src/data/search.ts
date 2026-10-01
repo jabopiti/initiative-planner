@@ -24,9 +24,10 @@ function fold(source: string): Folded {
   return { text, origin };
 }
 
-/** Where the folded query sits in `text`, as a range of the original text; null when it does not. */
-export function findMatch(text: string, query: string): [number, number] | null {
-  const needle = fold(query.trim()).text;
+/** The query as matched: trimmed, lower case, accents removed. */
+const foldQuery = (query: string) => fold(query.trim()).text;
+
+function locate(text: string, needle: string): [number, number] | null {
   if (!needle) return null;
   const haystack = fold(text);
   const at = haystack.text.indexOf(needle);
@@ -34,6 +35,11 @@ export function findMatch(text: string, query: string): [number, number] | null 
   const last = at + needle.length - 1;
   const lastChar = String.fromCodePoint(text.codePointAt(haystack.origin[last]) ?? 0);
   return [haystack.origin[at], haystack.origin[last] + lastChar.length];
+}
+
+/** Where the folded query sits in `text`, as a range of the original text; null when it does not. */
+export function findMatch(text: string, query: string): [number, number] | null {
+  return locate(text, foldQuery(query));
 }
 
 export interface InitiativeHit {
@@ -66,10 +72,10 @@ function cap<T>(hits: T[]): Group<T> {
   return { hits: hits.slice(0, SEARCH_GROUP_LIMIT), total: hits.length };
 }
 
-function named<T extends { name: string }>(items: T[], query: string): NamedHit<T>[] {
+function named<T extends { name: string }>(items: T[], needle: string): NamedHit<T>[] {
   return items
     .flatMap((item) => {
-      const range = findMatch(item.name, query);
+      const range = locate(item.name, needle);
       return range ? [{ item, range }] : [];
     })
     .sort((a, b) => byName(a.item.name, b.item.name));
@@ -77,14 +83,15 @@ function named<T extends { name: string }>(items: T[], query: string): NamedHit<
 
 /** The matches for a typed query (§5.1): initiatives by name then description, people and teams by name. */
 export function searchAll(query: string, data: { initiatives: Initiative[]; people: Person[]; teams: Team[] }): SearchResults {
-  const empty = { hits: [], total: 0 };
-  if (!query.trim()) return { initiatives: empty, people: empty, teams: empty };
+  const needle = foldQuery(query);
+  if (!needle) return { initiatives: cap([]), people: cap([]), teams: cap([]) };
   const initiativeHits = data.initiatives.flatMap((initiative): InitiativeHit[] => {
-    const inName = findMatch(initiative.name, query);
+    const inName = locate(initiative.name, needle);
     if (inName) return [{ initiative, field: 'name', range: inName }];
-    const inDescription = findMatch(initiative.description ?? '', query);
+    const inDescription = locate(initiative.description ?? '', needle);
     return inDescription ? [{ initiative, field: 'description', range: inDescription }] : [];
   });
-  initiativeHits.sort((a, b) => (a.field === b.field ? byName(a.initiative.name, b.initiative.name) : a.field === 'name' ? -1 : 1));
-  return { initiatives: cap(initiativeHits), people: cap(named(data.people, query)), teams: cap(named(data.teams, query)) };
+  const rank = (hit: InitiativeHit) => (hit.field === 'name' ? 0 : 1);
+  initiativeHits.sort((a, b) => rank(a) - rank(b) || byName(a.initiative.name, b.initiative.name));
+  return { initiatives: cap(initiativeHits), people: cap(named(data.people, needle)), teams: cap(named(data.teams, needle)) };
 }

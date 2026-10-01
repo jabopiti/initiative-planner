@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { currentPhaseId } from '../data/processState';
-import { findMatch, searchAll, type Group, type InitiativeHit, type NamedHit } from '../data/search';
+import { searchAll, type Group, type InitiativeHit, type NamedHit } from '../data/search';
 import type { InitiativeStatus } from '../data/types';
 import { navigate } from '../router/useHashRoute';
 import { useBrand } from '../state/BrandContext';
@@ -38,11 +38,10 @@ export function GlobalSearch() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const bare = !event.altKey && !event.shiftKey;
-      if (bare && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        show();
-      } else if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !inTextField(event.target) && !document.querySelector('[role="dialog"]')) {
+      const modifier = event.ctrlKey || event.metaKey;
+      const isK = modifier && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k';
+      const isSlash = event.key === '/' && !modifier && !event.altKey && !inTextField(event.target) && !document.querySelector('[role="dialog"]');
+      if (isK || isSlash) {
         event.preventDefault();
         show();
       }
@@ -82,15 +81,12 @@ function Highlighted({ text, range }: { text: string; range: [number, number] })
 }
 
 /** One line of the description around its match, cut at the front when the match is far in. */
-function excerpt(description: string, query: string): ReactNode {
-  const range = findMatch(description, query);
-  if (!range) return null;
+function excerpt(description: string, range: [number, number]): ReactNode {
   const start = Math.max(0, range[0] - EXCERPT_LEAD);
-  const shown = description.slice(start);
   return (
     <>
       {start > 0 && '…'}
-      <Highlighted text={shown} range={[range[0] - start, range[1] - start]} />
+      <Highlighted text={description.slice(start)} range={[range[0] - start, range[1] - start]} />
     </>
   );
 }
@@ -105,7 +101,6 @@ function GroupHeading({ label, group }: { label: string; group: Group<unknown> }
 }
 
 function SearchOverlay({ open, onOpenChange, restoreFocus }: { open: boolean; onOpenChange: (open: boolean) => void; restoreFocus: (event: Event) => void }) {
-  const { process } = useBrand();
   const { initiatives, people, teams } = useRepositoryState();
   const [query, setQuery] = useState('');
   const results = useMemo(() => searchAll(query, { initiatives, people, teams }), [query, initiatives, people, teams]);
@@ -115,10 +110,6 @@ function SearchOverlay({ open, onOpenChange, restoreFocus }: { open: boolean; on
   const choose = (go: () => void) => {
     onOpenChange(false);
     go();
-  };
-  const phaseLabel = (hit: InitiativeHit) => {
-    const id = currentPhaseId(hit.initiative, process);
-    return process.find((p) => p.id === id)?.label ?? id;
   };
 
   return (
@@ -137,55 +128,34 @@ function SearchOverlay({ open, onOpenChange, restoreFocus }: { open: boolean; on
         {/* The overlay ranks and caps the matches itself (§5.1), so the component's own fuzzy filter is off. */}
         <Command shouldFilter={false} label="Search initiatives, people and teams" className="[&_[cmdk-group-heading]]:text-text-secondary">
           <CommandInput value={query} onValueChange={setQuery} placeholder="Search…" />
-        <CommandList>
-          {!typed && <p className="m-0 px-3 py-6 text-center text-sm text-text-secondary">Search initiatives, people and teams</p>}
-          {none && (
-            <p role="status" className="m-0 px-3 py-6 text-center text-sm text-text-secondary">
-              {`No matches for ‘${query.trim()}’`}
-            </p>
-          )}
-          {results.initiatives.total > 0 && (
-            <CommandGroup heading={<GroupHeading label="Initiatives" group={results.initiatives} />}>
-              {results.initiatives.hits.map((hit) => {
-                const { initiative } = hit;
-                const StatusIcon = initiative.status === 'Active' ? null : STATUS_ICON[initiative.status as Exclude<InitiativeStatus, 'Active'>];
-                return (
-                  <CommandItem key={initiative.id} value={`initiative:${initiative.id}`} onSelect={() => choose(() => navigate(`/initiatives/${initiative.id}`))}>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate" title={initiative.name}>
-                          {hit.field === 'name' ? <Highlighted text={initiative.name} range={hit.range} /> : initiative.name}
-                        </span>
-                        {StatusIcon && (
-                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-[11px] text-text-secondary">
-                            <StatusIcon width={12} height={12} aria-hidden />
-                            {initiative.status}
-                          </span>
-                        )}
-                        <span className="ml-auto shrink-0 text-xs text-text-secondary">{phaseLabel(hit)}</span>
-                      </div>
-                      {hit.field === 'description' && <div className="truncate text-xs text-text-secondary">{excerpt(initiative.description ?? '', query)}</div>}
-                    </div>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          )}
-          {results.people.total > 0 && (
-            <CommandGroup heading={<GroupHeading label="People" group={results.people} />}>
-              {results.people.hits.map((hit) => (
-                <NamedItem key={hit.item.id} prefix="person" hit={hit} onChoose={() => choose(() => { requestPerson(hit.item.id); navigate('/people'); })} />
-              ))}
-            </CommandGroup>
-          )}
-          {results.teams.total > 0 && (
-            <CommandGroup heading={<GroupHeading label="Teams" group={results.teams} />}>
-              {results.teams.hits.map((hit) => (
-                <NamedItem key={hit.item.id} prefix="team" hit={hit} onChoose={() => choose(() => navigate(`/teams/${hit.item.id}`))} />
-              ))}
-            </CommandGroup>
-          )}
-        </CommandList>
+          <CommandList>
+            {(!typed || none) && (
+              <p role={none ? 'status' : undefined} className="m-0 px-3 py-6 text-center text-sm text-text-secondary">
+                {none ? `No matches for ‘${query.trim()}’` : 'Search initiatives, people and teams'}
+              </p>
+            )}
+            {results.initiatives.total > 0 && (
+              <CommandGroup heading={<GroupHeading label="Initiatives" group={results.initiatives} />}>
+                {results.initiatives.hits.map((hit) => (
+                  <InitiativeItem key={hit.initiative.id} hit={hit} onChoose={() => choose(() => navigate(`/initiatives/${hit.initiative.id}`))} />
+                ))}
+              </CommandGroup>
+            )}
+            {results.people.total > 0 && (
+              <CommandGroup heading={<GroupHeading label="People" group={results.people} />}>
+                {results.people.hits.map((hit) => (
+                  <NamedItem key={hit.item.id} prefix="person" hit={hit} onChoose={() => choose(() => { requestPerson(hit.item.id); navigate('/people'); })} />
+                ))}
+              </CommandGroup>
+            )}
+            {results.teams.total > 0 && (
+              <CommandGroup heading={<GroupHeading label="Teams" group={results.teams} />}>
+                {results.teams.hits.map((hit) => (
+                  <NamedItem key={hit.item.id} prefix="team" hit={hit} onChoose={() => choose(() => navigate(`/teams/${hit.item.id}`))} />
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
         </Command>
       </DialogContent>
     </Dialog>
@@ -200,6 +170,32 @@ function NamedItem({ prefix, hit, onChoose }: { prefix: string; hit: NamedHit<{ 
         <Highlighted text={item.name} range={range} />
         {!item.active && ' (inactive)'}
       </span>
+    </CommandItem>
+  );
+}
+
+function InitiativeItem({ hit, onChoose }: { hit: InitiativeHit; onChoose: () => void }) {
+  const { process } = useBrand();
+  const { initiative } = hit;
+  const StatusIcon = initiative.status === 'Active' ? null : STATUS_ICON[initiative.status as Exclude<InitiativeStatus, 'Active'>];
+  const phaseId = currentPhaseId(initiative, process);
+  return (
+    <CommandItem value={`initiative:${initiative.id}`} onSelect={onChoose}>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate" title={initiative.name}>
+            {hit.field === 'name' ? <Highlighted text={initiative.name} range={hit.range} /> : initiative.name}
+          </span>
+          {StatusIcon && (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-[11px] text-text-secondary">
+              <StatusIcon width={12} height={12} aria-hidden />
+              {initiative.status}
+            </span>
+          )}
+          <span className="ml-auto shrink-0 text-xs text-text-secondary">{process.find((p) => p.id === phaseId)?.label ?? phaseId}</span>
+        </div>
+        {hit.field === 'description' && <div className="truncate text-xs text-text-secondary">{excerpt(initiative.description ?? '', hit.range)}</div>}
+      </div>
     </CommandItem>
   );
 }
