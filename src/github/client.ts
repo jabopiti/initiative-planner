@@ -33,6 +33,8 @@ export interface PutFileArgs {
 
 export interface PutFileResult {
   sha: string;
+  /** The file did not exist (201): a new file, or one deleted since its sha was read, which GitHub recreates. */
+  created: boolean;
 }
 
 export interface DirectoryEntry {
@@ -71,6 +73,11 @@ function assertBranch(branch: string): void {
 function assertOk(response: Response, label: string, extraOkStatuses: number[] = []): void {
   if (response.ok || extraOkStatuses.includes(response.status)) return;
   throw new GithubApiError(`${label} failed (${response.status})`, classifyStatus(response.status), response.status);
+}
+
+/** A write at a sha that is no longer the file's (409): a conflict, re-read and retried by the writer (§10.3). */
+function assertNotStale(response: Response): void {
+  if (response.status === 409) throw new GithubApiError('Stale version — the file changed since it was last read.', 'conflict', 409);
 }
 
 export class GithubClient {
@@ -141,13 +148,30 @@ export class GithubClient {
       }),
     });
 
-    if (response.status === 409) {
-      throw new GithubApiError('Stale version — the file changed since it was last read.', 'conflict', 409);
-    }
+    assertNotStale(response);
     assertOk(response, `PUT ${args.path}`);
 
     const body = (await response.json()) as { content: { sha: string } };
-    return { sha: body.content.sha };
+    return { sha: body.content.sha, created: response.status === 201 };
+  }
+
+  /**
+   * DELETE .../contents/{path} at `sha`, with `branch` in the request body (§10.2, §10.3). A stale sha is a
+   * conflict, as for a put; `'gone'` when the file no longer exists, so a delete someone else already made counts.
+   */
+  async deleteFile(args: { path: string; branch: string; message: string; sha: string }): Promise<'deleted' | 'gone'> {
+    assertBranch(args.branch);
+    const url = this.repoUrl(`contents/${encodePath(args.path)}`);
+    const response = await this.request(url, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: args.message, sha: args.sha, branch: args.branch }),
+    });
+
+    if (response.status === 404) return 'gone';
+    assertNotStale(response);
+    assertOk(response, `DELETE ${args.path}`);
+    return 'deleted';
   }
 
   /** GET .../contents/{dir}?ref={branch} as a directory listing, each entry with its version. Empty array if the directory doesn't exist yet. */

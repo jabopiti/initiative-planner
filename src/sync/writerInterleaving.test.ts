@@ -247,7 +247,7 @@ describe('creating an initiative (AC 4)', () => {
     expect(commits).toHaveLength(2);
     expect(commits[1].sha).toBe(commits[0].newSha);
     expect(commits[1].message).toBe('Checkout Redesign: renamed to Checkout v2');
-    expect(fake.puts.filter((p) => p.path === path && p.status !== 200)).toEqual([]);
+    expect(fake.puts.filter((p) => p.path === path && p.status >= 300)).toEqual([]);
     expect(repo.getState().syncing).toBe(false);
     expect(repo.getState().readOnly).toBeNull();
   });
