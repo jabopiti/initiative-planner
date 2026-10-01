@@ -8,7 +8,7 @@ depends_on: ["005c", "018"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Promoted from the backlog tail (Choose a starting phase, §8.2). Lets work that predates the tool be entered at its real phase: one reason, recorded as a skip on every gate behind it regardless of skippable flags, with the default periods re-chained so the starting phase begins today."
+change_summary: "Promoted from the backlog tail (Choose a starting phase, §8.2). Lets work that predates the tool be entered at its real phase: one reason, recorded as a skip on every gate behind it regardless of skippable flags, with the default periods re-chained so the starting phase begins today. Review settled the action on the stepper row after the phase dots, the form's labels (\"Start at\", \"Reason for skipping G1 and G2\"), an empty select on open, and no reason when changing back to the first phase."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "'Untouched' is a derived state that several slices' edits must clear correctly, the starting phase can be changed again while untouched (so its skips must be distinguishable from real skips), and re-chaining the default plan interacts with 005c. Getting any of these wrong silently corrupts gate history, so the rules need exhaustive data-layer tests."
 spec_sections: ["§8.2 Skipping a gate", "§8.3 Reopening", "§5.11 Suggestions and shortcuts (Default plan)", "§5.4 Initiative detail view (magic bar)", "§6 Data model (Gate record)", "§9.9 Interface states", "§10.3 Writing"]
@@ -101,8 +101,9 @@ on the phase); choosing a starting phase on Duplicate (025).
       "<name>: starts at Development".
 - [ ] Given Rollout is chosen, then G3 is recorded skipped too, although the
       brand pack marks it not skippable.
-- [ ] Given that, then Development's default period starts today and later
-      costed phases are chained after it; Validation has no period.
+- [ ] Given Development is chosen, then Development's default period starts
+      today and later costed phases are chained after it; Validation has no
+      period.
 - [ ] Given the initiative is still untouched, then the bar reads "Change
       starting phase"; choosing Validation leaves only G1 skipped and
       re-chains from Validation; choosing Discovery removes every
@@ -112,6 +113,12 @@ on the phase); choosing a starting phase on Duplicate (025).
 - [ ] Given the final phase is chosen as start, then its own gate is not
       skipped and the initiative stays Active.
 - [ ] Given an On Hold initiative, then the action is not offered.
+- [ ] Given the form opens, then the select reads "Choose a phase", the
+      reason is labelled "Reason" and the button reads "Start", disabled;
+      once Development is chosen the label reads "Reason for skipping G1 and
+      G2" and the button "Start at Development".
+- [ ] Given a starting phase is set and the first phase is chosen, then no
+      reason field shows and "Start at Discovery" is enabled at once.
 
 ## Delivery gate
 
@@ -143,3 +150,44 @@ until someone enters a period, which §8.2's "stays editable" allows.
   one reason and Start at <phase>; the stepper stays non-interactive.
 - **Untouched:** plan and gate data only; name, description, owner and team
   edits don't count.
+
+Settled in the 019 session (mockups reviewed):
+
+- **Placement (D1 C):** the text action sits on the stepper row, directly
+  after the phase dots — away from Skip <gate> and Pass gate, and on a
+  different row from the guidance link. It reads "Start at a later phase",
+  then "Change starting phase" once a starting phase is set. Not shown when
+  the action is not offered (touched, On Hold).
+- **Form labels (D2 A):** the form replaces the guidance line and the gate
+  actions: "Start at" + phase select, then the reason labelled "Reason for
+  skipping G1 and G2" (the gates it will record, joined "A, B and C"),
+  then **Cancel** (ghost) and **Start at <phase>** (primary). Esc or Cancel
+  closes it with nothing saved and focus returns to the action.
+- **Select on open (D3 A):** nothing chosen — "Choose a phase", the reason
+  labelled "Reason", the button "Start", disabled; the select has focus.
+- **Back to the first phase:** no reason is needed, so the reason field is
+  hidden and "Start at <first phase>" is enabled at once; it removes every
+  starting-phase skip and re-chains the default plan from today.
+- **Untouched (data layer):** the default-plan flag still set (or no phase
+  plan with any data), no checklist entry, and every gate record a
+  starting-phase skip. Every plan edit, actuals included, already clears the
+  flag.
+- **Periods:** the default plan is re-chained from today starting with the
+  first costed phase at or after the starting phase; costed phases behind
+  it get no period. The default-plan flag stays set, so the "Suggested
+  dates" note stays — hidden when no costed phase has a period (Rollout
+  start).
+- **Record:** like 018's skip, each record snapshots the gate's checklist
+  and has no date, figure, approval track or snapshot; it adds
+  `startingPhase: true`. Additive, no schema bump: gate records are not
+  validated on load.
+- **After saving:** silent (§9.9), no "Skipped … — Reopen" message; the
+  action now reads "Change starting phase". Commit "<name>: starts at
+  <phase>", also for the first phase.
+- **Underneath:** the form closes with nothing saved when the initiative is
+  touched or leaves Active while it is open; the data layer refuses a
+  touched or non-Active initiative.
+- **Reopen:** reopening a starting-phase skip (016) is an ordinary reopen
+  and re-chains nothing; with only starting-phase skips left, the
+  initiative is still untouched.
+- **Stepper:** dots behind the starting phase read as done, as for any skip.

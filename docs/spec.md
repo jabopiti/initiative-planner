@@ -769,8 +769,12 @@ Its layout follows the design rules in §9.8.
   hold (§8.4).
 - For initiatives in the **first phase**, the bar shows the phase overview
   and the current gate's state; there is no prior gate to reference. For an
-  untouched initiative, the phase overview also lets the user choose a
-  starting phase, asking for one reason (§8.2).
+  untouched Active initiative, a text action after the phase overview's
+  dots, **Start at a later phase** (**Change starting phase** once one is
+  set), opens in place of the guidance a phase select ("Start at"), one
+  reason ("Reason for skipping G1 and G2", naming the gates it records),
+  **Cancel** and **Start at <phase>** (§8.2). The overview itself stays
+  non-interactive.
 
 #### Page sections (top to bottom)
 
@@ -1170,6 +1174,7 @@ Created when a gate is passed or skipped; cleared when it is reopened
 |---|---|---|
 | Outcome | Enum | Passed, Skipped |
 | Skip reason | Text | Required when skipped |
+| Starting phase | Boolean | Optional; set on a skip recorded by choosing a starting phase (§8.2), which can be replaced while the initiative is untouched. Absent reads as an ordinary skip |
 | Passed on | Date | Set when the gate is passed; not set for a skipped gate |
 | Recorded grand estimate | Currency | Passed gates that carried cost: the grand estimate (§4) at pass time, shown as "approved at" (§5.4) |
 | Recorded approval track | Id, name and severity | Passed gates that carried cost: the band resolved at pass time; the baseline for escalation (§7.4) |
@@ -1409,12 +1414,20 @@ escalation comparison. Tentative items on a skipped gate do not carry
 forward (§8.1); only a passed gate carries them.
 
 Entering work that predates the tool uses a separate mechanism: while an
-initiative is untouched (no data entered by a user and no gate record; the
-default plan, §5.11, does not count), the user can choose a later **starting
-phase** and types one reason. That reason is recorded on every gate behind
-it, each as skipped, regardless of the skippable flags. The default periods
-are then chained again so that the starting phase begins today. Until the initiative is touched, the starting phase can be changed
-again; afterwards only Reopen (§8.3) moves it back.
+initiative is untouched (no plan or gate data entered by a user: no edited
+period, allocation, cost item, actual, checklist status or note, and no gate
+record other than starting-phase skips; the default plan, §5.11, does not
+count, and name, description, owner and team do not either), the user can
+choose a later **starting phase** and types one reason. That reason is
+recorded on every gate behind it, each as skipped and marked as a
+starting-phase skip, regardless of the skippable flags; the final phase's
+own gate is never skipped this way, so the initiative stays Active. The
+default periods are then chained again so that the starting phase (or the
+first costed phase after it) begins today; costed phases behind it get no
+period. Until the initiative is touched, the starting phase can be changed
+again, earlier or later, replacing the starting-phase skips; choosing the
+first phase removes them and needs no reason. Afterwards only Reopen (§8.3)
+moves it back.
 
 ### 8.3 Reopening
 
