@@ -184,7 +184,7 @@ function freezePhase(plan: NonNullable<Initiative['phases']>[string], people: Pe
 }
 
 /** The gate's checklist as it stands, as a gate record holds it (§8.1, §8.2). */
-function checklistRecord(initiative: Initiative, phase: PhaseDef): ChecklistItemRecord[] {
+export function checklistRecord(initiative: Initiative, phase: PhaseDef): ChecklistItemRecord[] {
   return checklistItems(initiative, phase.id, phase.exitGate).map(({ id, name, description, status, note }) => ({ id, name, description, status, note }));
 }
 

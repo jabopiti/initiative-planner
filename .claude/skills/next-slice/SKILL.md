@@ -71,17 +71,22 @@ picks; nothing is implemented before every item is settled.
   rendered in the mockup of its screen, not only quoted — and quote the
   exact text in the question, naming the §9.2 rule it follows.
 - **UI:** every decision is shown as a **rendered visual mockup** before
-  the question — never an ASCII or text sketch alone. One image per
+  the question — never an ASCII or text sketch alone. One mockup per
   decision, options side by side and labelled as in the question, in the
   state being decided, with names and figures from
-  `backlog/example-data.md`. Make it look like the app: preferably the
-  real screen from the dev server (`run-initiative-planner` skill) with
-  each option injected into the page; otherwise an HTML page in the
-  scratchpad using the `src/index.css` tokens, shadcn styling and Lucide
-  icons (§9.10). Capture it with `node ${CLAUDE_SKILL_DIR}/scripts/screenshot.mjs
-  <page.html|url> <out.png>` and show the PNG with SendUserFile (display
-  `render`) right before asking. Option previews in the question may add
-  a short ASCII reminder, but the image is the mockup.
+  `backlog/example-data.md`.
+  - **Default: inline widget.** Load `mcp__visualize__read_me` (modules
+    `mockup`; add `interactive` if needed) once, then `show_widget`. Style
+    with the `src/index.css` tokens, shadcn look and Lucide icons (§9.10).
+  - **Fallback: PNG**, when the decision depends on real layout, real data
+    or a state only the dev server reaches (dense tables, planner grid), or
+    when `show_widget` is unavailable. Capture the real screen
+    (`run-initiative-planner` skill, options injected) or a scratchpad HTML
+    page with `node ${CLAUDE_SKILL_DIR}/scripts/screenshot.mjs
+    <page.html|url> <out.png>`; show it with SendUserFile (display
+    `render`).
+  - Show it right before asking. Option previews in the question may add a
+    short ASCII reminder; the mockup is the visual.
 - Copy and layout the user has seen and picked are what gets built; a
   change during implementation goes back to them with a new mockup.
 

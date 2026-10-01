@@ -4,6 +4,7 @@ import { useBrand } from '../state/BrandContext';
 import { useFieldConflict, useRevealTarget } from '../state/ConflictUi';
 import { daysInMonth, parseAmount, trackedYears, yearRecord } from '../data/cost';
 import { MONTHS, formatMonth, monthKey } from '../data/dates';
+import { joinList } from '../data/joinList';
 import { initiativesAffectedByRate, weekdaysByMonth, type RateEdit } from '../data/rates';
 import { FILE_PATHS, type Country, type CountryYearRateRecord } from '../data/types';
 import { AmountInput } from './AmountInput';
@@ -31,11 +32,6 @@ function parseWorkingDays(text: string, max: number): number | null {
 /** "changes the estimate of N initiative(s).": 029's impact note, after the edit's own subject. */
 function changes(n: number): string {
   return n === 0 ? 'changes no estimates.' : `changes the estimate of ${initiativeCount(n)}.`;
-}
-
-/** "2026, 2027 and 2028". */
-function listYears(years: number[]): string {
-  return years.length < 2 ? years.join('') : `${years.slice(0, -1).join(', ')} and ${years[years.length - 1]}`;
 }
 
 /**
@@ -527,7 +523,7 @@ function DraftCountryRow({
         </div>
       </div>
       <p id={hintId} className="m-0 text-xs text-text-secondary">
-        Used for {listYears(years)}. Working days start as the weekdays of each month.
+        Used for {joinList(years.map(String))}. Working days start as the weekdays of each month.
       </p>
       <div className="flex gap-2">
         <Button type="button" size="sm" disabled={!name.trim()} onClick={add}>

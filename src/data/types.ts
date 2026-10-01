@@ -134,6 +134,8 @@ export interface RecordedApprovalTrack {
 export interface GateRecord {
   outcome: 'passed' | 'skipped';
   skipReason?: string;
+  /** Set on a skip recorded by choosing a starting phase (§8.2): replaceable while the initiative is untouched. Absent reads as an ordinary skip. */
+  startingPhase?: true;
   /** Set when passed; absent for a skipped gate. */
   passedOn?: string;
   /** Only for a passed gate whose exited phase was costed (§8.1). */
