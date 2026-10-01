@@ -33,6 +33,8 @@ export interface PutFileArgs {
 
 export interface PutFileResult {
   sha: string;
+  /** The file did not exist (201): a new file, or one deleted since its sha was read, which GitHub recreates. */
+  created: boolean;
 }
 
 export interface DirectoryEntry {
@@ -150,7 +152,7 @@ export class GithubClient {
     assertOk(response, `PUT ${args.path}`);
 
     const body = (await response.json()) as { content: { sha: string } };
-    return { sha: body.content.sha };
+    return { sha: body.content.sha, created: response.status === 201 };
   }
 
   /**

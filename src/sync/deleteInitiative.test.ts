@@ -131,7 +131,7 @@ describe('deleting an initiative (slice 017)', () => {
 });
 
 describe('another user deleted the initiative (slice 017)', () => {
-  it('drops an edit whose save finds the file gone, never recreates it, and names the lost change', async () => {
+  it('drops an edit whose save finds the file gone, deletes the copy GitHub recreated, and names the lost change', async () => {
     const fake = fakeGithub();
     const { repo } = await open(fake, { initiatives: [initiative()] });
     fake.remove(PATH);
@@ -139,11 +139,27 @@ describe('another user deleted the initiative (slice 017)', () => {
     repo.renameInitiative('i1', 'Payments API v2');
     await repo.flushPending();
 
+    expect(fake.puts.map((p) => p.status)).toEqual([201]);
+    expect(fake.deletes).toEqual([expect.objectContaining({ sha: fake.puts[0].newSha, message: 'Payments API v2: deleted', status: 200 })]);
     expect(fake.has(PATH)).toBe(false);
     expect(repo.getState().initiatives).toEqual([]);
     expect(repo.getState().deletedWithLostEdit.get('i1')).toBe('Payments API v2');
     expect(repo.getState().readOnly).toBeNull();
     expect(repo.getState().syncing).toBe(false);
+  });
+
+  it('drops the edit also when a conflict\'s re-read finds the file gone, without writing again', async () => {
+    const fake = fakeGithub();
+    const { repo } = await open(fake, { initiatives: [initiative()] });
+    fake.fail(PATH, 409); // deleted between the stale write and its re-read
+    fake.remove(PATH);
+
+    repo.renameInitiative('i1', 'Payments API v2');
+    await repo.flushPending();
+
+    expect(fake.puts.map((p) => p.status)).toEqual([409]);
+    expect(fake.has(PATH)).toBe(false);
+    expect(repo.getState().deletedWithLostEdit.get('i1')).toBe('Payments API v2');
   });
 
   it('a pull removes it from an idle client, with no lost change to name', async () => {

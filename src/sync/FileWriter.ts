@@ -67,8 +67,9 @@ export interface FileWriterOptions<D> {
   /** What the file holds when a re-read after a 409 finds it gone; null when its absence is an error. */
   whenMissing: D | null;
   /** Someone else deleted the file while an edit waited to be saved (§3): the edit is dropped, not resaved,
-   * and this is told. Without it, a file gone on re-read is an error. */
-  onGone?: () => void;
+   * and `tell` is told. GitHub recreates a file a write names a sha for, so a save that recreated it deletes it
+   * again in a commit `message` names. Without it, a file gone on re-read is an error. */
+  whenGone?: { message: (doc: D) => string; tell: () => void };
   /** The file as last read, or null while it does not exist yet: the first save then creates it. */
   initial: SyncedFile<D> | null;
   /** What to tell the user when that first save fails. */
@@ -362,7 +363,7 @@ export class FileWriter<D> {
         }
       }
       try {
-        const { sha } = await this.options.queue.run(() =>
+        const { sha, created } = await this.options.queue.run(() =>
           this.options.github.putFile({
             path: this.options.path,
             branch: this.options.branch,
@@ -371,6 +372,7 @@ export class FileWriter<D> {
             sha: this.synced?.sha,
           }),
         );
+        if (created && this.synced !== null && this.options.whenGone) return this.recreated(sent, sha, this.options.whenGone);
         this.synced = { content: sent, sha };
         this.clearFailure();
         this.landed(mine, sent, merged, message);
@@ -419,7 +421,7 @@ export class FileWriter<D> {
   private async reread(mine: D) {
     const file = await this.options.github.getFile({ path: this.options.path, branch: this.options.branch });
     if (file === null && this.options.whenMissing === null && this.synced !== null) {
-      if (this.options.onGone) return 'gone' as const;
+      if (this.options.whenGone) return 'gone' as const;
       throw new Error('The file is gone from the repository.');
     }
     if (file === null && this.synced === null) return null;
@@ -434,8 +436,24 @@ export class FileWriter<D> {
   /** Someone else deleted the file (§3): the edit that found it gone is dropped, and so is anything after it. */
   private gone(): SaveResult {
     this.dispose();
-    this.options.onGone?.();
+    this.options.whenGone?.tell();
     return 'gone';
+  }
+
+  /**
+   * The save recreated a file someone else deleted (GitHub does, though the write named a sha): it is deleted
+   * again, and the edit dropped as if the save had found it gone. Should that delete fail, the file stays with the
+   * edit in it, and the next pull brings it back here: nothing is lost, only the other user's delete undone.
+   */
+  private async recreated(sent: D, sha: string, whenGone: { message: (doc: D) => string }): Promise<SaveResult> {
+    try {
+      await this.options.queue.run(() =>
+        this.options.github.deleteFile({ path: this.options.path, branch: this.options.branch, message: whenGone.message(sent), sha }),
+      );
+    } catch {
+      // Left recreated: see above.
+    }
+    return this.gone();
   }
 
   /**

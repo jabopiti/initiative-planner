@@ -119,6 +119,20 @@ describe('The delete confirmation (§9.9)', () => {
     expect(fake.has(PATH)).toBe(false);
   });
 
+  it('choosing Delete again while it runs keeps it running, with no Cancel offered', async () => {
+    renderPage(copy());
+    const { user, dialog } = await openConfirmation();
+    const release = fake.hold(PATH);
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm delete' }));
+    await user.click(screen.getByRole('button', { name: 'Actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
+
+    expect(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Deleting…' })).toBeDisabled();
+    expect(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    release();
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith('/initiatives', { replace: true }));
+  });
+
   it('says so, with Close, when another user passed a gate meanwhile', async () => {
     renderPage(copy());
     const { user, dialog } = await openConfirmation();

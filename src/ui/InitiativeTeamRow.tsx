@@ -133,6 +133,8 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
           triggerRef={actionsRef}
           ui={{
             confirmDelete: () => {
+              // A delete already running keeps its confirmation: asking again would offer a Cancel that can't stop it.
+              if (deleteStep === 'deleting') return () => actionsRef.current?.focus();
               setPendingTeamId(null);
               setDeleteStep('asking');
               return () => deleteFocusRef.current?.focus();

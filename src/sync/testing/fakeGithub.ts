@@ -6,7 +6,8 @@ import { Repository, type RepositoryState } from '../Repository';
 
 /**
  * An in-memory GitHub for tests that need the real rules: a stale sha is a 409, a missing sha on an
- * existing file is a 422, and a write can be held in flight or refused on demand.
+ * existing file is a 422, a write to a file that is gone creates it (201, as GitHub does even when it names a sha),
+ * and a write can be held in flight or refused on demand.
  */
 
 const DATA_BRANCH = defaultBrandPack.github.dataBranch;
@@ -134,13 +135,10 @@ export function fakeGithub() {
       record.status = body.sha ? 409 : 422; // a stale sha is a 409; none at all for an existing file is a 422
       return json({ message: 'sha does not match' }, record.status);
     }
-    if (!existing && body.sha) {
-      record.status = 409; // a sha for a file that is gone matches nothing: never recreates it
-      return json({ message: 'sha does not match' }, record.status);
-    }
+    if (!existing) record.status = 201;
 
     record.newSha = put(path, record.content);
-    return json({ content: { sha: record.newSha } });
+    return json({ content: { sha: record.newSha } }, record.status);
   });
 
   return {
@@ -150,7 +148,7 @@ export function fakeGithub() {
     deletes,
     has: (path: string) => files.has(path),
     /** Writes the repository actually accepted to `path`, oldest first. */
-    commits: (path: string) => puts.filter((p) => p.path === path && p.status === 200),
+    commits: (path: string) => puts.filter((p) => p.path === path && (p.status === 200 || p.status === 201)),
     /** How many writes to `path` have reached the server (held ones included). */
     arrived: (path: string) => arrivals.get(path) ?? 0,
     read: <T>(path: string): T => JSON.parse(files.get(path)!.content) as T,

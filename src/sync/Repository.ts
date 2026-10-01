@@ -101,6 +101,9 @@ interface PulledFile {
   value: unknown;
 }
 
+/** The commit message deleting an initiative (§10.3). */
+const deletedMessage = (initiative: Initiative): string => `${initiative.name}: deleted`;
+
 const pulledFile = ({ content, sha }: { content: string; sha: string }): PulledFile => ({ raw: content, sha, value: JSON.parse(content) });
 
 /** Everything one pull found: the files it read, and the versions on screen it compared them with. */
@@ -786,9 +789,12 @@ export class Repository {
       gate: () => this.firstPullDone,
       merge: (base, mine, theirs) => mergeDocument(base, mine, theirs, { frozen: frozenPaths }),
       whenMissing: null,
-      onGone: () => {
-        const name = this.state.initiatives.find((i) => i.id === initiative.id)?.name ?? initiative.name;
-        this.forgetInitiatives(new Set([initiative.id]), { deletedWithLostEdit: new Map(this.state.deletedWithLostEdit).set(initiative.id, name) });
+      whenGone: {
+        message: deletedMessage,
+        tell: () => {
+          const name = this.state.initiatives.find((i) => i.id === initiative.id)?.name ?? initiative.name;
+          this.forgetInitiatives(new Set([initiative.id]), { deletedWithLostEdit: new Map(this.state.deletedWithLostEdit).set(initiative.id, name) });
+        },
       },
       initial: sha === null ? null : { content: initiative, sha },
       creationFailure: 'Could not create the initiative.',
@@ -1728,7 +1734,7 @@ export class Repository {
     const writer = this.initiativeWriters.get(id);
     if (!initiative || !writer) return 'deleted';
     if (hasPassedGate(initiative)) return 'refused';
-    const result = await writer.deleteFile(`${initiative.name}: deleted`, hasPassedGate);
+    const result = await writer.deleteFile(deletedMessage(initiative), hasPassedGate);
     if (result === 'deleted') {
       this.deleteFailure = null;
       await beforeForget?.();

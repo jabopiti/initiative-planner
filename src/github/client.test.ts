@@ -275,3 +275,16 @@ describe('GithubClient — deleteFile (slice 017)', () => {
     await expect(client.deleteFile(args)).rejects.toMatchObject({ cause_: 'conflict', status: 409 });
   });
 });
+
+describe('GithubClient — putFile on a file that is gone (slice 017)', () => {
+  it('says the file was created when GitHub answers 201, as it does for a sha whose file was deleted since', async () => {
+    const client = new GithubClient(location, () => 'token');
+    const args = { path: 'initiatives/i1.json', branch: location.dataBranch, content: '{}', message: 'x', sha: 'sha-1' };
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'sha-2' } }), { status: 201 }));
+    await expect(client.putFile(args)).resolves.toEqual({ sha: 'sha-2', created: true });
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'sha-3' } }), { status: 200 }));
+    await expect(client.putFile(args)).resolves.toEqual({ sha: 'sha-3', created: false });
+  });
+});
