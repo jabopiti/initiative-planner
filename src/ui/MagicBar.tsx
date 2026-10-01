@@ -6,10 +6,12 @@ import { useBrand } from '../state/BrandContext';
 import { useRepository } from '../state/DataContext';
 import type { Initiative } from '../data/types';
 import { isInitiativeFrozen } from '../data/frozen';
+import { canChooseStartingPhase, gatesBehindLabel, hasStartingPhase, startingPhaseChoices } from '../data/startingPhase';
 import { jumpTargetId, jumpTo } from './jumpTo';
 import { OnHoldIcon, OverrunIcon, ResumeIcon } from './icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 /** How long "Passed <gate> — Reopen" (or "Skipped <gate> — Reopen") shows before the bar moves on (§5.4, §9.9: a few seconds). */
 const PASSED_MESSAGE_MS = 5000;
@@ -22,7 +24,8 @@ function StepperDot({ state }: { state: 'done' | 'current' | 'ahead' }) {
 
 /**
  * The sticky bottom bar (§5.4): the phase stepper on its own row, guidance and the Pass gate action below it, with
- * Skip <gate> beside Pass gate where the gate is skippable (§8.2). Hidden for a Closed or Cancelled initiative, since
+ * Skip <gate> beside Pass gate where the gate is skippable (§8.2). While the initiative is untouched, a text action after
+ * the stepper's dots opens the starting-phase form in place of the guidance and the gate actions (§5.4, §8.2). Hidden for a Closed or Cancelled initiative, since
  * nothing is actionable.
  */
 export function MagicBar({ initiative }: { initiative: Initiative }) {
@@ -33,16 +36,22 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   const [holdAsked, setHoldAsked] = useState<'pass' | 'skip' | null>(null);
   // The skip reason being typed, tied to the gate it was opened on (§8.2).
   const [skipping, setSkipping] = useState<{ phaseId: string; reason: string } | null>(null);
+  // The starting phase being chosen (§8.2): '' until one is picked, and the one reason.
+  const [starting, setStarting] = useState<{ phaseId: string; reason: string } | null>(null);
   const passButton = useRef<HTMLButtonElement>(null);
   const skipButton = useRef<HTMLButtonElement>(null);
+  const startButton = useRef<HTMLButtonElement>(null);
   const onHold = initiative.status === 'On Hold';
   const phaseId = currentPhaseId(initiative, process);
+  const canStart = canChooseStartingPhase(initiative);
   // The on-hold answer to a selected Pass gate lasts until the hold ends, however it ends (this bar's Resume or the menu's).
   if (!onHold && holdAsked) setHoldAsked(null);
   // Putting it on hold ends the "Passed <gate> — Reopen" message at once.
   if (onHold && doneMessage) setDoneMessage(null);
   // Skipping ends, with nothing saved, once the gate it was opened on is no longer the one to skip (§8.2).
   if (skipping && (initiative.status !== 'Active' || skipping.phaseId !== phaseId)) setSkipping(null);
+  // Choosing a starting phase ends, with nothing saved, once the initiative is touched or no longer Active (§8.2).
+  if (starting && (!canStart || starting.phaseId === phaseId)) setStarting(null);
 
   useEffect(() => {
     if (!doneMessage) return;
@@ -77,6 +86,22 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
     flushSync(() => setSkipping(null));
     skipButton.current?.focus();
   };
+  const startChoice = starting ? process.find((p) => p.id === starting.phaseId) : undefined;
+  const startGates = startChoice ? gatesBehindLabel(process, startChoice.id) : '';
+  // The first phase removes every starting-phase skip, so it needs no reason (§8.2).
+  const startNeedsReason = startChoice !== process[0];
+  const startReady = Boolean(startChoice) && (!startNeedsReason || Boolean(starting?.reason.trim()));
+  // Back to the action the form replaced, once it is rendered again (it reads "Change starting phase" after a start).
+  const closeStart = () => {
+    flushSync(() => setStarting(null));
+    startButton.current?.focus();
+  };
+  const start = () => {
+    if (!starting || !startReady) return;
+    if (repository.startAtPhase(initiative.id, starting.phaseId, starting.reason).ok) closeStart();
+  };
+  const offerStart = canStart && !skipping && !starting && !doneMessage;
+
   const jump = () => jumpTo(jumpTargetId(requirements, phaseId));
   const extend = () => repository.extendPhase(initiative.id, phase.id);
 
@@ -96,10 +121,22 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
 
   return (
     <div id="magic-bar" className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-border-default bg-surface-card px-4 py-3 shadow-[0_-1px_4px_rgba(0,0,0,0.06)]">
-      <div className="flex items-center gap-1.5" aria-hidden="true">
-        {process.map((p, i) => (
-          <StepperDot key={p.id} state={i < process.indexOf(phase) ? 'done' : p.id === phaseId ? 'current' : 'ahead'} />
-        ))}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5" aria-hidden="true">
+          {process.map((p, i) => (
+            <StepperDot key={p.id} state={i < process.indexOf(phase) ? 'done' : p.id === phaseId ? 'current' : 'ahead'} />
+          ))}
+        </div>
+        {offerStart && (
+          <button
+            ref={startButton}
+            type="button"
+            className="cursor-pointer border-0 bg-transparent p-0 text-sm text-text-secondary underline"
+            onClick={() => setStarting({ phaseId: '', reason: '' })}
+          >
+            {hasStartingPhase(initiative) ? 'Change starting phase' : 'Start at a later phase'}
+          </button>
+        )}
       </div>
       <div className="flex items-center justify-between gap-3">
         {onHold ? (
@@ -112,6 +149,50 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
               <ResumeIcon />
               Resume
             </Button>
+          </div>
+        ) : starting ? (
+          <div className="flex flex-1 items-center gap-2">
+            <span id="start-at-label" className="text-sm whitespace-nowrap text-text-secondary">
+              Start at
+            </span>
+            <Select value={starting.phaseId} onValueChange={(id) => setStarting({ ...starting, phaseId: id })}>
+              <SelectTrigger
+                autoFocus
+                aria-labelledby="start-at-label"
+                className="w-auto"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') closeStart();
+                }}
+              >
+                <SelectValue placeholder="Choose a phase" />
+              </SelectTrigger>
+              <SelectContent>
+                {startingPhaseChoices(process, phaseId).map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {startNeedsReason && (
+              <>
+                <label htmlFor="start-reason" className="text-sm whitespace-nowrap text-text-secondary">
+                  {startGates ? `Reason for skipping ${startGates}` : 'Reason'}
+                </label>
+                <Input
+                  id="start-reason"
+                  value={starting.reason}
+                  onChange={(e) => setStarting({ ...starting, reason: e.target.value })}
+                  onKeyDown={(e) => {
+                    // Focus moves to the action on success; without this the same Enter would click it open again.
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      start();
+                    } else if (e.key === 'Escape') closeStart();
+                  }}
+                />
+              </>
+            )}
           </div>
         ) : skipping ? (
           <div className="flex flex-1 items-center gap-2">
@@ -152,6 +233,15 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
           <Button type="button" variant="ghost" size="sm" onClick={() => repository.reopenGate(initiative.id)}>
             Reopen
           </Button>
+        ) : starting ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <Button type="button" variant="ghost" onClick={closeStart}>
+              Cancel
+            </Button>
+            <Button type="button" disabled={!startReady} onClick={start}>
+              {startChoice ? `Start at ${startChoice.label}` : 'Start'}
+            </Button>
+          </div>
         ) : skipping ? (
           <div className="flex shrink-0 items-center gap-2">
             <Button type="button" variant="ghost" onClick={cancelSkip}>

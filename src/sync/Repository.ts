@@ -23,7 +23,8 @@ import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysB
 import { localToday } from '../data/dates';
 import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
 import { frozenPaths, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
-import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
+import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
+import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type BranchHead } from '../github/client';
@@ -1544,6 +1545,26 @@ export class Repository {
     this.commitGateOutcome(initiative.name, result, 'skipped');
     return { ok: true };
   }
+  /**
+   * Start an untouched initiative at a later phase, or change that choice (§8.2): one reason recorded as a
+   * starting-phase skip on every gate behind it, the default plan re-chained from `today`, in one commit
+   * "<name>: starts at <phase>".
+   */
+  startAtPhase(initiativeId: string, phaseId: string, reason: string, today: string = localToday()): { ok: true } | { ok: false; reason: string } {
+    const initiative = this.editableInitiative(initiativeId);
+    if (!initiative) return { ok: false, reason: 'This initiative could not be found.' };
+    const result = evaluateStartAtPhase(this.brand.process, initiative, phaseId, reason, today);
+    if (!result.ok) return result;
+
+    this.replaceInitiative(result.initiative);
+    // The periods are part of the change: changed back to the same phase on a later day, they still start today.
+    const name = initiative.name;
+    const from = { phase: this.phaseLabel(currentPhaseId(initiative, this.brand.process)), phases: initiative.phases };
+    const to = { phase: result.phase.label, phases: result.initiative.phases };
+    this.initiativeWriters.get(initiativeId)?.schedule(result.initiative, this.note('initiative', initiativeId, 'startingPhase', from, to, (_, t) => `${name}: starts at ${t?.phase}`));
+    return { ok: true };
+  }
+
   /** Writes a passed or skipped gate record in one commit, "<name>: <gate> <what>" (§10.3). */
   private commitGateOutcome(name: string, result: GateRecorded, what: string): void {
     const { initiative, phase, record } = result;

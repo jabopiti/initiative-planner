@@ -1,4 +1,4 @@
-import type { Initiative } from './types';
+import type { GateRecord, Initiative } from './types';
 
 /** Whether a phase is frozen by its passed exit gate (§8.1). */
 export type PhaseFrozen = (initiative: Initiative, phaseId: string) => boolean;
@@ -10,6 +10,11 @@ export const isPhaseFrozen: PhaseFrozen = (initiative, phaseId) => initiative.ga
 export function skipReason(initiative: Initiative, phaseId: string): string | undefined {
   const record = initiative.gates?.[phaseId];
   return record?.outcome === 'skipped' ? (record.skipReason ?? '') : undefined;
+}
+
+/** A skip recorded by choosing a starting phase (§8.2), as opposed to one taken with Skip <gate>. */
+export function isStartingPhaseSkip(record: GateRecord | undefined): boolean {
+  return record?.startingPhase === true;
 }
 
 /**
@@ -25,12 +30,16 @@ const FROZEN_PHASE_FIELDS = ['startDate', 'endDate', 'allocations', 'costItems']
  * The paths of an initiative a merge must leave as frozen (§10.5, §8.1): a locked phase's period, allocations
  * and cost items (per `frozen`, injectable so a caller can test a different lock rule), and every gate record
  * that exists at all, passed or skipped — write-once by `passGate`/`reopenGate`, never edited field by field,
- * so a merge treats it as one atomic value rather than walking into its frozen snapshot.
+ * so a merge treats it as one atomic value rather than walking into its frozen snapshot. A starting-phase skip
+ * (§8.2) is the exception: it holds no snapshot and is replaced or removed while the initiative is untouched, so
+ * it merges like any other value — pinned, a concurrent edit elsewhere in the file would bring a removed one back.
  */
 export function frozenPaths(initiative: Initiative, frozen: PhaseFrozen = isPhaseFrozen): string[][] {
   const phasePaths = Object.keys(initiative.phases ?? {})
     .filter((phaseId) => frozen(initiative, phaseId))
     .flatMap((phaseId) => FROZEN_PHASE_FIELDS.map((field) => ['phases', phaseId, field]));
-  const gatePaths = Object.keys(initiative.gates ?? {}).map((phaseId) => ['gates', phaseId]);
+  const gatePaths = Object.entries(initiative.gates ?? {})
+    .filter(([, record]) => !isStartingPhaseSkip(record))
+    .map(([phaseId]) => ['gates', phaseId]);
   return [...phasePaths, ...gatePaths];
 }
