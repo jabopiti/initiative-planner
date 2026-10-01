@@ -145,6 +145,8 @@ describe('Extend an overrun phase by one month (§5.11)', () => {
 
     expect(await screen.findByText(/Validation is \d+ days overrun/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Extend Validation by one month' })).toBeInTheDocument();
+    // Its commit lands before the test ends, so it can't show up in a later test's writes.
+    await vi.waitFor(() => expect(puts.map((p) => p.message)).toContain('Checkout Redesign: Validation extended to 29 Feb 2020'), { timeout: 3000 });
   });
 });
 
