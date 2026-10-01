@@ -41,24 +41,15 @@ if [ ! -f "$spec" ]; then
 fi
 
 out="$(awk -v want="$section" '
-  function heading_level(line,    i, n) {
-    n = 0
-    for (i = 1; i <= length(line); i++) {
-      if (substr(line, i, 1) == "#") n++
-      else break
-    }
-    return n
-  }
   {
-    lvl = heading_level($0)
+    lvl = match($0, /^#+/) ? RLENGTH : 0
     if (lvl > 0) {
       rest = $0
       sub(/^#+[ \t]+/, "", rest)
-      split(rest, arr, " ")
-      numtok = arr[1]
-      gsub(/\.$/, "", numtok)
       if (found && lvl <= foundLevel) exit
-      if (!found && numtok == want) {
+      # String prefix match, number then a space (or "N." then a space):
+      # a plain == lets awk compare "9.10" and "9.1" as equal numbers.
+      if (!found && (index(rest, want " ") == 1 || index(rest, want ". ") == 1)) {
         found = 1
         foundLevel = lvl
         print
