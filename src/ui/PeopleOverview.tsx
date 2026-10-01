@@ -3,6 +3,7 @@ import { useIsChangedByOthers, useRepository, useRepositoryState } from '../stat
 import { roleLabel } from '../data/roleLabel';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
 import { PersonPanel } from './PersonPanel';
+import { usePersonRequests } from './personRequest';
 import { EmptyState } from './EmptyState';
 import { CopyButton } from './CopyButton';
 import { SortableHeader } from './SortableHeader';
@@ -24,6 +25,7 @@ export function PeopleOverview() {
   const changed = useIsChangedByOthers();
   const [filter, setFilter] = useState<StatusFilter>('active');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  usePersonRequests(setSelectedId);
   const [name, setName] = useState('');
   const [countryId, setCountryId] = useState(() => defaultCountryId(countries));
   const [roleId, setRoleId] = useState(() => defaultRoleId(roles));
