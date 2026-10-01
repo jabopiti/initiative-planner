@@ -135,8 +135,8 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
             confirmDelete: () => {
               setPendingTeamId(null);
               setDeleteStep('asking');
+              return () => deleteFocusRef.current?.focus();
             },
-            focusConfirmation: () => deleteFocusRef.current?.focus(),
           }}
         />
       </div>

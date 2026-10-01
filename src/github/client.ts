@@ -73,6 +73,11 @@ function assertOk(response: Response, label: string, extraOkStatuses: number[] =
   throw new GithubApiError(`${label} failed (${response.status})`, classifyStatus(response.status), response.status);
 }
 
+/** A write at a sha that is no longer the file's (409): a conflict, re-read and retried by the writer (§10.3). */
+function assertNotStale(response: Response): void {
+  if (response.status === 409) throw new GithubApiError('Stale version — the file changed since it was last read.', 'conflict', 409);
+}
+
 export class GithubClient {
   constructor(
     private readonly location: GithubLocation,
@@ -141,9 +146,7 @@ export class GithubClient {
       }),
     });
 
-    if (response.status === 409) {
-      throw new GithubApiError('Stale version — the file changed since it was last read.', 'conflict', 409);
-    }
+    assertNotStale(response);
     assertOk(response, `PUT ${args.path}`);
 
     const body = (await response.json()) as { content: { sha: string } };
@@ -164,9 +167,7 @@ export class GithubClient {
     });
 
     if (response.status === 404) return 'gone';
-    if (response.status === 409) {
-      throw new GithubApiError('Stale version — the file changed since it was last read.', 'conflict', 409);
-    }
+    assertNotStale(response);
     assertOk(response, `DELETE ${args.path}`);
     return 'deleted';
   }

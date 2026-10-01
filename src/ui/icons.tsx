@@ -23,7 +23,6 @@ export const TeamsIcon = iconWrapper(Users);
 /** The owner select's trigger icon (§5.4, §9.10). */
 export const OwnerIcon = iconWrapper(User);
 export const RemoveIcon = iconWrapper(Trash2);
-export const DeleteIcon = iconWrapper(Trash2);
 export const DeactivateIcon = iconWrapper(UserX);
 export const ReactivateIcon = iconWrapper(UserCheck);
 export const DeactivateTeamIcon = iconWrapper(Archive);

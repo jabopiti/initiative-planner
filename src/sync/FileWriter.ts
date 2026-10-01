@@ -221,13 +221,18 @@ export class FileWriter<D> {
    * compared (a save landed since): `retry`, the next pull will find it changed. Or a choice is open or the last
    * save failed: `writer`, the writer's next save re-reads the file and merges it, so a pull has nothing to retry.
    */
-  receive(file: SyncedFile<D>, replaces: string | null, ownReread = false): Received {
+  receive(file: SyncedFile<D>, replaces: string | null): Received {
     const stale = (this.synced?.sha ?? null) !== replaces;
     if (this.openConflicts.length > 0 && this.failedCause === null && !this.busy) {
       return stale ? { left: 'retry' } : this.receiveWithConflicts(file);
     }
     if (this.openConflicts.length > 0 || this.failedCause !== null) return { left: 'writer' };
-    if ((this.saving && !ownReread) || stale) return { left: 'retry' };
+    if (this.saving || stale) return { left: 'retry' };
+    return this.show(file);
+  }
+
+  /** Shows the repository's version, an edit not saved yet merged into it (§10.5). */
+  private show(file: SyncedFile<D>): Received {
     const before = this.screen;
     let next = file.content;
     if (this.pending !== null || this.timer !== null) {
@@ -477,7 +482,8 @@ export class FileWriter<D> {
           const file = await this.options.github.getFile({ path: this.options.path, branch: this.options.branch });
           if (file === null) return 'deleted';
           const theirs = JSON.parse(file.content) as D;
-          this.receive({ content: theirs, sha: file.sha }, this.synced?.sha ?? null, true);
+          // Shown unless a choice is open or a failed save waits: the writer's next save merges it then.
+          if (this.openConflicts.length === 0 && this.failedCause === null) this.show({ content: theirs, sha: file.sha });
           if (refuses(theirs)) return 'refused';
           sha = file.sha;
         } catch (retryError) {

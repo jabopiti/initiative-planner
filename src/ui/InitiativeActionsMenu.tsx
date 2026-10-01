@@ -16,19 +16,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 export function InitiativeActionsMenu({ initiative, ui, triggerRef }: { initiative: Initiative; ui: InitiativeActionUi; triggerRef?: Ref<HTMLButtonElement> }) {
   const repository = useRepository();
   const { process } = useBrand();
-  // Set by an action that opens a confirmation, so closing the menu leaves focus to it instead of the button.
-  const handedOff = useRef(false);
+  // Where an action that opened a confirmation wants focus once the menu has closed, instead of the button.
+  const afterClose = useRef<(() => void) | void>(undefined);
   const applicable = initiativeActions.filter((action) => action.applies(initiative, process));
   const actions = [...applicable.filter((a) => !a.destructive), ...applicable.filter((a) => a.destructive)];
   if (actions.length === 0) return null;
-
-  const handOff: InitiativeActionUi = {
-    ...ui,
-    confirmDelete: () => {
-      handedOff.current = true;
-      ui.confirmDelete();
-    },
-  };
 
   return (
     <DropdownMenu>
@@ -45,16 +37,17 @@ export function InitiativeActionsMenu({ initiative, ui, triggerRef }: { initiati
       <DropdownMenuContent
         align="start"
         onCloseAutoFocus={(event) => {
-          if (!handedOff.current) return;
-          handedOff.current = false;
+          const focus = afterClose.current;
+          afterClose.current = undefined;
+          if (!focus) return;
           event.preventDefault();
-          ui.focusConfirmation();
+          focus();
         }}
       >
         {actions.map(({ id, label, icon: Icon, run, destructive }, index) => (
           <Fragment key={id}>
             {destructive && index > 0 && !actions[index - 1].destructive && <DropdownMenuSeparator />}
-            <DropdownMenuItem variant={destructive ? 'destructive' : 'default'} onSelect={() => run(repository, initiative, handOff)}>
+            <DropdownMenuItem variant={destructive ? 'destructive' : 'default'} onSelect={() => (afterClose.current = run(repository, initiative, ui))}>
               <Icon />
               {label(initiative, process)}
             </DropdownMenuItem>

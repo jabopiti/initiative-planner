@@ -5,7 +5,7 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import type { GateRecord, Initiative } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
-import { fakeGithub, type Fake } from '../sync/testing/fakeGithub';
+import { fakeGithub, seedDataset, type Fake } from '../sync/testing/fakeGithub';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { InitiativeDetail } from './InitiativeDetail';
 
@@ -22,20 +22,9 @@ const copy = (overrides: Partial<Initiative> = {}): Initiative => ({ id: 'i1', n
 
 let fake: Fake;
 
-function seed(initiative: Initiative) {
-  fake = fakeGithub();
-  fake.seed('dataset.json', { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true });
-  fake.seed('roles.json', []);
-  fake.seed('countries.json', []);
-  fake.seed('teams.json', [{ id: 't1', name: 'Platform', active: true }]);
-  fake.seed('people.json', []);
-  fake.seed('memberships.json', []);
-  fake.seed(PATH, initiative);
-  vi.stubGlobal('fetch', fake.fetchMock);
-}
-
 const renderPage = (initiative: Initiative) => {
-  seed(initiative);
+  fake = fakeGithub();
+  seedDataset(fake, { teams: [{ id: 't1', name: 'Platform', active: true }], initiatives: [initiative], ratesReviewed: true });
   return render(
     <BrandProvider brand={defaultBrandPack}>
       <TooltipProvider>

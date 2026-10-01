@@ -7,7 +7,7 @@ export type PhaseFrozen = (initiative: Initiative, phaseId: string) => boolean;
 export const isPhaseFrozen: PhaseFrozen = (initiative, phaseId) => initiative.gates?.[phaseId]?.outcome === 'passed';
 
 /** Some gate of the initiative was passed (§9.3): it is then a record of an approval and can't be deleted. A skipped gate approved nothing. */
-export const hasPassedGate = (initiative: Initiative): boolean => Object.values(initiative.gates ?? {}).some((g) => g.outcome === 'passed');
+export const hasPassedGate = (initiative: Initiative): boolean => Object.keys(initiative.gates ?? {}).some((phaseId) => isPhaseFrozen(initiative, phaseId));
 
 /** The reason a phase's exit gate was skipped (§8.2), or undefined when it was not skipped. */
 export function skipReason(initiative: Initiative, phaseId: string): string | undefined {

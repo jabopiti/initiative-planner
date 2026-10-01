@@ -190,8 +190,9 @@ export function holdNetwork(fake: Fake, only: (url: string, init?: RequestInit) 
   return release;
 }
 
-export async function open(fake: Fake, seeded: { teams?: Team[]; people?: Person[]; initiatives?: Initiative[] } = {}) {
-  fake.seed('dataset.json', { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: false });
+/** A dataset with these teams, people and initiatives, served to `fetch`. */
+export function seedDataset(fake: Fake, seeded: { teams?: Team[]; people?: Person[]; initiatives?: Initiative[]; ratesReviewed?: boolean } = {}) {
+  fake.seed('dataset.json', { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: seeded.ratesReviewed ?? false });
   fake.seed('roles.json', []);
   fake.seed('countries.json', []);
   fake.seed('teams.json', seeded.teams ?? []);
@@ -199,6 +200,10 @@ export async function open(fake: Fake, seeded: { teams?: Team[]; people?: Person
   fake.seed('memberships.json', []);
   for (const initiative of seeded.initiatives ?? []) fake.seed(`initiatives/${initiative.id}.json`, initiative);
   vi.stubGlobal('fetch', fake.fetchMock);
+}
+
+export async function open(fake: Fake, seeded: { teams?: Team[]; people?: Person[]; initiatives?: Initiative[] } = {}) {
+  seedDataset(fake, seeded);
   const repo = new Repository(defaultBrandPack, 'token');
   await repo.initialize();
   const seen: RepositoryState[] = [];

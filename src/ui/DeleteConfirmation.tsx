@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type RefObject } from 'react';
+import { useEffect, useId, type RefObject } from 'react';
 import { hasPassedGate } from '../data/frozen';
 import type { Initiative } from '../data/types';
 import { WarningIcon } from './icons';
@@ -23,22 +23,18 @@ export function DeleteConfirmation({
   step: DeleteStep;
   onConfirm: () => void;
   onClose: () => void;
-  /** The control to focus when the confirmation opens from the menu: Cancel, or Close when refused. */
+  /** Set to the control that takes focus — Cancel, or Close when refused — for the menu to focus once it has closed. */
   focusRef: RefObject<HTMLButtonElement | null>;
 }) {
   const titleId = useId();
   const bodyId = useId();
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  const closeRef = useRef<HTMLButtonElement>(null);
   const refused = step === 'refused' || hasPassedGate(initiative);
   const deleting = step === 'deleting';
 
   // On opening, on a refusal, and back on Cancel once a failed delete re-enables it.
-  const failed = typeof step === 'object';
+  const failed = typeof step === 'object' ? step.failed : null;
   useEffect(() => {
-    const target = refused ? closeRef : cancelRef;
-    focusRef.current = target.current;
-    target.current?.focus();
+    focusRef.current?.focus();
   }, [refused, failed, focusRef]);
 
   return (
@@ -58,7 +54,7 @@ export function DeleteConfirmation({
             {initiative.status !== 'Cancelled' && ' Cancel it instead.'}
           </p>
           <div className="mt-3 flex gap-2">
-            <Button ref={closeRef} size="sm" variant="outline" onClick={onClose}>
+            <Button ref={focusRef} size="sm" variant="outline" onClick={onClose}>
               Close
             </Button>
           </div>
@@ -71,17 +67,17 @@ export function DeleteConfirmation({
           <p id={bodyId} className="m-0">
             This can&apos;t be undone.
           </p>
-          {typeof step === 'object' && (
+          {failed !== null && (
             <p role="alert" className="m-0 mt-2 flex items-center gap-1 text-xs text-alarm-text">
               <WarningIcon width={13} height={13} />
-              Not deleted: {step.failed}.
+              Not deleted: {failed}.
             </p>
           )}
           <div className="mt-3 flex gap-2">
             <Button size="sm" variant="destructive" disabled={deleting} onClick={onConfirm}>
               {deleting ? 'Deleting…' : 'Confirm delete'}
             </Button>
-            <Button ref={cancelRef} size="sm" variant="outline" disabled={deleting} onClick={onClose}>
+            <Button ref={focusRef} size="sm" variant="outline" disabled={deleting} onClick={onClose}>
               Cancel
             </Button>
           </div>

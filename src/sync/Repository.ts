@@ -498,7 +498,7 @@ export class Repository {
       const path = FILE_PATHS.initiative(id);
       if (!listing.has(path) && compared.has(path) && writer.sha === compared.get(path) && writer.idle) removed.add(id);
     }
-    for (const id of removed) this.forgetInitiative(id);
+    if (removed.size > 0) this.forgetInitiatives(removed);
     if (added.length > 0) this.setState({ initiatives: [...this.state.initiatives, ...added] });
 
     if (changed.length > 0) this.markChanged(changed);
@@ -788,8 +788,7 @@ export class Repository {
       whenMissing: null,
       onGone: () => {
         const name = this.state.initiatives.find((i) => i.id === initiative.id)?.name ?? initiative.name;
-        this.forgetInitiative(initiative.id);
-        this.setState({ deletedWithLostEdit: new Map(this.state.deletedWithLostEdit).set(initiative.id, name) });
+        this.forgetInitiatives(new Set([initiative.id]), { deletedWithLostEdit: new Map(this.state.deletedWithLostEdit).set(initiative.id, name) });
       },
       initial: sha === null ? null : { content: initiative, sha },
       creationFailure: 'Could not create the initiative.',
@@ -1733,7 +1732,7 @@ export class Repository {
     if (result === 'deleted') {
       this.deleteFailure = null;
       await beforeForget?.();
-      this.forgetInitiative(id);
+      this.forgetInitiatives(new Set([id]));
     } else if (result !== 'refused') {
       this.deleteFailure = result.failed;
       this.armRetry(false, this.publishStatus());
@@ -1742,20 +1741,23 @@ export class Repository {
   }
 
   /**
-   * Take an initiative out of this client (§9.3): its writer with any edit still waiting and any choice open,
-   * its sync status, its cached file and its place in every list. Nothing is written to GitHub.
+   * Take initiatives out of this client (§9.3): their writers with any edit still waiting and any choice open,
+   * their sync status, their cached files and their place in every list, in one update with `patch`. Nothing is
+   * written to GitHub.
    */
-  forgetInitiative(id: string): void {
-    const path = FILE_PATHS.initiative(id);
-    const writer = this.initiativeWriters.get(id);
-    this.initiativeWriters.delete(id);
-    this.writerStatus.delete(path);
-    void this.cache.delete(path).catch(() => {});
+  private forgetInitiatives(ids: ReadonlySet<string>, patch: Partial<RepositoryState> = {}): void {
+    const paths = new Set([...ids].map((id) => FILE_PATHS.initiative(id)));
+    for (const id of ids) this.initiativeWriters.delete(id);
+    for (const path of paths) {
+      this.writerStatus.delete(path);
+      void this.cache.delete(path).catch(() => {});
+    }
     this.setState({
-      initiatives: this.state.initiatives.filter((i) => i.id !== id),
-      conflicts: this.state.conflicts.filter((c) => c.file !== path),
+      initiatives: this.state.initiatives.filter((i) => !ids.has(i.id)),
+      conflicts: this.state.conflicts.filter((c) => !paths.has(c.file)),
+      ...patch,
     });
-    if (writer) this.publishStatus();
+    this.publishStatus();
   }
 
   /** Flush any pending debounced write immediately (page unload). */
