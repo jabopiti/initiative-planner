@@ -102,8 +102,8 @@ export class FileWriter<D> {
   private readonly notes = new Map<string, CommitNote>();
   /** Words added verbatim to the message, such as a conflict's outcome. */
   private readonly extras = new Map<string, string>();
-  /** Words in brackets at the end of the message, such as "conflict: replaced". */
-  private readonly suffixes = new Set<string>();
+  /** An edit since the last save answered an open conflict: the message ends "(conflict: replaced)". */
+  private replaced = false;
   /** An edit with a note was made since the last save, even if its note has cancelled out. */
   private noted = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -170,9 +170,12 @@ export class FileWriter<D> {
 
   /** Nothing is waiting to be saved, no save is running and no choice is open: a pull may replace what is on screen. */
   get idle(): boolean {
-    return (
-      this.pending === null && this.timer === null && this.waiting === 0 && !this.saving && this.openConflicts.length === 0 && this.failedCause === null
-    );
+    return !this.busy && this.openConflicts.length === 0 && this.failedCause === null;
+  }
+
+  /** An edit is waiting to be saved or a save is running. */
+  private get busy(): boolean {
+    return this.pending !== null || this.timer !== null || this.waiting > 0 || this.saving;
   }
 
   /** Why this file's last save failed, for as long as nothing has saved since (§3, §9.9); null otherwise. */
@@ -209,12 +212,12 @@ export class FileWriter<D> {
    * save failed: `writer`, the writer's next save re-reads the file and merges it, so a pull has nothing to retry.
    */
   receive(file: SyncedFile<D>, replaces: string | null): Received {
-    if (this.openConflicts.length > 0 && this.failedCause === null && this.pending === null && this.timer === null && this.waiting === 0 && !this.saving) {
-      if ((this.synced?.sha ?? null) !== replaces) return { left: 'retry' };
-      return this.receiveWithConflicts(file);
+    const stale = (this.synced?.sha ?? null) !== replaces;
+    if (this.openConflicts.length > 0 && this.failedCause === null && !this.busy) {
+      return stale ? { left: 'retry' } : this.receiveWithConflicts(file);
     }
     if (this.openConflicts.length > 0 || this.failedCause !== null) return { left: 'writer' };
-    if (this.saving || (this.synced?.sha ?? null) !== replaces) return { left: 'retry' };
+    if (this.saving || stale) return { left: 'retry' };
     const before = this.screen;
     let next = file.content;
     if (this.pending !== null || this.timer !== null) {
@@ -273,7 +276,7 @@ export class FileWriter<D> {
     const replaced = this.openConflicts.filter((c) => !sameValue(getAtPath(next, c.path), getAtPath(screen, c.path)));
     if (replaced.length === 0) return;
     this.openConflicts = this.openConflicts.filter((c) => !replaced.includes(c));
-    this.suffixes.add('conflict: replaced');
+    this.replaced = true;
     for (const c of replaced) this.options.onConflictClosed?.(c);
   }
 
@@ -289,7 +292,7 @@ export class FileWriter<D> {
   private describe(): string | null {
     const parts = [...[...this.notes.values()].map((n) => n.words(n.from, n.to)), ...this.extras.values()];
     if (parts.length === 0) return null;
-    return this.suffixes.size > 0 ? `${parts.join('; ')} (${[...this.suffixes].join('; ')})` : parts.join('; ');
+    return this.replaced ? `${parts.join('; ')} (conflict: replaced)` : parts.join('; ');
   }
 
   private commitMessage(): string {
@@ -308,7 +311,7 @@ export class FileWriter<D> {
     const cancelled = this.noted && this.describe() === null && this.synced !== null && sameValue(mine, this.synced.content);
     this.notes.clear();
     this.extras.clear();
-    this.suffixes.clear();
+    this.replaced = false;
     this.noted = false;
     if (cancelled) {
       // The edits undid each other, nothing changed, so nothing to commit (§10.3).
@@ -338,7 +341,7 @@ export class FileWriter<D> {
           message = [message, this.describe()].filter(Boolean).join('; ');
           this.notes.clear();
           this.extras.clear();
-          this.suffixes.clear();
+          this.replaced = false;
           this.noted = false;
         }
       }

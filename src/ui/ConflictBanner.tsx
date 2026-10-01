@@ -1,8 +1,8 @@
 import { useBrand } from '../state/BrandContext';
-import { chooseConflict, conflictBlockId, conflictKey, useConflictUi } from '../state/ConflictUi';
-import { useRepository, useRepositoryState } from '../state/DataContext';
-import { causeText } from '../github/errors';
+import { useConflictUi, useFieldConflict, type FieldConflict } from '../state/ConflictUi';
+import { useRepositoryState } from '../state/DataContext';
 import type { FileConflict } from '../sync/FileWriter';
+import { changeKey } from '../sync/Repository';
 import { navigate } from '../router/useHashRoute';
 import { Button } from '@/components/ui/button';
 import { conflictHome } from './conflictHome';
@@ -18,11 +18,12 @@ import { describeConflict } from './describeConflict';
  * the write fails it stays, with the cause, and choosing again is the retry.
  */
 export function ConflictBanner() {
-  const repository = useRepository();
   const brand = useBrand();
   const state = useRepositoryState();
-  const { conflicts, readOnly } = state;
-  const { store, shown, failed } = useConflictUi();
+  const { conflicts } = state;
+  const { store, shown } = useConflictUi();
+  const fieldConflict = useFieldConflict();
+  if (conflicts.length === 0) return null;
 
   const context = { ...state, process: brand.process, currencySymbol: brand.currencySymbol };
   const pointers = new Map<string, { entity: string; route: string; conflicts: FileConflict[] }>();
@@ -33,7 +34,7 @@ export function ConflictBanner() {
       rows.push(conflict);
       continue;
     }
-    if (shown.has(conflictKey(conflict.file, conflict.path))) continue;
+    if (shown.has(changeKey(conflict.file, conflict.path))) continue;
     const { entity } = describeConflict(conflict, context);
     const group = `${route}|${entity}`;
     const pointer = pointers.get(group) ?? { entity, route, conflicts: [] };
@@ -43,7 +44,7 @@ export function ConflictBanner() {
   if (pointers.size === 0 && rows.length === 0) return null;
 
   const show = (route: string, conflict: FileConflict) => {
-    store.reveal({ file: conflict.file, path: conflict.path, id: conflictBlockId(conflict.file, conflict.path) });
+    store.reveal({ file: conflict.file, path: conflict.path });
     navigate(route);
   };
 
@@ -73,8 +74,9 @@ export function ConflictBanner() {
           <p className="m-0">Changed by someone else while you were editing. Choose which value to keep.</p>
           {rows.map((conflict) => {
             const { entity, field, mine, theirs, labelled } = describeConflict(conflict, context);
+            const { key, choose, failure } = fieldConflict(conflict.file, conflict.path) as FieldConflict;
             return (
-              <div key={conflictKey(conflict.file, conflict.path)} className="border-t border-border-default pt-1">
+              <div key={key} className="border-t border-border-default pt-1">
                 <div className="flex items-center justify-between gap-3">
                   <span>
                     <strong>{entity}</strong> · {field}
@@ -82,19 +84,15 @@ export function ConflictBanner() {
                     <strong>{theirs}</strong>
                   </span>
                   <div className="flex shrink-0 gap-2">
-                    <Button type="button" variant="outline" size="sm" onClick={() => void chooseConflict(repository, store, conflict, 'theirs')}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => choose('theirs')}>
                       Keep theirs
                     </Button>
-                    <Button type="button" variant="outline" size="sm" onClick={() => void chooseConflict(repository, store, conflict, 'mine')}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => choose('mine')}>
                       Use mine
                     </Button>
                   </div>
                 </div>
-                {failed.has(conflict) && (
-                  <p className="mt-1 mb-0">
-                    Your choice was not saved{readOnly ? `: ${causeText(readOnly)}` : ''}. Choose again to retry.
-                  </p>
-                )}
+                {failure && <p className="mt-1 mb-0">{failure}</p>}
               </div>
             );
           })}

@@ -1,20 +1,20 @@
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { causeText } from '../github/errors';
 import type { FileConflict } from '../sync/FileWriter';
-import { pathKey, type Path } from '../sync/merge';
+import type { Path } from '../sync/merge';
+import { changeKey } from '../sync/Repository';
 import { describeConflict } from '../ui/describeConflict';
 import { useBrand } from './BrandContext';
 import { useRepository, useRepositoryState } from './DataContext';
 
-/** Where a banner's Show asked to go: the conflict's file and path, and its block's id to focus on arrival (§9.9). */
+/** Where a banner's Show asked to go: the conflict's file and path, whose block takes the focus on arrival (§9.9). */
 export interface ConflictReveal {
   file: string;
   path: Path;
-  id: string;
 }
 
 interface Snapshot {
-  /** The conflicts an inline block is showing right now, by {@link conflictKey}: the banner leaves these out. */
+  /** The conflicts an inline block is showing right now, by {@link changeKey}: the banner leaves these out. */
   shown: ReadonlySet<string>;
   /** The conflicts whose last choice failed to save, so their block says so until chosen again. */
   failed: ReadonlySet<FileConflict>;
@@ -44,12 +44,16 @@ export class ConflictUiStore {
 
   /** A block showing `key` mounted; the returned function is its unmount. */
   register(key: string): () => void {
-    this.counts.set(key, (this.counts.get(key) ?? 0) + 1);
-    this.set({ shown: new Set(this.counts.keys()) });
+    const n = this.counts.get(key) ?? 0;
+    this.counts.set(key, n + 1);
+    if (n === 0) this.set({ shown: new Set(this.counts.keys()) });
     return () => {
-      const n = (this.counts.get(key) ?? 1) - 1;
-      if (n > 0) this.counts.set(key, n);
-      else this.counts.delete(key);
+      const left = (this.counts.get(key) ?? 1) - 1;
+      if (left > 0) {
+        this.counts.set(key, left);
+        return;
+      }
+      this.counts.delete(key);
       this.set({ shown: new Set(this.counts.keys()) });
     };
   }
@@ -81,11 +85,14 @@ export function useConflictUi(): { store: ConflictUiStore } & Snapshot {
   return { store, ...snapshot };
 }
 
-/** One conflict's identity on the page: its file and path. */
-export const conflictKey = (file: string, path: Path): string => `${file}:${pathKey(path)}`;
+/** One part of the store's snapshot: a component re-renders only when that part changes. */
+function useConflictUiPart<K extends keyof Snapshot>(part: K): [ConflictUiStore, Snapshot[K]] {
+  const store = useContext(ConflictUiContext) ?? fallback;
+  return [store, useSyncExternalStore(store.subscribe, () => store.getSnapshot()[part])];
+}
 
 /** The DOM id of a conflict's block, for `aria-describedby` and for Show to focus. */
-export const conflictBlockId = (file: string, path: Path): string => `conflict-${conflictKey(file, path).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+const conflictBlockId = (key: string): string => `conflict-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
 
 /** A same-field conflict as its field's block shows it (§3, §9.9). */
 export interface FieldConflict {
@@ -111,15 +118,16 @@ export function useFieldConflict(): (file: string, path: Path) => FieldConflict 
   const repository = useRepository();
   const brand = useBrand();
   const state = useRepositoryState();
-  const { store, failed } = useConflictUi();
+  const [store, failed] = useConflictUiPart('failed');
   return (file, path) => {
-    const key = conflictKey(file, path);
-    const conflict = state.conflicts.find((c) => conflictKey(c.file, c.path) === key);
+    if (state.conflicts.length === 0) return null;
+    const key = changeKey(file, path);
+    const conflict = state.conflicts.find((c) => changeKey(c.file, c.path) === key);
     if (!conflict) return null;
     const { mine, theirs } = describeConflict(conflict, { ...state, process: brand.process, currencySymbol: brand.currencySymbol });
     return {
       conflict,
-      id: conflictBlockId(file, path),
+      id: conflictBlockId(key),
       key,
       mine,
       theirs,
@@ -130,7 +138,7 @@ export function useFieldConflict(): (file: string, path: Path) => FieldConflict 
 }
 
 /** Saves a choice (005h's resolution); a failed save leaves the conflict open and says so. */
-export async function chooseConflict(
+async function chooseConflict(
   repository: ReturnType<typeof useRepository>,
   store: ConflictUiStore,
   conflict: FileConflict,
@@ -143,18 +151,18 @@ export async function chooseConflict(
 
 /** While mounted, tells the banner this conflict is on screen; and focuses it when Show asked for it (§9.5). */
 export function useShowConflict(key: string, id: string, focus: (id: string) => void): void {
-  const { store, reveal } = useConflictUi();
+  const [store, reveal] = useConflictUiPart('reveal');
   useEffect(() => store.register(key), [store, key]);
   useEffect(() => {
-    if (reveal?.id !== id) return;
+    if (!reveal || changeKey(reveal.file, reveal.path) !== key) return;
     focus(id);
     store.reveal(null);
-  }, [reveal, id, store, focus]);
+  }, [reveal, key, id, store, focus]);
 }
 
 /** Runs `open` when Show targets `file`, so a collapsed part of the page (a phase, a panel) opens to the field. */
 export function useRevealTarget(file: string, open: (path: Path) => void): void {
-  const { reveal } = useConflictUi();
+  const [, reveal] = useConflictUiPart('reveal');
   // `open` is a fresh closure each render; only a new reveal should run it.
   const latest = useRef(open);
   useEffect(() => {
