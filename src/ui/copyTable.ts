@@ -1,6 +1,8 @@
 export interface CopyTableData {
   headers: string[];
   rows: string[][];
+  /** Summary rows after a blank row, such as the Portfolio's key metrics (§5.2); not counted as copied rows. */
+  footerRows?: string[][];
   /** Indices of columns holding numbers, amounts or percentages — never prefixed by the formula-safety rule below. */
   numericColumns: number[];
 }
@@ -20,15 +22,17 @@ function guardCell(cell: string, isNumeric: boolean): string {
   return !isNumeric && RISKY_LEADING_CHAR.test(cell) ? `'${flattened}` : flattened;
 }
 
-export function tableToText({ headers, rows, numericColumns }: CopyTableData): string {
+export function tableToText({ headers, rows, footerRows, numericColumns }: CopyTableData): string {
   const guardHeader = (r: string[]) => r.map((c) => guardCell(c, false)).join('\t');
   const guardRow = (r: string[]) => r.map((c, i) => guardCell(c, numericColumns.includes(i))).join('\t');
-  return [guardHeader(headers), ...rows.map(guardRow)].join('\n');
+  const footer = footerRows?.length ? ['', ...footerRows.map(guardRow)] : [];
+  return [guardHeader(headers), ...rows.map(guardRow), ...footer].join('\n');
 }
 
-export function tableToHtml({ headers, rows }: CopyTableData): string {
+export function tableToHtml({ headers, rows, footerRows }: CopyTableData): string {
   const cells = (tag: string, r: string[]) => `<tr>${r.map((c) => `<${tag}>${escapeHtml(c)}</${tag}>`).join('')}</tr>`;
-  return `<table><thead>${cells('th', headers)}</thead><tbody>${rows.map((r) => cells('td', r)).join('')}</tbody></table>`;
+  const footer = footerRows?.length ? [headers.map(() => ''), ...footerRows].map((r) => cells('td', r)).join('') : '';
+  return `<table><thead>${cells('th', headers)}</thead><tbody>${rows.map((r) => cells('td', r)).join('')}${footer}</tbody></table>`;
 }
 
 /** Writes a table to the clipboard as plain text and rich HTML (§9.2). Rejects if the browser refuses. */

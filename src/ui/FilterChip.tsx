@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { chipTriggerClass } from './chipTriggerClass';
 import { ChevronDownIcon, SearchIcon } from './icons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -17,8 +18,9 @@ interface Props {
 
 /**
  * A filter chip (§9.11): a multi-select dropdown with a search field and checkboxes, applied instantly; an active
- * chip is highlighted and shows its count. Down moves from the search field into the options, Up from the first
- * option back; Space or Enter toggles an option; Esc closes with focus back on the chip.
+ * chip is highlighted and names its one chosen value ("Team: Platform"), or counts two or more ("Team: 2"). Down
+ * moves from the search field into the options, Up from the first option back; Space or Enter toggles an option;
+ * Esc closes with focus back on the chip.
  */
 export function FilterChip({ label, options, selected, onChange }: Props) {
   const [open, setOpen] = useState(false);
@@ -26,6 +28,7 @@ export function FilterChip({ label, options, selected, onChange }: Props) {
   const contentRef = useRef<HTMLDivElement>(null);
   const shown = options.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()));
   const active = selected.length > 0;
+  const chosen = selected.length === 1 ? (options.find((o) => o.value === selected[0])?.label ?? '1') : String(selected.length);
 
   function toggle(value: string) {
     onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
@@ -53,9 +56,9 @@ export function FilterChip({ label, options, selected, onChange }: Props) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${active ? 'border-brand-accent bg-brand-accent-tint font-medium text-brand-accent-text' : 'border-border-strong bg-surface-card text-text-primary'}`}
+          className={chipTriggerClass(active)}
         >
-          {active ? `${label}: ${selected.length}` : label}
+          <span className="max-w-60 truncate">{active ? `${label}: ${chosen}` : label}</span>
           <ChevronDownIcon width={14} height={14} />
         </button>
       </PopoverTrigger>

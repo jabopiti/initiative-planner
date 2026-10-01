@@ -1,11 +1,10 @@
 import { useSyncExternalStore } from 'react';
-import { NO_FILTERS, type InitiativeFilters } from '../data/initiativeList';
 
 /**
  * Filters kept in memory for the browser session (§9.11): still set after opening an initiative and pressing
- * Back, gone on reload, never synced. Keyed by screen so the Portfolio's filters (slice 021) can reuse it.
+ * Back, gone on reload, never synced. Keyed by screen, so each list keeps its own (§5.2, §5.3).
  */
-const store = new Map<string, InitiativeFilters>();
+const store = new Map<string, unknown>();
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void) {
@@ -13,9 +12,10 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-export function useSessionFilters(screen: string): [InitiativeFilters, (next: InitiativeFilters) => void] {
-  const filters = useSyncExternalStore(subscribe, () => store.get(screen) ?? NO_FILTERS);
-  const set = (next: InitiativeFilters) => {
+/** A screen's filters, starting from `defaults` — which must be a stable (module-level) value. */
+export function useSessionFilters<T>(screen: string, defaults: T): [T, (next: T) => void] {
+  const filters = useSyncExternalStore(subscribe, () => (store.get(screen) as T | undefined) ?? defaults);
+  const set = (next: T) => {
     store.set(screen, next);
     listeners.forEach((l) => l());
   };

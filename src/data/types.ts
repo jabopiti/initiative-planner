@@ -3,6 +3,7 @@
  */
 
 export type InitiativeStatus = 'Active' | 'On Hold' | 'Cancelled' | 'Closed';
+export const INITIATIVE_STATUSES: InitiativeStatus[] = ['Active', 'On Hold', 'Cancelled', 'Closed'];
 
 export interface DatasetFlags {
   schemaVersion: number;

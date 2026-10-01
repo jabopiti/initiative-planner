@@ -5,13 +5,7 @@ import { useRepositoryState } from '../state/DataContext';
 import type { Initiative } from '../data/types';
 import { CopyButton } from './CopyButton';
 import type { CopyTableData } from './copyTable';
-import { formatAmount } from './formatAmount';
-
-/** `+€9,200` / `−€1,300` / `€0`: a difference or deviation reads its sign, an amount on its own never does. */
-function formatSigned(value: number, currencySymbol: string): string {
-  const sign = value > 0 ? '+' : value < 0 ? '−' : '';
-  return `${sign}${formatAmount(Math.abs(value), currencySymbol)}`;
-}
+import { formatAmount, formatSignedAmount } from './formatAmount';
 
 function Stat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
@@ -41,9 +35,9 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
     const rows = [['Grand estimate', formatAmount(estimate, currencySymbol)]];
     if (approvedFigure !== undefined) {
       rows.push([`Approved at (${approved!.phase.exitGate.label})`, formatAmount(approvedFigure, currencySymbol)]);
-      rows.push(['Difference', formatSigned(difference, currencySymbol)]);
+      rows.push(['Difference', formatSignedAmount(difference, currencySymbol)]);
     }
-    rows.push(['Deviation', formatSigned(deviation, currencySymbol)]);
+    rows.push(['Deviation', formatSignedAmount(deviation, currencySymbol)]);
     for (const phase of costedPhases) {
       rows.push([phase.label, formatAmount(phaseEffectiveTotal(initiative, phase.id, people, data), currencySymbol)]);
     }
@@ -59,10 +53,10 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
       {approvedFigure !== undefined && (
         <>
           <Stat label={`Approved at (${approved!.phase.exitGate.label})`} value={formatAmount(approvedFigure, currencySymbol)} />
-          <Stat label="Difference" value={formatSigned(difference, currencySymbol)} />
+          <Stat label="Difference" value={formatSignedAmount(difference, currencySymbol)} />
         </>
       )}
-      <Stat label="Deviation" value={formatSigned(deviation, currencySymbol)} warn={deviation > 0} />
+      <Stat label="Deviation" value={formatSignedAmount(deviation, currencySymbol)} warn={deviation > 0} />
       <CopyButton getData={getData} noun={['line', 'lines']} label="Copy cost summary" />
     </section>
   );

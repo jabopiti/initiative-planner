@@ -66,13 +66,16 @@ describe('FilterChip (§9.11)', () => {
     expect(screen.getByText('No matches')).toBeInTheDocument();
   });
 
-  it('toggles by click, and updates the chip count', async () => {
+  it('toggles by click; the chip names one chosen value and counts two or more', async () => {
     const user = userEvent.setup();
     render(<Harness />);
     await user.click(chip());
     await user.click(await screen.findByRole('checkbox', { name: 'On Hold' }));
     expect(screen.getByTestId('selected')).toHaveTextContent('h');
-    expect(chip()).toHaveTextContent('Status: 1');
+    expect(chip()).toHaveTextContent('Status: On Hold');
+    await user.click(screen.getByRole('checkbox', { name: 'Active' }));
+    expect(chip()).toHaveTextContent('Status: 2');
+    await user.click(screen.getByRole('checkbox', { name: 'Active' }));
     await user.click(screen.getByRole('checkbox', { name: 'On Hold' }));
     expect(screen.getByTestId('selected')).toHaveTextContent(/^$/);
   });

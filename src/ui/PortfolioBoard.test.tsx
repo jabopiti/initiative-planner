@@ -1,6 +1,6 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import type { Initiative, Person, Team } from '../data/types';
@@ -10,12 +10,18 @@ import { NeedsAttentionProvider } from '../state/NeedsAttentionContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PortfolioBoard } from './PortfolioBoard';
 import { rootListing } from '../sync/testing/rootListing';
+import { NO_FILTERS } from '../data/initiativeList';
+import { PORTFOLIO_DEFAULTS, type PortfolioFilters } from '../data/portfolio';
+import { resetSessionFilters, useSessionFilters } from './sessionFilters';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const { process } = defaultBrandPack;
 const [discoveryId, validationId] = process.map((p) => p.id);
 
-const teams: Team[] = [{ id: 't1', name: 'Platform', active: true }];
+const teams: Team[] = [
+  { id: 't1', name: 'Platform', active: true },
+  { id: 't2', name: 'Growth', active: true },
+];
 const person = (id: string, name: string, active = true): Person => ({ id, name, countryId: baseline.countries[0].id, roleId: baseline.roles[0].id, capacityPct: 100, active });
 const people = [person('ana', 'Ana Ruiz'), person('old', 'Olga Old', false)];
 
@@ -59,12 +65,26 @@ beforeAll(() => {
   );
 });
 afterAll(() => vi.unstubAllGlobals());
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  resetSessionFilters();
+});
+
+/** Shows the Initiatives table's filters, to prove the Portfolio's are kept apart. */
+function TableFiltersProbe() {
+  const [filters] = useSessionFilters('initiatives', NO_FILTERS);
+  return <output data-testid="table-filters">{JSON.stringify(filters)}</output>;
+}
 
 function Gated() {
   const { status } = useRepositoryState();
   if (status === 'loading') return null;
-  return <PortfolioBoard />;
+  return (
+    <>
+      <PortfolioBoard />
+      <TableFiltersProbe />
+    </>
+  );
 }
 
 async function renderBoard(list: Initiative[], brand = defaultBrandPack) {
@@ -80,7 +100,7 @@ async function renderBoard(list: Initiative[], brand = defaultBrandPack) {
       </TooltipProvider>
     </BrandProvider>,
   );
-  await screen.findAllByRole('link', { name: /Big One|Small One|Gap One|A very long/ });
+  await screen.findByRole('button', { name: 'Status: Active' });
 }
 
 /** A board card, not the Needs attention strip's link to the same initiative (strip links sit in list items). */
@@ -132,5 +152,186 @@ describe('Portfolio board column headers (§5.2)', () => {
     expect(screen.getAllByText('0 · €0').length).toBeGreaterThan(0);
     await user.hover(screen.getByText('2 · €530 k'));
     expect((await screen.findAllByText('€530,000')).length).toBeGreaterThan(0);
+  });
+});
+
+/** Over: €100 k estimated for Feb 2026, €104 k recorded — deviation +€4 k. */
+const over: Initiative = {
+  id: 'ov',
+  name: 'Over One',
+  teamId: 't1',
+  ownerId: 'ana',
+  status: 'Active',
+  gates: passed([discoveryId]),
+  phases: { [validationId]: { startDate: '2026-02-01', endDate: '2026-02-28', allocations: [], costItems: [item(100_000)], actualMonths: { '2026-02': 104_000 } } },
+};
+const held: Initiative = { id: 'hd', name: 'Held One', teamId: 't1', status: 'On Hold', gates: passed([discoveryId]), phases: plan(50_000) };
+const later: Initiative = {
+  id: 'lt',
+  name: 'Later One',
+  teamId: 't2',
+  status: 'Active',
+  gates: passed([discoveryId]),
+  phases: { [validationId]: { startDate: '2027-03-01', endDate: '2027-03-31', allocations: [], costItems: [{ id: 'c2', label: 'Hardware', amount: 30_000, timing: 'month', month: '2027-03' }] } },
+};
+
+const chipButton = (label: string | RegExp) => screen.getByRole('button', { name: label });
+const cardNames = () => screen.queryAllByRole('link').filter((a) => !a.closest('li')).map((a) => a.textContent);
+const shownCard = (name: string) => cardNames().some((t) => t?.startsWith(name));
+
+async function pick(user: ReturnType<typeof userEvent.setup>, chipLabel: RegExp, option: string) {
+  await user.click(chipButton(chipLabel));
+  await user.click(await screen.findByRole('checkbox', { name: option }));
+  await user.keyboard('{Escape}');
+}
+
+async function pickYear(user: ReturnType<typeof userEvent.setup>, year: string) {
+  await user.click(chipButton(/^Year/));
+  await user.click(await screen.findByRole('menuitemradio', { name: year }));
+}
+
+describe('Portfolio filters (§5.2, §9.11)', () => {
+  it('shows the six chips with Status on Active, the count over every initiative, and no Clear filters', async () => {
+    await renderBoard([big, held, later]);
+    for (const label of ['Team', 'Phase', 'Year', 'Initiatives', 'Approval track', 'Status: Active']) expect(chipButton(label)).toBeInTheDocument();
+    expect(shownCard('Held One')).toBe(false);
+    expect(screen.getByText('2 of 3 initiatives')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+  });
+
+  it('shows On Hold initiatives with their status icon once Status is widened', async () => {
+    const user = userEvent.setup();
+    await renderBoard([big, held]);
+    await pick(user, /^Status/, 'On Hold');
+    expect(chipButton('Status: 2')).toBeInTheDocument();
+    expect(within(card(/Held One/)).getByRole('img', { name: 'On Hold' })).toBeInTheDocument();
+    expect(within(card(/Big One/)).queryByRole('img', { name: 'On Hold' })).toBeNull();
+  });
+
+  it('clears every chip but Status, which returns to Active', async () => {
+    const user = userEvent.setup();
+    await renderBoard([big, held, later]);
+    await pick(user, /^Team/, 'Growth');
+    await pick(user, /^Status/, 'On Hold');
+    expect(chipButton('Team: Growth')).toBeInTheDocument();
+    expect(cardNames()).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(chipButton('Team')).toBeInTheDocument();
+    expect(chipButton('Status: Active')).toBeInTheDocument();
+    expect(shownCard('Held One')).toBe(false);
+  });
+
+  it('keeps its filters apart from the Initiatives table’s', async () => {
+    const user = userEvent.setup();
+    await renderBoard([big, later]);
+    await pick(user, /^Team/, 'Growth');
+    expect(screen.getByTestId('table-filters')).toHaveTextContent(JSON.stringify(NO_FILTERS));
+  });
+
+  it('narrows the Initiatives chip by typing, and shows only the ticked ones', async () => {
+    const user = userEvent.setup();
+    await renderBoard([big, small, later]);
+    await user.click(chipButton('Initiatives'));
+    await user.type(await screen.findByRole('textbox', { name: 'Search initiatives' }), 'one');
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3);
+    await user.clear(screen.getByRole('textbox', { name: 'Search initiatives' }));
+    await user.type(screen.getByRole('textbox', { name: 'Search initiatives' }), 'big');
+    expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+    await user.click(screen.getByRole('checkbox', { name: 'Big One' }));
+    await user.clear(screen.getByRole('textbox', { name: 'Search initiatives' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Later One' }));
+    await user.keyboard('{Escape}');
+    expect(chipButton('Initiatives: 2')).toBeInTheDocument();
+    expect(shownCard('Big One') && shownCard('Later One') && !shownCard('Small One')).toBe(true);
+  });
+
+  it('scopes cards, column sums and metrics to the chosen year, hides initiatives without cost in it, and keeps the track badge', async () => {
+    const user = userEvent.setup();
+    await renderBoard([big, later]);
+    await pickYear(user, '2027');
+    expect(chipButton('Year: 2027')).toBeInTheDocument();
+    expect(cardNames()).toHaveLength(1);
+    expect(within(card(/Later One/)).getByText('€30 k')).toBeInTheDocument();
+    expect(screen.getByText('1 · €30 k')).toBeInTheDocument();
+    await pickYear(user, '2026');
+    expect(within(card(/Big One/)).getByText('€412 k')).toBeInTheDocument();
+    expect(within(card(/Big One/)).getByText('Elevated')).toBeInTheDocument();
+    expect(shownCard('Later One')).toBe(false);
+    await pickYear(user, 'All years');
+    expect(chipButton('Year')).toBeInTheDocument();
+    expect(cardNames()).toHaveLength(2);
+  });
+
+  it('states Total cost and a signed Deviation for what is shown, overspend in Warning', async () => {
+    await renderBoard([small, over]);
+    expect(screen.getByText('€222 k')).toBeInTheDocument();
+    const deviation = screen.getByText('+€4 k');
+    expect(deviation).toHaveClass('text-warning-text');
+  });
+
+  it('keeps the columns and offers Clear filters when nothing matches, with the metrics at €0', async () => {
+    const user = userEvent.setup();
+    await renderBoard([big, later]);
+    await pick(user, /^Team/, 'Growth');
+    await pickYear(user, '2026');
+    expect(screen.getByText('No initiatives match these filters.')).toBeInTheDocument();
+    expect(screen.getAllByText('0 · €0')).toHaveLength(process.length);
+    expect(screen.getByText('0 of 2 initiatives')).toBeInTheDocument();
+    expect(screen.getAllByText('€0').length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole('button', { name: 'Clear filters' })[1]);
+    expect(cardNames()).toHaveLength(2);
+  });
+
+  it('drops a pick that no longer exists, such as an initiative deleted since', async () => {
+    const { result } = renderHook(() => useSessionFilters<PortfolioFilters>('portfolio', PORTFOLIO_DEFAULTS));
+    act(() => result.current[1]({ ...PORTFOLIO_DEFAULTS, initiative: ['gone'] }));
+    await renderBoard([big, later]);
+    expect(chipButton('Initiatives')).toBeInTheDocument();
+    expect(cardNames()).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+  });
+
+  it('is back to its defaults after a reload', async () => {
+    const user = userEvent.setup();
+    await renderBoard([big, later]);
+    await pick(user, /^Team/, 'Growth');
+    act(() => resetSessionFilters());
+    expect(chipButton('Team')).toBeInTheDocument();
+    expect(chipButton('Status: Active')).toBeInTheDocument();
+  });
+});
+
+describe('Portfolio Copy (§5.2, §9.2)', () => {
+  let written: Record<string, string> = {};
+  beforeEach(() => {
+    written = {};
+    vi.stubGlobal('ClipboardItem', class { constructor(public items: Record<string, Blob>) {} });
+  });
+
+  it('copies the shown initiatives in board order, then the two metrics, with full amounts', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        write: async (items: { items: Record<string, Blob> }[]) => {
+          for (const [type, blob] of Object.entries(items[0].items)) written[type] = await blob.text();
+        },
+      },
+    });
+    await renderBoard([small, over, later]);
+    await pickYear(user, '2026');
+    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await waitFor(() => expect(written['text/plain']).toBeDefined());
+    const validation = process.find((p) => p.id === validationId)!.label;
+    expect(written['text/plain'].split('\n')).toEqual([
+      'Name\tTeam\tOwner\tPhase\tCost in 2026\tApproval track\tStatus',
+      `Small One\tPlatform\tOlga Old (inactive)\t${validation}\t€118,000\tStandard\tActive`,
+      `Over One\tPlatform\tAna Ruiz\t${validation}\t€104,000\tStandard\tActive`,
+      '',
+      'Total cost\t\t\t\t€222,000\t\t',
+      'Deviation\t\t\t\t+€4,000\t\t',
+    ]);
+    expect(written['text/html']).toContain('<th>Cost in 2026</th>');
   });
 });
