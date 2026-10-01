@@ -35,7 +35,9 @@ function Screen({ route }: { route: string }) {
   if (route === '/portfolio') return <PortfolioBoard />;
   if (route === '/teams') return <TeamsOverview />;
   if (route.startsWith('/teams/')) return <TeamDetail key={route} id={route.slice('/teams/'.length)} />;
-  if (route === '/initiatives/new') return <NewInitiativeDraft />;
+  if (route === '/initiatives/new' || route.startsWith('/initiatives/new?')) {
+    return <NewInitiativeDraft presetTeamId={new URLSearchParams(route.split('?')[1]).get('team') ?? undefined} />;
+  }
   if (route.startsWith('/initiatives/')) {
     // A Needs attention strip link (§5.2, §8.5) carries where to scroll and focus as a query suffix on the
     // hash path, since the hash router (useHashRoute.ts) otherwise treats the whole path as one opaque route.

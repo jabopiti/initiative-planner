@@ -100,7 +100,7 @@ function renderView(view: React.ReactNode) {
   );
 }
 
-const rowFor = (name: string) => screen.getByRole('row', { name: new RegExp(`^${name}`) });
+const rowFor = (name: string) => screen.getByRole('row', { name: new RegExp(`^${name}(?! API)`) });
 const cells = (row: HTMLElement) => within(row).getAllByRole('cell');
 const teamNames = () =>
   screen

@@ -15,11 +15,13 @@ const GUIDANCE_ID = 'new-initiative-guidance';
  * initiative is created and its page replaces this one. Esc discards. The next thing to fill in is
  * highlighted and also named in the guidance line, so colour never carries it alone.
  */
-export function NewInitiativeDraft() {
+export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } = {}) {
   const repository = useRepository();
   const { teams } = useRepositoryState();
   const [name, setName] = useState('');
-  const [teamId, setTeamId] = useState('');
+  // The team page presets its own team (§5.8); a team that is gone or inactive is not chosen for the user.
+  const [picked, setPicked] = useState<string | null>(null);
+  const teamId = picked ?? (teams.some((t) => t.id === presetTeamId && t.active) ? presetTeamId! : '');
   const [draftId] = useState(newId); // kept across retries, so a failed creation is the same file when tried again
   const creating = useRef(false); // set on the first create, so a double click or Enter makes one commit
   const teamTrigger = useRef<HTMLButtonElement>(null);
@@ -76,7 +78,7 @@ export function NewInitiativeDraft() {
           ref={teamTrigger}
           teams={teams}
           value={teamId}
-          onValueChange={setTeamId}
+          onValueChange={setPicked}
           aria-describedby={GUIDANCE_ID}
           className={nextStep === 'team' ? HIGHLIGHT : ''}
         />

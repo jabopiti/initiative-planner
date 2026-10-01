@@ -598,8 +598,10 @@ and either opens the Teams overview. With an active team it reads **New
 initiative** and opens a **draft page**, laid out like the
 initiative's header (§5.4): the name field is the title and is focused, with
 the team selector beside it, a "Draft" chip and the **Create initiative**
-button. The team selector always starts on "Select team", even when only
-one team exists; the tool never chooses a team for the user. The next thing
+button. The team selector always starts on "Select team" when the draft is opened
+from the top bar, even when only one team exists; the tool never chooses a
+team on its own. The one exception is the draft opened from a team's page
+(§5.8), which starts with that team chosen because the user chose it. The next thing
 to fill in is highlighted: the name, then the team, then, once both are
 filled, the Create initiative button, which is disabled until then. A line
 under the header names the next step in text, so the highlight never
@@ -884,7 +886,10 @@ A full page showing all detail information for a team:
   to the person's unclaimed capacity (§5.6).
 - **Initiatives list**: all initiatives belonging to the team, with phase
   and status. Allows starting the creation of a new initiative for this
-  team.
+  team, with the team preset (§5.1): a **New initiative** button in the
+  section header, hidden on an inactive team. With no initiatives the section
+  reads "No initiatives yet — New initiative" (on an inactive team "No
+  initiatives."). Columns Name, Phase and Status, sorted by phase, then name.
 - **Capacity view**: a month-by-month grid from the current month through
   the last month with an allocation. Rows are the team's members, with their
   Team FTE % under the name; each cell shows the member's Allocation % on
