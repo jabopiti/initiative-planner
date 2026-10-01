@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
+import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
 import { roleLabel } from '../data/roleLabel';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
 import { PercentInput } from './PercentInput';
+import { ConflictRow, inRow } from './ConflictBlock';
 import { CopyButton } from './CopyButton';
 import { SortableHeader } from './SortableHeader';
 import { CapacityGrid } from './CapacityGrid';
@@ -22,6 +24,7 @@ export function TeamDetail({ id }: { id: string }) {
   const repository = useRepository();
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
+  const conflict = useFieldConflict();
   const { teams, people, memberships, roles, countries } = useRepositoryState();
   const [query, setQuery] = useState('');
   const [personId, setPersonId] = useState<string | null>(null);
@@ -189,9 +192,10 @@ export function TeamDetail({ id }: { id: string }) {
             <tbody>
               {members.map(({ membership: m, person, roleName }) => {
                 const over = claimedFtePct(person.id, memberships) > person.capacityPct;
+                const fteConflict = conflict(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct']);
                 return (
+                  <Fragment key={m.id}>
                   <tr
-                    key={m.id}
                     className={`cursor-pointer border-b border-border-default ${m.active && person.active ? '' : 'text-text-secondary'}`}
                     onClick={(e) => {
                       // Editing the FTE or using the row actions must not open the drawer.
@@ -213,6 +217,7 @@ export function TeamDetail({ id }: { id: string }) {
                         <PercentInput
                           changed={changed(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
                           failure={failure(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
+                          conflict={inRow(fteConflict)}
                           label={`Team FTE % for ${person.name}`}
                           value={m.teamFtePct}
                           disabled={!m.active || !person.active}
@@ -253,6 +258,8 @@ export function TeamDetail({ id }: { id: string }) {
                       </Button>
                     </td>
                   </tr>
+                  <ConflictRow conflict={fteConflict} label={`Team FTE % for ${person.name}`} colSpan={4} />
+                  </Fragment>
                 );
               })}
             </tbody>

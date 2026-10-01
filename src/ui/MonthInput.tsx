@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FIRST_YEAR, formatMonth, LAST_YEAR, MONTHS, monthKey, parseMonthText } from '../data/dates';
+import type { FieldConflict } from '../state/ConflictUi';
 import type { FieldFailure } from '../state/DataContext';
 import { Button } from '@/components/ui/button';
 import { ChevronLeftIcon, ChevronRightIcon } from './icons';
@@ -18,6 +19,7 @@ export function MonthInput({
   required,
   changed,
   failure = null,
+  conflict = null,
   retryLabel,
   onChange,
 }: {
@@ -29,6 +31,8 @@ export function MonthInput({
   changed?: boolean;
   /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
   failure?: FieldFailure | null;
+  /** A same-field conflict at this field's path (§3, §9.9). */
+  conflict?: FieldConflict | null;
   /** The failed edit's Retry button's accessible name, distinct from every other Retry on screen (§9.5, §9.9). */
   retryLabel?: string;
   onChange: (value: string | undefined) => void;
@@ -47,6 +51,7 @@ export function MonthInput({
       required={required}
       changed={changed}
       failure={failure}
+      conflict={conflict}
       retryLabel={retryLabel}
       widthClassName="w-36"
       format={formatMonth}

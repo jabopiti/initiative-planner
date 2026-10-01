@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { isInitiativeFrozen } from '../data/frozen';
 import { FILE_PATHS } from '../data/types';
+import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { CommitInput } from './CommitInput';
 import { CommitTextarea } from './CommitTextarea';
@@ -20,6 +21,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
   const repository = useRepository();
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
+  const conflict = useFieldConflict();
   const { initiatives, teams } = useRepositoryState();
   const initiative = initiatives.find((i) => i.id === id);
   const team = initiative ? teams.find((t) => t.id === initiative.teamId) : undefined;
@@ -53,6 +55,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
                 aria-label="Initiative name"
                 changed={changed(FILE_PATHS.initiative(initiative.id), ['name'])}
                 failure={failure(FILE_PATHS.initiative(initiative.id), ['name'])}
+                conflict={conflict(FILE_PATHS.initiative(initiative.id), ['name'])}
                 value={initiative.name}
                 onCommit={(text) => repository.renameInitiative(initiative.id, text)}
               />
@@ -63,6 +66,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
               placeholder="Add a description"
               changed={changed(FILE_PATHS.initiative(initiative.id), ['description'])}
               failure={failure(FILE_PATHS.initiative(initiative.id), ['description'])}
+              conflict={conflict(FILE_PATHS.initiative(initiative.id), ['description'])}
               value={initiative.description ?? ''}
               onCommit={(text) => repository.setDescription(initiative.id, text)}
             />

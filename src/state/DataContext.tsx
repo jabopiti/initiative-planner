@@ -71,7 +71,7 @@ export interface FieldFailure {
 
 /**
  * A field's own failed, unsaved edit (§3, §9.9): null once the value at `path` of `file` has nothing failed,
- * or a same-field conflict already owns that path — `ConflictBanner` says so there, so this never says it too.
+ * or a same-field conflict already owns that path — its conflict block says so there, so this never says it too.
  * A function rather than a hook per value, so a row of fields can ask inside a loop, like `useIsChangedByOthers`.
  */
 export function useFieldFailure(): (file: string, path: Path) => FieldFailure | null {

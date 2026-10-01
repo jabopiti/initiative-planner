@@ -1,4 +1,5 @@
 import { parseAmount } from '../data/cost';
+import type { FieldConflict } from '../state/ConflictUi';
 import type { FieldFailure } from '../state/DataContext';
 import { CommitInput } from './CommitInput';
 
@@ -15,6 +16,7 @@ export function AmountInput({
   placeholder,
   changed,
   failure = null,
+  conflict = null,
   refusal = REFUSAL,
   retryLabel,
   className = 'w-28',
@@ -29,6 +31,8 @@ export function AmountInput({
   changed?: boolean;
   /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
   failure?: FieldFailure | null;
+  /** A same-field conflict at this field's path (§3, §9.9). */
+  conflict?: FieldConflict | null;
   /** The refusal for anything but a non-negative number, when the field names what it holds (a day rate). */
   refusal?: string;
   retryLabel?: string;
@@ -43,6 +47,7 @@ export function AmountInput({
       <CommitInput
         changed={changed}
         failure={failure}
+        conflict={conflict}
         type="number"
         inputMode="decimal"
         step="any"

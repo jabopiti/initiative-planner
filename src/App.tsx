@@ -9,6 +9,7 @@ import { ConnectScreen } from './ui/ConnectScreen';
 import { TopBar } from './ui/TopBar';
 import { ReadOnlyBanner } from './ui/ReadOnlyBanner';
 import { ConflictBanner } from './ui/ConflictBanner';
+import { ConflictUiProvider } from './state/ConflictUi';
 import { PortfolioBoard } from './ui/PortfolioBoard';
 import { TeamsOverview } from './ui/TeamsOverview';
 import { InitiativeDetail } from './ui/InitiativeDetail';
@@ -58,10 +59,12 @@ function MainApp({ token }: { token: string }) {
   return (
     <RepositoryProvider token={token} keepTrackedYears>
       <NeedsAttentionProvider>
-        <TopBar route={route} />
-        <ReadOnlyBanner />
-        <ConflictBanner />
-        <Screen route={route} />
+        <ConflictUiProvider>
+          <TopBar route={route} />
+          <ReadOnlyBanner />
+          <ConflictBanner />
+          <Screen route={route} />
+        </ConflictUiProvider>
       </NeedsAttentionProvider>
     </RepositoryProvider>
   );
