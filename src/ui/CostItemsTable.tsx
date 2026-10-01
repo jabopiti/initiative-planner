@@ -239,7 +239,6 @@ function DraftRow({
   const [refused, setRefused] = useState<{ label?: string; amount?: string; month?: string }>({});
   const labelErrorId = useId();
   const amountErrorId = useId();
-  const monthErrorId = useId();
 
   const add = () => {
     const parsed = parseAmount(amount);
@@ -315,7 +314,7 @@ function DraftRow({
                 setRefused((current) => ({ ...current, month: undefined }));
               }}
             />
-            {refused.month && <Refusal id={monthErrorId}>{refused.month}</Refusal>}
+            {refused.month && <Refusal>{refused.month}</Refusal>}
           </div>
         )}
       </div>
