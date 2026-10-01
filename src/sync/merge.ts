@@ -121,11 +121,17 @@ export function mergeDocument<D>(base: D, mine: D, theirs: D, options: MergeOpti
   function merge(path: Path, b: unknown, m: unknown, t: unknown): unknown {
     const key = pathKey(path);
     // A frozen snapshot is never merged: it stays as it was frozen, whatever either side holds.
-    // Frozen before both edits, it keeps the base; frozen by one side's edit (a gate passed), that side's.
-    // Removed whole on one side (a gate reopened, §8.3) and untouched on the other, the removal wins.
-    if (frozen.base.has(key) && sameValue(t, b) && m === undefined && !frozen.mine.has(key)) return undefined;
-    if (frozen.theirs.has(key)) return frozen.base.has(key) ? b : t;
-    if (frozen.mine.has(key)) return frozen.base.has(key) ? t : m;
+    // Frozen before both edits, it keeps the base, unless one side unfroze it (a gate reopened, §8.3) and the
+    // other left it as it was: then the unfreezing side's value wins whole. Frozen by one side's edit (a gate
+    // passed), that side's. Unfrozen on both sides, it merges like anything else.
+    if (frozen.base.has(key)) {
+      const mineHolds = frozen.mine.has(key);
+      const theirsHold = frozen.theirs.has(key);
+      if (!mineHolds && sameValue(t, b)) return m;
+      if (!theirsHold && sameValue(m, b)) return t;
+      if (mineHolds || theirsHold) return b;
+    } else if (frozen.theirs.has(key)) return t;
+    else if (frozen.mine.has(key)) return m;
 
     // A whole subtree changed on one side only is taken as is, unless a frozen path lies inside it.
     const settled = oneSided(b, m, t);
