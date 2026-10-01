@@ -739,6 +739,10 @@ export class Repository {
   private readonly onConflict = (conflict: FileConflict): void =>
     this.setState({ conflicts: [...this.state.conflicts, conflict] });
 
+  /** A conflict that closed without a choice: a pull settled it, or a new edit to its field replaced it (§3). */
+  private readonly onConflictClosed = (conflict: FileConflict): void =>
+    this.setState({ conflicts: this.state.conflicts.filter((c) => c !== conflict) });
+
   /** The writer of one master file (§10.2): a list of records, or `dataset.json`'s one record, which merges by field. */
   private createWriter<D>(
     path: string,
@@ -759,6 +763,7 @@ export class Repository {
       initial,
       onStatus: this.statusOf(path),
       onConflict: this.onConflict,
+      onConflictClosed: this.onConflictClosed,
       onDocument: (content) => this.setState({ [key]: content } as Partial<RepositoryState>),
     });
   }
@@ -779,6 +784,7 @@ export class Repository {
       creationFailure: 'Could not create the initiative.',
       onStatus: this.statusOf(path),
       onConflict: this.onConflict,
+      onConflictClosed: this.onConflictClosed,
       onDocument: (doc) => this.replaceInitiative(doc),
     });
     this.initiativeWriters.set(initiative.id, writer);

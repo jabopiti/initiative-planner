@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import type { FieldConflict } from '../state/ConflictUi';
 import { useHoldWhileEditing, type FieldFailure } from '../state/DataContext';
+import { ConflictBlock } from './ConflictBlock';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 import { FailedEdit } from './CommitInput';
@@ -29,9 +31,12 @@ export function PopoverTextField({
   pickerFocus,
   pickerClassName = 'w-auto p-0',
   failure = null,
+  conflict = null,
   retryLabel,
   children,
 }: {
+  /** A same-field conflict at this field's path (§3, §9.9): shown under it, or in its table's row when `inRow`. */
+  conflict?: FieldConflict | null;
   value: string | undefined;
   label: string;
   placeholder: string;
@@ -111,7 +116,7 @@ export function PopoverTextField({
               className={`w-full pr-9 transition-colors duration-500 ${highlight ? 'border-brand-accent bg-brand-accent-tint' : changed ? 'bg-met-tint' : ''}`}
               aria-label={label}
               aria-invalid={unreadable || undefined}
-              aria-describedby={unreadable ? errorId : showFailure !== null ? failureId : undefined}
+              aria-describedby={unreadable ? errorId : showFailure !== null ? failureId : conflict?.id}
               placeholder={placeholder}
               value={draft}
               onClick={openPicker}
@@ -181,6 +186,7 @@ export function PopoverTextField({
         </p>
       )}
       {showFailure && <FailedEdit id={failureId} failure={showFailure} retryLabel={retryLabel ?? `Retry saving ${label}`} />}
+      {conflict && !conflict.inRow && <ConflictBlock conflict={conflict} label={label} />}
     </div>
   );
 }

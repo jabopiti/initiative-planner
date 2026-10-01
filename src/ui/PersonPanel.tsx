@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
 import { joinableTeams } from '../data/teamMembers';
@@ -41,6 +42,7 @@ function PersonDetails({ person }: { person: Person }) {
   const repository = useRepository();
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
+  const conflict = useFieldConflict();
   const { roles, countries, teams, memberships } = useRepositoryState();
   const customRole = person.customRole;
   const customActive = customRole?.active === true;
@@ -74,6 +76,8 @@ function PersonDetails({ person }: { person: Person }) {
             id="person-name"
             changed={changed(FILE_PATHS.people, [{ id: person.id }, 'name'])}
             failure={failure(FILE_PATHS.people, [{ id: person.id }, 'name'])}
+            conflict={conflict(FILE_PATHS.people, [{ id: person.id }, 'name'])}
+            conflictLabel="Name"
             retryLabel="Retry saving Name"
             value={person.name}
             onCommit={(text) => {
@@ -141,6 +145,7 @@ function PersonDetails({ person }: { person: Person }) {
             label="Capacity %"
             changed={changed(FILE_PATHS.people, [{ id: person.id }, 'capacityPct'])}
             failure={failure(FILE_PATHS.people, [{ id: person.id }, 'capacityPct'])}
+            conflict={conflict(FILE_PATHS.people, [{ id: person.id }, 'capacityPct'])}
             value={person.capacityPct}
             onChange={(capacityPct) => repository.updatePerson(person.id, { capacityPct })}
           />
@@ -176,6 +181,7 @@ function PersonDetails({ person }: { person: Person }) {
                 flat
                 changed={changed(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
                 failure={failure(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
+                conflict={conflict(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
                 label={`Team FTE % for ${team?.name ?? 'team'}`}
                 value={m.teamFtePct}
                 max={max}

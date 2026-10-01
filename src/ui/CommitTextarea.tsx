@@ -1,4 +1,5 @@
 import type { ComponentProps } from 'react';
+import type { FieldConflict } from '../state/ConflictUi';
 import type { FieldFailure } from '../state/DataContext';
 import { CommitFieldMessages } from './CommitInput';
 import { useCommitField } from './commitField';
@@ -16,6 +17,7 @@ export function CommitTextarea({
   errorClassName = '',
   changed = false,
   failure = null,
+  conflict = null,
   retryLabel,
   className,
   ...props
@@ -30,6 +32,8 @@ export function CommitTextarea({
   failure?: FieldFailure | null;
   /** The failed edit's Retry button's accessible name, distinct from every other Retry on screen (§9.5, §9.9). */
   retryLabel?: string;
+  /** A same-field conflict at this field's path (§3, §9.9), shown under it. */
+  conflict?: FieldConflict | null;
 }) {
   const { draft, setDraft, error, errorId, failureId, commit, cancel } = useCommitField(value, onCommit);
 
@@ -44,7 +48,7 @@ export function CommitTextarea({
         className={`resize-none overflow-hidden transition-colors duration-500 ${className ?? ''} ${changed ? 'bg-met-tint' : ''}`}
         value={draft}
         aria-invalid={error ? true : props['aria-invalid']}
-        aria-describedby={error ? errorId : showFailure !== null ? failureId : props['aria-describedby']}
+        aria-describedby={error ? errorId : showFailure !== null ? failureId : (conflict?.id ?? props['aria-describedby'])}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onPaste={(e) => {
@@ -72,6 +76,8 @@ export function CommitTextarea({
         failureId={failureId}
         errorClassName={errorClassName}
         retryLabel={retryLabel ?? `Retry saving ${props['aria-label'] ?? 'this field'}`}
+        conflict={conflict}
+        label={props['aria-label'] ?? 'this field'}
       />
     </>
   );

@@ -1,9 +1,11 @@
-import { useId, useMemo, useState } from 'react';
+import { Fragment, useId, useMemo, useState } from 'react';
+import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { parseAmount } from '../data/cost';
 import { initiativesAffectedByRole } from '../data/roleImpact';
 import { FILE_PATHS } from '../data/types';
 import { CommitInput } from './CommitInput';
+import { ConflictRow, inRow } from './ConflictBlock';
 import { DraftField } from './DraftField';
 import { initiativeCount } from './impactNote';
 import { DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
@@ -26,6 +28,7 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
   const { roles, initiatives, people } = useRepositoryState();
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
+  const conflict = useFieldConflict();
   const [drafting, setDrafting] = useState(false);
   // Locking closes an unsaved new role: nothing is added while the section is locked.
   if (drafting && lock.locked) setDrafting(false);
@@ -60,8 +63,14 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
           {sorted.map((role) => {
             const roleChanged = (field: string) => changed(FILE_PATHS.roles, [{ id: role.id }, field]);
             const roleFailure = (field: string) => failure(FILE_PATHS.roles, [{ id: role.id }, field]);
+            const conflicts = {
+              name: conflict(FILE_PATHS.roles, [{ id: role.id }, 'name']),
+              abbreviation: conflict(FILE_PATHS.roles, [{ id: role.id }, 'abbreviation']),
+              costFactor: conflict(FILE_PATHS.roles, [{ id: role.id }, 'costFactor']),
+            };
             return (
-              <tr key={role.id} className={`border-t border-border-default align-top ${role.active ? '' : 'text-text-secondary'}`}>
+              <Fragment key={role.id}>
+              <tr className={`border-t border-border-default align-top ${role.active ? '' : 'text-text-secondary'}`}>
                 <td className="py-1.5 pr-2">
                   <CommitInput
                     aria-label={`Name of ${role.name}`}
@@ -70,6 +79,7 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                     value={role.name}
                     changed={roleChanged('name')}
                     failure={roleFailure('name')}
+                    conflict={inRow(conflicts.name)}
                     retryLabel={`Retry saving the name of ${role.name}`}
                     onCommit={(text) => {
                       const name = text.trim();
@@ -87,6 +97,7 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                     value={role.abbreviation}
                     changed={roleChanged('abbreviation')}
                     failure={roleFailure('abbreviation')}
+                    conflict={inRow(conflicts.abbreviation)}
                     retryLabel={`Retry saving the abbreviation of ${role.name}`}
                     onCommit={(text) => {
                       const abbreviation = text.trim();
@@ -109,6 +120,7 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                     value={String(role.costFactor)}
                     changed={roleChanged('costFactor')}
                     failure={roleFailure('costFactor')}
+                    conflict={inRow(conflicts.costFactor)}
                     retryLabel={`Retry saving the cost factor for ${role.name}`}
                     onCommit={(text) => {
                       const costFactor = parseCostFactor(text);
@@ -136,6 +148,10 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                   </Button>
                 </td>
               </tr>
+              <ConflictRow conflict={conflicts.name} label={`Name of ${role.name}`} colSpan={4} />
+              <ConflictRow conflict={conflicts.abbreviation} label={`Abbreviation of ${role.name}`} colSpan={4} />
+              <ConflictRow conflict={conflicts.costFactor} label={`Cost factor for ${role.name}`} colSpan={4} />
+              </Fragment>
             );
           })}
         </tbody>

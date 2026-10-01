@@ -1,11 +1,13 @@
-import { useId, useState } from 'react';
+import { Fragment, useId, useState } from 'react';
 import { useBrand } from '../state/BrandContext';
+import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { isOutsidePeriod, parseAmount, periodMonths } from '../data/cost';
 import { formatMonth, localToday, monthOf } from '../data/dates';
 import { FILE_PATHS, type CostItem, type PhasePlan } from '../data/types';
 import { CommitInput, Refusal } from './CommitInput';
+import { ConflictRow, inRow } from './ConflictBlock';
 import { InlineWarning } from './InlineWarning';
 import { MonthInput } from './MonthInput';
 import { PlusIcon, RemoveIcon } from './icons';
@@ -46,6 +48,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
   const repository = useRepository();
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
+  const conflict = useFieldConflict();
   const { currencySymbol } = useBrand();
   const file = FILE_PATHS.initiative(initiativeId);
   const items = plan.costItems ?? [];
@@ -78,8 +81,14 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
               // Position, not the item's own (freely re-typed, possibly duplicate) label: two cost items named
               // alike must still get their own Retry, distinguishable to a screen reader (§9.5, §9.9).
               const itemRetryLabel = (field: string) => `Retry saving the ${field} of cost item ${index + 1}`;
+              const conflicts = {
+                label: conflict(file, ['phases', phase.id, 'costItems', { id: item.id }, 'label']),
+                amount: conflict(file, ['phases', phase.id, 'costItems', { id: item.id }, 'amount']),
+                month: conflict(file, ['phases', phase.id, 'costItems', { id: item.id }, 'month']),
+              };
               return (
-                <tr key={item.id} className="border-t border-border-default align-top">
+                <Fragment key={item.id}>
+                <tr className="border-t border-border-default align-top">
                   <td className="py-1.5 pr-2">
                     <CommitInput
                       aria-label={`Label of ${item.label}`}
@@ -87,6 +96,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                       value={item.label}
                       changed={itemChanged('label')}
                       failure={itemFailure('label')}
+                      conflict={inRow(conflicts.label)}
                       retryLabel={itemRetryLabel('label')}
                       onCommit={(text) => {
                         const label = text.trim();
@@ -113,6 +123,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                         value={String(item.amount)}
                         changed={itemChanged('amount')}
                         failure={itemFailure('amount')}
+                        conflict={inRow(conflicts.amount)}
                         retryLabel={itemRetryLabel('amount')}
                         onCommit={(text) => {
                           const amount = parseAmount(text);
@@ -139,6 +150,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                           value={item.month}
                           changed={itemChanged('month')}
                           failure={itemFailure('month')}
+                          conflict={inRow(conflicts.month)}
                           retryLabel={itemRetryLabel('month')}
                           onChange={(month) => month && repository.updateCostItem(initiativeId, phase.id, item.id, { month })}
                         />
@@ -161,6 +173,10 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                     </Button>
                   </td>
                 </tr>
+                <ConflictRow conflict={conflicts.label} label={`Label of ${item.label}`} colSpan={4} />
+                <ConflictRow conflict={conflicts.amount} label={`Amount for ${item.label}`} colSpan={4} />
+                <ConflictRow conflict={conflicts.month} label={`Month for ${item.label}`} colSpan={4} />
+                </Fragment>
               );
             })}
           </tbody>

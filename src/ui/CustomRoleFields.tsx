@@ -2,9 +2,11 @@ import { parseAmount, trackedYears, yearRecord } from '../data/cost';
 import type { CustomRole, Person } from '../data/types';
 import { FILE_PATHS } from '../data/types';
 import { useBrand } from '../state/BrandContext';
+import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { Label } from '@/components/ui/label';
 import { CommitInput } from './CommitInput';
+import { ConflictBlock } from './ConflictBlock';
 import { InlineWarning } from './InlineWarning';
 
 /**
@@ -15,7 +17,10 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
   const repository = useRepository();
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
+  const conflict = useFieldConflict();
   const customPath = (field: string) => [{ id: person.id }, 'customRole', field];
+  // The year rates merge as one value, so one block covers them all (§3, §9.9).
+  const ratesConflict = conflict(FILE_PATHS.people, customPath('dayRatesByYear'));
   const { currencySymbol } = useBrand();
   const save = (patch: Partial<CustomRole>) => repository.updatePerson(person.id, { customRole: { ...customRole, ...patch } });
 
@@ -42,6 +47,8 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
           id="person-custom-label"
           changed={changed(FILE_PATHS.people, customPath('label'))}
           failure={failure(FILE_PATHS.people, customPath('label'))}
+          conflict={conflict(FILE_PATHS.people, customPath('label'))}
+          conflictLabel="Custom role label"
           retryLabel="Retry saving Custom role label"
           placeholder="e.g. Fractional CTO"
           value={customRole.label}
@@ -58,6 +65,8 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
           id="person-custom-factor"
           changed={changed(FILE_PATHS.people, customPath('costFactor'))}
           failure={failure(FILE_PATHS.people, customPath('costFactor'))}
+          conflict={conflict(FILE_PATHS.people, customPath('costFactor'))}
+          conflictLabel="Cost factor"
           retryLabel="Retry saving Cost factor"
           type="number"
           step="any"
@@ -74,6 +83,7 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
 
       <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0">
         <legend className="mb-1 p-0 text-sm font-medium">Day rate per year</legend>
+        {ratesConflict && <ConflictBlock className="mb-1" conflict={ratesConflict} label="Day rate per year" />}
         {rows.map((year) => {
           const entered = customRole.dayRatesByYear.find((r) => r.year === year);
           const inherited = entered ? undefined : yearRecord(customRole.dayRatesByYear, year);

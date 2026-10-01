@@ -1,7 +1,7 @@
 import type { FileCache } from '../cache/db';
 import type { GithubClient } from '../github/client';
 import { GithubApiError, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { changedPaths, pathKey, sameValue, setAtPath, type DocumentMerge, type MergeConflict, type Path } from './merge';
+import { changedPaths, getAtPath, pathKey, sameValue, setAtPath, type DocumentMerge, type MergeConflict, type Path } from './merge';
 import type { WriteQueue } from './WriteQueue';
 
 const COMMIT_DEBOUNCE_MS = 1000;
@@ -75,6 +75,8 @@ export interface FileWriterOptions<D> {
   random?: () => number;
   onStatus: (status: WriteStatus) => void;
   onConflict: (conflict: FileConflict) => void;
+  /** A conflict closed without a choice (§3): a pull settled it or replaced its "theirs", or a new edit replaced it. */
+  onConflictClosed?: (conflict: FileConflict) => void;
   /** The document on screen should now be this one: a save landed, or a merge brought in the other writer's changes. */
   onDocument: (doc: D) => void;
 }
@@ -100,6 +102,8 @@ export class FileWriter<D> {
   private readonly notes = new Map<string, CommitNote>();
   /** Words added verbatim to the message, such as a conflict's outcome. */
   private readonly extras = new Map<string, string>();
+  /** Words in brackets at the end of the message, such as "conflict: replaced". */
+  private readonly suffixes = new Set<string>();
   /** An edit with a note was made since the last save, even if its note has cancelled out. */
   private noted = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -126,6 +130,7 @@ export class FileWriter<D> {
    * in plain words naming the entity (§10.3); edits within one window are combined into their net effect.
    */
   schedule(next: D, note?: CommitNote): void {
+    this.replaceConflicts(next);
     this.screen = next;
     this.pending = next;
     this.clearFailure();
@@ -204,6 +209,10 @@ export class FileWriter<D> {
    * save failed: `writer`, the writer's next save re-reads the file and merges it, so a pull has nothing to retry.
    */
   receive(file: SyncedFile<D>, replaces: string | null): Received {
+    if (this.openConflicts.length > 0 && this.failedCause === null && this.pending === null && this.timer === null && this.waiting === 0 && !this.saving) {
+      if ((this.synced?.sha ?? null) !== replaces) return { left: 'retry' };
+      return this.receiveWithConflicts(file);
+    }
     if (this.openConflicts.length > 0 || this.failedCause !== null) return { left: 'writer' };
     if (this.saving || (this.synced?.sha ?? null) !== replaces) return { left: 'retry' };
     const before = this.screen;
@@ -222,6 +231,52 @@ export class FileWriter<D> {
     return { changed: changedPaths(before, next) };
   }
 
+  /**
+   * A pull while a choice is open (§3): merged against the screen with each open conflict's own sides, so a
+   * conflict the repository now settles (it holds mine, or theirs went back to the base) closes, one whose
+   * "theirs" moved on is raised again with the newer value, and the rest of the pull shows. Once none is open,
+   * anything of the user's that the repository does not hold yet is saved.
+   */
+  private receiveWithConflicts(file: SyncedFile<D>): Received {
+    const before = this.screen as D;
+    const open = this.openConflicts;
+    let base = this.synced?.content ?? file.content;
+    let mine = before;
+    for (const c of open) {
+      base = setAtPath(base, c.path, c.base);
+      mine = setAtPath(mine, c.path, c.mine);
+    }
+    const message = this.commitMessage();
+    const outcome = this.options.merge(base, mine, file.content);
+    const still = (c: FileConflict) =>
+      outcome.conflicts.some((n) => pathKey(n.path) === pathKey(c.path) && sameValue(n.mine, c.mine) && sameValue(n.theirs, c.theirs));
+    const closing = open.filter((c) => !still(c));
+    this.openConflicts = open.filter(still);
+    for (const c of closing) this.options.onConflictClosed?.(c);
+    this.raise(outcome.conflicts, message);
+    this.synced = file;
+    this.screen = outcome.merged;
+    this.options.onDocument(outcome.merged);
+    if (this.openConflicts.length === 0 && !sameValue(outcome.merged, file.content)) {
+      this.pending = outcome.merged;
+      for (const c of closing) this.extras.set(`conflict:${pathKey(c.path)}`, message);
+      this.options.onStatus('syncing');
+      void this.flush();
+    }
+    return { changed: changedPaths(before, outcome.merged) };
+  }
+
+  /** A new edit that changes a field with an open conflict is the user's answer to it (§3): the conflict closes. */
+  private replaceConflicts(next: D): void {
+    if (this.screen === null) return;
+    const screen = this.screen;
+    const replaced = this.openConflicts.filter((c) => !sameValue(getAtPath(next, c.path), getAtPath(screen, c.path)));
+    if (replaced.length === 0) return;
+    this.openConflicts = this.openConflicts.filter((c) => !replaced.includes(c));
+    this.suffixes.add('conflict: replaced');
+    for (const c of replaced) this.options.onConflictClosed?.(c);
+  }
+
   private note(note: CommitNote): void {
     const key = `${note.entity.kind}/${note.entity.id}/${note.field}`;
     const from = this.notes.has(key) ? (this.notes.get(key) as CommitNote).from : note.from;
@@ -233,7 +288,8 @@ export class FileWriter<D> {
   /** The net effect of the edits since the last save, in plain words; null when none remains. */
   private describe(): string | null {
     const parts = [...[...this.notes.values()].map((n) => n.words(n.from, n.to)), ...this.extras.values()];
-    return parts.length > 0 ? parts.join('; ') : null;
+    if (parts.length === 0) return null;
+    return this.suffixes.size > 0 ? `${parts.join('; ')} (${[...this.suffixes].join('; ')})` : parts.join('; ');
   }
 
   private commitMessage(): string {
@@ -252,6 +308,7 @@ export class FileWriter<D> {
     const cancelled = this.noted && this.describe() === null && this.synced !== null && sameValue(mine, this.synced.content);
     this.notes.clear();
     this.extras.clear();
+    this.suffixes.clear();
     this.noted = false;
     if (cancelled) {
       // The edits undid each other, nothing changed, so nothing to commit (§10.3).
@@ -281,6 +338,7 @@ export class FileWriter<D> {
           message = [message, this.describe()].filter(Boolean).join('; ');
           this.notes.clear();
           this.extras.clear();
+          this.suffixes.clear();
           this.noted = false;
         }
       }

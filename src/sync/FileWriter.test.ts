@@ -30,6 +30,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
   let github: GithubClient;
   let statuses: WriteStatus[];
   let conflicts: FileConflict[];
+  let closed: FileConflict[];
   let committed: Team[][];
 
   beforeEach(() => {
@@ -38,6 +39,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
     github = new GithubClient(location, () => 'token');
     statuses = [];
     conflicts = [];
+    closed = [];
     committed = [];
   });
 
@@ -57,6 +59,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
       initial,
       onStatus: (s) => statuses.push(s),
       onConflict: (c) => conflicts.push(c),
+      onConflictClosed: (c) => closed.push(c),
       onDocument: (content) => committed.push(content),
     });
   }
@@ -480,6 +483,95 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
       writer.schedule([team('C'), { id: 't2', name: 'Growth', active: true }], note(team('B'), team('C')));
       await writer.flush();
       expect(sentMessages()).toEqual(['A renamed to C; Growth added']);
+    });
+  });
+
+  describe('slice 035: an open conflict settled by a pull or replaced by a new edit (§3)', () => {
+    const team = (name: string, active = true): Team => ({ id: 't1', name, active });
+    const puts = () => fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
+    const sent = (n: number) => JSON.parse((puts()[n][1] as RequestInit).body as string) as { content: string; sha: string; message: string };
+
+    /** Base "Original", mine "My Rename", theirs "Their Rename" at sha s1: one open conflict on the name. */
+    async function withConflict() {
+      const writer = makeWriter({ content: [team('Original')], sha: 's0' });
+      writer.schedule([team('My Rename')], {
+        entity: { kind: 'team', id: 't1' },
+        field: 'name',
+        from: 'Original',
+        to: 'My Rename',
+        words: (f, t) => `${String(f)} renamed to ${String(t)}`,
+      });
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({ message: 'Conflict' }, 409))
+        .mockResolvedValueOnce(jsonResponse({ content: btoa(JSON.stringify([team('Their Rename')])), sha: 's1' }));
+      await writer.flush();
+      expect(conflicts).toHaveLength(1);
+      return writer;
+    }
+
+    it('closes the conflict when a pull brings in the user\'s own value, with nothing to write', async () => {
+      const writer = await withConflict();
+      writer.receive({ content: [team('My Rename')], sha: 's2' }, 's1');
+      await writer.flush();
+      expect(closed).toEqual([conflicts[0]]);
+      expect(puts()).toHaveLength(1);
+      expect(committed.at(-1)).toEqual([team('My Rename')]);
+    });
+
+    it('shows a newer "theirs" when a pull brings in yet another value', async () => {
+      const writer = await withConflict();
+      writer.receive({ content: [team('Third')], sha: 's2' }, 's1');
+      expect(closed).toEqual([conflicts[0]]);
+      expect(conflicts).toHaveLength(2);
+      expect(conflicts[1]).toMatchObject({ path: [{ id: 't1' }, 'name'], mine: 'My Rename', theirs: 'Third' });
+      // Resolving the newer one writes against the pulled version.
+      fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's3' } }));
+      await conflicts[1].resolve('mine');
+      expect(sent(1).sha).toBe('s2');
+    });
+
+    it('saves mine once a pull puts the other user\'s value back to the base', async () => {
+      const writer = await withConflict();
+      fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's3' } }));
+      writer.receive({ content: [team('Original')], sha: 's2' }, 's1');
+      await writer.flush();
+      expect(closed).toEqual([conflicts[0]]);
+      expect(puts()).toHaveLength(2);
+      expect(sent(1).sha).toBe('s2');
+      expect((JSON.parse(atob(sent(1).content)) as Team[])[0].name).toBe('My Rename');
+    });
+
+    it('keeps the conflict open while a pull changes only another field, and shows that change', async () => {
+      const writer = await withConflict();
+      writer.receive({ content: [team('Their Rename', false)], sha: 's2' }, 's1');
+      expect(closed).toEqual([]);
+      expect(conflicts).toHaveLength(1);
+      expect(committed.at(-1)).toEqual([team('Their Rename', false)]);
+    });
+
+    it('settles the conflict with a newly typed value, the message ending "(conflict: replaced)"', async () => {
+      const writer = await withConflict();
+      fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
+      writer.schedule([team('Typed Anew')], {
+        entity: { kind: 'team', id: 't1' },
+        field: 'name',
+        from: 'Their Rename',
+        to: 'Typed Anew',
+        words: (f, t) => `${String(f)} renamed to ${String(t)}`,
+      });
+      expect(closed).toEqual([conflicts[0]]);
+      await writer.flush();
+      expect(sent(1).sha).toBe('s1');
+      expect(sent(1).message).toBe('Their Rename renamed to Typed Anew (conflict: replaced)');
+    });
+
+    it('leaves an open conflict alone when an edit changes another field of the file', async () => {
+      const writer = await withConflict();
+      fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's2' } }));
+      writer.schedule([team('Their Rename', false)]);
+      expect(closed).toEqual([]);
+      await writer.flush();
+      expect(sent(1).message).not.toContain('conflict');
     });
   });
 });

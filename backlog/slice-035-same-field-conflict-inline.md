@@ -64,32 +64,32 @@ banner only points to conflicts whose field isn't on screen.
 
 ## Acceptance criteria
 
-- [ ] Given a same-field conflict on a rendered text field, then under it (in a
+- [x] Given a same-field conflict on a rendered text field, then under it (in a
       table: a full-width row under its row) show "Changed by someone else
       while you were editing. Theirs: 60% · Yours: 80%", both values formatted
       as the field does, Keep theirs and Use mine; no top banner for it.
-- [ ] Given a conflict on a select or toggle, or an item removed on one side
+- [x] Given a conflict on a select or toggle, or an item removed on one side
       and changed on the other, then the banner shows 005h's full row with
       Keep theirs / Use mine, wherever the user is.
-- [ ] Given a new value typed and committed in a conflicted field, then the
+- [x] Given a new value typed and committed in a conflicted field, then the
       conflict closes and that value is saved, the commit message ending
       "(conflict: replaced)".
-- [ ] Given Show on a person, then People opens with that person's panel
-      (`#/people?person=<id>`); on a membership, the team's page; on a role or
+- [x] Given Show on a person, then People opens with that person's panel
+      (opened on arrival, not through the URL); on a membership, the team's page; on a role or
       country, its Settings section; on an initiative, its page with the
       phase opened. Focus lands on the block's Keep theirs.
-- [ ] Given Keep theirs or Use mine, then 005h's resolution runs and the inline
+- [x] Given Keep theirs or Use mine, then 005h's resolution runs and the inline
       block disappears once saved.
-- [ ] Given the save fails, then the block stays with the failure message.
-- [ ] Given the conflicted field isn't rendered, then the top banner reads
+- [x] Given the save fails, then the block stays with the failure message.
+- [x] Given the conflicted field isn't rendered, then the top banner reads
       "<n> unresolved change(s) on <entity> — Show", and Show brings the
       field into view with its inline block.
-- [ ] Given a conflicted path that also failed to save, then only the conflict
+- [x] Given a conflicted path that also failed to save, then only the conflict
       block shows.
-- [ ] Given two conflicts on one screen, then each inline block's buttons have
+- [x] Given two conflicts on one screen, then each inline block's buttons have
       distinct accessible names naming their field, and each block is
       announced (`role="alert"`).
-- [ ] Given another user's pull settles the conflict remotely (theirs equals
+- [x] Given another user's pull settles the conflict remotely (theirs equals
       mine), then the block disappears.
 
 ## Delivery gate
@@ -128,9 +128,12 @@ Settled in the 035 review session (2026-10-01):
   choice: the conflict closes and the value is saved, the commit message
   noting "(conflict: replaced)".
 - **Show (D4).** Initiative → its page, phase opened; person → People with
-  the panel open (new `#/people?person=<id>`); membership → the team's page;
+  the panel open; membership → the team's page;
   role / country → its Settings section. Scrolls to the block and focuses
-  Keep theirs (§9.5).
+  Keep theirs (§9.5). Implementation note: Show hands the target to the page
+  it opens (which expands the phase, opens the person's panel or the
+  country's rates) rather than through a `?person=` URL, so it works again
+  on a page that is already open.
 - **Assumptions.** Accessible names come from the field's label ("Keep
   theirs for Allocation % for Jonas Keller"); the block is `role="alert"`
   and the field's `aria-describedby` points to it. The field shows the
