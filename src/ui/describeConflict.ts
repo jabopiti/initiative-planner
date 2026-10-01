@@ -180,6 +180,20 @@ const masterFiles: Record<string, MasterFile> = {
       active: statusField,
     }),
   },
+  [FILE_PATHS.countries]: {
+    list: (ctx) => ctx.countries,
+    entity: (country) => (country as Country | undefined)?.name ?? 'A country',
+    fields: (ctx) => ({
+      '': { label: 'Country', format: (c) => (c as Country).name, unset: 'removed' },
+      name: nameField,
+      active: statusField,
+      // The year entries have no ids, so they merge as one value (§5.9 review): the conflict names the rates as a whole.
+      ratesByYear: {
+        label: 'Rates',
+        format: (rates) => (rates as Country['ratesByYear']).map((r) => `${r.year}: ${formatAmount(r.dayRate, ctx.currencySymbol)}`).join(', ') || 'none',
+      },
+    }),
+  },
   [FILE_PATHS.memberships]: {
     list: (ctx) => ctx.memberships,
     entity: (membership, ctx) => {

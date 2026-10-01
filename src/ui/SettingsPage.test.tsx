@@ -47,7 +47,7 @@ describe('SettingsPage section list (§5.9)', () => {
   it('lists the built sections in order and marks the current one', async () => {
     renderSettings('roles');
     expect(await screen.findByRole('heading', { name: 'Roles', level: 2 })).toBeInTheDocument();
-    expect(screen.getAllByRole('link').map((l) => l.textContent)).toEqual(['Roles', 'Process', 'Connection', 'About']);
+    expect(screen.getAllByRole('link').map((l) => l.textContent)).toEqual(['Roles', 'Countries & rates', 'Process', 'Connection', 'About']);
     expect(screen.getByRole('link', { name: 'Roles' })).toHaveAttribute('aria-current', 'page');
   });
 
@@ -61,7 +61,7 @@ describe('SettingsPage section list (§5.9)', () => {
   });
 
   it('an unknown section in the URL shows Roles', async () => {
-    renderSettings('countries');
+    renderSettings('danger-zone');
     expect(await screen.findByRole('heading', { name: 'Roles', level: 2 })).toBeInTheDocument();
   });
 });

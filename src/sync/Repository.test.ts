@@ -411,6 +411,129 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
 });
 
 
+describe('Repository — countries and rates (§5.9, §7.2)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const bodiesFor = (mock: ReturnType<typeof routingFetchMock>, file: string) =>
+    mock.mock.calls
+      .filter(([url, init]) => (init as RequestInit)?.method === 'PUT' && (url as string).endsWith(`/contents/${file}`))
+      .map(([, init]) => JSON.parse((init as RequestInit).body as string) as { message: string; content: string });
+  const messagesFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => bodiesFor(mock, file).map((b) => b.message);
+  const saved = <T,>(body: { content: string }): T => JSON.parse(atob(body.content)) as T;
+  const okPut = () => jsonResponse({ content: { sha: 'next-sha' } });
+
+  async function open(overrides: Record<string, (url: string, init?: RequestInit) => Response> = {}) {
+    const mock = routingFetchMock({
+      'PUT /repos/jabopiti/initiative-planner/contents/countries.json': okPut,
+      'PUT /repos/jabopiti/initiative-planner/contents/dataset.json': okPut,
+      'PUT /repos/jabopiti/initiative-planner/contents/people.json': okPut,
+      ...overrides,
+    });
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    return { mock, repo };
+  }
+
+  it('adds a country with its day rate for every tracked year and weekday working days', async () => {
+    const { mock, repo } = await open();
+    const portugal = repo.createCountry({ name: 'Portugal', dayRate: 600 }, new Date(2026, 8, 30));
+    await repo.flushPending();
+
+    expect(portugal.ratesByYear.map((r) => [r.year, r.dayRate])).toEqual([
+      [2026, 600],
+      [2027, 600],
+      [2028, 600],
+    ]);
+    expect(portugal.ratesByYear[1].workingDaysByMonth[2]).toBe(23);
+    expect(messagesFor(mock, 'countries.json')).toEqual(['Countries: Portugal added']);
+    // Adding a country is not a rate edit: Review rates stays until one is made or confirmed (§5.2).
+    expect(messagesFor(mock, 'dataset.json')).toEqual([]);
+  });
+
+  it('names each rate edit, and the first one marks the rates reviewed in its own commit', async () => {
+    const { mock, repo } = await open();
+    const germany = repo.createCountry({ name: 'Germany', dayRate: 1000 }, new Date(2026, 8, 30));
+    await repo.flushPending();
+    repo.setCountryDayRate(germany.id, 2027, 740);
+    await repo.flushPending();
+    repo.setCountryWorkingDays(germany.id, 2027, 3, 19);
+    await repo.flushPending();
+    repo.resetCountryWorkingDays(germany.id, 2027);
+    await repo.flushPending();
+    repo.updateCountry(germany.id, { name: 'Deutschland' });
+    await repo.flushPending();
+    repo.updateCountry(germany.id, { active: false });
+    await repo.flushPending();
+
+    expect(messagesFor(mock, 'countries.json')).toEqual([
+      'Countries: Germany added',
+      'Germany: 2027 day rate set to €740',
+      'Germany: working days in Apr 2027 set to 19',
+      'Germany: working days in 2027 reset to weekdays',
+      'Countries: Germany renamed to Deutschland',
+      'Countries: Deutschland deactivated',
+    ]);
+    expect(messagesFor(mock, 'dataset.json')).toEqual(['Rates marked as reviewed']);
+    expect(repo.getState().datasetFlags?.ratesReviewed).toBe(true);
+    expect(repo.getState().countries[0].ratesByYear[1].workingDaysByMonth[3]).toBe(22);
+  });
+
+  it('writes nothing for an edit that changes nothing', async () => {
+    const { mock, repo } = await open();
+    const germany = repo.createCountry({ name: 'Germany', dayRate: 1000 }, new Date(2026, 8, 30));
+    await repo.flushPending();
+    repo.setCountryDayRate(germany.id, 2027, 1000);
+    repo.resetCountryWorkingDays(germany.id, 2027);
+    await repo.flushPending();
+
+    expect(messagesFor(mock, 'countries.json')).toEqual(['Countries: Germany added']);
+    expect(messagesFor(mock, 'dataset.json')).toEqual([]);
+  });
+
+  it('confirms the rates without editing them, once', async () => {
+    const { mock, repo } = await open();
+    repo.confirmRates();
+    await repo.flushPending();
+    repo.confirmRates();
+    await repo.flushPending();
+
+    expect(messagesFor(mock, 'dataset.json')).toEqual(['Rates confirmed as correct']);
+    expect(saved<{ ratesReviewed: boolean }>(bodiesFor(mock, 'dataset.json')[0]).ratesReviewed).toBe(true);
+  });
+
+  it('rolls a year entering the window forward once, for countries and custom roles', async () => {
+    const germany = [{ id: 'de', name: 'Germany', active: true, ratesByYear: [2026, 2027, 2028].map((year) => ({ year, dayRate: 1000, workingDaysByMonth: Array(12).fill(20) })) }];
+    const cai = [
+      { id: 'cai', name: 'Cai Wu', countryId: 'de', roleId: 'r1', capacityPct: 100, active: true, customRole: { active: true, label: 'Fractional CTO', costFactor: 1, dayRatesByYear: [{ year: 2028, dayRate: 900 }] } },
+    ];
+    const { mock, repo } = await open({
+      'GET /repos/jabopiti/initiative-planner/contents/countries.json': () => contentsResponse(germany, 'countries-sha'),
+      'GET /repos/jabopiti/initiative-planner/contents/people.json': () => contentsResponse(cai, 'people-sha'),
+    });
+
+    const stop = repo.keepTrackedYears(() => new Date(2027, 0, 2));
+    await repo.flushPending();
+    stop();
+
+    const rates = repo.getState().countries[0].ratesByYear;
+    expect(rates.map((r) => r.year)).toEqual([2026, 2027, 2028, 2029]);
+    expect(rates[3].dayRate).toBe(1000);
+    expect(rates[3].workingDaysByMonth[0]).toBe(23);
+    expect(repo.getState().people[0].customRole?.dayRatesByYear.map((r) => r.year)).toEqual([2027, 2028, 2029]);
+    expect(messagesFor(mock, 'countries.json')).toEqual(['Rates copied into 2029']);
+    expect(messagesFor(mock, 'people.json')).toEqual(['Rates copied into 2029']);
+    // A system write, not a rate edit: it does not mark the rates reviewed.
+    expect(messagesFor(mock, 'dataset.json')).toEqual([]);
+
+    repo.keepTrackedYears(() => new Date(2027, 0, 2))();
+    await repo.flushPending();
+    expect(messagesFor(mock, 'countries.json')).toHaveLength(1);
+  });
+});
+
 describe('Repository — slice 005 phase periods and allocations', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

@@ -1,14 +1,15 @@
-import { useId, useMemo, useState, type ComponentProps } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { parseAmount } from '../data/cost';
 import { initiativesAffectedByRole } from '../data/roleImpact';
 import { FILE_PATHS } from '../data/types';
-import { CommitInput, Refusal } from './CommitInput';
+import { CommitInput } from './CommitInput';
+import { DraftField } from './DraftField';
+import { initiativeCount } from './impactNote';
 import { DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
 import { LockToggle } from './LockToggle';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 
 const NAME_REFUSAL = 'Enter a name.';
 const ABBREVIATION_REFUSAL = 'Enter an abbreviation.';
@@ -19,11 +20,6 @@ function parseCostFactor(text: string): number | null {
   return value !== null && value > 0 ? value : null;
 }
 
-/** "N initiative(s)": the one spelling of the impact note's count. */
-function initiativeCount(n: number): string {
-  return `${n} ${n === 1 ? 'initiative' : 'initiatives'}`;
-}
-
 /** Settings' Roles section (§5.9): a lockable table, edited in place, with Add role and an impact note after a cost-factor edit. */
 export function RolesSection({ lock }: { lock: SectionLock }) {
   const repository = useRepository();
@@ -31,6 +27,8 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
   const changed = useIsChangedByOthers();
   const failure = useFieldFailure();
   const [drafting, setDrafting] = useState(false);
+  // Locking closes an unsaved new role: nothing is added while the section is locked.
+  if (drafting && lock.locked) setDrafting(false);
   // Which initiatives a cost-factor change affects, by role id: shown until that role's cost factor is edited again (§5.9).
   const [impact, setImpact] = useState<Record<string, number>>({});
 
@@ -242,16 +240,6 @@ function DraftRoleRow({
           Cancel
         </Button>
       </div>
-    </div>
-  );
-}
-
-/** One draft-row field: an `Input` with its refusal message wired up via `aria-invalid`/`aria-describedby`. */
-function DraftField({ errorId, error, ...input }: ComponentProps<typeof Input> & { errorId: string; error?: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <Input aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined} {...input} />
-      {error && <Refusal id={errorId}>{error}</Refusal>}
     </div>
   );
 }

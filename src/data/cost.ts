@@ -74,9 +74,14 @@ export function trackedYears(today: Date = new Date()): number[] {
   return [year, year + 1, year + 2];
 }
 
+/** Calendar days in a month (`month` 0-based): the most working days it can have. */
+export function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+}
+
 /** Weekdays (Monday to Friday) in a calendar month. `month` is 0-based. */
 export function weekdaysInMonth(year: number, month: number): number {
-  const days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const days = daysInMonth(year, month);
   let count = 0;
   for (let day = 1; day <= days; day += 1) {
     const weekday = new Date(Date.UTC(year, month, day)).getUTCDay();

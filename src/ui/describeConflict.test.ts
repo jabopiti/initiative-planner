@@ -34,6 +34,8 @@ const team: Required<Team> = { id: 't1', name: 'Platform', active: true };
 const membership: Required<Membership> = { id: 'm1', personId: 'ana', teamId: 't1', teamFtePct: 50, active: true };
 const role: Required<Role> = { id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true };
 
+const germany = { id: 'de', name: 'Germany', active: true, ratesByYear: [{ year: 2027, dayRate: 1050, workingDaysByMonth: Array(12).fill(20) }] };
+
 const context: ConflictContext = {
   process: defaultBrandPack.process,
   currencySymbol: '€',
@@ -42,7 +44,7 @@ const context: ConflictContext = {
   teams: [team],
   memberships: [membership],
   roles: [role],
-  countries: [{ id: 'de', name: 'Germany', active: true, ratesByYear: [] }],
+  countries: [germany],
 };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -62,6 +64,7 @@ describe('conflict rows name every field in words (§3, §9.9)', () => {
     ['teams.json', [team]],
     ['memberships.json', [membership]],
     ['roles.json', [role]],
+    ['countries.json', [germany]],
   ];
 
   for (const [file, doc] of files) {
@@ -117,6 +120,16 @@ describe('conflict rows name every field in words (§3, §9.9)', () => {
     expect(row('memberships.json', [{ id: 'gone' }, 'teamFtePct'], 50, 70).entity).toBe('A membership');
     expect(row('teams.json', [{ id: 't1' }, 'active'], false, true)).toMatchObject({ entity: 'Platform', field: 'Status', mine: 'Inactive', theirs: 'Active' });
     expect(row('roles.json', [{ id: 'dev' }, 'costFactor'], 1, 1.4)).toMatchObject({ entity: 'Developer', field: 'Cost factor', mine: '1', theirs: '1.4' });
+  });
+
+  it('names a country’s rates as a whole, since its year entries merge as one value (§5.9)', () => {
+    const theirs = [{ year: 2027, dayRate: 1100, workingDaysByMonth: Array(12).fill(20) }];
+    expect(row('countries.json', [{ id: 'de' }, 'ratesByYear'], germany.ratesByYear, theirs)).toMatchObject({
+      entity: 'Germany',
+      field: 'Rates',
+      mine: '2027: €1,050',
+      theirs: '2027: €1,100',
+    });
   });
 
   it('names a field without a label by its key, as plain values', () => {

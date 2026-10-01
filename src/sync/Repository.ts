@@ -8,6 +8,7 @@ import {
   type Allocation,
   type CostItem,
   type Country,
+  type CountryYearRateRecord,
   type DatasetFlags,
   type Initiative,
   type Membership,
@@ -16,8 +17,9 @@ import {
   type Role,
   type Team,
 } from '../data/types';
-import { allocationRefusal } from '../data/cost';
-import { formatDate, formatMonth } from '../data/dates';
+import { allocationRefusal, trackedYears } from '../data/cost';
+import { formatDate, formatMonth, monthKey } from '../data/dates';
+import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysByMonth } from '../data/rates';
 import { localToday } from '../data/dates';
 import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
 import { frozenPaths, isPhaseFrozen } from '../data/frozen';
@@ -30,7 +32,7 @@ import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
 import { FileWriter, type CommitNote, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
-import { mergeDocument, pathKey, type Path } from './merge';
+import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { WriteQueue } from './WriteQueue';
 
 export type { ReadOnlyState } from '../github/errors';
@@ -115,7 +117,6 @@ const MASTER_FILES: string[] = [
   FILE_PATHS.memberships,
 ];
 
-export type MasterRecord = Team | Person | Membership | Role;
 
 /** New people (§5.5) take these; country and role default to the last values used. */
 export interface NewPersonInput {
@@ -183,10 +184,12 @@ export class Repository {
   private peopleWriter: FileWriter<Person[]> | null = null;
   private membershipsWriter: FileWriter<Membership[]> | null = null;
   private rolesWriter: FileWriter<Role[]> | null = null;
+  private countriesWriter: FileWriter<Country[]> | null = null;
+  private flagsWriter: FileWriter<DatasetFlags> | null = null;
+  /** Today, for the §7.2 rollover, while {@link keepTrackedYears} runs; null otherwise. */
+  private rolloverToday: (() => Date) | null = null;
   private readonly initiativeWriters = new Map<string, FileWriter<Initiative>>();
   private readonly cache: FileCache;
-  /** Versions on screen of the files no writer holds (§10.2: the flags and countries). */
-  private readonly shas = new Map<string, string>();
   /** What the last complete pull saw; null when a file was left alone or the cache lost one, so the next pull compares everything. */
   private meta: CacheMeta | null = null;
   private pulling: Promise<void> | null = null;
@@ -286,10 +289,6 @@ export class Repository {
     const branch = this.brand.github.dataBranch;
     /** What a file says, or `fallback` when it does not exist (§10.2: a missing master file means "empty"). */
     const parsed = <T>(path: string, fallback: T): T => (files.has(path) ? (files.get(path)!.value as T) : fallback);
-    for (const path of [FILE_PATHS.datasetFlags, FILE_PATHS.countries]) {
-      const file = files.get(path);
-      if (file) this.shas.set(path, file.sha);
-    }
     const initiatives: Initiative[] = [];
     for (const [path, file] of files) {
       if (!path.startsWith('initiatives/')) continue;
@@ -301,21 +300,25 @@ export class Repository {
     const teams = parsed(FILE_PATHS.teams, [] as Team[]);
     const people = parsed(FILE_PATHS.people, [] as Person[]);
     const memberships = parsed(FILE_PATHS.memberships, [] as Membership[]);
+    const countries = parsed(FILE_PATHS.countries, [] as Country[]);
+    const datasetFlags = parsed(FILE_PATHS.datasetFlags, null as DatasetFlags | null);
     const shaOf = (path: string) => files.get(path)?.sha ?? '';
 
-    this.rolesWriter = this.createWriter<Role>(FILE_PATHS.roles, branch, 'roles', { content: roles, sha: shaOf(FILE_PATHS.roles) });
-    this.teamsWriter = this.createWriter<Team>(FILE_PATHS.teams, branch, 'teams', { content: teams, sha: shaOf(FILE_PATHS.teams) });
-    this.peopleWriter = this.createWriter<Person>(FILE_PATHS.people, branch, 'people', { content: people, sha: shaOf(FILE_PATHS.people) });
-    this.membershipsWriter = this.createWriter<Membership>(FILE_PATHS.memberships, branch, 'memberships', {
+    this.rolesWriter = this.createWriter(FILE_PATHS.roles, branch, 'roles', { content: roles, sha: shaOf(FILE_PATHS.roles) }, []);
+    this.countriesWriter = this.createWriter(FILE_PATHS.countries, branch, 'countries', { content: countries, sha: shaOf(FILE_PATHS.countries) }, []);
+    this.flagsWriter = datasetFlags && this.createWriter(FILE_PATHS.datasetFlags, branch, 'datasetFlags', { content: datasetFlags, sha: shaOf(FILE_PATHS.datasetFlags) }, null);
+    this.teamsWriter = this.createWriter(FILE_PATHS.teams, branch, 'teams', { content: teams, sha: shaOf(FILE_PATHS.teams) }, []);
+    this.peopleWriter = this.createWriter(FILE_PATHS.people, branch, 'people', { content: people, sha: shaOf(FILE_PATHS.people) }, []);
+    this.membershipsWriter = this.createWriter(FILE_PATHS.memberships, branch, 'memberships', {
       content: memberships,
       sha: shaOf(FILE_PATHS.memberships),
-    });
+    }, []);
 
     this.setState({
       status: 'ready',
-      datasetFlags: parsed(FILE_PATHS.datasetFlags, null as DatasetFlags | null),
+      datasetFlags,
       roles,
-      countries: parsed(FILE_PATHS.countries, [] as Country[]),
+      countries,
       teams,
       people,
       memberships,
@@ -399,7 +402,9 @@ export class Repository {
   /** The writer of each master file that has one, by path. */
   private masterWriters() {
     return [
+      [FILE_PATHS.datasetFlags, this.flagsWriter],
       [FILE_PATHS.roles, this.rolesWriter],
+      [FILE_PATHS.countries, this.countriesWriter],
       [FILE_PATHS.teams, this.teamsWriter],
       [FILE_PATHS.people, this.peopleWriter],
       [FILE_PATHS.memberships, this.membershipsWriter],
@@ -418,7 +423,7 @@ export class Repository {
 
   /** The version of each file as it is on screen. */
   private knownShas(): Map<string, string> {
-    const known = new Map(this.shas);
+    const known = new Map<string, string>();
     for (const [path, writer] of this.allWriters()) if (writer.sha != null) known.set(path, writer.sha);
     return known;
   }
@@ -454,20 +459,6 @@ export class Repository {
       if ('left' in received) complete &&= received.left === 'writer';
       else changed.push(...received.changed.map((p) => changeKey(path, p)));
     };
-    const patch: Partial<RepositoryState> = {};
-
-    for (const [path, key] of [
-      [FILE_PATHS.datasetFlags, 'datasetFlags'],
-      [FILE_PATHS.countries, 'countries'],
-    ] as const) {
-      const file = files.get(path);
-      if (!file) continue;
-      (patch as Record<string, unknown>)[key] = file.value;
-      this.shas.set(path, file.sha);
-      if (path !== FILE_PATHS.datasetFlags) changed.push(changeKey(path, []));
-    }
-    if (Object.keys(patch).length > 0) this.setState(patch);
-
     for (const [path, writer] of this.masterWriters()) {
       const file = files.get(path);
       // Each writer takes its own file's type; the paths pair them up, which the union of writers cannot say.
@@ -558,6 +549,31 @@ export class Repository {
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
     this.armRetry(!complete, recoverable);
+    if (complete && this.pullFailure === null) this.rollForward();
+  }
+
+  /**
+   * The §7.2 rollover, from now until the returned function is called: after every complete pull, a tracked year
+   * that a country or a custom role has no entry for gets one (a system write, §3). Idempotent — nothing missing
+   * is no write — and two clients doing it at once write the same values, which merge without a conflict.
+   */
+  keepTrackedYears(today: () => Date = () => new Date()): () => void {
+    this.rolloverToday = today;
+    if (this.state.status === 'ready') this.rollForward();
+    return () => {
+      this.rolloverToday = null;
+    };
+  }
+
+  private rollForward(): void {
+    if (!this.rolloverToday || this.state.status !== 'ready') return;
+    const tracked = trackedYears(this.rolloverToday());
+    // A system write over the whole file (§3), not an edit of one country or person: it notes the dataset.
+    const note = () => this.note('dataset', 'rates', 'rollover', undefined, tracked, () => `Rates copied into ${tracked[tracked.length - 1]}`);
+    const countries = countriesRolledForward(this.state.countries, tracked);
+    if (countries) this.commitCountries(countries, note());
+    const people = peopleRolledForward(this.state.people, tracked);
+    if (people) this.commitPeople(people, note());
   }
 
   /**
@@ -723,13 +739,15 @@ export class Repository {
   private readonly onConflict = (conflict: FileConflict): void =>
     this.setState({ conflicts: [...this.state.conflicts, conflict] });
 
-  private createWriter<T extends MasterRecord>(
+  /** The writer of one master file (§10.2): a list of records, or `dataset.json`'s one record, which merges by field. */
+  private createWriter<D>(
     path: string,
     branch: string,
-    key: 'roles' | 'teams' | 'people' | 'memberships',
-    initial: { content: T[]; sha: string },
-  ): FileWriter<T[]> {
-    return new FileWriter<T[]>({
+    key: 'datasetFlags' | 'roles' | 'countries' | 'teams' | 'people' | 'memberships',
+    initial: { content: D; sha: string },
+    whenMissing: D | null,
+  ): FileWriter<D> {
+    return new FileWriter<D>({
       path,
       branch,
       github: this.github,
@@ -737,7 +755,7 @@ export class Repository {
       cache: this.cache,
       gate: () => this.firstPullDone,
       merge: mergeDocument,
-      whenMissing: [],
+      whenMissing,
       initial,
       onStatus: this.statusOf(path),
       onConflict: this.onConflict,
@@ -819,6 +837,107 @@ export class Repository {
     if (to.costFactor !== from.costFactor) parts.push(`cost factor set to ${to.costFactor}`);
     if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
     return `Roles: ${from.name} ${parts.join(', ') || 'updated'}`;
+  }
+
+  /** New country (§5.9): its one day rate copied to every tracked year, working days prefilled with weekdays. */
+  createCountry(input: { name: string; dayRate: number }, today: Date = new Date()): Country {
+    const country: Country = { id: newId(), name: input.name, active: true, ratesByYear: newCountryRates(input.dayRate, trackedYears(today)) };
+    this.commitCountries([...this.state.countries, country], this.note('country', country.id, 'record', undefined, country, (f, t) => this.describeCountry(f, t)));
+    return country;
+  }
+
+  /** Rename, deactivate or reactivate a country; countries are never deleted (§9.3). */
+  updateCountry(id: string, patch: Partial<Pick<Country, 'name' | 'active'>>): void {
+    const current = this.state.countries.find((c) => c.id === id);
+    if (!current) return;
+    const next = { ...current, ...patch };
+    if (next.name === current.name && next.active === current.active) return;
+    this.commitCountries(
+      this.state.countries.map((c) => (c.id === id ? next : c)),
+      this.note('country', id, 'record', current, next, (f, t) => this.describeCountry(f, t)),
+    );
+  }
+
+  private describeCountry(from: Country | undefined, to: Country | undefined): string {
+    if (!from) return `Countries: ${to?.name} added`;
+    if (!to) return `Countries: ${from.name} removed`;
+    const parts: string[] = [];
+    if (to.name !== from.name) parts.push(`renamed to ${to.name}`);
+    if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
+    return `Countries: ${from.name} ${parts.join(', ') || 'updated'}`;
+  }
+
+  /** A country's day rate for one year (§5.9, §7.2). Any rate edit also marks the rates reviewed (§5.2). */
+  setCountryDayRate(id: string, year: number, dayRate: number): void {
+    this.editYear(id, year, `dayRate:${year}`, (r) => r.dayRate, (r) => ({ ...r, dayRate }), (name, to) => `${name}: ${year} day rate set to ${this.money(to as number)}`);
+  }
+
+  /** One month's working days for one year of a country (`month` 0-based). */
+  setCountryWorkingDays(id: string, year: number, month: number, days: number): void {
+    const key = monthKey(year, month);
+    this.editYear(
+      id,
+      year,
+      `workingDays:${key}`,
+      (r) => r.workingDaysByMonth[month],
+      (r) => ({ ...r, workingDaysByMonth: r.workingDaysByMonth.map((d, i) => (i === month ? days : d)) }),
+      (name, to) => `${name}: working days in ${formatMonth(key)} set to ${to}`,
+    );
+  }
+
+  /** Reset to weekdays: all twelve months of one year back to their weekday counts. */
+  resetCountryWorkingDays(id: string, year: number): void {
+    this.editYear(
+      id,
+      year,
+      `workingDays:${year}`,
+      (r) => r.workingDaysByMonth,
+      (r) => ({ ...r, workingDaysByMonth: weekdaysByMonth(year) }),
+      (name) => `${name}: working days in ${year} reset to weekdays`,
+    );
+  }
+
+  /**
+   * One year entry of one country: `set` makes the edit, `get` reads the value the commit note names (§10.3),
+   * and `words` phrases it with the country's name. No write when that value is unchanged.
+   */
+  private editYear(
+    id: string,
+    year: number,
+    field: string,
+    get: (record: CountryYearRateRecord) => unknown,
+    set: (record: CountryYearRateRecord) => CountryYearRateRecord,
+    words: (name: string, to: unknown) => string,
+  ): void {
+    const country = this.state.countries.find((c) => c.id === id);
+    const record = country?.ratesByYear.find((r) => r.year === year);
+    if (!country || !record) return;
+    const next = set(record);
+    if (sameValue(get(next), get(record))) return;
+    const updated = { ...country, ratesByYear: country.ratesByYear.map((r) => (r.year === year ? next : r)) };
+    this.commitCountries(
+      this.state.countries.map((c) => (c.id === id ? updated : c)),
+      this.note('country', id, field, get(record), get(next), (_, to) => words(country.name, to)),
+    );
+    this.markRatesReviewed('Rates marked as reviewed');
+  }
+
+  /** Rates are correct (§5.9): confirms the rates without editing them, which clears Review rates (§5.2). */
+  confirmRates(): void {
+    this.markRatesReviewed('Rates confirmed as correct');
+  }
+
+  private markRatesReviewed(words: string): void {
+    const flags = this.state.datasetFlags;
+    if (!flags || flags.ratesReviewed || !this.flagsWriter) return;
+    const next = { ...flags, ratesReviewed: true };
+    this.setState({ datasetFlags: next });
+    this.flagsWriter.schedule(next, this.note('dataset', 'flags', 'ratesReviewed', false, true, () => words));
+  }
+
+  private commitCountries(next: Country[], note?: CommitNote): void {
+    this.setState({ countries: next });
+    this.countriesWriter?.schedule(next, note);
   }
 
   /** A note for one field of one entity: what it was before the edit and what it is now (§10.3); `undefined` is "did not exist". */
