@@ -1113,8 +1113,13 @@ local time, determined the same way as Confirmed vs. Provisional in §4.
   keeping each one-month item's position within its phase. Phase periods are
   re-chained from today, the same rule the default plan and the
   starting-phase mechanism use (§2). It carries no gate records, checklist
-  state or actuals. The new initiative is named "<name> copy" and opens in
-  place.
+  state or actuals. The new initiative is Active, named "<name> copy" (then
+  "<name> copy 2", 3 and so on if the name is taken) and opens in place as a
+  new history entry. A period that is a whole number of months keeps that
+  length; any other keeps its day count. A phase without a valid period is
+  copied without one. The owner is carried over only if still active. When
+  people were left out of the allocations, a toast on the new page names them
+  ("Not copied: <names>, no longer on <team>.", as in Copy allocations).
 
 ---
 
