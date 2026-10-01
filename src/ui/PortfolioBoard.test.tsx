@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
@@ -11,6 +11,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { PortfolioBoard } from './PortfolioBoard';
 import { rootListing } from '../sync/testing/rootListing';
 import { NO_FILTERS } from '../data/initiativeList';
+import { PORTFOLIO_DEFAULTS, type PortfolioFilters } from '../data/portfolio';
 import { resetSessionFilters, useSessionFilters } from './sessionFilters';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
@@ -277,8 +278,18 @@ describe('Portfolio filters (§5.2, §9.11)', () => {
     expect(screen.getAllByText('0 · €0')).toHaveLength(process.length);
     expect(screen.getByText('0 of 2 initiatives')).toBeInTheDocument();
     expect(screen.getAllByText('€0').length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
     await user.click(screen.getAllByRole('button', { name: 'Clear filters' })[1]);
     expect(cardNames()).toHaveLength(2);
+  });
+
+  it('drops a pick that no longer exists, such as an initiative deleted since', async () => {
+    const { result } = renderHook(() => useSessionFilters<PortfolioFilters>('portfolio', PORTFOLIO_DEFAULTS));
+    act(() => result.current[1]({ ...PORTFOLIO_DEFAULTS, initiative: ['gone'] }));
+    await renderBoard([big, later]);
+    expect(chipButton('Initiatives')).toBeInTheDocument();
+    expect(cardNames()).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
   });
 
   it('is back to its defaults after a reload', async () => {

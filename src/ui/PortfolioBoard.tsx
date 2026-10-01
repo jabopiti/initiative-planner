@@ -64,7 +64,7 @@ export function PortfolioBoard() {
   const brand = useBrand();
   const { process, approvalTracks, currencySymbol } = brand;
   const { teams, people, roles, countries, initiatives } = useRepositoryState();
-  const [filters, setFilters] = useSessionFilters<PortfolioFilters>('portfolio', PORTFOLIO_DEFAULTS);
+  const [stored, setFilters] = useSessionFilters<PortfolioFilters>('portfolio', PORTFOLIO_DEFAULTS);
   const data = useMemo(() => ({ roles, countries }), [roles, countries]);
 
   const rows = useMemo(
@@ -72,15 +72,7 @@ export function PortfolioBoard() {
     () => costedRows(initiativeRows(initiatives, teams, people, process, approvalTracks, data, []), process, people, data),
     [initiatives, teams, people, process, approvalTracks, data],
   );
-  const shown = useMemo(() => portfolioRows(rows, filters), [rows, filters]);
   const years = useMemo(() => portfolioYears(rows), [rows]);
-
-  /** Board order: phase by phase, cards in list order — what Copy follows too. */
-  const byPhase = useMemo(() => {
-    const map = new Map<string, PortfolioRow[]>(process.map((phase) => [phase.id, []]));
-    for (const row of shown) map.get(row.phaseId)?.push(row);
-    return map;
-  }, [process, shown]);
 
   const options = useMemo<Record<'team' | 'phase' | 'initiative' | 'track' | 'status', FilterOption[]>>(
     () => ({
@@ -92,6 +84,19 @@ export function PortfolioBoard() {
     }),
     [teams, process, initiatives, approvalTracks],
   );
+
+  /** The session's picks, less any that no longer exist (an initiative deleted since) — they couldn't be unticked. */
+  const filters = useMemo<PortfolioFilters>(() => {
+    const live = (key: keyof typeof options) => stored[key].filter((v) => options[key].some((o) => o.value === v));
+    return { ...stored, team: live('team'), phase: live('phase'), initiative: live('initiative'), track: live('track'), status: live('status') };
+  }, [stored, options]);
+  const shown = useMemo(() => portfolioRows(rows, filters), [rows, filters]);
+  /** Board order: phase by phase, cards in list order — what Copy follows too. */
+  const byPhase = useMemo(() => {
+    const map = new Map<string, PortfolioRow[]>(process.map((phase) => [phase.id, []]));
+    for (const row of shown) map.get(row.phaseId)?.push(row);
+    return map;
+  }, [process, shown]);
 
   if (initiatives.length === 0) return <NoInitiatives />;
 
@@ -142,7 +147,7 @@ export function PortfolioBoard() {
               Clear filters
             </button>
           )}
-          <CopyButton getData={copyData} noun={['initiative', 'initiatives']} />
+          {shown.length > 0 && <CopyButton getData={copyData} noun={['initiative', 'initiatives']} />}
         </div>
       </div>
       {shown.length === 0 && (
