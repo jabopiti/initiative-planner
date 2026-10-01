@@ -1,0 +1,250 @@
+import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { defaultBrandPack } from '../brand/defaultBrand';
+import type { Country, GateRecord, Initiative, Membership, Person, Role } from '../data/types';
+import { BrandProvider } from '../state/BrandContext';
+import { RepositoryProvider } from '../state/DataContext';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { InitiativeDetail } from './InitiativeDetail';
+import { rootListing } from '../sync/testing/rootListing';
+
+const twenty = Array(12).fill(20);
+const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
+const countries: Country[] = [{ id: 'de', name: 'Germany', active: true, ratesByYear: [{ year: 2026, dayRate: 500, workingDaysByMonth: twenty }] }];
+const ana: Person = { id: 'ana', name: 'Ana Ruiz', countryId: 'de', roleId: 'dev', capacityPct: 100, active: true };
+const membership: Membership = { id: 'm1', personId: 'ana', teamId: 't1', teamFtePct: 100, active: true };
+
+const [discoveryId, validationId] = defaultBrandPack.process.map((p) => p.id);
+const [g1] = defaultBrandPack.process.map((p) => p.exitGate);
+const discoveryPassed: GateRecord = { outcome: 'passed', passedOn: '2026-01-01', checklist: g1.checklistItems.map((i) => ({ ...i, status: 'complete', note: '' })) };
+
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
+const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
+
+let initiative: Initiative;
+let puts: { message: string; content: Initiative }[] = [];
+
+const initiativeWith = (overrides: Partial<Initiative> = {}): Initiative => ({
+  id: 'i1',
+  name: 'Fraud Detection Upgrade',
+  teamId: 't1',
+  status: 'Active',
+  gates: { [discoveryId]: discoveryPassed },
+  phases: {
+    [validationId]: {
+      startDate: '2026-07-01',
+      endDate: '2026-08-31',
+      allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50 }],
+      costItems: [{ id: 'c1', label: 'Licences', amount: 1000, timing: 'spread' }],
+    },
+  },
+  ...overrides,
+});
+
+beforeAll(() => {
+  Element.prototype.scrollIntoView = () => {};
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string, init: RequestInit = {}) => {
+      if ((init.method ?? 'GET') === 'PUT') {
+        const body = JSON.parse(String(init.body)) as { message: string; content: string };
+        puts.push({ message: body.message, content: JSON.parse(atob(body.content)) });
+        return json({ content: { sha: 'next' } });
+      }
+      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
+      if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
+      if (url.includes('/contents/roles.json')) return file(roles, 'r');
+      if (url.includes('/contents/countries.json')) return file(countries, 'c');
+      if (url.includes('/contents/teams.json')) return file([{ id: 't1', name: 'Platform', active: true }], 't');
+      if (url.includes('/contents/people.json')) return file([ana], 'p');
+      if (url.includes('/contents/memberships.json')) return file([membership], 'm');
+      if (url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
+      if (url.includes('/contents/initiatives/i2.json')) return file({ ...initiative, id: 'i2', name: 'Fraud Detection Upgrade' }, 'i2');
+      if (url.includes('/contents/initiatives')) {
+        return json([
+          { name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' },
+          { name: 'i2.json', path: 'initiatives/i2.json', sha: 'sha-i2', type: 'file' },
+        ]);
+      }
+      return json({ message: 'Not Found' }, 404);
+    }),
+  );
+});
+afterAll(() => vi.unstubAllGlobals());
+afterEach(cleanup);
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(2026, 8, 24, 12));
+  puts = [];
+});
+afterEach(() => vi.useRealTimers());
+
+const page = (id: string) => (
+  <BrandProvider brand={defaultBrandPack}>
+    <TooltipProvider>
+      <RepositoryProvider token="token">
+        <InitiativeDetail id={id} />
+      </RepositoryProvider>
+    </TooltipProvider>
+  </BrandProvider>
+);
+const renderPage = () => render(page('i1'));
+
+
+
+const passed = (gate: (typeof defaultBrandPack.process)[number]['exitGate']): GateRecord => ({
+  outcome: 'passed',
+  passedOn: '2026-01-01',
+  checklist: gate.checklistItems.map((i) => ({ ...i, status: 'complete', note: '' })),
+});
+const closed = (): Initiative =>
+  initiativeWith({ status: 'Closed', gates: Object.fromEntries(defaultBrandPack.process.map((p) => [p.id, passed(p.exitGate)])) });
+
+describe('Cancel (§8.4)', () => {
+  it('lists Put on hold and Cancel for an Active initiative, and cancels in one click with its own commit (AC1)', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel']);
+    await user.click(screen.getByRole('menuitem', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    expect(puts[0].message).toBe('Fraud Detection Upgrade: cancelled');
+    expect(puts[0].content.status).toBe('Cancelled');
+  });
+
+  it('lists Resume and Cancel for an On Hold initiative', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith({ status: 'On Hold' });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel']);
+  });
+});
+
+describe('A Cancelled initiative (§8.4, §9.9)', () => {
+  it('shows the Cancelled chip and the frozen strip with Reopen, and hides the magic bar (AC2, AC10)', async () => {
+    initiative = initiativeWith({ status: 'Cancelled' });
+    renderPage();
+
+    expect(await screen.findByText('Cancelled. Notes and actuals can still be recorded.')).toBeInTheDocument();
+    expect(screen.getByText('Cancelled')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reopen Fraud Detection Upgrade' })).toHaveTextContent('Reopen');
+    expect(document.getElementById('magic-bar')).toBeNull();
+  });
+
+  it('lists only Reopen in the Actions menu, and offers no gate reopen (AC8)', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith({ status: 'Cancelled' });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Reopen']);
+    expect(screen.queryByRole('button', { name: /Reopen G1/ })).not.toBeInTheDocument();
+  });
+
+  it('shows every field but notes and actuals read-only (AC4)', async () => {
+    initiative = initiativeWith({ status: 'Cancelled', description: '' });
+    renderPage();
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Fraud Detection Upgrade' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Initiative name')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Description')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Owner' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /Team/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /Add person/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Add cost item/ })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/start date/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Allocation % for/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /Status of/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Licences')).toBeInTheDocument();
+    expect(screen.getByText('50%')).toBeInTheDocument();
+  });
+
+  it('records a checklist note, keeping the status (AC5)', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith({ status: 'Cancelled' });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Add note for "Business case approved"' }));
+    await user.type(screen.getByLabelText('Note for "Business case approved"'), 'Risk withdrew sign-off{Enter}');
+
+    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    expect(puts[0].message).toBe('Fraud Detection Upgrade: note on "Business case approved" changed');
+    expect(puts[0].content.checklist?.[validationId]?.['g2-business-case']).toEqual({ status: 'incomplete', note: 'Risk withdrew sign-off' });
+    expect(screen.getByRole('button', { name: 'Edit note for "Business case approved"' })).toBeInTheDocument();
+  });
+
+  it('refuses to clear a Tentative item’s note', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith({ status: 'Cancelled', checklist: { [validationId]: { 'g2-business-case': { status: 'tentative', note: 'Waiting on Risk' } } } });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Edit note for "Business case approved"' }));
+    await user.clear(screen.getByLabelText('Note for "Business case approved"'));
+    await user.keyboard('{Enter}');
+    expect(screen.getByText('Enter a note.')).toBeInTheDocument();
+  });
+
+  it('records a month’s actual (AC5)', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith({ status: 'Cancelled' });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Record the estimate as the actual for Validation Jul 2026' }));
+    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    expect(puts[0].message).toMatch(/^Fraud Detection Upgrade: Validation actual for Jul 2026 recorded/);
+  });
+
+  it('Reopen in the strip makes it Active, also after On Hold, and every field editable again (AC7)', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith({ status: 'Cancelled' });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Reopen Fraud Detection Upgrade' }));
+    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    expect(puts[0].message).toBe('Fraud Detection Upgrade: reopened');
+    expect(puts[0].content.status).toBe('Active');
+    expect(screen.getByLabelText('Initiative name')).toBeEnabled();
+    expect(screen.queryByText(/Notes and actuals can still be recorded/)).not.toBeInTheDocument();
+  });
+
+  it('Reopen in the Actions menu does the same (AC7)', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith({ status: 'Cancelled' });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Reopen' }));
+    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    expect(puts[0].content.status).toBe('Active');
+  });
+});
+
+describe('A Closed initiative (§8.4)', () => {
+  it('shows the lock chip and the strip with Reopen G4, the only gate reopen on the page (AC3)', async () => {
+    initiative = closed();
+    renderPage();
+
+    expect(await screen.findByText('Closed after G4. Notes and actuals can still be recorded.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Reopen/ })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Reopen G4 of Fraud Detection Upgrade' })).toHaveTextContent('Reopen G4');
+    expect(screen.queryByLabelText('Initiative name')).not.toBeInTheDocument();
+  });
+
+  it('Reopen G4 reverses the final gate and makes it Active', async () => {
+    const user = userEvent.setup();
+    initiative = closed();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Reopen G4 of Fraud Detection Upgrade' }));
+    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    expect(puts[0].content.status).toBe('Active');
+    expect(screen.getByLabelText('Initiative name')).toBeEnabled();
+  });
+});

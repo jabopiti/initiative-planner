@@ -88,42 +88,42 @@ gate from the **Actions menu** (016); Delete (017).
 
 ## Acceptance criteria
 
-- [ ] Given an Active or On Hold initiative, then the Actions menu lists
+- [x] Given an Active or On Hold initiative, then the Actions menu lists
       Cancel; choosing it sets Cancelled with the commit "<name>:
       cancelled" and no confirmation.
-- [ ] Given a Cancelled initiative, then the status badge shows the ban icon
+- [x] Given a Cancelled initiative, then the status badge shows the ban icon
       and "Cancelled", the magic bar is hidden, and the line "Cancelled.
       Notes and actuals can still be recorded." with Reopen shows under the
       header.
-- [ ] Given a Closed initiative, then the badge shows the lock icon and
+- [x] Given a Closed initiative, then the badge shows the lock icon and
       "Closed", and the line reads "Closed after <final gate>. Notes and
       actuals can still be recorded." with a "Reopen <final gate>" button
       that reopens it (§8.3); the header's "Reopen <gate>" link is absent.
-- [ ] Given a Cancelled initiative with a passed gate, then no "Reopen
+- [x] Given a Cancelled initiative with a passed gate, then no "Reopen
       <gate>" is offered, and `reopenGate` on it is refused.
-- [ ] Given a Cancelled or Closed initiative, then each checklist item's
+- [x] Given a Cancelled or Closed initiative, then each checklist item's
       status shows read-only with "Add note" (no note yet) or "Edit note";
       saving keeps the status and commits "<name>: note on "<item>"
       changed"; clearing a Tentative item's note is refused with "Enter a
       note."
-- [ ] Given a Cancelled or Closed initiative, then name, description, owner,
+- [x] Given a Cancelled or Closed initiative, then name, description, owner,
       team, periods, allocations, cost items and checklist statuses are shown
       read-only and muted, and Add person / Add cost item are absent.
-- [ ] Given a Cancelled or Closed initiative, then a checklist note and a
+- [x] Given a Cancelled or Closed initiative, then a checklist note and a
       month's actual can still be edited and are saved.
-- [ ] Given any repository write other than a note, an actual or a
+- [x] Given any repository write other than a note, an actual or a
       lifecycle action (Reopen, and Delete/Duplicate once built) is attempted
       on a Cancelled or Closed initiative (unit test per method), then it is
       refused and nothing is committed.
-- [ ] Given Reopen is chosen on a Cancelled initiative (line or menu), then
+- [x] Given Reopen is chosen on a Cancelled initiative (line or menu), then
       its status is Active — also when it was On Hold before it was
       cancelled — with the commit "<name>: reopened", and every field is
       editable again.
-- [ ] Given a Cancelled initiative, then the Actions menu does not list Put
+- [x] Given a Cancelled initiative, then the Actions menu does not list Put
       on hold, Resume or Cancel.
-- [ ] Given another user's change to a Cancelled initiative is pulled, then
+- [x] Given another user's change to a Cancelled initiative is pulled, then
       it is merged as usual (the freeze does not reject pulled history).
-- [ ] Given a screen reader, then the frozen line is read with the page, and
+- [x] Given a screen reader, then the frozen line is read with the page, and
       Reopen's accessible name is "Reopen <name>".
 
 ## Delivery gate

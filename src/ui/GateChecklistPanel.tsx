@@ -3,6 +3,7 @@ import type { PhaseDef } from '../brand/types';
 import { gateProgress, gateProgressText, gateRequirements, type ChecklistItemView, type ChecklistRequirement } from '../data/gate';
 import { useBrand } from '../state/BrandContext';
 import { useIsChangedByOthers, useRepository } from '../state/DataContext';
+import { isInitiativeFrozen } from '../data/frozen';
 import { FILE_PATHS, type ChecklistStatus, type Initiative } from '../data/types';
 import { Refusal } from './CommitInput';
 import { CompleteIcon, IncompleteIcon, InfoIcon, TentativeIcon } from './icons';
@@ -12,6 +13,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const STATUS_LABEL: Record<ChecklistStatus, string> = { incomplete: 'Incomplete', tentative: 'Tentative', complete: 'Complete' };
+const STATUS_ICON = { incomplete: IncompleteIcon, tentative: TentativeIcon, complete: CompleteIcon } satisfies Record<ChecklistStatus, unknown>;
 
 /** The panel's row anchor, for the magic bar's "jump to the first open item" (§5.4). */
 export const checklistItemAnchor = (writePhaseId: string, itemId: string) => `checklist-${writePhaseId}-${itemId}`;
@@ -29,6 +31,8 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
   const checklistRequirements = requirements.filter((r): r is ChecklistRequirement => r.kind === 'checklist');
   const items = checklistRequirements.filter((r) => !r.carried);
   const carried = checklistRequirements.filter((r) => r.carried);
+  // Statuses freeze with a Closed or Cancelled initiative; notes don't (§8.4).
+  const frozen = isInitiativeFrozen(initiative);
 
   if (items.length === 0 && carried.length === 0) return null;
 
@@ -42,7 +46,7 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
       </div>
       <ol className="m-0 flex list-none flex-col p-0">
         {items.map((item) => (
-          <ChecklistItemRow key={item.itemId} item={toItemView(item)} initiativeId={initiative.id} writePhaseId={phase.id} />
+          <ChecklistItemRow key={item.itemId} item={toItemView(item)} initiativeId={initiative.id} writePhaseId={phase.id} frozen={frozen} />
         ))}
       </ol>
       {carried.length > 0 && (
@@ -56,6 +60,7 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
                 initiativeId={initiative.id}
                 writePhaseId={item.carried!.originPhaseId}
                 originGateLabel={item.carried!.originGateLabel}
+                frozen={frozen}
               />
             ))}
           </ol>
@@ -70,12 +75,15 @@ function ChecklistItemRow({
   initiativeId,
   writePhaseId,
   originGateLabel,
+  frozen,
 }: {
   item: ChecklistItemView;
   initiativeId: string;
   /** The phase whose gate defines this item: the current gate for its own items, the origin gate for a carried one (§8.1). */
   writePhaseId: string;
   originGateLabel?: string;
+  /** The initiative is Closed or Cancelled: the status shows read-only, and only the note can be edited (§8.4). */
+  frozen: boolean;
 }) {
   const repository = useRepository();
   const changed = useIsChangedByOthers();
@@ -103,6 +111,20 @@ function ChecklistItemRow({
     setEditingNote(false);
     setRefused(null);
   };
+  const startNote = () => {
+    setDraftNote(item.note);
+    setRefused(null);
+    setEditingNote(true);
+  };
+  const commitNote = () => {
+    if (!repository.setChecklistNote(initiativeId, writePhaseId, item.id, draftNote)) {
+      setRefused('Enter a note.');
+      return;
+    }
+    setEditingNote(false);
+    setRefused(null);
+  };
+  const commit = frozen ? commitNote : commitTentative;
   const cancelTentative = () => {
     setEditingNote(false);
     setRefused(null);
@@ -126,39 +148,54 @@ function ChecklistItemRow({
           )}
         </div>
         <div className={`flex items-center gap-2 transition-colors duration-500 ${changed(file, ['checklist', writePhaseId, item.id]) ? 'rounded-md bg-met-tint' : ''}`}>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            value={item.status}
-            aria-label={`Status of "${item.name}"`}
-            onValueChange={(next) => {
-              if (!next) return;
-              if (next === 'tentative') startTentative();
-              else {
-                cancelTentative();
-                setStatus(next as ChecklistStatus, item.note);
-              }
-            }}
-          >
-            {(
-              [
-                ['incomplete', 'Incomplete', IncompleteIcon],
-                ['tentative', 'Tentative', TentativeIcon],
-                ['complete', 'Complete', CompleteIcon],
-              ] as const
-            ).map(([value, label, Icon]) => (
-              <Tooltip key={value}>
-                <TooltipTrigger asChild>
-                  <ToggleGroupItem value={value} aria-label={label}>
-                    <Icon width={16} height={16} />
-                  </ToggleGroupItem>
-                </TooltipTrigger>
-                <TooltipContent>{label}</TooltipContent>
-              </Tooltip>
-            ))}
-          </ToggleGroup>
-          <span className="text-xs text-text-secondary">{STATUS_LABEL[item.status]}</span>
+          {frozen ? (
+            <>
+              <FrozenStatusIcon status={item.status} />
+              <span className="text-xs text-text-muted">{STATUS_LABEL[item.status]}</span>
+              <span className="text-xs text-text-muted" aria-hidden="true">
+                ·
+              </span>
+              <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" aria-label={`${item.note ? 'Edit' : 'Add'} note for "${item.name}"`} onClick={startNote}>
+                {item.note ? 'Edit note' : 'Add note'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                value={item.status}
+                aria-label={`Status of "${item.name}"`}
+                onValueChange={(next) => {
+                  if (!next) return;
+                  if (next === 'tentative') startTentative();
+                  else {
+                    cancelTentative();
+                    setStatus(next as ChecklistStatus, item.note);
+                  }
+                }}
+              >
+                {(
+                  [
+                    ['incomplete', 'Incomplete', IncompleteIcon],
+                    ['tentative', 'Tentative', TentativeIcon],
+                    ['complete', 'Complete', CompleteIcon],
+                  ] as const
+                ).map(([value, label, Icon]) => (
+                  <Tooltip key={value}>
+                    <TooltipTrigger asChild>
+                      <ToggleGroupItem value={value} aria-label={label}>
+                        <Icon width={16} height={16} />
+                      </ToggleGroupItem>
+                    </TooltipTrigger>
+                    <TooltipContent>{label}</TooltipContent>
+                  </Tooltip>
+                ))}
+              </ToggleGroup>
+              <span className="text-xs text-text-secondary">{STATUS_LABEL[item.status]}</span>
+            </>
+          )}
         </div>
       </div>
       {descriptionOpen && item.description && <p className="m-0 text-xs text-text-secondary">{item.description}</p>}
@@ -174,7 +211,7 @@ function ChecklistItemRow({
               aria-describedby={refused ? noteErrorId : undefined}
               onChange={(e) => setDraftNote(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') commitTentative();
+                if (e.key === 'Enter') commit();
                 if (e.key === 'Escape') {
                   e.stopPropagation();
                   cancelTentative();
@@ -183,7 +220,7 @@ function ChecklistItemRow({
             />
             {refused && <Refusal id={noteErrorId}>{refused}</Refusal>}
           </div>
-          <Button type="button" size="sm" onClick={commitTentative}>
+          <Button type="button" size="sm" onClick={commit}>
             Save
           </Button>
           <Button type="button" variant="ghost" size="sm" onClick={cancelTentative}>
@@ -195,4 +232,10 @@ function ChecklistItemRow({
       )}
     </li>
   );
+}
+
+/** A frozen item's status, shown not set (§8.4): its icon, muted, beside the status named in text (§9.5). */
+function FrozenStatusIcon({ status }: { status: ChecklistStatus }) {
+  const Icon = STATUS_ICON[status];
+  return <Icon width={16} height={16} className="text-text-muted" />;
 }

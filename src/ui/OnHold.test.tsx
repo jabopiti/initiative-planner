@@ -87,13 +87,13 @@ const renderPage = () => render(page('i1'));
 const bar = () => document.getElementById('magic-bar')!;
 
 describe('Actions menu (§5.4)', () => {
-  it('lists only Put on hold for an Active initiative, and puts it on hold in one click with its own commit (AC1, AC2)', async () => {
+  it('lists Put on hold for an Active initiative, and puts it on hold in one click with its own commit (AC1, AC2)', async () => {
     const user = userEvent.setup();
     initiative = initiativeWith();
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel']);
     await user.click(screen.getByRole('menuitem', { name: 'Put on hold' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(); // no confirmation
@@ -108,7 +108,7 @@ describe('Actions menu (§5.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel']);
     expect(screen.getAllByText('On Hold').length).toBeGreaterThan(0);
   });
 
@@ -130,7 +130,7 @@ describe('Actions menu (§5.4)', () => {
     initiative = initiativeWith({ status: 'Closed' });
     renderPage();
 
-    await screen.findByLabelText('Initiative name');
+    await screen.findByRole('heading', { level: 1, name: 'Checkout Redesign' });
     expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
   });
 
