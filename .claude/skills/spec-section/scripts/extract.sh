@@ -41,16 +41,8 @@ if [ ! -f "$spec" ]; then
 fi
 
 out="$(awk -v want="$section" '
-  function heading_level(line,    i, n) {
-    n = 0
-    for (i = 1; i <= length(line); i++) {
-      if (substr(line, i, 1) == "#") n++
-      else break
-    }
-    return n
-  }
   {
-    lvl = heading_level($0)
+    lvl = match($0, /^#+/) ? RLENGTH : 0
     if (lvl > 0) {
       rest = $0
       sub(/^#+[ \t]+/, "", rest)
