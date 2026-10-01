@@ -8,7 +8,7 @@ depends_on: ["014"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Promoted from the backlog tail (Cancel and Reopen a Cancelled initiative, §8.4). Also builds the whole-initiative freeze §8.4 applies to both Cancelled and Closed: Closed is already reachable (passing the final gate), but today only its phases lock, while its name, description, checklist statuses and the like stay editable."
+change_summary: "Promoted from the backlog tail (Cancel and Reopen a Cancelled initiative, §8.4). Also builds the whole-initiative freeze §8.4 applies to both Cancelled and Closed: Closed is already reachable (passing the final gate), but today only its phases lock, while its name, description, checklist statuses and the like stay editable. Review (2026-10-01): the frozen line's Reopen G4 for Closed is built here (reopenGate exists since 008), and a frozen page gets Add note / Edit note with a note-only write."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "The freeze is a rule every write path must honour, with two carve-outs (checklist notes, actuals) and a merge side: a pulled change from another user must not be able to edit a frozen initiative either. Missing one write path is silent data corruption, so it needs a data-layer guard tested across every repository method, not just disabled inputs."
 spec_sections: ["§8.4 Closing and cancelling", "§8.3 Reopening", "§5.4 Initiative detail view", "§9.9 Interface states (Frozen, Confirmations)", "§9.10 Icons", "§9.3 Deletion rules", "§10.3 Writing", "§10.5 Merging"]
@@ -52,8 +52,9 @@ checklist notes and actuals that a finished initiative still needs to accept
   - Cancelled: "Cancelled. Notes and actuals can still be recorded." and a
     **Reopen** button.
   - Closed: "Closed after G4. Notes and actuals can still be recorded." and
-    a **Reopen** button (its action lands in 016; until then the line shows
-    without the button for Closed).
+    a **Reopen G4** button, wired to the existing `reopenGate` (since 008).
+    While the line shows, the header's "Reopen <gate>" link is hidden, so
+    there is one Reopen per page.
   The magic bar stays hidden (§5.4).
 - **Reopen a Cancelled initiative (§8.4).** The line's Reopen, and a
   **Reopen** item in the Actions menu, return the status to Active (never to
@@ -65,7 +66,7 @@ checklist notes and actuals that a finished initiative still needs to accept
   and Delete when no gate passed). Put on hold and Cancel are hidden.
 
 **Explicitly excluded:** Reopen for a Closed initiative and Reopen of the last
-gate from the menu (016); Delete (017).
+gate from the **Actions menu** (016); Delete (017).
 
 ## Execution path
 
@@ -96,7 +97,15 @@ gate from the menu (016); Delete (017).
       header.
 - [ ] Given a Closed initiative, then the badge shows the lock icon and
       "Closed", and the line reads "Closed after <final gate>. Notes and
-      actuals can still be recorded."
+      actuals can still be recorded." with a "Reopen <final gate>" button
+      that reopens it (§8.3); the header's "Reopen <gate>" link is absent.
+- [ ] Given a Cancelled initiative with a passed gate, then no "Reopen
+      <gate>" is offered, and `reopenGate` on it is refused.
+- [ ] Given a Cancelled or Closed initiative, then each checklist item's
+      status shows read-only with "Add note" (no note yet) or "Edit note";
+      saving keeps the status and commits "<name>: note on "<item>"
+      changed"; clearing a Tentative item's note is refused with "Enter a
+      note."
 - [ ] Given a Cancelled or Closed initiative, then name, description, owner,
       team, periods, allocations, cost items and checklist statuses are shown
       read-only and muted, and Add person / Add cost item are absent.
@@ -136,3 +145,32 @@ changing the status.
   slice; 016 only adds Reopen for Closed and the last gate.
 - **Status badge:** neutral chip, Ban icon for Cancelled, Lock for Closed.
 - **No confirmation and no reason** for Cancel (§9.9).
+
+Settled in the 2026-10-01 review, from mockups:
+- **Frozen line look:** a bordered strip (surface-subtle, border-default,
+  rounded) under the meta row: lock icon, the text, an outline **Reopen**
+  button at the right. Plain text, not a live region.
+- **Reopen for Closed now:** the strip's button reads "Reopen G4" (the final
+  gate's label) and calls `reopenGate`; accessible names "Reopen <name>"
+  (Cancelled) and "Reopen G4 of <name>" (Closed). The header's existing
+  "Reopen <gate>" link (008) is hidden on a frozen page. 016 keeps the
+  Actions menu items.
+- **Checklist notes on a frozen page:** each item's status shows read-only
+  (icon and label, muted) with a text button "Add note" or "Edit note";
+  it opens the existing note field with Save / Cancel (Enter / Esc) and
+  saves the note alone through a new `setChecklistNote`, keeping the status.
+  Commit: `<name>: note on "<item>" changed`. A Tentative item's note can't
+  be cleared ("Enter a note."). Active pages keep today's flow.
+- **Reopen menu icon:** Lucide RotateCcw (Unlock stays Settings' unlock).
+  Menu order: Put on hold, Cancel. Closed has no menu items until 016.
+- **Assumptions agreed:** one guard (`isInitiativeFrozen` in `frozen.ts`)
+  checked by every initiative write in `Repository.ts`; only `setActual`,
+  `setChecklistNote`, `reopen` and `reopenGate` (Closed only) pass it; a
+  refused write is a silent no-op. A pending Undo (removed allocation, cost
+  item, team change) is refused once frozen. Pulled changes merge as usual,
+  including a local edit made before the pull brought someone's Cancel.
+  Phases not frozen by a gate render read-only from the live plan in the
+  frozen-phase layout, without capacity warnings, Add person, Add cost item
+  or Extend; the lock icon on a phase header stays for gate-frozen phases.
+  Name and owner show as text; an empty description is hidden; an open
+  team-change confirmation closes when the page freezes.

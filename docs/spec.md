@@ -1599,7 +1599,11 @@ delay. Critical information is never only in a tooltip.
   estimate in a muted style with the label "using the estimate" (§7.3).
 - **Frozen:** frozen phases, and Closed or Cancelled initiatives, show a
   lock icon and a muted look. Notes and actuals stay editable where allowed
-  (§8.4).
+  (§8.4). A Closed or Cancelled initiative shows a strip under its header,
+  "Cancelled. Notes and actuals can still be recorded." (or "Closed after
+  <final gate>. …") with **Reopen** (**Reopen <final gate>** when Closed).
+  Its checklist statuses read-only, and each item offers **Add note** or
+  **Edit note**, which saves the note alone.
 - **Gate passed:** the magic bar shows "Passed <gate> — Reopen" for a few
   seconds (§5.4).
 - **Changed by others:** a value that another user's change updates while it
