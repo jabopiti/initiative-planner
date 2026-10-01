@@ -1,3 +1,4 @@
+import { chipTriggerClass } from './chipTriggerClass';
 import { ChevronDownIcon } from './icons';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -21,7 +22,7 @@ export function YearChip({ years, selected, onChange }: Props) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${active ? 'border-brand-accent bg-brand-accent-tint font-medium text-brand-accent-text' : 'border-border-strong bg-surface-card text-text-primary'}`}
+          className={chipTriggerClass(active)}
         >
           {active ? `Year: ${selected}` : 'Year'}
           <ChevronDownIcon width={14} height={14} />
@@ -31,7 +32,6 @@ export function YearChip({ years, selected, onChange }: Props) {
         <DropdownMenuRadioGroup value={selected === null ? ALL : String(selected)} onValueChange={(v) => onChange(v === ALL ? null : Number(v))}>
           {[ALL, ...years.map(String)].map((value) => (
             <DropdownMenuRadioItem key={value} value={value} className="cursor-pointer">
-              <span aria-hidden="true" className="absolute left-2 size-3.5 rounded-full border border-border-strong" />
               {value === ALL ? 'All years' : value}
             </DropdownMenuRadioItem>
           ))}

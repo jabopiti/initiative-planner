@@ -259,14 +259,9 @@ export function phaseCoverage(plan: PhasePlan): 'estimate' | 'forecast' | 'actua
   return recorded === months.length ? 'actual' : 'forecast';
 }
 
-/** Recorded actuals minus their estimates, over the months that have one; undefined until at least one is recorded (§4). */
-export function phaseDeviation(plan: PhasePlan, people: Person[], data: RateData): number | undefined {
-  const actuals = plan.actualMonths;
-  if (!actuals || Object.keys(actuals).length === 0) return undefined;
-  const estimate = phaseByMonth(plan, people, data);
-  let total = 0;
-  for (const [month, amount] of Object.entries(actuals)) total += amount - (estimate[month] ?? 0);
-  return total;
+/** Each recorded actual minus its month's estimate (§4). */
+function deviationByMonth(actuals: Record<string, number>, estimate: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(actuals).map(([month, amount]) => [month, amount - (estimate[month] ?? 0)]));
 }
 
 /** Why a person can't be allocated to this team's initiative, or null when they can (§7.2). */
@@ -286,13 +281,18 @@ export function frozenPhaseMonths(snapshot: FrozenPhaseSnapshot, actualMonths: R
   return phaseMonths({ startDate: snapshot.startDate, endDate: snapshot.endDate, allocations: [], costItems: snapshot.costItems, actualMonths });
 }
 
+/** A frozen phase's blended amount by month: see {@link frozenBlendedTotal}. */
+function frozenBlendedByMonth(snapshot: FrozenPhaseSnapshot, actualMonths: Record<string, number> | undefined): Record<string, number> {
+  const actuals = actualMonths ?? {};
+  return Object.fromEntries(frozenPhaseMonths(snapshot, actualMonths).map((month) => [month, actuals[month] ?? snapshot.estimateByMonth[month] ?? 0]));
+}
+
 /**
  * A frozen phase's blended total (§7.3, §8.1): the snapshot's monthly estimate, with any actuals recorded since
  * folded in, never recalculated from live people or rate data — the whole point of freezing.
  */
 export function frozenBlendedTotal(snapshot: FrozenPhaseSnapshot, actualMonths: Record<string, number> | undefined): number {
-  const actuals = actualMonths ?? {};
-  return frozenPhaseMonths(snapshot, actualMonths).reduce((total, month) => total + (actuals[month] ?? snapshot.estimateByMonth[month] ?? 0), 0);
+  return Object.values(frozenBlendedByMonth(snapshot, actualMonths)).reduce((total, amount) => total + amount, 0);
 }
 
 /**
@@ -308,44 +308,20 @@ export function phaseEffectiveTotal(initiative: Initiative, phaseId: string, peo
   return plan ? phaseBlendedTotal(plan, people, data, estimateByMonth) : 0;
 }
 
-/** A costed phase's blended amount by month (§7.3): its frozen snapshot's once its gate has passed, its live plan's otherwise. */
-function phaseEffectiveByMonth(initiative: Initiative, phaseId: string, people: Person[], data: RateData): Record<string, number> {
-  const plan = initiative.phases?.[phaseId];
-  const snapshot = isPhaseFrozen(initiative, phaseId) ? initiative.gates![phaseId].frozenSnapshot : undefined;
-  if (snapshot) {
-    const actuals = plan?.actualMonths ?? {};
-    return Object.fromEntries(frozenPhaseMonths(snapshot, plan?.actualMonths).map((m) => [m, actuals[m] ?? snapshot.estimateByMonth[m] ?? 0]));
-  }
-  return plan ? phaseBlendedByMonth(plan, people, data) : {};
-}
-
 /**
- * A costed phase's deviation by month (§4): each recorded actual minus its estimate — a frozen phase's against its
- * own frozen estimate, never a live recompute, for the same reason {@link grandEstimate} uses the snapshot.
+ * A costed phase's blended amount and deviation by month, from one walk of its estimate: its frozen snapshot's once
+ * its gate has passed (§8.1) — deviation too is against the frozen estimate, never a live recompute — its live
+ * plan's otherwise.
  */
-function phaseDeviationByMonth(initiative: Initiative, phaseId: string, people: Person[], data: RateData): Record<string, number> {
+function phaseMonthFigures(initiative: Initiative, phaseId: string, people: Person[], data: RateData): { blended: Record<string, number>; deviation: Record<string, number> } {
   const plan = initiative.phases?.[phaseId];
   const actuals = plan?.actualMonths ?? {};
-  if (!plan || Object.keys(actuals).length === 0) return {};
-  const estimate = isPhaseFrozen(initiative, phaseId) ? initiative.gates![phaseId].frozenSnapshot!.estimateByMonth : phaseByMonth(plan, people, data);
-  return Object.fromEntries(Object.entries(actuals).map(([m, amount]) => [m, amount - (estimate[m] ?? 0)]));
+  const snapshot = isPhaseFrozen(initiative, phaseId) ? initiative.gates![phaseId].frozenSnapshot : undefined;
+  if (snapshot) return { blended: frozenBlendedByMonth(snapshot, plan?.actualMonths), deviation: deviationByMonth(actuals, snapshot.estimateByMonth) };
+  if (!plan) return { blended: {}, deviation: {} };
+  const estimate = phaseByMonth(plan, people, data);
+  return { blended: phaseBlendedByMonth(plan, people, data, estimate), deviation: deviationByMonth(actuals, estimate) };
 }
-
-/** Sums a per-month figure over every costed phase, keeping only the months `keep` accepts. */
-function sumCostedMonths(
-  process: PhaseDef[],
-  byMonth: (phaseId: string) => Record<string, number>,
-  keep: (month: string) => boolean = () => true,
-): number {
-  let total = 0;
-  for (const phase of process) {
-    if (!phase.costed) continue;
-    for (const [month, amount] of Object.entries(byMonth(phase.id))) if (keep(month)) total += amount;
-  }
-  return total;
-}
-
-const inYear = (year: number) => (month: string) => month.startsWith(`${year}-`);
 
 /**
  * An initiative's grand estimate (§4): the blended total of every costed phase (see {@link phaseEffectiveTotal}).
@@ -358,19 +334,32 @@ export function grandEstimate(initiative: Initiative, process: PhaseDef[], peopl
   return total;
 }
 
-/** The part of the grand estimate falling in one calendar year (§5.2's year filter), month by month. */
-export function yearEstimate(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData, year: number): number {
-  return sumCostedMonths(process, (id) => phaseEffectiveByMonth(initiative, id, people, data), inYear(year));
+export interface YearFigures {
+  cost: number;
+  deviation: number;
 }
 
-/** Every year an initiative has non-zero cost in, ascending (§5.2's year filter choices). */
-export function costYears(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): number[] {
-  const years = new Set<number>();
+/**
+ * An initiative's cost and deviation by calendar year (§5.2's year filter), month by month over every costed phase:
+ * recorded actuals where they exist, estimates elsewhere, deviation over the months with a recorded actual.
+ */
+export function costByYear(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): Map<number, YearFigures> {
+  const years = new Map<number, YearFigures>();
+  const add = (byMonth: Record<string, number>, key: keyof YearFigures) => {
+    for (const [month, amount] of Object.entries(byMonth)) {
+      const year = Number(month.slice(0, 4));
+      const figures = years.get(year) ?? { cost: 0, deviation: 0 };
+      figures[key] += amount;
+      years.set(year, figures);
+    }
+  };
   for (const phase of process) {
     if (!phase.costed) continue;
-    for (const [month, amount] of Object.entries(phaseEffectiveByMonth(initiative, phase.id, people, data))) if (amount !== 0) years.add(Number(month.slice(0, 4)));
+    const { blended, deviation } = phaseMonthFigures(initiative, phase.id, people, data);
+    add(blended, 'cost');
+    add(deviation, 'deviation');
   }
-  return [...years].sort((a, b) => a - b);
+  return years;
 }
 
 /**
@@ -378,12 +367,7 @@ export function costYears(initiative: Initiative, process: PhaseDef[], people: P
  * every month that has one. Zero, not undefined, when nothing has been recorded yet.
  */
 export function grandDeviation(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData): number {
-  return sumCostedMonths(process, (id) => phaseDeviationByMonth(initiative, id, people, data));
-}
-
-/** The deviation over one calendar year's months only (§5.2's year filter). */
-export function yearDeviation(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData, year: number): number {
-  return sumCostedMonths(process, (id) => phaseDeviationByMonth(initiative, id, people, data), inYear(year));
+  return [...costByYear(initiative, process, people, data).values()].reduce((total, y) => total + y.deviation, 0);
 }
 
 /** The approval track a total resolves to (§7.4): bounds lower-inclusive, upper-exclusive; `null` when no band covers it. */

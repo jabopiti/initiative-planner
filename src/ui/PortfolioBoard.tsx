@@ -2,11 +2,11 @@ import { useMemo } from 'react';
 import { useIsChangedByOthers, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { inactiveLabel, initiativeRows, NONE } from '../data/initiativeList';
-import { isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, portfolioRows, portfolioYears, type PortfolioFilters, type PortfolioRow } from '../data/portfolio';
-import { FILE_PATHS, type InitiativeStatus } from '../data/types';
+import { costedRows, isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, portfolioRows, portfolioYears, type PortfolioFilters, type PortfolioRow } from '../data/portfolio';
+import { FILE_PATHS, INITIATIVE_STATUSES, type InitiativeStatus } from '../data/types';
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
-import { AttentionMarker } from './AttentionMarker';
+import { AttentionMarker, IconMarker } from './AttentionMarker';
 import { CompactAmount } from './CompactAmount';
 import { CopyButton } from './CopyButton';
 import type { CopyTableData } from './copyTable';
@@ -18,25 +18,13 @@ import { NoInitiatives } from './NoInitiatives';
 import { NeedsAttentionStrip } from './NeedsAttentionStrip';
 import { useSessionFilters } from './sessionFilters';
 import { YearChip } from './YearChip';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-const STATUSES: InitiativeStatus[] = ['Active', 'On Hold', 'Cancelled', 'Closed'];
 const STATUS_ICON = { 'On Hold': StatusOnHoldIcon, Cancelled: StatusCancelledIcon, Closed: StatusClosedIcon };
 
 /** A non-Active status on a card (§5.2): a neutral icon named by the status, the same pattern as the attention marker. */
 function StatusMarker({ status }: { status: InitiativeStatus }) {
   if (status === 'Active') return null;
-  const Icon = STATUS_ICON[status];
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span role="img" aria-label={status} tabIndex={0} className="inline-flex shrink-0 text-text-secondary">
-          <Icon width={16} height={16} />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{status}</TooltipContent>
-    </Tooltip>
-  );
+  return <IconMarker label={status} tooltip={status} Icon={STATUS_ICON[status]} className="text-text-secondary" />;
 }
 
 /** One initiative's card (§5.2): name, status and attention markers, team · owner, compact cost and approval track; the whole card is the link. */
@@ -81,11 +69,11 @@ export function PortfolioBoard() {
 
   const rows = useMemo(
     // The board's cards look up their own attention item; the rows don't need it.
-    () => initiativeRows(initiatives, teams, people, process, approvalTracks, data, []),
+    () => costedRows(initiativeRows(initiatives, teams, people, process, approvalTracks, data, []), process, people, data),
     [initiatives, teams, people, process, approvalTracks, data],
   );
-  const shown = useMemo(() => portfolioRows(rows, filters, process, people, data), [rows, filters, process, people, data]);
-  const years = useMemo(() => portfolioYears(initiatives, process, people, data), [initiatives, process, people, data]);
+  const shown = useMemo(() => portfolioRows(rows, filters), [rows, filters]);
+  const years = useMemo(() => portfolioYears(rows), [rows]);
 
   /** Board order: phase by phase, cards in list order — what Copy follows too. */
   const byPhase = useMemo(() => {
@@ -100,7 +88,7 @@ export function PortfolioBoard() {
       phase: process.map((p) => ({ value: p.id, label: p.label })),
       initiative: [...initiatives].sort((a, b) => a.name.localeCompare(b.name)).map((i) => ({ value: i.id, label: i.name })),
       track: [...approvalTracks.map((t) => ({ value: t.id, label: t.name })), { value: NONE, label: 'No approval track' }],
-      status: STATUSES.map((s) => ({ value: s, label: s })),
+      status: INITIATIVE_STATUSES.map((s) => ({ value: s, label: s })),
     }),
     [teams, process, initiatives, approvalTracks],
   );

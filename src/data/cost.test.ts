@@ -6,11 +6,9 @@ import {
   allocationRefusal,
   frozenBlendedTotal,
   frozenPhaseMonths,
-  costYears,
+  costByYear,
   grandDeviation,
   grandEstimate,
-  yearDeviation,
-  yearEstimate,
   isOutsidePeriod,
   monthsInRange,
   parseAmount,
@@ -18,7 +16,6 @@ import {
   phaseBlendedTotal,
   phaseByMonth,
   phaseCoverage,
-  phaseDeviation,
   phaseMonths,
   phaseTotal,
   resolveApprovalTrack,
@@ -241,12 +238,6 @@ describe('actuals default to the estimate once a month closes (§7.3, §4)', () 
     expect(phaseCoverage(plan({ '2026-10': 4000 }))).toBe('forecast');
     expect(phaseCoverage(plan({ '2026-10': 4000, '2026-11': 3800 }))).toBe('actual');
   });
-
-  it('is undefined until at least one month is recorded, then the actuals minus their estimates', () => {
-    expect(phaseDeviation(plan(), [ana], data)).toBeUndefined();
-    expect(phaseDeviation(plan({ '2026-10': 4500 }), [ana], data)).toBe(500); // over the estimate
-    expect(phaseDeviation(plan({ '2026-10': 4500, '2026-11': 3800 }), [ana], data)).toBe(300); // 500 - 200
-  });
 });
 
 describe('only a team’s members may be allocated (§7.2)', () => {
@@ -458,22 +449,19 @@ describe('year-scoped cost and deviation (§5.2 year filter)', () => {
     },
   };
 
-  it('counts Nov and Dec in 2026 and Jan and Feb in 2027, actuals where recorded', () => {
-    expect(yearEstimate(spanning, process, [ana], data, 2026)).toBe(8000 + 8500);
-    expect(yearEstimate(spanning, process, [ana], data, 2027)).toBe(9000 + 9600);
-    expect(yearEstimate(spanning, process, [ana], data, 2028)).toBe(0);
-    expect(yearEstimate(spanning, process, [ana], data, 2026) + yearEstimate(spanning, process, [ana], data, 2027)).toBe(grandEstimate(spanning, process, [ana], data));
-  });
+  const years = (i: Initiative) => Object.fromEntries(costByYear(i, process, [ana], data));
 
-  it('counts deviation only over the year’s months', () => {
-    expect(yearDeviation(spanning, process, [ana], data, 2026)).toBe(500);
-    expect(yearDeviation(spanning, process, [ana], data, 2027)).toBe(-600);
+  it('counts Nov and Dec in 2026 and Jan and Feb in 2027, actuals where recorded, deviation over the year’s months', () => {
+    expect(years(spanning)).toEqual({
+      2026: { cost: 8000 + 8500, deviation: 500 },
+      2027: { cost: 9000 + 9600, deviation: -600 },
+    });
+    expect(grandEstimate(spanning, process, [ana], data)).toBe(8000 + 8500 + 9000 + 9600);
     expect(grandDeviation(spanning, process, [ana], data)).toBe(-100);
   });
 
-  it('lists the years with cost, and none for an unplanned initiative', () => {
-    expect(costYears(spanning, process, [ana], data)).toEqual([2026, 2027]);
-    expect(costYears({ ...spanning, phases: undefined }, process, [ana], data)).toEqual([]);
+  it('has no years for an unplanned initiative', () => {
+    expect(years({ ...spanning, phases: undefined })).toEqual({});
   });
 
   it('splits a frozen phase by its snapshot’s months, immune to live rates', () => {
@@ -483,9 +471,9 @@ describe('year-scoped cost and deviation (§5.2 year filter)', () => {
       phases: { validation: { startDate: '2026-12-01', endDate: '2027-01-31', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 100 }], actualMonths: { '2027-01': 5200 } } },
       gates: { validation: { outcome: 'passed', passedOn: '2027-01-31', frozenSnapshot, checklist: [] } },
     };
-    expect(yearEstimate(frozen, process, [ana], data, 2026)).toBe(4000);
-    expect(yearEstimate(frozen, process, [ana], data, 2027)).toBe(5200);
-    expect(yearDeviation(frozen, process, [ana], data, 2027)).toBe(200);
-    expect(yearDeviation(frozen, process, [ana], data, 2026)).toBe(0);
+    expect(years(frozen)).toEqual({
+      2026: { cost: 4000, deviation: 0 },
+      2027: { cost: 5200, deviation: 200 },
+    });
   });
 });

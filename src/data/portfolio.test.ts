@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { initiativeRows } from './initiativeList';
-import { isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, portfolioRows, portfolioYears, type PortfolioFilters } from './portfolio';
+import { costedRows, isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, portfolioRows, portfolioYears, type PortfolioFilters } from './portfolio';
 import type { Country, Initiative, Person, Role, Team } from './types';
 
 const { process, approvalTracks } = defaultBrandPack;
@@ -27,8 +27,8 @@ const list = [
   initiative('unplanned'),
   initiative('held', { status: 'On Hold', phases: planned('2026-01-01', '2026-01-31') }),
 ];
-const rows = initiativeRows(list, teams, people, process, approvalTracks, data, []);
-const shown = (f: Partial<PortfolioFilters>) => portfolioRows(rows, { ...PORTFOLIO_DEFAULTS, ...f }, process, people, data);
+const rows = costedRows(initiativeRows(list, teams, people, process, approvalTracks, data, []), process, people, data);
+const shown = (f: Partial<PortfolioFilters>) => portfolioRows(rows, { ...PORTFOLIO_DEFAULTS, ...f });
 const ids = (f: Partial<PortfolioFilters>) => shown(f).map((r) => r.initiative.id);
 
 describe('portfolioRows (§5.2)', () => {
@@ -69,7 +69,7 @@ describe('portfolioRows (§5.2)', () => {
 
 describe('portfolioYears', () => {
   it('lists every year any initiative of any status has cost in', () => {
-    expect(portfolioYears(list, process, people, data)).toEqual([2026, 2027]);
+    expect(portfolioYears(rows)).toEqual([2026, 2027]);
   });
 });
 

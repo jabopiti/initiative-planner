@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { activeFilterCount, attentionRank, filterRows, inactiveLabel, initiativeRows, NO_FILTERS, NONE, type InitiativeFilters } from '../data/initiativeList';
 import { sortRows } from '../data/sortRows';
-import { FILE_PATHS } from '../data/types';
+import { FILE_PATHS, INITIATIVE_STATUSES } from '../data/types';
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { useBrand } from '../state/BrandContext';
 import { useIsChangedByOthers, useRepositoryState } from '../state/DataContext';
@@ -18,8 +18,6 @@ import { SortableHeader } from './SortableHeader';
 import { TruncatedText } from './TruncatedText';
 import { useTableSort } from './tableSort';
 import { useSessionFilters } from './sessionFilters';
-
-const STATUSES = ['Active', 'On Hold', 'Cancelled', 'Closed'];
 
 const CHIPS: [keyof InitiativeFilters, string][] = [
   ['team', 'Team'],
@@ -69,7 +67,7 @@ export function InitiativesTable() {
     owner: [{ value: NONE, label: 'No owner' }, ...people.map((p) => ({ value: p.id, label: inactiveLabel(p.name, p.active) }))],
     phase: process.map((p) => ({ value: p.id, label: p.label })),
     track: [...approvalTracks.map((t) => ({ value: t.id, label: t.name })), { value: NONE, label: 'No approval track' }],
-    status: STATUSES.map((s) => ({ value: s, label: s })),
+    status: INITIATIVE_STATUSES.map((s) => ({ value: s, label: s })),
     }),
     [teams, people, process, approvalTracks],
   );

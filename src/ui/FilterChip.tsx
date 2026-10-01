@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { chipTriggerClass } from './chipTriggerClass';
 import { ChevronDownIcon, SearchIcon } from './icons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -55,7 +56,7 @@ export function FilterChip({ label, options, selected, onChange }: Props) {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${active ? 'border-brand-accent bg-brand-accent-tint font-medium text-brand-accent-text' : 'border-border-strong bg-surface-card text-text-primary'}`}
+          className={chipTriggerClass(active)}
         >
           <span className="max-w-60 truncate">{active ? `${label}: ${chosen}` : label}</span>
           <ChevronDownIcon width={14} height={14} />
