@@ -64,20 +64,20 @@ of from zero.
 
 ## Acceptance criteria
 
-- [ ] Given an empty costed phase whose previous costed phase has
+- [x] Given an empty costed phase whose previous costed phase has
       allocations, then "Copy from <phase>" shows beside Add person; given the
       previous one is empty, or it is the first costed phase, it doesn't.
-- [ ] Given Copy, then each active team member of the previous phase gets an
+- [x] Given Copy, then each active team member of the previous phase gets an
       allocation with the same Allocation % in one commit.
-- [ ] Given the previous phase was passed, then the frozen snapshot's
+- [x] Given the previous phase was passed, then the frozen snapshot's
       allocations are copied, not later edits.
-- [ ] Given someone no longer an active member, then they are not copied and
+- [x] Given someone no longer an active member, then they are not copied and
       the note "Not copied: <name>, no longer on <team>." lists them (several
       names comma-separated).
-- [ ] Given the phase is then edited, then the note disappears.
-- [ ] Given everyone was skipped, then nothing is written and the note says
+- [x] Given the phase is then edited, then the note disappears.
+- [x] Given everyone was skipped, then nothing is written and the note says
       so.
-- [ ] Given a frozen phase or a Cancelled/Closed initiative, then no Copy is
+- [x] Given a frozen phase or a Cancelled/Closed initiative, then no Copy is
       offered.
 
 ## Delivery gate
