@@ -116,3 +116,13 @@ jobs:
         if: steps.browsers.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
       - run: npm run test:e2e
+
+  # The one check branch protection requires: it passes only when every job above did, so jobs can be
+  # added, renamed or split without touching the repository's required checks.
+  ci:
+    needs: [typecheck, lint, test, audit, build, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "false" ]
