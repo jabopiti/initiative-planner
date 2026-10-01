@@ -31,6 +31,7 @@ import { GithubClient, type BranchHead } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
+import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
 import { FileWriter, type CommitNote, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
@@ -125,6 +126,9 @@ export interface NewPersonInput {
   countryId: string;
   roleId: string;
 }
+
+/** What Copy from <previous phase> did: how many allocations were added and who was skipped (§5.11). */
+export type CopyAllocationsResult = { copied: number; skipped: Person[] };
 
 /** Why an allocation wasn't added (§7.2), in words the page can show as is. */
 export type AddAllocationResult = { ok: true; allocation: Allocation } | { ok: false; reason: string };
@@ -1294,6 +1298,34 @@ export class Repository {
       { field: `allocations:${allocation.id}`, from: undefined, to: allocation, words: this.describeItem('allocations') },
     );
     return { ok: true, allocation };
+  }
+
+  /**
+   * Copy the previous costed phase's allocations into an empty phase in one commit (§5.11): each active team member
+   * with the same Allocation %. Nothing is written when the phase has people already, is frozen, or nobody can be copied.
+   */
+  copyAllocations(initiativeId: string, phaseId: string, fromPhaseId: string): CopyAllocationsResult | null {
+    const initiative = this.editableInitiative(initiativeId);
+    const team = initiative && this.state.teams.find((t) => t.id === initiative.teamId);
+    if (!initiative || !team || isPhaseFrozen(initiative, phaseId)) return null;
+    if ((initiative.phases?.[phaseId]?.allocations.length ?? 0) > 0) return null;
+
+    const { copy, skipped } = planCopy(copySource(initiative, fromPhaseId), team, this.state.people, this.state.memberships);
+    if (copy.length === 0) return { copied: 0, skipped };
+    const allocations: Allocation[] = copy.map((c) => ({ id: newId(), ...c }));
+    const fromLabel = this.phaseLabel(fromPhaseId);
+    this.editPhase<Allocation[]>(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, allocations }),
+      {
+        field: 'allocations:copied',
+        from: undefined,
+        to: allocations,
+        words: (_, to, name, phase) => `${name}: ${to?.length} ${to?.length === 1 ? 'person' : 'people'} copied to ${phase} from ${fromLabel}`,
+      },
+    );
+    return { copied: allocations.length, skipped };
   }
 
   updateAllocation(initiativeId: string, phaseId: string, allocationId: string, allocationPct: number): void {

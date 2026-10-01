@@ -599,6 +599,39 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     });
   });
 
+  it('copies the previous costed phase into an empty one as a single commit, skipping someone who left, and refuses a non-empty phase', async () => {
+    const { repo, initiative, member } = await repoWithInitiative();
+    const leaver = repo.createPerson({ name: 'Lucía Ramos', countryId: 'c1', roleId: 'r1' });
+    const leaverMembership = repo.addMembership(leaver.id, initiative.teamId)!;
+    repo.addAllocation(initiative.id, 'validation', member.id, 40);
+    repo.addAllocation(initiative.id, 'validation', leaver.id, 30);
+    repo.updateMembership(leaverMembership.id, { active: false });
+    await repo.flushPending();
+    commits.length = 0;
+
+    const result = repo.copyAllocations(initiative.id, 'development', 'validation');
+    expect(result?.copied).toBe(1);
+    expect(result?.skipped.map((p) => p.name)).toEqual(['Lucía Ramos']);
+    await repo.flushPending();
+    expect(commits.map((c) => c.message)).toEqual(['Payments API: 1 person copied to Development from Validation']);
+    expect(commits[0].content.phases?.development.allocations).toEqual([expect.objectContaining({ personId: member.id, allocationPct: 40 })]);
+
+    expect(repo.copyAllocations(initiative.id, 'development', 'validation')).toBeNull();
+  });
+
+  it('writes nothing when everyone was skipped', async () => {
+    const { repo, initiative, member } = await repoWithInitiative();
+    const membership = repo.getState().memberships.find((m) => m.personId === member.id)!;
+    repo.addAllocation(initiative.id, 'validation', member.id, 40);
+    repo.updateMembership(membership.id, { active: false });
+    await repo.flushPending();
+    commits.length = 0;
+    const result = repo.copyAllocations(initiative.id, 'development', 'validation');
+    expect(result).toMatchObject({ copied: 0 });
+    await repo.flushPending();
+    expect(commits).toEqual([]);
+  });
+
   it('describes an allocation added then changed as one add, and an added-then-removed one as no commit (§10.3)', async () => {
     const { repo, initiative, member } = await repoWithInitiative();
     const added = repo.addAllocation(initiative.id, 'validation', member.id);
