@@ -18,10 +18,15 @@ app never does).
 `npm run test:quiet` (Vitest, `--reporter=dot`) runs the suite once with
 minimal passing-test noise — failures still print full detail. `npm run
 test:watch` for iterating. `npm run typecheck` for a standalone type
-check.
+check. `npm run test:coverage` is what CI runs and it fails below the
+thresholds in vite.config.ts (raise them as coverage grows).
+`npm run test:e2e` drives the production build in Chromium against a fake
+GitHub (`e2e/support/fakeGithub.ts`): the strict CSP, real connect and
+planning flows, and an axe WCAG A/AA scan of each screen. A new screen
+gets a scan in `e2e/a11y.spec.ts`.
 
 ## Code style
-ESLint (`npm run lint`). No Prettier config yet — match surrounding
+ESLint (`npm run lint`, warnings fail it). No Prettier config yet — match surrounding
 style. This project uses Tailwind CSS v4: no `tailwind.config.js` —
 tokens live in CSS via `@theme`/`@theme inline`. Add UI components with
 `npx shadcn@latest add <component>`, not by hand-writing them or
