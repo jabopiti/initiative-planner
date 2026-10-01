@@ -77,9 +77,12 @@ export function activeFilterCount(filters: InitiativeFilters): number {
   return Object.values(filters).filter((v) => v.length > 0).length;
 }
 
-/** AND across the five filters, OR within one (§9.11); an empty filter matches everything. */
+/** One chip's test (§9.11): OR within the chip, and an empty chip matches everything. */
+export const matchesChip = (chosen: string[], value: string): boolean => chosen.length === 0 || chosen.includes(value);
+
+/** AND across the five filters, OR within one (§9.11). */
 export function filterRows(rows: InitiativeRow[], f: InitiativeFilters): InitiativeRow[] {
-  const ok = (chosen: string[], value: string) => chosen.length === 0 || chosen.includes(value);
+  const ok = matchesChip;
   return rows.filter(
     (r) =>
       ok(f.team, r.initiative.teamId) &&

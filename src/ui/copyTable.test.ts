@@ -47,3 +47,21 @@ describe('tableToHtml', () => {
     expect(tableToHtml(data)).toContain('<td>=Hosting</td>');
   });
 });
+
+describe('summary rows (§5.2 key metrics)', () => {
+  const data: CopyTableData = {
+    headers: ['Name', 'Cost'],
+    rows: [['Checkout Redesign', '€310,200']],
+    footerRows: [
+      ['Total cost', '€310,200'],
+      ['Deviation', '+€4,150'],
+    ],
+    numericColumns: [1],
+  };
+  it('follow the rows after a blank line in plain text, signed amounts unprefixed', () => {
+    expect(tableToText(data)).toBe(['Name\tCost', 'Checkout Redesign\t€310,200', '', 'Total cost\t€310,200', 'Deviation\t+€4,150'].join('\n'));
+  });
+  it('follow the rows after an empty row in HTML', () => {
+    expect(tableToHtml(data)).toContain('<tr><td>Checkout Redesign</td><td>€310,200</td></tr><tr><td></td><td></td></tr><tr><td>Total cost</td>');
+  });
+});

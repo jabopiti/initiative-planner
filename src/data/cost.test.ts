@@ -6,6 +6,7 @@ import {
   allocationRefusal,
   frozenBlendedTotal,
   frozenPhaseMonths,
+  costByYear,
   grandDeviation,
   grandEstimate,
   isOutsidePeriod,
@@ -15,7 +16,6 @@ import {
   phaseBlendedTotal,
   phaseByMonth,
   phaseCoverage,
-  phaseDeviation,
   phaseMonths,
   phaseTotal,
   resolveApprovalTrack,
@@ -238,12 +238,6 @@ describe('actuals default to the estimate once a month closes (§7.3, §4)', () 
     expect(phaseCoverage(plan({ '2026-10': 4000 }))).toBe('forecast');
     expect(phaseCoverage(plan({ '2026-10': 4000, '2026-11': 3800 }))).toBe('actual');
   });
-
-  it('is undefined until at least one month is recorded, then the actuals minus their estimates', () => {
-    expect(phaseDeviation(plan(), [ana], data)).toBeUndefined();
-    expect(phaseDeviation(plan({ '2026-10': 4500 }), [ana], data)).toBe(500); // over the estimate
-    expect(phaseDeviation(plan({ '2026-10': 4500, '2026-11': 3800 }), [ana], data)).toBe(300); // 500 - 200
-  });
 });
 
 describe('only a team’s members may be allocated (§7.2)', () => {
@@ -431,5 +425,55 @@ describe('grandDeviation (§4)', () => {
       gates: { validation: { outcome: 'passed', passedOn: '2026-11-30', frozenSnapshot, checklist: [] } },
     };
     expect(grandDeviation(initiative, process, [ana], data)).toBe(500 - 500);
+  });
+});
+
+describe('year-scoped cost and deviation (§5.2 year filter)', () => {
+  const process: PhaseDef[] = [
+    { id: 'discovery', icon: 'search', label: 'Discovery', description: '', costed: false, exitGate: { id: 'g0', label: 'G0', description: '', requiresEstimates: false, skippable: true, checklistItems: [] } },
+    { id: 'validation', icon: 'search', label: 'Validation', description: '', costed: true, exitGate: { id: 'g1', label: 'G1', description: '', requiresEstimates: true, skippable: true, checklistItems: [] } },
+  ];
+  // Nov 2026 – Feb 2027, Ana full time: 2026 months 20 × 500 × 0.8 = 8000, 2027 months 20 × 600 × 0.8 = 9600.
+  const spanning: Initiative = {
+    id: 'i1',
+    name: 'Checkout',
+    teamId: 't1',
+    status: 'Active',
+    phases: {
+      validation: {
+        startDate: '2026-11-01',
+        endDate: '2027-02-28',
+        allocations: [{ id: 'a1', personId: 'ana', allocationPct: 100 }],
+        actualMonths: { '2026-12': 8500, '2027-01': 9000 },
+      },
+    },
+  };
+
+  const years = (i: Initiative) => Object.fromEntries(costByYear(i, process, [ana], data));
+
+  it('counts Nov and Dec in 2026 and Jan and Feb in 2027, actuals where recorded, deviation over the year’s months', () => {
+    expect(years(spanning)).toEqual({
+      2026: { cost: 8000 + 8500, deviation: 500 },
+      2027: { cost: 9000 + 9600, deviation: -600 },
+    });
+    expect(grandEstimate(spanning, process, [ana], data)).toBe(8000 + 8500 + 9000 + 9600);
+    expect(grandDeviation(spanning, process, [ana], data)).toBe(-100);
+  });
+
+  it('has no years for an unplanned initiative', () => {
+    expect(years({ ...spanning, phases: undefined })).toEqual({});
+  });
+
+  it('splits a frozen phase by its snapshot’s months, immune to live rates', () => {
+    const frozenSnapshot: FrozenPhaseSnapshot = { startDate: '2026-12-01', endDate: '2027-01-31', allocations: [], costItems: [], estimateByMonth: { '2026-12': 4000, '2027-01': 5000 } };
+    const frozen: Initiative = {
+      ...spanning,
+      phases: { validation: { startDate: '2026-12-01', endDate: '2027-01-31', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 100 }], actualMonths: { '2027-01': 5200 } } },
+      gates: { validation: { outcome: 'passed', passedOn: '2027-01-31', frozenSnapshot, checklist: [] } },
+    };
+    expect(years(frozen)).toEqual({
+      2026: { cost: 4000, deviation: 0 },
+      2027: { cost: 5200, deviation: 200 },
+    });
   });
 });

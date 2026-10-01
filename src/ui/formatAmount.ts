@@ -16,3 +16,15 @@ export function formatCompactAmount(value: number, currencySymbol: string): stri
   if (abs >= 1_000) return `${currencySymbol}${Math.round(value / 1_000)} k`;
   return formatAmount(value, currencySymbol);
 }
+
+const sign = (value: number) => (value > 0 ? '+' : value < 0 ? '−' : '');
+
+/** `+€9,200` / `−€1,300` / `€0`: a difference or deviation reads its sign, an amount on its own never does (§9.11). */
+export function formatSignedAmount(value: number, currencySymbol: string): string {
+  return `${sign(value)}${formatAmount(Math.abs(value), currencySymbol)}`;
+}
+
+/** The compact form of {@link formatSignedAmount}: `+€4 k` / `−€3 k` / `€0`. */
+export function formatCompactSignedAmount(value: number, currencySymbol: string): string {
+  return `${sign(value)}${formatCompactAmount(Math.abs(value), currencySymbol)}`;
+}

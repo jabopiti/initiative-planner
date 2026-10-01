@@ -657,8 +657,11 @@ Contents, top to bottom:
 - **Filters** (§9.11) — one row of dropdown chips: team, phase, year,
   specific initiatives, approval track and status. Active filters are
   highlighted. Status defaults to Active and is shown as a chip, so On Hold,
-  Closed and Cancelled initiatives appear only when the filter is widened.
-- **Key metrics** for the initiatives shown:
+  Closed and Cancelled initiatives appear only when the filter is widened;
+  Clear filters returns Status to Active. The year chip is single-select:
+  All years, or one year any initiative has cost in.
+- **Key metrics** for the initiatives shown, on one line under the
+  filters, with the count, Clear filters and Copy at its right:
   - **Total cost** — the grand estimate (§4) summed over the initiatives
     shown.
   - **Deviation** — recorded actuals minus their estimates, over the months
@@ -670,11 +673,13 @@ Contents, top to bottom:
   initiative is a compact **card**: its name, team and owner, its grand
   estimate, the approval track badge (including "No approval track", §7.4) and
   an attention marker in the item's own state colour (§8.5). Status shows
-  only when it is not Active. The whole card opens the initiative page.
+  only when it is not Active, as an icon in the card's top-right corner
+  whose tooltip and accessible name are the status. The whole card opens the initiative page.
   Cards are not draggable: an initiative moves between phases only by
   passing a gate (§8).
 - **Copy** — the initiatives shown and the key metrics can be copied as a
-  table (§9.2).
+  table (§9.2): one row per initiative, then a blank row and a row for
+  each metric.
 
 **Year filter.** With no year selected, cards, column headers and metrics
 show the lifetime grand estimate. With a year selected, they show only the
@@ -1657,7 +1662,9 @@ from the Lucide icon set (§10.1), shadcn/ui's default.
 
 **Filters.** Every filter chip opens a multi-select dropdown with a search
 field and checkboxes; choices apply instantly, and active chips are
-highlighted. The number of matches ("2 of 46 initiatives") and **Clear
+highlighted and name the chosen value ("Team: Platform"), or their count
+when more than one is chosen ("Team: 2"). The one exception is the
+Portfolio's year filter (§5.2), a single-select list of years. The number of matches ("2 of 46 initiatives") and **Clear
 filters** show beside the list. Filters are kept while the user moves around
 within the session, so they are still set after opening an initiative and
 coming back, and they reset on reload.
@@ -1670,10 +1677,9 @@ initiatives by phase, then name.
 **Long text.** Long names are cut with an ellipsis and shown in full in a
 tooltip.
 
-**Month input.** Every month field (a cost item's month, the year filter's
-months) is one compact control: type a month such as "Sep 2026", or open a
-small popover with a year stepper and the twelve months. It is fully
-operable by keyboard.
+**Month input.** Every month field (a cost item's month) is one compact
+control: type a month such as "Sep 2026", or open a small popover with a
+year stepper and the twelve months. It is fully operable by keyboard.
 
 **Date input.** A phase's start and end date is a compact control: type a
 date such as "3 Sep 2026", or open a small calendar popover. It is fully

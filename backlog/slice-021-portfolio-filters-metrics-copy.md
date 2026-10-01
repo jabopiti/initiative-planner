@@ -8,7 +8,7 @@ depends_on: ["013", "020"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Found while slicing the backlog tail: §5.2's filter row, year filter, key metrics (Total cost, Deviation) and Copy were never built; the board shows every Active initiative with no way to narrow it. Reuses 013's filter chips."
+change_summary: "Found while slicing the backlog tail: §5.2's filter row, year filter, key metrics (Total cost, Deviation) and Copy were never built; the board shows every Active initiative with no way to narrow it. Reuses 013's filter chips. Review settled: chips name a single picked value, the Year chip is a radio list, a non-Active card shows a status icon, metrics sit inline on the count row, Copy appends the metrics as rows."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "The year filter changes every figure on the page (cards, column sums, both metrics) to in-year cost and in-year deviation, and hides initiatives with no cost that year; those year-scoped sums over phases, cost items and actuals need careful data-layer functions and tests across year boundaries."
 spec_sections: ["§5.2 Portfolio overview (Filters, Key metrics, Copy, Year filter)", "§9.11 Lists, filters, inputs and amounts", "§9.2 Copy", "§4 Core definitions", "§7.3 Actuals default to the estimate once a month closes", "§9.4 Empty states"]
@@ -79,7 +79,10 @@ from the board, not rebuilt in a spreadsheet.
 - [ ] Given the Portfolio opens, then the chip row shows Team, Phase, Year,
       Initiatives, Approval track and Status, with Status active on "Active".
 - [ ] Given Status widened to On Hold, then On Hold initiatives appear in
-      their phase columns with their status chip.
+      their phase columns with the On Hold icon (tooltip "On Hold").
+- [ ] Given one value picked in a chip, then the chip reads "<Chip>: <value>";
+      two or more read "<Chip>: <n>" — on the Portfolio and the Initiatives
+      table.
 - [ ] Given Clear filters, then every chip clears except Status, which returns
       to Active.
 - [ ] Given a filter set on the Portfolio, then the Initiatives table's filters
@@ -94,10 +97,14 @@ from the board, not rebuilt in a spreadsheet.
 - [ ] Given the initiatives shown, then Total cost is the sum of their (in-year)
       cost and Deviation the sum of actual minus estimate over months with a
       recorded actual (in that year), signed, overspend in Warning.
-- [ ] Given Copy, then the shown initiatives and both metrics are copied as
-      plain text and HTML with full amounts.
-- [ ] Given filters matching nothing, then the columns stay and "No
-      initiatives match these filters." shows with Clear filters.
+- [ ] Given Copy, then the shown initiatives and, after a blank row, "Total
+      cost" and "Deviation" rows are copied as plain text and HTML with full
+      amounts; with a year picked the cost header is "Cost in <year>".
+- [ ] Given filters matching nothing, then the columns stay, "No
+      initiatives match these filters." shows with Clear filters, and the
+      metrics read €0.
+- [ ] Given only the default Status: Active, then the count reads "x of n
+      initiatives" over every initiative and Clear filters is hidden.
 - [ ] Given a reload, then every filter is back to its default.
 
 ## Delivery gate
@@ -115,3 +122,36 @@ columns numeric (041).
 
 - **Year filter:** a single-select chip, All years or one year.
 - **Filter state:** separate from the Initiatives table's, per list.
+- **Chip label (both lists):** an active chip names its value when one is
+  picked ("Status: Active", "Team: Platform") and counts when more are
+  ("Team: 2"). Changes the Initiatives table's chips too.
+- **Chips:** Team, Phase, Year, Initiatives, Approval track, Status — no
+  Owner chip (§5.2). The Year and Initiatives chips are Portfolio-only.
+  AND across chips, OR within one. The Initiatives chip lists every
+  initiative; the Year chip lists every year any initiative (any status)
+  has non-zero cost in, not narrowed by the other chips.
+- **Year chip:** a radio list — "All years", then each year — with no
+  search field; picking applies and closes. Label "Year", or "Year: 2026".
+- **Status on a card:** a non-Active card shows a neutral status icon in
+  its top-right corner, left of the attention marker when both show: On
+  Hold circle-pause, Cancelled circle-x, Closed circle-check; the status is
+  its accessible name and tooltip. Active shows none.
+- **Layout:** chip row; under it one row with "Total cost €310 k ·
+  Deviation +€4 k" on the left and the count, Clear filters and Copy on
+  the right; then the board. Deviation is signed ("+€4 k", "−€3 k", "€0"),
+  overspend in Warning.
+- **Count:** "x of n initiatives", n being every initiative in the
+  dataset, also in the default state ("3 of 4 initiatives"). Clear filters
+  shows only when it would change something (any chip other than Status:
+  Active set).
+- **Empty:** the line "No initiatives match these filters." with Clear
+  filters sits above the still-visible columns; the metrics stay at €0.
+- **Phase filter:** columns are never removed; filtered-out phases just
+  hold no cards.
+- **Copy:** one table — Name, Team, Owner, Phase, cost ("Grand estimate",
+  or "Cost in 2026" with a year), Approval track, Status — in board order
+  (phase, then card order), then a blank row and the rows "Total cost" and
+  "Deviation" with their full amounts in the cost column.
+- **Year figures:** month by month, recorded actuals where they exist and
+  estimates elsewhere (a frozen phase from its snapshot);
+  `yearEstimate`/`yearDeviation` beside `grandEstimate`/`grandDeviation`.
