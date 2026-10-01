@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { currentPhaseId, gateBlockers, gateOverdue, gateRequirements, onHoldMessage, overrunMessage, READY_MESSAGE } from '../data/gate';
 import { localToday } from '../data/dates';
 import { useBrand } from '../state/BrandContext';
@@ -28,33 +29,26 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   const { process } = useBrand();
   const repository = useRepository();
   // "Passed G2" or "Skipped G2", shown with Reopen for a few seconds after the gate is passed or skipped.
-  const [passed, setPassed] = useState<string | null>(null);
+  const [doneMessage, setDoneMessage] = useState<string | null>(null);
   const [holdAsked, setHoldAsked] = useState<'pass' | 'skip' | null>(null);
   // The skip reason being typed, tied to the gate it was opened on (§8.2).
   const [skipping, setSkipping] = useState<{ phaseId: string; reason: string } | null>(null);
   const passButton = useRef<HTMLButtonElement>(null);
   const skipButton = useRef<HTMLButtonElement>(null);
-  const refocusSkip = useRef(false);
   const onHold = initiative.status === 'On Hold';
   const phaseId = currentPhaseId(initiative, process);
   // The on-hold answer to a selected Pass gate lasts until the hold ends, however it ends (this bar's Resume or the menu's).
   if (!onHold && holdAsked) setHoldAsked(null);
   // Putting it on hold ends the "Passed <gate> — Reopen" message at once.
-  if (onHold && passed) setPassed(null);
+  if (onHold && doneMessage) setDoneMessage(null);
   // Skipping ends, with nothing saved, once the gate it was opened on is no longer the one to skip (§8.2).
-  if (skipping && (onHold || skipping.phaseId !== phaseId || isInitiativeFrozen(initiative))) setSkipping(null);
+  if (skipping && (initiative.status !== 'Active' || skipping.phaseId !== phaseId)) setSkipping(null);
 
   useEffect(() => {
-    if (!passed) return;
-    const timer = setTimeout(() => setPassed(null), PASSED_MESSAGE_MS);
+    if (!doneMessage) return;
+    const timer = setTimeout(() => setDoneMessage(null), PASSED_MESSAGE_MS);
     return () => clearTimeout(timer);
-  }, [passed]);
-
-  useEffect(() => {
-    if (skipping || !refocusSkip.current) return;
-    refocusSkip.current = false;
-    skipButton.current?.focus();
-  }, [skipping]);
+  }, [doneMessage]);
 
   if (isInitiativeFrozen(initiative)) return null;
 
@@ -69,19 +63,19 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   const gateLabel = phase.exitGate.label;
   const pass = () => {
     const result = repository.passGate(initiative.id);
-    if (result.ok) setPassed(`Passed ${gateLabel}`);
+    if (result.ok) setDoneMessage(`Passed ${gateLabel}`);
   };
   const skipReason = skipping?.reason.trim() ?? '';
   const skip = () => {
-    if (!skipReason) return;
     const result = repository.skipGate(initiative.id, skipReason);
     if (!result.ok) return;
     setSkipping(null);
-    setPassed(`Skipped ${gateLabel}`);
+    setDoneMessage(`Skipped ${gateLabel}`);
   };
+  // Back to the Skip action the field replaced, once it is rendered again.
   const cancelSkip = () => {
-    refocusSkip.current = true;
-    setSkipping(null);
+    flushSync(() => setSkipping(null));
+    skipButton.current?.focus();
   };
   const jump = () => jumpTo(jumpTargetId(requirements, phaseId));
   const extend = () => repository.extendPhase(initiative.id, phase.id);
@@ -95,7 +89,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   // The first blocker always names something specific (AC1, AC2), whatever else is also open.
   let guidance: string;
   if (onHold) guidance = holdAsked ? onHoldMessage(initiative, process, holdAsked) : 'On hold';
-  else if (passed) guidance = passed;
+  else if (doneMessage) guidance = doneMessage;
   else if (overdue && endDate) guidance = overrunMessage(phase, endDate, today);
   else if (ready) guidance = READY_MESSAGE;
   else guidance = blockers.length > 1 ? `${blockers[0]} (+${blockers.length - 1} more)` : blockers[0];
@@ -137,9 +131,9 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            <p className={`m-0 flex items-center gap-1.5 text-sm ${overdue && !passed ? 'font-medium text-alarm-text' : 'text-text-secondary'}`}>
-              {overdue && !passed && <OverrunIcon width={16} height={16} className="shrink-0" />}
-              {!ready && !passed ? (
+            <p className={`m-0 flex items-center gap-1.5 text-sm ${overdue && !doneMessage ? 'font-medium text-alarm-text' : 'text-text-secondary'}`}>
+              {overdue && !doneMessage && <OverrunIcon width={16} height={16} className="shrink-0" />}
+              {!ready && !doneMessage ? (
                 <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-left underline" onClick={jump}>
                   {guidance}
                 </button>
@@ -147,14 +141,14 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
                 guidance
               )}
             </p>
-            {overdue && !passed && (
+            {overdue && !doneMessage && (
               <button type="button" className="w-fit cursor-pointer border-0 bg-transparent p-0 text-left text-sm text-text-secondary underline" onClick={extend}>
                 Extend {phase.label} by one month
               </button>
             )}
           </div>
         )}
-        {passed ? (
+        {doneMessage ? (
           <Button type="button" variant="ghost" size="sm" onClick={() => repository.reopenGate(initiative.id)}>
             Reopen
           </Button>
