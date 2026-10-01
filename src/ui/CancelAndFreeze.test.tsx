@@ -99,7 +99,7 @@ describe('Cancel (§8.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel', 'Reopen G1']);
     await user.click(screen.getByRole('menuitem', { name: 'Cancel' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
@@ -114,7 +114,7 @@ describe('Cancel (§8.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel', 'Reopen G1']);
   });
 });
 
@@ -256,6 +256,8 @@ describe('A Closed initiative (§8.4)', () => {
     expect(await screen.findByText('Closed after G4. Notes and actuals can still be recorded.')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Reopen/ })).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Reopen G4 of Fraud Detection Upgrade' })).toHaveTextContent('Reopen G4');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Reopen G4' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Initiative name')).not.toBeInTheDocument();
   });
 
