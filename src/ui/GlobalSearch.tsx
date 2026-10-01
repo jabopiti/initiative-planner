@@ -26,9 +26,16 @@ function inTextField(target: EventTarget | null): boolean {
 export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const opener = useRef<Element | null>(null);
+  const isOpen = useRef(false);
   const show = () => {
-    opener.current = document.activeElement;
+    // Ctrl+K inside the open overlay must not replace the element to return to with the search field.
+    if (!isOpen.current) opener.current = document.activeElement;
+    isOpen.current = true;
     setOpen(true);
+  };
+  const onOpenChange = (next: boolean) => {
+    isOpen.current = next;
+    setOpen(next);
   };
   // The shortcuts have no trigger for Radix to hand focus back to, so the element focused before is kept here (§9.5).
   const restoreFocus = (event: Event) => {
@@ -65,7 +72,7 @@ export function GlobalSearch() {
         </TooltipTrigger>
         <TooltipContent>{isMac() ? 'Search (⌘K)' : 'Search (Ctrl+K)'}</TooltipContent>
       </Tooltip>
-      <SearchOverlay open={open} onOpenChange={setOpen} restoreFocus={restoreFocus} />
+      <SearchOverlay open={open} onOpenChange={onOpenChange} restoreFocus={restoreFocus} />
     </>
   );
 }

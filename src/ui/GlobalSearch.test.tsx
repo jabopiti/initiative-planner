@@ -143,6 +143,17 @@ describe('opening and closing', () => {
     expect(elsewhere).toHaveFocus();
   });
 
+  it('keeps the original focus target when Ctrl+K is pressed inside the open overlay', async () => {
+    await renderPage();
+    const user = userEvent.setup();
+    const elsewhere = screen.getByRole('button', { name: 'Elsewhere' });
+    elsewhere.focus();
+    await user.keyboard('{Control>}k{/Control}');
+    await user.keyboard('{Control>}k{/Control}');
+    await user.keyboard('{Escape}');
+    expect(elsewhere).toHaveFocus();
+  });
+
   it('names its shortcut in the icon tooltip', async () => {
     await renderPage();
     await userEvent.hover(screen.getByRole('button', { name: 'Search' }));
