@@ -8,7 +8,7 @@ depends_on: ["005", "006", "023"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Promoted from the backlog tail (Copy allocations from the previous phase, §5.11)."
+change_summary: "Promoted from the backlog tail (Copy allocations from the previous phase, §5.11). Review: skipped-people note is an info callout; all-skipped wording and assumptions recorded."
 recommended_model: "Claude Haiku 4.5"
 model_rationale: "One button, one data-layer function over existing membership rules; the skipped-people list is the only branch, and all of it is directly testable."
 spec_sections: ["§5.11 Suggestions and shortcuts (Copy allocations)", "§5.4 Initiative detail view (Page sections: Phases)", "§7.2 Capacity, rates, and the three percentages", "§9.3 Deletion rules", "§10.3 Writing"]
@@ -92,3 +92,12 @@ None.
 
 - **Placement:** a secondary button beside Add person in the empty table; the
   skipped list as a note under the table until the next edit.
+- **Note style:** a subtle callout with an info icon (like the Skipped-gate
+  banner), under the table; when everyone was skipped it sits under the empty
+  panel, the Copy button stays, and it reads "Nothing copied. Not copied:
+  Lucía Ramos, no longer on Platform."
+- **Assumptions:** the note is component state, cleared by any change to the
+  phase's plan or by leaving the page; the commit reads "1 person copied" for
+  one; a previous phase without a snapshot (skipped gate) copies its live plan;
+  Copy is offered whenever the previous costed phase has an allocation, even if
+  all would be skipped; rows keep the previous order; no Undo.
