@@ -244,6 +244,23 @@ describe('frozen phases never merge (§8.1)', () => {
     expect(merge(base, edited, passed).merged.phases!.validation.endDate).toBe('2026-11-30');
     expect(merge(base, passed, edited).merged.phases!.validation.endDate).toBe('2026-11-30');
   });
+
+  it('a gate reopened on one side stays reopened while the other side edits something else (§8.3)', () => {
+    const reopened: Initiative = { ...frozenBase, gates: {} };
+    const renamed: Initiative = { ...frozenBase, name: 'Payments' };
+    for (const [mine, theirs] of [[reopened, renamed], [renamed, reopened]]) {
+      const { merged, conflicts } = merge(frozenBase, mine, theirs);
+      expect(conflicts).toEqual([]);
+      expect(merged.gates?.validation).toBeUndefined();
+      expect(merged.name).toBe('Payments');
+    }
+  });
+
+  it('a gate record changed on the other side is still never merged field by field', () => {
+    const reopened: Initiative = { ...frozenBase, gates: {} };
+    const edited: Initiative = { ...frozenBase, gates: { validation: { ...passedGate.validation, passedOn: '2026-12-01' } } };
+    expect(merge(frozenBase, reopened, edited).merged.gates?.validation).toEqual(passedGate.validation);
+  });
 });
 
 describe('master files merge by the same function', () => {

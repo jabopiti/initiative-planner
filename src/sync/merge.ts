@@ -122,6 +122,8 @@ export function mergeDocument<D>(base: D, mine: D, theirs: D, options: MergeOpti
     const key = pathKey(path);
     // A frozen snapshot is never merged: it stays as it was frozen, whatever either side holds.
     // Frozen before both edits, it keeps the base; frozen by one side's edit (a gate passed), that side's.
+    // Removed whole on one side (a gate reopened, §8.3) and untouched on the other, the removal wins.
+    if (frozen.base.has(key) && sameValue(t, b) && m === undefined && !frozen.mine.has(key)) return undefined;
     if (frozen.theirs.has(key)) return frozen.base.has(key) ? b : t;
     if (frozen.mine.has(key)) return frozen.base.has(key) ? t : m;
 
