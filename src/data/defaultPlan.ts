@@ -34,7 +34,7 @@ export function extendByOneMonth(isoDate: string): string {
   return iso(year, month, d === lastDayOfMonth(y, m) ? lastDay : Math.min(d, lastDay));
 }
 
-function addDays(isoDate: string, days: number): string {
+export function addDays(isoDate: string, days: number): string {
   const [y, m, d] = parseIso(isoDate);
   const date = new Date(Date.UTC(y, m - 1, d + days));
   return iso(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate());

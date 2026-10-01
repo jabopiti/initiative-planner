@@ -62,7 +62,7 @@ describe('Delete in the Actions menu (§5.4, §9.3)', () => {
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
 
     const menu = screen.getByRole('menu');
-    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel', 'Delete']);
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel', 'Duplicate', 'Delete']);
     expect(within(menu).getByRole('separator')).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toHaveAttribute('data-variant', 'destructive');
   });

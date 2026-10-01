@@ -99,7 +99,7 @@ describe('Cancel (§8.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel', 'Reopen G1']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel', 'Duplicate', 'Reopen G1']);
     await user.click(screen.getByRole('menuitem', { name: 'Cancel' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
@@ -114,7 +114,7 @@ describe('Cancel (§8.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel', 'Reopen G1']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel', 'Duplicate', 'Reopen G1']);
   });
 });
 
@@ -129,13 +129,13 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     expect(document.getElementById('magic-bar')).toBeNull();
   });
 
-  it('lists only Reopen in the Actions menu, and offers no gate reopen (AC8)', async () => {
+  it('lists only Duplicate and Reopen in the Actions menu, and offers no gate reopen (AC8)', async () => {
     const user = userEvent.setup();
     initiative = initiativeWith({ status: 'Cancelled' });
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Reopen']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Duplicate', 'Reopen']);
     expect(screen.queryByRole('button', { name: /Reopen G1/ })).not.toBeInTheDocument();
   });
 
