@@ -241,3 +241,37 @@ describe('GithubClient — edge cases (slice 040)', () => {
     expect(result).toBeNull();
   });
 });
+
+describe('GithubClient — deleteFile (slice 017)', () => {
+  it('refuses deleteFile when branch is omitted, without ever calling fetch', async () => {
+    const client = new GithubClient(location, () => 'token');
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      client.deleteFile({ path: 'initiatives/i1.json', branch: '' as any, message: 'x', sha: 'sha-1' }),
+    ).rejects.toThrow(GithubApiError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends DELETE with the sha, message and data branch in the body', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ commit: {} }), { status: 200 }));
+    const client = new GithubClient(location, () => 'token');
+
+    await expect(client.deleteFile({ path: 'initiatives/i1.json', branch: location.dataBranch, message: 'Payments API: deleted', sha: 'sha-1' })).resolves.toBe('deleted');
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.github.com/repos/jabopiti/initiative-planner/contents/initiatives/i1.json');
+    expect(init.method).toBe('DELETE');
+    expect(JSON.parse(init.body as string)).toEqual({ message: 'Payments API: deleted', sha: 'sha-1', branch: 'data' });
+  });
+
+  it('reports a file that is already gone, and a stale sha as a conflict', async () => {
+    const client = new GithubClient(location, () => 'token');
+    const args = { path: 'initiatives/i1.json', branch: location.dataBranch, message: 'x', sha: 'sha-1' };
+
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 404 }));
+    await expect(client.deleteFile(args)).resolves.toBe('gone');
+
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 409 }));
+    await expect(client.deleteFile(args)).rejects.toMatchObject({ cause_: 'conflict', status: 409 });
+  });
+});

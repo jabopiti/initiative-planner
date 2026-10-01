@@ -21,6 +21,13 @@ interface PutRecord {
   newSha?: string;
 }
 
+interface DeleteRecord {
+  path: string;
+  message: string;
+  sha: string;
+  status: number;
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
 }
@@ -31,6 +38,7 @@ export type TokenBehaviour = 'invalid' | 'read-only' | 'cannot-see';
 export function fakeGithub() {
   const files = new Map<string, { content: string; sha: string }>();
   const puts: PutRecord[] = [];
+  const deletes: DeleteRecord[] = [];
   const arrivals = new Map<string, number>();
   const holds: { prefix: string; gate: Promise<void> }[] = [];
   const failures: { prefix: string; status: number }[] = [];
@@ -101,6 +109,18 @@ export function fakeGithub() {
     const hold = take(holds, path);
     if (hold) await hold.gate;
 
+    if (method === 'DELETE') {
+      const record: DeleteRecord = { path, message: body.message, sha: body.sha!, status: 200 };
+      deletes.push(record);
+      const failure = take(failures, path);
+      const existing = files.get(path);
+      record.status = failure?.status ?? (!existing ? 404 : body.sha !== existing.sha ? 409 : 200);
+      if (record.status !== 200) return json({ message: 'failed' }, record.status);
+      files.delete(path);
+      head += 1;
+      return json({ commit: { sha: `commit-${head}` } });
+    }
+
     const record: PutRecord = { path, message: body.message, sha: body.sha, content: JSON.parse(decodeBase64Utf8(body.content)), status: 200 };
     puts.push(record);
 
@@ -114,6 +134,10 @@ export function fakeGithub() {
       record.status = body.sha ? 409 : 422; // a stale sha is a 409; none at all for an existing file is a 422
       return json({ message: 'sha does not match' }, record.status);
     }
+    if (!existing && body.sha) {
+      record.status = 409; // a sha for a file that is gone matches nothing: never recreates it
+      return json({ message: 'sha does not match' }, record.status);
+    }
 
     record.newSha = put(path, record.content);
     return json({ content: { sha: record.newSha } });
@@ -122,6 +146,9 @@ export function fakeGithub() {
   return {
     fetchMock,
     puts,
+    /** Every delete that reached the server, refused ones included. */
+    deletes,
+    has: (path: string) => files.has(path),
     /** Writes the repository actually accepted to `path`, oldest first. */
     commits: (path: string) => puts.filter((p) => p.path === path && p.status === 200),
     /** How many writes to `path` have reached the server (held ones included). */
@@ -148,7 +175,7 @@ export function fakeGithub() {
     },
     /** What the token check (§5.10) finds for this token: rejected, read-only or unable to see the repository. Every other token works. */
     setTokenBehaviour: (token: string, behaviour: TokenBehaviour) => void tokenBehaviours.set(token, behaviour),
-    /** The next write to a path starting with `prefix` is refused with `status` and changes nothing. */
+    /** The next write (put or delete) to a path starting with `prefix` is refused with `status` and changes nothing. */
     fail: (prefix: string, status: number) => void failures.push({ prefix, status }),
   };
 }

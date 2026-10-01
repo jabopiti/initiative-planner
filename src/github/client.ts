@@ -150,6 +150,27 @@ export class GithubClient {
     return { sha: body.content.sha };
   }
 
+  /**
+   * DELETE .../contents/{path} at `sha`, with `branch` in the request body (§10.2, §10.3). A stale sha is a
+   * conflict, as for a put; `'gone'` when the file no longer exists, so a delete someone else already made counts.
+   */
+  async deleteFile(args: { path: string; branch: string; message: string; sha: string }): Promise<'deleted' | 'gone'> {
+    assertBranch(args.branch);
+    const url = this.repoUrl(`contents/${encodePath(args.path)}`);
+    const response = await this.request(url, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: args.message, sha: args.sha, branch: args.branch }),
+    });
+
+    if (response.status === 404) return 'gone';
+    if (response.status === 409) {
+      throw new GithubApiError('Stale version — the file changed since it was last read.', 'conflict', 409);
+    }
+    assertOk(response, `DELETE ${args.path}`);
+    return 'deleted';
+  }
+
   /** GET .../contents/{dir}?ref={branch} as a directory listing, each entry with its version. Empty array if the directory doesn't exist yet. */
   async listDirectory(args: { path: string; branch: string }): Promise<DirectoryEntry[]> {
     assertBranch(args.branch);

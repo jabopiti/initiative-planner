@@ -22,7 +22,7 @@ import { formatDate, formatMonth, monthKey } from '../data/dates';
 import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysByMonth } from '../data/rates';
 import { localToday } from '../data/dates';
 import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
-import { frozenPaths, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
+import { frozenPaths, hasPassedGate, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
 import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
 import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
@@ -33,7 +33,7 @@ import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
-import { FileWriter, type CommitNote, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
+import { FileWriter, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { WriteQueue } from './WriteQueue';
 
@@ -68,6 +68,9 @@ export interface RepositoryState {
   changed: ReadonlySet<string>;
   /** Others' changes arrived a moment ago: the sync indicator's tooltip says so (§9.9). */
   updatedByOthers: boolean;
+  /** Initiatives someone else deleted while an edit to them waited to be saved, by id, with their names (§3): their
+   * page says the change wasn't saved. */
+  deletedWithLostEdit: ReadonlyMap<string, string>;
 }
 
 /** The key by which a value at `path` of a data-branch file is reported as changed by others. */
@@ -180,6 +183,7 @@ export class Repository {
     failedFields: new Set(),
     changed: new Set(),
     updatedByOthers: false,
+    deletedWithLostEdit: new Map(),
   };
 
   private readonly listeners = new Set<Listener>();
@@ -209,6 +213,8 @@ export class Repository {
   private editing = 0;
   private held: Pulled | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Why the last delete failed (§9.9): shown in the read-only banner until a pull succeeds. */
+  private deleteFailure: ReadOnlyState | null = null;
   private tintTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
@@ -352,6 +358,7 @@ export class Repository {
     try {
       const pulled = await this.fetchPull();
       this.pullFailure = null;
+      this.deleteFailure = null;
       if (pulled) {
         if (this.editing > 0 && this.state.status === 'ready') this.held = pulled;
         else complete = this.applyPulled(pulled);
@@ -491,14 +498,8 @@ export class Repository {
       const path = FILE_PATHS.initiative(id);
       if (!listing.has(path) && compared.has(path) && writer.sha === compared.get(path) && writer.idle) removed.add(id);
     }
-    for (const id of removed) {
-      this.initiativeWriters.delete(id);
-      this.writerStatus.delete(FILE_PATHS.initiative(id));
-      void this.cache.delete(FILE_PATHS.initiative(id)).catch(() => {});
-    }
-    if (added.length > 0 || removed.size > 0) {
-      this.setState({ initiatives: [...this.state.initiatives.filter((i) => !removed.has(i.id)), ...added] });
-    }
+    for (const id of removed) this.forgetInitiative(id);
+    if (added.length > 0) this.setState({ initiatives: [...this.state.initiatives, ...added] });
 
     if (changed.length > 0) this.markChanged(changed);
     return complete;
@@ -590,7 +591,7 @@ export class Repository {
    */
   private armRetry(pullIncomplete: boolean, hasRecoverableFailure: boolean): void {
     if (this.retryTimer) return;
-    if (!pullIncomplete && this.pullFailure === null && !hasRecoverableFailure) return;
+    if (!pullIncomplete && this.pullFailure === null && this.deleteFailure === null && !hasRecoverableFailure) return;
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       if (document.visibilityState !== 'visible') return;
@@ -733,7 +734,7 @@ export class Repository {
     // field it belongs to still shows "Not saved" (§3, §9.9) — both come from the same writer state here.
     this.setState({
       syncing: this.opening || all.some((s) => s === 'syncing'),
-      readOnly: fileFailures.values().next().value ?? this.pullFailure,
+      readOnly: fileFailures.values().next().value ?? this.pullFailure ?? this.deleteFailure,
       fileFailures,
       failedFields,
     });
@@ -785,6 +786,11 @@ export class Repository {
       gate: () => this.firstPullDone,
       merge: (base, mine, theirs) => mergeDocument(base, mine, theirs, { frozen: frozenPaths }),
       whenMissing: null,
+      onGone: () => {
+        const name = this.state.initiatives.find((i) => i.id === initiative.id)?.name ?? initiative.name;
+        this.forgetInitiative(initiative.id);
+        this.setState({ deletedWithLostEdit: new Map(this.state.deletedWithLostEdit).set(initiative.id, name) });
+      },
       initial: sha === null ? null : { content: initiative, sha },
       creationFailure: 'Could not create the initiative.',
       onStatus: this.statusOf(path),
@@ -1708,6 +1714,48 @@ export class Repository {
     const saved = await conflict.resolve(choice);
     if (saved) this.setState({ conflicts: this.state.conflicts.filter((c) => c !== conflict) });
     return saved;
+  }
+
+  /**
+   * Delete an initiative no gate has passed (§9.3), in one commit "<name>: deleted" (§10.3). It waits for a save
+   * in flight; an edit not saved yet is dropped once the delete lands. Refused when a gate was passed, also when a
+   * conflict shows another user passed one meanwhile; any other change meanwhile is deleted with it. Nothing leaves
+   * this client until GitHub confirms; a failure shows in the read-only banner until the next pull succeeds.
+   * `beforeForget` runs once it is deleted, and is waited for before it leaves the lists: the page can move on
+   * without first showing it missing.
+   */
+  async deleteInitiative(id: string, beforeForget?: () => void | Promise<void>): Promise<DeleteResult> {
+    const initiative = this.state.initiatives.find((i) => i.id === id);
+    const writer = this.initiativeWriters.get(id);
+    if (!initiative || !writer) return 'deleted';
+    if (hasPassedGate(initiative)) return 'refused';
+    const result = await writer.deleteFile(`${initiative.name}: deleted`, hasPassedGate);
+    if (result === 'deleted') {
+      this.deleteFailure = null;
+      await beforeForget?.();
+      this.forgetInitiative(id);
+    } else if (result !== 'refused') {
+      this.deleteFailure = result.failed;
+      this.armRetry(false, this.publishStatus());
+    }
+    return result;
+  }
+
+  /**
+   * Take an initiative out of this client (§9.3): its writer with any edit still waiting and any choice open,
+   * its sync status, its cached file and its place in every list. Nothing is written to GitHub.
+   */
+  forgetInitiative(id: string): void {
+    const path = FILE_PATHS.initiative(id);
+    const writer = this.initiativeWriters.get(id);
+    this.initiativeWriters.delete(id);
+    this.writerStatus.delete(path);
+    void this.cache.delete(path).catch(() => {});
+    this.setState({
+      initiatives: this.state.initiatives.filter((i) => i.id !== id),
+      conflicts: this.state.conflicts.filter((c) => c.file !== path),
+    });
+    if (writer) this.publishStatus();
   }
 
   /** Flush any pending debounced write immediately (page unload). */

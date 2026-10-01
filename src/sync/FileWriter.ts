@@ -18,8 +18,13 @@ export const defaultTiming = {
 
 export type WriteStatus = 'synced' | 'syncing' | { readOnly: ReadOnlyState };
 
-/** How one save ended: written, held back for the user to resolve a conflict, or refused (the status says why). */
-export type SaveResult = 'saved' | 'conflicts' | 'failed';
+/** How one save ended: written, held back for the user to resolve a conflict, refused (the status says why), or
+ * dropped because someone else deleted the file (§3). */
+export type SaveResult = 'saved' | 'conflicts' | 'failed' | 'gone';
+
+/** How deleting the file ended (§9.3): deleted (or already gone), refused by the caller's rule on the newer
+ * version a conflict brought in, or failed with the cause. */
+export type DeleteResult = 'deleted' | 'refused' | { failed: ReadOnlyState };
 
 /** A same-field conflict a save found (§3, §10.5), for the banner. Resolving it is a new edit like any other. */
 export interface FileConflict extends MergeConflict {
@@ -61,6 +66,9 @@ export interface FileWriterOptions<D> {
   merge: DocumentMerge<D>;
   /** What the file holds when a re-read after a 409 finds it gone; null when its absence is an error. */
   whenMissing: D | null;
+  /** Someone else deleted the file while an edit waited to be saved (§3): the edit is dropped, not resaved,
+   * and this is told. Without it, a file gone on re-read is an error. */
+  onGone?: () => void;
   /** The file as last read, or null while it does not exist yet: the first save then creates it. */
   initial: SyncedFile<D> | null;
   /** What to tell the user when that first save fails. */
@@ -119,6 +127,8 @@ export class FileWriter<D> {
   private openConflicts: FileConflict[] = [];
   /** A save is running: the pull leaves the file alone, since the save's own re-read brings in anything newer. */
   private saving = false;
+  /** The file is deleted: nothing is saved any more. */
+  private disposed = false;
 
   constructor(private readonly options: FileWriterOptions<D>) {
     this.synced = options.initial;
@@ -211,13 +221,13 @@ export class FileWriter<D> {
    * compared (a save landed since): `retry`, the next pull will find it changed. Or a choice is open or the last
    * save failed: `writer`, the writer's next save re-reads the file and merges it, so a pull has nothing to retry.
    */
-  receive(file: SyncedFile<D>, replaces: string | null): Received {
+  receive(file: SyncedFile<D>, replaces: string | null, ownReread = false): Received {
     const stale = (this.synced?.sha ?? null) !== replaces;
     if (this.openConflicts.length > 0 && this.failedCause === null && !this.busy) {
       return stale ? { left: 'retry' } : this.receiveWithConflicts(file);
     }
     if (this.openConflicts.length > 0 || this.failedCause !== null) return { left: 'writer' };
-    if (this.saving || stale) return { left: 'retry' };
+    if ((this.saving && !ownReread) || stale) return { left: 'retry' };
     const before = this.screen;
     let next = file.content;
     if (this.pending !== null || this.timer !== null) {
@@ -301,6 +311,7 @@ export class FileWriter<D> {
 
   private async saveNext(): Promise<SaveResult> {
     await this.options.gate?.();
+    if (this.disposed) return 'gone';
     if (this.pending === null) {
       this.reportIdle();
       return 'saved';
@@ -377,6 +388,7 @@ export class FileWriter<D> {
           if (this.synced === null && !exists) continue; // Creating: nothing to merge with, put it again.
           const outcome = await this.reread(mine);
           if (outcome === null) continue;
+          if (outcome === 'gone') return this.gone();
           if (outcome.conflicts.length > 0) return this.surface(outcome.merged, outcome.conflicts, mine, message);
           sent = outcome.merged;
           merged = true;
@@ -402,6 +414,7 @@ export class FileWriter<D> {
   private async reread(mine: D) {
     const file = await this.options.github.getFile({ path: this.options.path, branch: this.options.branch });
     if (file === null && this.options.whenMissing === null && this.synced !== null) {
+      if (this.options.onGone) return 'gone' as const;
       throw new Error('The file is gone from the repository.');
     }
     if (file === null && this.synced === null) return null;
@@ -411,6 +424,81 @@ export class FileWriter<D> {
     const outcome = this.options.merge(base, mine, theirs);
     this.synced = { content: theirs, sha: file?.sha ?? '' };
     return outcome;
+  }
+
+  /** Someone else deleted the file (§3): the edit that found it gone is dropped, and so is anything after it. */
+  private gone(): SaveResult {
+    this.dispose();
+    this.options.onGone?.();
+    return 'gone';
+  }
+
+  /**
+   * Delete the file (§9.3, §10.3) after any save in flight, at the version that save left. An edit not saved yet
+   * waits: it is dropped once the delete lands, and saved as usual if it does not. A conflict re-reads the file
+   * and shows the newer version; `refuses` decides from it whether to stop, otherwise the delete is sent again
+   * at its sha, since what was confirmed is deleting the file, not one version of it.
+   */
+  deleteFile(message: string, refuses: (doc: D) => boolean): Promise<DeleteResult> {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    return this.enqueue(async () => {
+      this.saving = true;
+      let result: DeleteResult;
+      try {
+        result = await this.deleteNow(message, refuses);
+      } finally {
+        this.saving = false;
+      }
+      if (result === 'deleted') this.dispose();
+      else if (this.pending !== null) void this.flush();
+      return result;
+    });
+  }
+
+  private async deleteNow(message: string, refuses: (doc: D) => boolean): Promise<DeleteResult> {
+    // The version to delete: the synced one, then whatever each conflict's re-read finds. Kept apart from
+    // `synced`, which only moves when the re-read can be shown (no choice open, no failed save waiting).
+    let sha = this.synced?.sha;
+    if (sha === undefined) return 'deleted'; // never created: nothing to delete
+    for (let retries = MAX_RETRIES; ; retries -= 1) {
+      if (retries < MAX_RETRIES) await this.backoff(MAX_RETRIES - retries - 1);
+      const at = sha;
+      try {
+        await this.options.queue.run(() => this.options.github.deleteFile({ path: this.options.path, branch: this.options.branch, message, sha: at }));
+        return 'deleted';
+      } catch (error) {
+        const stale = error instanceof GithubApiError && error.cause_ === 'conflict';
+        if (!stale) return { failed: toReadOnlyState(error, 'Something went wrong deleting this.') };
+        if (retries <= 0) return { failed: { cause: 'conflict', message: 'Could not delete after several retries — please retry.' } };
+        try {
+          const file = await this.options.github.getFile({ path: this.options.path, branch: this.options.branch });
+          if (file === null) return 'deleted';
+          const theirs = JSON.parse(file.content) as D;
+          this.receive({ content: theirs, sha: file.sha }, this.synced?.sha ?? null, true);
+          if (refuses(theirs)) return 'refused';
+          sha = file.sha;
+        } catch (retryError) {
+          return { failed: toReadOnlyState(retryError, 'Something went wrong deleting this.') };
+        }
+      }
+    }
+  }
+
+  /** Nothing of this file is saved any more: its edits, open choices and failure go with it. */
+  private dispose(): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.pending = null;
+    this.notes.clear();
+    this.extras.clear();
+    this.disposed = true;
+    this.clearFailure();
+    const open = this.openConflicts;
+    this.openConflicts = [];
+    for (const c of open) this.options.onConflictClosed?.(c);
   }
 
   /** A save landed. Newer edits are rebased onto what it wrote when that was a merge; otherwise the screen shows it. */
