@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
@@ -180,6 +180,37 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     await user.clear(screen.getByLabelText('Note for "Business case approved"'));
     await user.keyboard('{Enter}');
     expect(screen.getByText('Enter a note.')).toBeInTheDocument();
+  });
+
+  it('keeps a note opened while frozen a note-only save after Reopen, so the status does not turn Tentative', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith({ status: 'Cancelled', checklist: { [validationId]: { 'g2-business-case': { status: 'complete', note: '' } } } });
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Add note for "Business case approved"' }));
+    await user.click(screen.getByRole('button', { name: 'Reopen Fraud Detection Upgrade' }));
+    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    await user.type(screen.getByLabelText('Note for "Business case approved"'), 'Signed off by Risk{Enter}');
+
+    await vi.waitFor(() => expect(puts).toHaveLength(2), { timeout: 3000 });
+    expect(puts[1].message).toBe('Fraud Detection Upgrade: note on "Business case approved" changed');
+    expect(puts[1].content.checklist?.[validationId]?.['g2-business-case']).toEqual({ status: 'complete', note: 'Signed off by Risk' });
+  });
+
+  it('saves a Tentative note opened before the initiative was cancelled as a note alone, not losing it', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith();
+    renderPage();
+
+    const row = (await screen.findByText('Business case approved')).closest('li')!;
+    await user.click(within(row).getByRole('radio', { name: 'Tentative' }));
+    await user.click(screen.getByRole('button', { name: 'Actions' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Cancel' }));
+    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    await user.type(screen.getByLabelText('Note for "Business case approved"'), 'Waiting on Risk{Enter}');
+
+    await vi.waitFor(() => expect(puts).toHaveLength(2), { timeout: 3000 });
+    expect(puts[1].content.checklist?.[validationId]?.['g2-business-case']).toEqual({ status: 'incomplete', note: 'Waiting on Risk' });
   });
 
   it('records a month’s actual (AC5)', async () => {

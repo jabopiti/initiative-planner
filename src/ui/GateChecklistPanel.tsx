@@ -88,7 +88,8 @@ function ChecklistItemRow({
   const repository = useRepository();
   const changed = useIsChangedByOthers();
   const file = FILE_PATHS.initiative(initiativeId);
-  const [editingNote, setEditingNote] = useState(false);
+  // The open note editor's save, fixed when it opens: a note opened on a frozen page stays a note-only save after a Reopen (§8.4).
+  const [noteEditor, setNoteEditor] = useState<'note-only' | 'tentative' | null>(null);
   const [draftNote, setDraftNote] = useState(item.note);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
@@ -100,21 +101,23 @@ function ChecklistItemRow({
   const startNote = () => {
     setDraftNote(item.note);
     setRefused(null);
-    setEditingNote(true);
+    setNoteEditor(frozen ? 'note-only' : 'tentative');
   };
   // A frozen initiative saves the note alone, keeping the status (§8.4); otherwise saving the note sets Tentative.
+  // Frozen since the editor opened (a pulled Cancel) also saves the note alone, rather than losing it to a refused status.
   const commit = () => {
     const note = draftNote.trim();
-    if (frozen ? !repository.setChecklistNote(initiativeId, writePhaseId, item.id, note) : note === '') {
+    const noteOnly = noteEditor === 'note-only' || frozen;
+    if (noteOnly ? !repository.setChecklistNote(initiativeId, writePhaseId, item.id, note) : note === '') {
       setRefused('Enter a note.');
       return;
     }
-    if (!frozen) setStatus('tentative', note);
-    setEditingNote(false);
+    if (!noteOnly) setStatus('tentative', note);
+    setNoteEditor(null);
     setRefused(null);
   };
   const cancelNote = () => {
-    setEditingNote(false);
+    setNoteEditor(null);
     setRefused(null);
   };
 
@@ -181,7 +184,7 @@ function ChecklistItemRow({
         </div>
       </div>
       {descriptionOpen && item.description && <p className="m-0 text-xs text-text-secondary">{item.description}</p>}
-      {editingNote ? (
+      {noteEditor ? (
         <div className="flex flex-wrap items-start gap-2">
           <div className="flex flex-col gap-1">
             <Input
