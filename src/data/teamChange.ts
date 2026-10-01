@@ -1,5 +1,6 @@
 import type { PhaseDef } from '../brand/types';
 import { allocationFigures, type RateData } from './cost';
+import { joinList } from './joinList';
 import { isActiveMember } from './teamMembers';
 import type { Allocation, Initiative, Membership, Person } from './types';
 
@@ -70,11 +71,6 @@ export function planTeamChange(input: {
 /** "N allocation(s)": the one spelling of the count, for the confirmation, the Undo message and the commit. */
 export const allocationCount = (n: number): string => `${n} allocation${n === 1 ? '' : 's'}`;
 
-/** "A", "A and B", "A, B and C". */
-function joinNames(names: string[]): string {
-  return names.length < 2 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
-
 /**
  * What the confirmation says (§5.4): who is not an active member of the new team, how many allocations in which
  * open phases go and what they cost, and who is on both teams and stays.
@@ -84,9 +80,9 @@ export function describeTeamChange(plan: TeamChangePlan, teamName: string, forma
   const count = plan.removed.length;
   const cost = plan.cost > 0 ? ` (planned cost ${formatCost(plan.cost)})` : '';
   const goes =
-    `${joinNames(plan.removedPeople.map((p) => p.name))} ${one ? "isn't an active member" : "aren't active members"} of ${teamName}. ` +
-    `Their ${count === 1 ? 'allocation' : allocationCount(count)} in ${joinNames(plan.phaseLabels)} will be removed${cost}.`;
+    `${joinList(plan.removedPeople.map((p) => p.name))} ${one ? "isn't an active member" : "aren't active members"} of ${teamName}. ` +
+    `Their ${count === 1 ? 'allocation' : allocationCount(count)} in ${joinList(plan.phaseLabels)} will be removed${cost}.`;
   const stays = plan.stayingPeople.length;
   if (stays === 0) return goes;
-  return `${goes} ${joinNames(plan.stayingPeople.map((p) => p.name))} ${stays === 1 ? 'is' : 'are'} on both teams and ${stays === 1 ? 'stays' : 'stay'}.`;
+  return `${goes} ${joinList(plan.stayingPeople.map((p) => p.name))} ${stays === 1 ? 'is' : 'are'} on both teams and ${stays === 1 ? 'stays' : 'stay'}.`;
 }

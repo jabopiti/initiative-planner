@@ -41,9 +41,10 @@ done; verify each before marking complete.
    it's cheap.
 2. Gaps, questions and open decisions: list them first and let the user
    pick among proposed options before implementing. UI copy and layout:
-   show every option as a rendered visual mockup (an image in the app's
-   look, copy drafted in place), never a text sketch alone; implement
-   once.
+   show every option as a rendered visual mockup in the app's look, copy
+   drafted in place — inline via `show_widget` by default, a screenshot
+   only when real layout/data matters — never a text sketch alone;
+   implement once.
 3. Implement with targeted edits.
 4. `npm run test:quiet`, `npm run typecheck`, `npm run lint` — in that
    order, fix before moving on.

@@ -23,13 +23,15 @@ import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysB
 import { localToday } from '../data/dates';
 import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
 import { frozenPaths, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
-import { passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
+import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
+import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type BranchHead } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
+import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
 import { FileWriter, type CommitNote, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
@@ -124,6 +126,9 @@ export interface NewPersonInput {
   countryId: string;
   roleId: string;
 }
+
+/** What Copy from <previous phase> did: how many allocations were added and who was skipped (§5.11). */
+export type CopyAllocationsResult = { copied: number; skipped: Person[] };
 
 /** Why an allocation wasn't added (§7.2), in words the page can show as is. */
 export type AddAllocationResult = { ok: true; allocation: Allocation } | { ok: false; reason: string };
@@ -1295,6 +1300,34 @@ export class Repository {
     return { ok: true, allocation };
   }
 
+  /**
+   * Copy the previous costed phase's allocations into an empty phase in one commit (§5.11): each active team member
+   * with the same Allocation %. Nothing is written when the phase has people already, is frozen, or nobody can be copied.
+   */
+  copyAllocations(initiativeId: string, phaseId: string, fromPhaseId: string): CopyAllocationsResult | null {
+    const initiative = this.editableInitiative(initiativeId);
+    const team = initiative && this.state.teams.find((t) => t.id === initiative.teamId);
+    if (!initiative || !team || isPhaseFrozen(initiative, phaseId)) return null;
+    if ((initiative.phases?.[phaseId]?.allocations.length ?? 0) > 0) return null;
+
+    const { copy, skipped } = planCopy(copySource(initiative, fromPhaseId), team, this.state.people, this.state.memberships);
+    if (copy.length === 0) return { copied: 0, skipped };
+    const allocations: Allocation[] = copy.map((c) => ({ id: newId(), ...c }));
+    const fromLabel = this.phaseLabel(fromPhaseId);
+    this.editPhase<Allocation[]>(
+      initiativeId,
+      phaseId,
+      (plan) => ({ ...plan, allocations }),
+      {
+        field: 'allocations:copied',
+        from: undefined,
+        to: allocations,
+        words: (_, to, name, phase) => `${name}: ${to?.length} ${to?.length === 1 ? 'person' : 'people'} copied to ${phase} from ${fromLabel}`,
+      },
+    );
+    return { copied: allocations.length, skipped };
+  }
+
   updateAllocation(initiativeId: string, phaseId: string, allocationId: string, allocationPct: number): void {
     const allocation = this.state.initiatives
       .find((i) => i.id === initiativeId)
@@ -1512,6 +1545,26 @@ export class Repository {
     this.commitGateOutcome(initiative.name, result, 'skipped');
     return { ok: true };
   }
+  /**
+   * Start an untouched initiative at a later phase, or change that choice (§8.2): one reason recorded as a
+   * starting-phase skip on every gate behind it, the default plan re-chained from `today`, in one commit
+   * "<name>: starts at <phase>".
+   */
+  startAtPhase(initiativeId: string, phaseId: string, reason: string, today: string = localToday()): { ok: true } | { ok: false; reason: string } {
+    const initiative = this.editableInitiative(initiativeId);
+    if (!initiative) return { ok: false, reason: 'This initiative could not be found.' };
+    const result = evaluateStartAtPhase(this.brand.process, initiative, phaseId, reason, today);
+    if (!result.ok) return result;
+
+    this.replaceInitiative(result.initiative);
+    // The periods are part of the change: changed back to the same phase on a later day, they still start today.
+    const name = initiative.name;
+    const from = { phase: this.phaseLabel(currentPhaseId(initiative, this.brand.process)), phases: initiative.phases };
+    const to = { phase: result.phase.label, phases: result.initiative.phases };
+    this.initiativeWriters.get(initiativeId)?.schedule(result.initiative, this.note('initiative', initiativeId, 'startingPhase', from, to, (_, t) => `${name}: starts at ${t?.phase}`));
+    return { ok: true };
+  }
+
   /** Writes a passed or skipped gate record in one commit, "<name>: <gate> <what>" (§10.3). */
   private commitGateOutcome(name: string, result: GateRecorded, what: string): void {
     const { initiative, phase, record } = result;

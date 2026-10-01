@@ -776,3 +776,67 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     expect(validationRow()).toHaveTextContent('€26,000');
   });
 });
+
+describe('Copy allocations from the previous costed phase (§5.11)', () => {
+  const [, validation, development] = defaultBrandPack.process;
+  const plan = (allocations: { id: string; personId: string; allocationPct: number }[]) => ({ startDate: '2026-10-01', endDate: '2026-11-30', allocations });
+  // Validation is open too, so row and field queries are scoped to Development's body.
+  const developmentBody = () => within(document.getElementById(`phase-${development.id}`)!);
+  const copyButton = () => screen.queryByRole('button', { name: 'Copy from Validation' });
+  async function openDevelopment(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: /^Development/ }));
+  }
+
+  it('copies each active member with the same Allocation % in one commit, and names who was skipped until the next edit', async () => {
+    members = [membership('m1', 'ana', 60), { ...membership('m2', 'cai', 50), active: false }];
+    initiative = {
+      ...initiative,
+      phases: { [validation.id]: plan([{ id: 'a1', personId: 'ana', allocationPct: 45 }, { id: 'a2', personId: 'cai', allocationPct: 30 }]), [development.id]: { allocations: [] } },
+    };
+    const user = userEvent.setup();
+    renderPage();
+    await openDevelopment(user);
+    await user.click(await screen.findByRole('button', { name: 'Copy from Validation' }));
+
+    expect(within(await developmentBody().findByRole('row', { name: /Ana Ruiz/ })).getByLabelText('Allocation % for Ana Ruiz')).toHaveValue(45);
+    expect(screen.getByText('Not copied: Cai Wu, no longer on Payments.')).toBeInTheDocument();
+    expect(copyButton()).not.toBeInTheDocument();
+
+    const pct = developmentBody().getByLabelText('Allocation % for Ana Ruiz');
+    await user.clear(pct);
+    await user.type(pct, '50{Enter}');
+    expect(screen.queryByText(/Not copied/)).not.toBeInTheDocument();
+  });
+
+  it('says so and writes nothing when everyone was skipped, and keeps the offer', async () => {
+    members = [{ ...membership('m1', 'ana', 60), active: false }];
+    initiative = {
+      ...initiative,
+      phases: { [validation.id]: plan([{ id: 'a1', personId: 'ana', allocationPct: 45 }]), [development.id]: { allocations: [] } },
+    };
+    const user = userEvent.setup();
+    renderPage();
+    await openDevelopment(user);
+    await user.click(await screen.findByRole('button', { name: 'Copy from Validation' }));
+    expect(screen.getByText('Nothing copied. Not copied: Ana Ruiz, no longer on Payments.')).toBeInTheDocument();
+    expect(copyButton()).toBeInTheDocument();
+    expect(puts).toEqual([]);
+  });
+
+  it('is not offered when the previous phase is empty, for the first costed phase, or when the phase has people', async () => {
+    initiative = { ...initiative, phases: { [validation.id]: plan([]), [development.id]: { allocations: [] } } };
+    const user = userEvent.setup();
+    const { unmount } = renderPage();
+    await openDevelopment(user);
+    expect(await screen.findByText(/Who works on Development/)).toBeInTheDocument();
+    expect(copyButton()).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Copy from/ })).not.toBeInTheDocument();
+    unmount();
+
+    initiative = { ...initiative, phases: { [validation.id]: plan([{ id: 'a1', personId: 'ana', allocationPct: 45 }]), [development.id]: plan([{ id: 'a2', personId: 'cai', allocationPct: 20 }]) } };
+    renderPage();
+    await openDevelopment(user);
+    expect(await developmentBody().findByRole('row', { name: /Cai Wu/ })).toBeInTheDocument();
+    expect(copyButton()).not.toBeInTheDocument();
+  });
+});

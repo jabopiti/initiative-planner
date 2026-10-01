@@ -1,6 +1,6 @@
 // Render a mockup (a local HTML file or a URL such as the dev server) to a
-// PNG, so UI and copy options are shown to the user as an image, not as
-// ASCII. Uses the repo's @playwright/test Chromium.
+// PNG. Fallback for mockups when an inline show_widget visual won't do
+// (see SKILL.md, Settle). Uses the repo's @playwright/test Chromium.
 //
 // Usage: node screenshot.mjs <page.html|url> <out.png> [width] [--dark]
 //   width defaults to 1280 (desktop-first, §1 Non-goals); --dark renders

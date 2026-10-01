@@ -599,6 +599,39 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     });
   });
 
+  it('copies the previous costed phase into an empty one as a single commit, skipping someone who left, and refuses a non-empty phase', async () => {
+    const { repo, initiative, member } = await repoWithInitiative();
+    const leaver = repo.createPerson({ name: 'Lucía Ramos', countryId: 'c1', roleId: 'r1' });
+    const leaverMembership = repo.addMembership(leaver.id, initiative.teamId)!;
+    repo.addAllocation(initiative.id, 'validation', member.id, 40);
+    repo.addAllocation(initiative.id, 'validation', leaver.id, 30);
+    repo.updateMembership(leaverMembership.id, { active: false });
+    await repo.flushPending();
+    commits.length = 0;
+
+    const result = repo.copyAllocations(initiative.id, 'development', 'validation');
+    expect(result?.copied).toBe(1);
+    expect(result?.skipped.map((p) => p.name)).toEqual(['Lucía Ramos']);
+    await repo.flushPending();
+    expect(commits.map((c) => c.message)).toEqual(['Payments API: 1 person copied to Development from Validation']);
+    expect(commits[0].content.phases?.development.allocations).toEqual([expect.objectContaining({ personId: member.id, allocationPct: 40 })]);
+
+    expect(repo.copyAllocations(initiative.id, 'development', 'validation')).toBeNull();
+  });
+
+  it('writes nothing when everyone was skipped', async () => {
+    const { repo, initiative, member } = await repoWithInitiative();
+    const membership = repo.getState().memberships.find((m) => m.personId === member.id)!;
+    repo.addAllocation(initiative.id, 'validation', member.id, 40);
+    repo.updateMembership(membership.id, { active: false });
+    await repo.flushPending();
+    commits.length = 0;
+    const result = repo.copyAllocations(initiative.id, 'development', 'validation');
+    expect(result).toMatchObject({ copied: 0 });
+    await repo.flushPending();
+    expect(commits).toEqual([]);
+  });
+
   it('describes an allocation added then changed as one add, and an added-then-removed one as no commit (§10.3)', async () => {
     const { repo, initiative, member } = await repoWithInitiative();
     const added = repo.addAllocation(initiative.id, 'validation', member.id);
@@ -937,6 +970,33 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       await repo.flushPending();
       expect(commits).toEqual([]);
     });
+  });
+
+  it('starts an untouched initiative at Development in one commit, and refuses a touched one (§8.2)', async () => {
+    const { repo, id, team } = await repoWithPlannedInitiative();
+    expect(repo.startAtPhase(id, 'development', 'Under way').ok).toBe(false);
+
+    const fresh = await repo.createInitiative('Checkout Redesign', team.id, '2026-09-24');
+    await repo.flushPending();
+    commits.length = 0;
+    expect(repo.startAtPhase(fresh.id, 'development', 'In development since May, before the tool.', '2026-10-01')).toEqual({ ok: true });
+    await repo.flushPending();
+    expect(commits.map((c) => c.message)).toEqual(['Checkout Redesign: starts at Development']);
+    const saved = commits[0].content;
+    expect(Object.keys(saved.gates ?? {})).toEqual(['discovery', 'validation']);
+    expect(saved.gates?.validation).toMatchObject({ outcome: 'skipped', skipReason: 'In development since May, before the tool.', startingPhase: true });
+    expect(saved.phases).toEqual({ development: { startDate: '2026-10-01', endDate: '2027-03-31', allocations: [] } });
+  });
+
+  it('names a start changed back to the first phase in one save, as its periods now start today (§8.2, §10.3)', async () => {
+    const { repo, team } = await repoWithPlannedInitiative();
+    const fresh = await repo.createInitiative('Checkout Redesign', team.id, '2026-09-24');
+    await repo.flushPending();
+    commits.length = 0;
+    repo.startAtPhase(fresh.id, 'development', 'Under way', '2026-10-01');
+    repo.startAtPhase(fresh.id, 'discovery', '', '2026-10-01');
+    await repo.flushPending();
+    expect(commits.map((c) => c.message)).toEqual(['Checkout Redesign: starts at Discovery']);
   });
 
   it('reopens the final gate of a Closed initiative, but no gate of a Cancelled one', async () => {

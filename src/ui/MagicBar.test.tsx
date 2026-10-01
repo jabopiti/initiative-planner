@@ -30,6 +30,8 @@ let puts: { message: string; content: Initiative }[] = [];
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
+  // Radix Select (the starting-phase picker) asks for pointer capture, which jsdom lacks.
+  Element.prototype.hasPointerCapture = () => false;
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
@@ -260,5 +262,94 @@ describe('A skipped phase on the Phases list (§8.2)', () => {
     if (validationLine.getAttribute('aria-expanded') === 'false') await user.click(validationLine);
     expect(screen.getByText('Skipped G2:').parentElement).toHaveTextContent('Skipped G2: Problem validated in the Q2 pilot.');
     expect(screen.getByLabelText('Validation start date')).toBeEnabled();
+  });
+});
+
+describe('Choose a starting phase for an untouched initiative (§8.2)', () => {
+  const untouched = (): Initiative => ({
+    id: 'i1',
+    name: 'Checkout Redesign',
+    teamId: 't1',
+    status: 'Active',
+    defaultPlan: true,
+    phases: {
+      [validationId]: { startDate: '2026-09-24', endDate: '2026-12-23', allocations: [] },
+      [developmentId]: { startDate: '2026-12-24', endDate: '2027-06-23', allocations: [] },
+    },
+  });
+  const REASON = 'In development since May, before the tool.';
+
+  /** A new initiative's page, with the starting-phase form open. */
+  async function openStartForm() {
+    const user = userEvent.setup();
+    initiative = untouched();
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Start at a later phase' }));
+    return user;
+  }
+
+  async function choose(user: ReturnType<typeof userEvent.setup>, phase: string) {
+    await user.click(screen.getByRole('combobox', { name: 'Start at' }));
+    await user.click(await screen.findByRole('option', { name: phase }));
+  }
+
+  it('offers Start at a later phase on a new initiative, and opens the form with nothing chosen (AC1, AC4)', async () => {
+    await openStartForm();
+    expect(screen.getByRole('combobox', { name: 'Start at' })).toHaveFocus();
+    expect(screen.getByRole('combobox', { name: 'Start at' })).toHaveTextContent('Choose a phase');
+    expect(screen.getByLabelText('Reason')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Pass gate' })).not.toBeInTheDocument();
+  });
+
+  it('names the skipped gates and records them in one commit, then reads Change starting phase (AC5)', async () => {
+    const user = await openStartForm();
+    await choose(user, 'Development');
+    const reason = screen.getByLabelText('Reason for skipping G1 and G2');
+    expect(screen.getByRole('button', { name: 'Start at Development' })).toBeDisabled();
+    await user.type(reason, REASON);
+    await user.click(screen.getByRole('button', { name: 'Start at Development' }));
+
+    const change = await screen.findByRole('button', { name: 'Change starting phase' });
+    expect(change).toHaveFocus();
+    await vi.waitFor(() => expect(puts.map((p) => p.message)).toEqual(['Checkout Redesign: starts at Development']));
+    expect(puts[0].content.gates?.[validationId]).toMatchObject({ outcome: 'skipped', skipReason: REASON, startingPhase: true });
+    expect(screen.queryByText('Skipped G2')).not.toBeInTheDocument();
+  });
+
+  it('names G3 too for Rollout, and needs no reason for Discovery once a start is set (AC6)', async () => {
+    const user = await openStartForm();
+    await choose(user, 'Rollout');
+    expect(screen.getByLabelText('Reason for skipping G1, G2 and G3')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Reason for skipping G1, G2 and G3'), 'Live already{Enter}');
+
+    await user.click(await screen.findByRole('button', { name: 'Change starting phase' }));
+    await choose(user, 'Discovery');
+    expect(screen.queryByLabelText(/^Reason/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start at Discovery' })).toBeEnabled();
+    // The start's save settles here, not in the next test's capture.
+    await vi.waitFor(() => expect(puts.map((p) => p.message)).toEqual(['Checkout Redesign: starts at Rollout']), { timeout: 3000 });
+  });
+
+  it('cancels with Esc, nothing saved, focus back on the action (AC4)', async () => {
+    const user = await openStartForm();
+    await choose(user, 'Validation');
+    await user.type(screen.getByLabelText('Reason for skipping G1'), 'Half done{Escape}');
+    expect(screen.getByRole('button', { name: 'Start at a later phase' })).toHaveFocus();
+    expect(screen.queryByRole('combobox', { name: 'Start at' })).not.toBeInTheDocument();
+    expect(puts).toEqual([]);
+  });
+
+  it('is not offered once touched, nor on hold (AC3, AC11)', async () => {
+    initiative = { ...untouched(), checklist: { [discoveryId]: { [g1.checklistItems[0].id]: { status: 'complete', note: '' } } } };
+    renderPage();
+    await screen.findByRole('button', { name: 'Pass gate' });
+    expect(screen.queryByRole('button', { name: /starting phase|later phase/ })).not.toBeInTheDocument();
+    cleanup();
+
+    initiative = { ...untouched(), status: 'On Hold' };
+    renderPage();
+    await screen.findByRole('button', { name: 'Resume' });
+    expect(screen.queryByRole('button', { name: /starting phase|later phase/ })).not.toBeInTheDocument();
   });
 });

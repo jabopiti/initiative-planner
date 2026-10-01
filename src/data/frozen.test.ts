@@ -21,14 +21,23 @@ describe('isPhaseFrozen (§8.1)', () => {
 describe('frozenPaths (§10.5, §8.1)', () => {
   it('pins a frozen phase’s period, allocations and cost items, but not its actuals', () => {
     const doc = initiative({ validation: { outcome: 'passed', passedOn: '2026-01-01', checklist: [] } });
-    expect(frozenPaths({ ...doc, phases: { validation: { startDate: '2026-01-01', endDate: '2026-02-01', allocations: [] } } })).toEqual(
-      expect.arrayContaining([['phases', 'validation', 'startDate'], ['phases', 'validation', 'endDate'], ['phases', 'validation', 'allocations'], ['phases', 'validation', 'costItems']]),
+    const paths = frozenPaths({ ...doc, phases: { validation: { startDate: '2026-01-01', endDate: '2026-02-01', allocations: [] } } });
+    expect(paths).toEqual(
+      expect.arrayContaining(
+        ['startDate', 'endDate', 'allocations', 'costItems'].map((field) => ({ path: ['phases', 'validation', field], by: ['gates', 'validation'] })),
+      ),
     );
+    expect(paths.map((f) => f.path)).not.toContainEqual(['phases', 'validation', 'actuals']);
   });
 
   it('pins any gate record that exists, passed or skipped, as one atomic value', () => {
     const doc = initiative({ validation: { outcome: 'passed', passedOn: '2026-01-01', checklist: [] }, discovery: { outcome: 'skipped', skipReason: 'n/a', checklist: [] } });
-    expect(frozenPaths(doc)).toEqual(expect.arrayContaining([['gates', 'validation'], ['gates', 'discovery']]));
+    expect(frozenPaths(doc)).toEqual(
+      expect.arrayContaining([
+        { path: ['gates', 'validation'], by: ['gates', 'validation'] },
+        { path: ['gates', 'discovery'], by: ['gates', 'discovery'] },
+      ]),
+    );
   });
 
   it('pins nothing for a phase with no gate record', () => {

@@ -8,6 +8,7 @@ import { actualOrEstimate, allocationFigures } from '../data/cost';
 import { RaiseFixButton, ReduceFixButton } from './CapacityFixButtons';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { allocationsWithCost, currentPhaseId } from '../data/gate';
+import { copySource, skippedNote } from '../data/copyAllocations';
 import { isInitiativeFrozen, isPhaseFrozen, skipReason } from '../data/frozen';
 import { allocatablePeople } from '../data/personLoad';
 import { nextStepPhase, overlapWithPrevious, phaseSummary, planningGap } from '../data/phaseSummary';
@@ -149,6 +150,8 @@ function CostedPhase({
   const { currencySymbol, process } = useBrand();
   const { people, roles, countries, memberships, initiatives, teams } = useRepositoryState();
   const [refusal, setRefusal] = useState<string | null>(null);
+  // Who the last Copy skipped (§5.11): shown until this phase's plan next changes, never stored.
+  const [notCopied, setNotCopied] = useState<{ text: string; plan: PhasePlan } | null>(null);
 
   const plan = initiative.phases?.[phase.id] ?? UNPLANNED;
   const rateData = { roles, countries };
@@ -174,6 +177,22 @@ function CostedPhase({
     [expanded, team, teams, memberships, people, plan, initiatives, process, frozen, today],
   );
   const capacityData = { initiatives, teams, people, memberships, process, today };
+
+  const copyFrom = !frozen && !initiativeFrozen && previous && plan.allocations.length === 0 && copySource(initiative, previous.id).length > 0 ? previous : undefined;
+  const copyButton = copyFrom && (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => {
+        const result = repository.copyAllocations(initiative.id, phase.id, copyFrom.id);
+        if (!result) return;
+        const now = repository.getState().initiatives.find((i) => i.id === initiative.id)?.phases?.[phase.id] ?? UNPLANNED;
+        setNotCopied(team && result.skipped.length > 0 ? { text: skippedNote(result.skipped, result.copied, team), plan: now } : null);
+      }}
+    >
+      Copy from {copyFrom.label}
+    </Button>
+  );
 
   const picker =
     team && teamMembers.length === 0 ? (
@@ -314,7 +333,12 @@ function CostedPhase({
                   <p className={`m-0 text-sm ${needsPeople ? 'font-medium text-brand-accent-text' : 'text-text-secondary'}`}>
                     Who works on {phase.label}? Add a team member to see this phase&apos;s cost.
                   </p>
-                  {picker}
+                  {(picker || copyButton) && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {picker}
+                      {copyButton}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <table className="w-full border-collapse text-sm">
@@ -429,6 +453,12 @@ function CostedPhase({
               {refusal && (
                 <p className="m-0 text-sm text-warning-text" role="alert">
                   {refusal}
+                </p>
+              )}
+              {notCopied && notCopied.plan === plan && (
+                <p className="m-0 flex items-start gap-2 rounded-md bg-surface-subtle px-2.5 py-2 text-sm text-text-secondary">
+                  <InfoIcon width={16} height={16} className="mt-0.5 shrink-0" />
+                  <span>{notCopied.text}</span>
                 </p>
               )}
 

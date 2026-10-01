@@ -3,6 +3,11 @@ import { hasValidPeriod, phaseByMonth, phaseCoverage, phaseEffectiveTotal, phase
 import { isPhaseFrozen } from './frozen';
 import type { FrozenPhaseSnapshot, Initiative, PhasePlan, Person } from './types';
 
+/** The plan holds an allocation, a cost item or an actual. */
+export function planHasCostData(plan: PhasePlan): boolean {
+  return plan.allocations.length > 0 || (plan.costItems?.length ?? 0) > 0 || Object.keys(plan.actualMonths ?? {}).length > 0;
+}
+
 /** What the phase's header and body show, worked out once (§5.4, §7.1, §7.3). */
 export interface PhaseSummary {
   /** Both dates are set (the period may still be inverted). */
@@ -33,7 +38,7 @@ export function phaseSummary(initiative: Initiative, phaseId: string, plan: Phas
   const frozen = isPhaseFrozen(initiative, phaseId);
   const snapshot = initiative.gates?.[phaseId]?.frozenSnapshot;
   const estimateByMonth = frozen && snapshot ? snapshot.estimateByMonth : phaseByMonth(plan, people, data);
-  const hasCost = plan.allocations.length > 0 || (plan.costItems?.length ?? 0) > 0 || Object.keys(plan.actualMonths ?? {}).length > 0;
+  const hasCost = planHasCostData(plan);
   return {
     hasPeriod,
     inverted,
