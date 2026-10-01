@@ -765,7 +765,8 @@ Its layout follows the design rules in §9.8.
 - Appears **only** on the initiative detail view.
 - **Hidden** for Closed and Cancelled initiatives (nothing is actionable).
   For an On Hold initiative the bar shows "On hold — Resume", and Pass gate
-  is muted; selecting it says the initiative is on hold (§8.4).
+  and Skip <gate> are muted; selecting either says the initiative is on
+  hold (§8.4).
 - For initiatives in the **first phase**, the bar shows the phase overview
   and the current gate's state; there is no prior gate to reference. For an
   untouched initiative, the phase overview also lets the user choose a
@@ -1404,7 +1405,8 @@ A gate the build marks skippable can be passed over instead, and **skipping
 requires a reason**. A skip bypasses both checks (the estimate check and the
 checklist check), **records no figure** and **freezes nothing** — so the
 phase it exits stays editable — and never becomes the baseline for an
-escalation comparison.
+escalation comparison. Tentative items on a skipped gate do not carry
+forward (§8.1); only a passed gate carries them.
 
 Entering work that predates the tool uses a separate mechanism: while an
 initiative is untouched (no data entered by a user and no gate record; the

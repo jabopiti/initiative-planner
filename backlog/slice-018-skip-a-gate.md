@@ -8,7 +8,7 @@ depends_on: ["008", "014"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Promoted from the backlog tail (Skip a gate with a reason, §8.2). The data shape (`outcome: 'skipped'`, `skipReason`) and the rules that a skipped gate freezes nothing and sets no escalation baseline already exist since 008; nothing lets a user skip."
+change_summary: "Promoted from the backlog tail (Skip a gate with a reason, §8.2). The data shape (`outcome: 'skipped'`, `skipReason`) and the rules that a skipped gate freezes nothing and sets no escalation baseline already exist since 008; nothing lets a user skip. Review: scenario moved to G2 (Onboarding Flow v2 is in Validation per the example data); Pass gate hidden while skipping; skipped phase line layout settled, including non-costed phases; Skip on hold answers like Pass gate; Tentative items on a skipped gate do not carry forward."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "The data-layer rules exist and are tested; this adds one magic bar state and the skipped-phase display. The care is in the bar's state interplay (skipping while overrun, on hold, just passed), all testable with Testing Library."
 spec_sections: ["§8.2 Skipping a gate", "§8.1 Passing a gate", "§8.3 Reopening", "§5.4 Initiative detail view (magic bar, Page sections: Phases)", "§7.4 Approval tracks", "§9.5 Accessibility", "§9.9 Interface states", "§9.10 Icons", "§10.3 Writing"]
@@ -32,8 +32,8 @@ pretending it was assessed.
 
 - **Skip action (§5.4).** A text action **Skip G1** beside Pass gate, shown
   only when the current gate is skippable (brand pack) and the initiative is
-  Active. Muted and inert while On Hold (014), like Pass gate. Absent on a
-  non-skippable gate.
+  Active. Muted while On Hold (014), and selecting it says the initiative is
+  on hold, like Pass gate. Absent on a non-skippable gate.
 - **Skipping state (§5.4, §9.9).** Choosing Skip G1 replaces the guidance line
   with a reason field, label "Reason for skipping G1", focused; beside it
   **Skip G1** (disabled until a non-blank reason is typed) and **Cancel**.
@@ -58,14 +58,16 @@ same record and display but a different entry point.
 
 ## Execution path
 
-1. User triggers: on Onboarding Flow v2 (Discovery, G1 skippable, two items
-   incomplete), clicks **Skip G1**.
+1. User triggers: on Onboarding Flow v2 (Validation, G2 skippable, items
+   incomplete), clicks **Skip G2**.
 2. UI: the reason field replaces the guidance; the user types "Problem
    validated in the Q2 pilot." and presses Enter.
-3. Data: `gates.discovery = { outcome: "skipped", skipReason: "Problem
-   validated in the Q2 pilot.", checklist: [...] }`, one commit.
-4. User receives: Validation is current; Discovery's line reads "Skipped G1"
-   with the reason on hover; "Skipped G1 — Reopen" shows for a few seconds.
+3. Data: `gates.validation = { outcome: "skipped", skipReason: "Problem
+   validated in the Q2 pilot.", checklist: [...] }`, one commit
+   "Onboarding Flow v2: G2 skipped".
+4. User receives: Development is current; Validation's line reads "Skipped
+   G2" with the reason on hover; "Skipped G2 — Reopen" shows for a few
+   seconds.
 
 ## Value
 
@@ -80,8 +82,9 @@ same record and display but a different entry point.
 - [ ] Given the current gate is skippable and the initiative Active, then the
       bar shows "Skip <gate>" beside Pass gate; given it is not skippable, it
       does not.
-- [ ] Given the initiative is On Hold, then Skip <gate> is muted and does
-      nothing.
+- [ ] Given the initiative is On Hold, then Skip <gate> is muted, and
+      selecting it shows "<name> is on hold. Resume it to skip <gate>." and
+      saves nothing.
 - [ ] Given Skip G1 is chosen, then the guidance line becomes a focused field
       labelled "Reason for skipping G1", with Skip G1 disabled and Cancel.
 - [ ] Given only spaces are typed, then Skip G1 stays disabled.
@@ -120,3 +123,37 @@ None.
   "Skipped <gate> — Reopen" for a few seconds, like a pass.
 - **Reason afterwards:** on the exited phase's collapsed line as a tooltip
   on "Skipped <gate>", and in full when the phase is expanded.
+
+Settled in the 018 session (mockup reviewed):
+
+- **Scenario:** Onboarding Flow v2 is in Validation in the example data, so
+  the worked example is G2 (costed); G1 on the non-costed Discovery is
+  covered with a fixture.
+- **Bar while skipping (D1 A):** the guidance line becomes the visible label
+  "Reason for skipping G2" and the focused field; on the right **Cancel**
+  (ghost) and **Skip G2** (primary, disabled until a non-blank reason).
+  Pass gate is hidden while skipping. The overrun line and "Extend … by one
+  month" are hidden too, since the field replaces the guidance.
+- **Default bar:** **Skip G2** is an underlined text action directly left of
+  Pass gate; hidden while "Passed/Skipped <gate> — Reopen" shows.
+- **On Hold (D3 A):** Skip G2 is muted; selecting it shows "<name> is on
+  hold. Resume it to skip G2." in the bar, as Pass gate does with "pass".
+- **Skipped phase line (D2 A):** a SkipForward icon (accessible name
+  "Skipped") in the lock icon's place, then "· Skipped G2" after the name and
+  period, with the reason as its tooltip; the coverage pill (Estimate,
+  Actual, Forecast) stays. A non-costed phase, which does not expand, also
+  shows the reason inline in muted text, truncated, with the full reason as
+  tooltip. An expanded costed phase shows "Skipped G2: <reason>" at the top
+  of its body (past phases show no checklist, so this replaces "above its
+  checklist"), above its still-editable fields.
+- **State changes underneath:** the skipping state ends, nothing saved, when
+  the current gate changes (another user passes or skips it), or the
+  initiative goes On Hold, Closed or Cancelled.
+- **Record:** like a pass, the record snapshots the gate's checklist; it sets
+  no `passedOn`, figure, approval track or frozen snapshot.
+- **Carry forward:** Tentative items on a skipped gate do not carry forward
+  (§8.1 carries them only when a gate passes).
+- **Final gate:** a Closed initiative whose final gate was skipped shows the
+  same "Closed after <final gate>." strip with Reopen <final gate>.
+- **Commits:** "<name>: G2 skipped"; reopening a skipped gate commits
+  "<name>: G2 reopened", the conflict note running skipped → open.

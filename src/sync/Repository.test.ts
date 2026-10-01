@@ -897,6 +897,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       ['restoreCostItem', ({ repo, id }) => repo.restoreCostItem(id, 'validation', { id: 'gone', label: 'Old', amount: 1, timing: 'spread' }, 0)],
       ['setChecklistItem', ({ repo, id }) => repo.setChecklistItem(id, 'discovery', 'g1-problem-statement', 'complete', 'Waiting on Risk')],
       ['passGate', ({ repo, id }) => repo.passGate(id, '2026-09-24')],
+      ['skipGate', ({ repo, id }) => repo.skipGate(id, 'Not applicable')],
       ['putOnHold', ({ repo, id }) => repo.putOnHold(id)],
       ['resume', ({ repo, id }) => repo.resume(id)],
     ];

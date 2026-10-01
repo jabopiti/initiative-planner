@@ -8,7 +8,7 @@ import { actualOrEstimate, allocationFigures } from '../data/cost';
 import { RaiseFixButton, ReduceFixButton } from './CapacityFixButtons';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { allocationsWithCost, currentPhaseId } from '../data/gate';
-import { isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
+import { isInitiativeFrozen, isPhaseFrozen, skipReason } from '../data/frozen';
 import { allocatablePeople } from '../data/personLoad';
 import { nextStepPhase, overlapWithPrevious, phaseSummary, planningGap } from '../data/phaseSummary';
 import { roleLabel } from '../data/roleLabel';
@@ -20,9 +20,10 @@ import { TIMING_LABELS } from './costItemTiming';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
 import { GateChecklistPanel } from './GateChecklistPanel';
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, FrozenIcon, InfoIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, FrozenIcon, InfoIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
 import { PercentInput } from './PercentInput';
+import { TruncatedText } from './TruncatedText';
 import { undoToast } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -96,9 +97,10 @@ export function PhasesSection({ initiative, team, openPhaseId }: { initiative: I
               />
             ) : (
               <div className="flex items-center gap-2 px-3 py-2.5 text-sm">
-                {isPhaseFrozen(initiative, phase.id) && <FrozenIcon width={16} height={16} className="shrink-0 text-text-secondary" />}
+                <GateMarker frozen={isPhaseFrozen(initiative, phase.id)} skipped={skipReason(initiative, phase.id) !== undefined} />
                 <span className="font-medium">{phase.label}</span>
                 <span className="text-text-muted">· not costed</span>
+                <SkippedLabel gateLabel={phase.exitGate.label} reason={skipReason(initiative, phase.id)} withReason />
               </div>
             )}
           </li>
@@ -160,6 +162,8 @@ function CostedPhase({
   const needsPeople = gap === 'people';
   const overlapEnd = previous ? overlapWithPrevious(initiative.phases?.[previous.id], plan) : null;
   const overlap = previous && overlapEnd ? `Starts before ${previous.label} ends (${formatDate(overlapEnd)}). The two phases overlap.` : null;
+  // A phase behind a skipped gate stays editable, and says so with its reason (§8.2).
+  const skipped = skipReason(initiative, phase.id);
   const coverageLabel = { frozen: 'Frozen', actual: 'Actual', forecast: 'Forecast', estimate: 'Estimate' }[coverage];
 
   // Who can still be added, and what each has free for the phase's months (§5.11), most free first. Free capacity
@@ -225,13 +229,14 @@ function CostedPhase({
         onClick={onToggle}
       >
         <Chevron width={16} height={16} className="shrink-0 text-text-secondary" />
-        {frozen && <FrozenIcon width={16} height={16} className="shrink-0 text-text-secondary" />}
+        <GateMarker frozen={frozen} skipped={skipped !== undefined} />
         <span className="font-medium">{phase.label}</span>
         {hasPeriod ? (
           <span className="text-text-secondary">{formatPeriod(plan.startDate!, plan.endDate!)}</span>
         ) : (
           !initiativeFrozen && <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>Set period</span>
         )}
+        <SkippedLabel gateLabel={phase.exitGate.label} reason={skipped} />
         {overlap && <WarningIcon width={16} height={16} className="shrink-0 text-warning-text" role="img" aria-hidden={false} aria-label={`Overlaps ${previous!.label}`} />}
         {plan.allocations.length === 0 && !initiativeFrozen && (
           <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>· Add people</span>
@@ -242,6 +247,14 @@ function CostedPhase({
 
       {expanded && (
         <div id={bodyId} className="flex flex-col gap-4 border-t border-border-default px-3 py-3">
+          {skipped !== undefined && (
+            <p className="m-0 flex items-start gap-2 rounded-md bg-surface-subtle px-2.5 py-2 text-sm text-text-secondary">
+              <SkippedIcon width={16} height={16} className="mt-0.5 shrink-0" />
+              <span>
+                <span className="font-medium">Skipped {phase.exitGate.label}:</span> {skipped}
+              </span>
+            </p>
+          )}
           {frozen && snapshot ? (
             <ReadOnlyPhaseBody phase={snapshot} people={people} roles={roles} currencySymbol={currencySymbol} />
           ) : initiativeFrozen ? (
@@ -616,4 +629,25 @@ function ActualCell({
     );
   }
   return <span className="flex justify-end text-text-secondary">not closed yet</span>;
+}
+
+/** The lock icon on a phase behind a passed gate, the skip icon in its place behind a skipped one (§8.1, §8.2, §9.10). */
+function GateMarker({ frozen, skipped }: { frozen: boolean; skipped: boolean }) {
+  if (frozen) return <FrozenIcon width={16} height={16} className="shrink-0 text-text-secondary" />;
+  if (skipped) return <SkippedIcon width={16} height={16} className="shrink-0 text-text-secondary" role="img" aria-hidden={false} aria-label="Skipped" />;
+  return null;
+}
+
+/**
+ * "· Skipped G2" on a phase line, the reason as its tooltip (§8.2). A phase that can't expand (not costed) shows the
+ * reason inline as well, truncated, since the line is the only place it appears (§9.8).
+ */
+function SkippedLabel({ gateLabel, reason, withReason = false }: { gateLabel: string; reason: string | undefined; withReason?: boolean }) {
+  if (reason === undefined) return null;
+  return (
+    <TruncatedText text={reason} className="min-w-0 text-text-secondary">
+      · Skipped {gateLabel}
+      {withReason && <span className="text-text-muted"> · {reason}</span>}
+    </TruncatedText>
+  );
 }
