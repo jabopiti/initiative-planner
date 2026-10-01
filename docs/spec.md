@@ -1098,7 +1098,8 @@ local time, determined the same way as Confirmed vs. Provisional in §4.
   confirmation and the rules in §9.3.
 - **Cost item suggestions.** Typing a cost item's label suggests earlier
   labels from all initiatives, most frequent first. Choosing one prefills
-  its most recent amount and timing, all editable.
+  its most recent amount and timing, all editable A one-month
+  item's month is not copied: the month starts empty and Add asks for it.
 - **Duplicate.** **Duplicate** in the Actions menu creates a new initiative
   with the same team, owner and description, and for each costed phase the
   same length, allocations (active team members only) and cost items,
