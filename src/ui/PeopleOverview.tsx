@@ -123,7 +123,7 @@ export function PeopleOverview() {
       </div>
 
       <form
-        className="mb-4 flex flex-wrap items-center gap-2 rounded-[10px] border border-border-default bg-surface-card p-3"
+        className="mb-4 flex flex-wrap items-center gap-2 rounded-card border border-border-default bg-surface-card p-3"
         onSubmit={handleAdd}
         aria-label="Add a person"
       >
@@ -172,7 +172,7 @@ export function PeopleOverview() {
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
           {people.length === 0 ? (
-            <p className="m-0 px-4 py-10 text-center text-[15px] text-text-secondary">
+            <p className="m-0 px-4 py-10 text-center text-body-lg text-text-secondary">
               No people yet. Type a name above to add the first one.
             </p>
           ) : visible.length === 0 ? (

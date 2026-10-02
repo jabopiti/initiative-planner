@@ -32,7 +32,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
 
   if (!initiative) {
     return (
-      <div className="max-w-[720px] p-8">
+      <div className="max-w-page p-8">
         <p>This initiative couldn&apos;t be found.</p>
         {/* Deleted by someone else while an edit here waited to be saved (§3): the edit is not lost silently. */}
         {deletedWithLostEdit.has(id) && (
@@ -44,7 +44,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
 
   return (
     <div className="flex min-h-full flex-col">
-      <div className="max-w-[720px] flex-1 p-8 pb-24">
+      <div className="max-w-page flex-1 p-8 pb-24">
         {isInitiativeFrozen(initiative) ? (
           // A Closed or Cancelled initiative is a record (§8.4): name and description read-only and muted, an empty description hidden.
           <>

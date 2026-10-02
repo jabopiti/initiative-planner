@@ -209,7 +209,7 @@ export function TeamDetail({ id }: { id: string }) {
         </div>
 
         {members.length === 0 ? (
-          <p className="m-0 py-6 text-[15px] text-text-secondary">No members yet. Add someone to start staffing initiatives.</p>
+          <p className="m-0 py-6 text-body-lg text-text-secondary">No members yet. Add someone to start staffing initiatives.</p>
         ) : (
           <table className="w-full border-collapse text-sm">
             <thead>

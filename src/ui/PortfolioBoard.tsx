@@ -162,9 +162,9 @@ export function PortfolioBoard() {
         </div>
       </div>
       {shown.length === 0 && (
-        <p className="m-0 mb-3 rounded-lg border border-dashed border-border-strong bg-surface-card p-3.5 text-center text-[15px] text-text-secondary">
+        <p className="m-0 mb-3 rounded-lg border border-dashed border-border-strong bg-surface-card p-3.5 text-center text-body-lg text-text-secondary">
           No initiatives match these filters.
-          <button type="button" className="ml-2 cursor-pointer border-0 bg-transparent p-0 text-[15px] text-brand-accent-text underline" onClick={clear}>
+          <button type="button" className="ml-2 cursor-pointer border-0 bg-transparent p-0 text-body-lg text-brand-accent-text underline" onClick={clear}>
             Clear filters
           </button>
         </p>
@@ -174,7 +174,7 @@ export function PortfolioBoard() {
           const phaseRows = byPhase.get(phase.id) ?? [];
           const columnSum = phaseRows.reduce((sum, r) => sum + r.cost, 0);
           return (
-            <div key={phase.id} className="min-w-55 flex-[1_0_220px] rounded-[10px] bg-surface-subtle p-3">
+            <div key={phase.id} className="min-w-55 flex-[1_0_220px] rounded-card bg-surface-subtle p-3">
               <div className="mb-2.5 flex items-center justify-between px-0.5 text-sm font-semibold">
                 <span>{phase.label}</span>
                 <CompactAmount value={columnSum} prefix={`${phaseRows.length} · `} className="font-medium text-text-secondary" />

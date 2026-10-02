@@ -52,7 +52,7 @@ export function TeamInitiatives({ team }: { team: Team }) {
         )}
       </div>
       {rows.length === 0 ? (
-        <p className="m-0 py-3 text-[15px] text-text-secondary">
+        <p className="m-0 py-3 text-body-lg text-text-secondary">
           {team.active ? (
             <>
               No initiatives yet —{' '}

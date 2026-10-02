@@ -194,7 +194,7 @@ function InitiativeItem({ hit, onChoose }: { hit: InitiativeHit; onChoose: () =>
             {hit.field === 'name' ? <Highlighted text={initiative.name} range={hit.range} /> : initiative.name}
           </span>
           {StatusIcon && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-[11px] text-text-secondary">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-label text-text-secondary">
               <StatusIcon width={12} height={12} aria-hidden />
               {initiative.status}
             </span>

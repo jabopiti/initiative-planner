@@ -52,7 +52,7 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
 
   return (
     <div
-      className="max-w-[720px] p-8"
+      className="max-w-page p-8"
       onKeyDown={(e) => {
         // A dropdown that Esc just closed has already claimed the key.
         if (e.key === 'Escape' && !e.defaultPrevented) navigate('/portfolio', { replace: true });

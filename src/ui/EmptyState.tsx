@@ -15,7 +15,7 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
       <div>
-        <p className="m-0 text-[15px] text-text-secondary">{line}</p>
+        <p className="m-0 text-body-lg text-text-secondary">{line}</p>
         {reason && <p className="m-0 mt-1 text-sm text-text-secondary">{reason}</p>}
       </div>
       <Button type="button" onClick={onAction}>
