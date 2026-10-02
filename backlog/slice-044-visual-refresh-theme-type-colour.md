@@ -8,7 +8,7 @@ depends_on: ["042"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Theme and tokens' plus the review's visual-design lens (type, fewer boxes, shadcn components, motion, test both themes): F04, F12, F14, F19, F20. Look-and-feel decisions settled with the user from mockups: Geist typeface, soft layers, neutral dot status with outline track badge, theme icon button with a menu (§9.1 updated), brand-pack team swatches, subtle motion."
+change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Theme and tokens' plus the review's visual-design lens (type, fewer boxes, shadcn components, motion, test both themes): F04, F12, F14, F19, F20. Look-and-feel decisions settled with the user from mockups: Geist typeface, soft layers, neutral dot status with outline track badge, theme icon button with a menu (§9.1 updated), brand-pack team swatches, subtle motion; then zinc greys with forest accent, graphite dark theme, top bar kept, no extra themes. Component decisions moved to slice 046."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Changes tokens every screen reads and adds a brand-pack field (typeface, team palette); hard to reverse once screens are built on it."
 spec_sections: ["§2 What the build fixes (brand pack)", "§9.1 Theming", "§9.5 Accessibility", "§9.8 Visual design", "§9.10 Icons", "§10.1 Framework and UI foundations", "§10.7 Distribution, build and deploy", "§10.9 Security"]
@@ -130,7 +130,17 @@ surfaces, badges, theme control, team colours).
 - **Motion: subtle.** 120–180 ms on the phase accordion, toasts, the gate
   pass moment and a brief tint when a figure recalculates; none under
   `prefers-reduced-motion: reduce`.
-- **Assumptions (cheap to change, not asked):** the brand accent stays the
-  current green; radius stays 8 px (cards 10 px); compact amounts read
+- **Colour (round 2):** neutral zinc greys (no green tint) with the
+  current forest-green accent, so the accent is the only colour that is not
+  a state. Warning, Alarm and Met roles unchanged.
+- **Dark theme:** neutral graphite (near-black greys) matching the zinc
+  light theme; accent and roles keep today's dark values.
+- **Navigation:** the top bar stays, restyled (no sidebar); built in 045.
+- **Themes:** System, Light and Dark only; no high-contrast or density
+  options for now.
+- **Moved to 046:** the header key figures, the checklist control, the
+  period range picker and the extra motion (hover lift, figure roll, page
+  fade, gate pass celebration).
+- **Assumptions (cheap to change, not asked):** radius stays 8 px (cards 10 px); compact amounts read
   "€395k" (no space); date fields display "1 Oct 2026"; the §9.10 icon
   vocabulary table from 042 is reused.

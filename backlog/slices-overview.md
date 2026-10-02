@@ -119,6 +119,7 @@ for the AI-agent-driven build the team asked for:
 | 043 | Initiative detail: current phase first, complete gate panel, clearer magic bar | ✅ valid | 015, 026 |
 | 044 | Visual refresh: theme control, type scale, surfaces and status badges | ✅ valid | 042 |
 | 045 | Page shell and layout: shared container, two-column detail, first-run and empty states | ✅ valid | 043, 044 |
+| 046 | Detail components: key figures, labelled checklist, period range picker, motion | ✅ valid | 043, 044 |
 
 ## Dependency chain
 
@@ -208,7 +209,8 @@ for the AI-agent-driven build the team asked for:
   because its focus token and ⋯ row-actions menu are shared patterns 044
   and 045 reuse; 043 after 015 and 026, which own the magic bar and the
   frozen gate; 044 after 042 (it restyles the controls 042 fixes); 045
-  last, on 043's detail page and 044's tokens and PageHeader.
+  and 046 last, on 043's detail page and 044's tokens and PageHeader (046
+  was split from 044 for the detail page's new components).
 
 ## Build plan (slices 012 to 041, parallel sessions)
 
@@ -378,7 +380,9 @@ Initial run entries:
   refresh (theme, type, surfaces) and 045 page shell and layout. F18, left
   out of the review's roadmap, went into 042. 043 carries an open spec
   question: §9.10 makes the stepper icon-only, the review recommends
-  labels.
+  labels. While settling 044's look with the user, its new components
+  (key figures, checklist control, period range picker, extra motion) were
+  split into 046; §5.4, §9.1 and §9.11 were updated.
 
 ## Backlog tail (not yet fully sliced)
 

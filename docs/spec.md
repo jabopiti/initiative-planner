@@ -804,7 +804,10 @@ Its layout follows the design rules in §9.8.
   the gate's name), the difference between the two, and the deviation (§4)
   of recorded actuals from their estimates. Until a gate that carries cost
   has passed, this figure shows the grand estimate itself, with no
-  "approved at" label — the difference then reads as zero. A **Copy**
+  "approved at" label — the difference then reads as zero. It is shown as
+  a row of four key figures under the header: Grand estimate (with the
+  approved-at figure and difference beneath it), Deviation, the current
+  phase with its period, and the current gate's "X of Y complete". A **Copy**
   button copies the cost summary and the phase costs (§9.2).
 - **Phases**: the process's phases in order, as a vertical sequence. The
   current phase is expanded with full editing controls (allocations, period,
@@ -819,8 +822,8 @@ Its layout follows the design rules in §9.8.
   their team's Team FTE % in any month of the phase, or is no longer a
   member of the team (§7.2). A phase that starts on or before the previous
 costed phase's end date shows a warning saying so; no phase moves on its own.
-The current phase shows its **period** as two
-  date fields (§9.11), an **allocation table** (person, Allocation %, and
+The current phase shows its **period** as one
+  period picker (§9.11), an **allocation table** (person, Allocation %, and
   the person's cost for the phase), a **cost items table** (label, amount,
   and when: one month, or spread over the phase) beneath it, with the phase
   total in the phase header covering both, and an **actuals table** with a
@@ -838,9 +841,10 @@ The current phase shows its **period** as two
   instead (§7.3). A month not yet closed shows "not closed yet".
 - **Gate / Checklist panel** (beneath the current phase): the current gate's
   requirements, read as "X of Y complete" (§8.1), and its checklist items.
-  Each item has a name, a description that opens on demand, and a status set
-  with three icon toggles — Incomplete, Tentative, Complete — each with a
-  tooltip; the current status is also named in text beside them (§9.5).
+  Each item has a status icon at its left, a name, a description that opens
+  on demand, and a status set with a labelled segmented control —
+  Incomplete, Tentative, Complete — the selected one in its colour role
+  (§9.8).
   Selecting Tentative opens a note field; the status is saved together with
   the note, and Esc cancels. Items carried forward from earlier gates sit
   under their own subheading with their notes visible.
@@ -1756,8 +1760,15 @@ tooltip.
 control: type a month such as "Sep 2026", or open a small popover with a
 year stepper and the twelve months. It is fully operable by keyboard.
 
-**Date input.** A phase's start and end date is a compact control: type a
-date such as "3 Sep 2026", or open a small calendar popover. It is fully
+**Period picker.** A phase's period is one control split into Start and
+End; each half can be typed into ("3 Sep 2026") and opens a two-month
+calendar popover, where the half being set is outlined, the range shades
+as the pointer moves, the previous and next phases' periods are marked
+faintly, and a footer names the period, its length and the working days
+per team country, with the overlap warning (§5.4) when the start falls on
+or before the previous phase's end. Shortcuts set the start right after
+the previous phase, or a length of 1, 2, 3 or 6 whole months. A change
+saves only on **Done**; Esc or clicking outside discards it. It is fully
 operable by keyboard.
 
 **Amounts.** Cards, board headers and metrics show compact amounts (for
