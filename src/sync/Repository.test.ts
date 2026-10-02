@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Initiative } from '../data/types';
 import { Repository } from './Repository';
+import { splitMessage, subjectOf } from './testing/commitMessage';
 import { rootListing } from './testing/rootListing';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -283,11 +284,14 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     vi.unstubAllGlobals();
   });
 
-  function messagesFor(mock: ReturnType<typeof routingFetchMock>, file: string): string[] {
+  function rawMessagesFor(mock: ReturnType<typeof routingFetchMock>, file: string): string[] {
     return mock.mock.calls
       .filter(([url, init]) => (init as RequestInit)?.method === 'PUT' && (url as string).endsWith(`/contents/${file}`))
       .map(([, init]) => (JSON.parse((init as RequestInit).body as string) as { message: string }).message);
   }
+  const messagesFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => rawMessagesFor(mock, file).map(subjectOf);
+  /** The `Entity:` trailer lines of each commit to the file (§10.3). */
+  const trailersFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => rawMessagesFor(mock, file).map((m) => splitMessage(m).trailers);
 
   it('says who was added, changed and added to which team', async () => {
     const mock = routingFetchMock();
@@ -318,6 +322,10 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
       'Ada Lovelace: Team FTE % on Payments set to 60%',
       'Ada Lovelace: removed from Payments',
     ]);
+    // One trailer per touched entity, ending each commit (§10.3).
+    expect(trailersFor(mock, 'teams.json')).toEqual([[`Entity: team/${team.id}`]]);
+    expect(trailersFor(mock, 'people.json')).toEqual([[`Entity: person/${ada.id}`], [`Entity: person/${ada.id}`]]);
+    expect(trailersFor(mock, 'memberships.json')).toEqual(Array(3).fill([`Entity: membership/${membership.id}`]));
   });
 
   it('says which team was deactivated and reactivated (§9.3)', async () => {
@@ -388,6 +396,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
       'Roles: Designer deactivated',
       'Roles: Designer reactivated',
     ]);
+    expect(trailersFor(mock, 'roles.json')).toEqual(Array(4).fill([`Entity: role/${role.id}`]));
   });
 
   it('names every changed field of a role in one commit, and skips a no-op patch', async () => {
@@ -420,7 +429,8 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
     mock.mock.calls
       .filter(([url, init]) => (init as RequestInit)?.method === 'PUT' && (url as string).endsWith(`/contents/${file}`))
       .map(([, init]) => JSON.parse((init as RequestInit).body as string) as { message: string; content: string });
-  const messagesFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => bodiesFor(mock, file).map((b) => b.message);
+  const messagesFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => bodiesFor(mock, file).map((b) => subjectOf(b.message));
+  const trailersFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => bodiesFor(mock, file).map((b) => splitMessage(b.message).trailers);
   const saved = <T,>(body: { content: string }): T => JSON.parse(atob(body.content)) as T;
   const okPut = () => jsonResponse({ content: { sha: 'next-sha' } });
 
@@ -449,6 +459,7 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
     ]);
     expect(portugal.ratesByYear[1].workingDaysByMonth[2]).toBe(23);
     expect(messagesFor(mock, 'countries.json')).toEqual(['Countries: Portugal added']);
+    expect(trailersFor(mock, 'countries.json')).toEqual([[`Entity: country/${portugal.id}`]]);
     // Adding a country is not a rate edit: Review rates stays until one is made or confirmed (§5.2).
     expect(messagesFor(mock, 'dataset.json')).toEqual([]);
   });
@@ -477,6 +488,7 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
       'Countries: Deutschland deactivated',
     ]);
     expect(messagesFor(mock, 'dataset.json')).toEqual(['Rates marked as reviewed']);
+    expect(trailersFor(mock, 'dataset.json')).toEqual([[]]);
     expect(repo.getState().datasetFlags?.ratesReviewed).toBe(true);
     expect(repo.getState().countries[0].ratesByYear[1].workingDaysByMonth[3]).toBe(22);
   });
@@ -524,6 +536,7 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
     expect(rates[3].workingDaysByMonth[0]).toBe(23);
     expect(repo.getState().people[0].customRole?.dayRatesByYear.map((r) => r.year)).toEqual([2027, 2028, 2029]);
     expect(messagesFor(mock, 'countries.json')).toEqual(['Rates copied into 2029']);
+    expect(trailersFor(mock, 'countries.json')).toEqual([[]]); // a dataset-level commit names no entity
     expect(messagesFor(mock, 'people.json')).toEqual(['Rates copied into 2029']);
     // A system write, not a rate edit: it does not mark the rates reviewed.
     expect(messagesFor(mock, 'dataset.json')).toEqual([]);
@@ -539,7 +552,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     vi.unstubAllGlobals();
   });
 
-  const commits: { message: string; content: Initiative }[] = [];
+  const commits: { message: string; trailers: string[]; content: Initiative }[] = [];
 
   async function repoWithInitiative() {
     commits.length = 0;
@@ -548,7 +561,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       routingFetchMock({
         'PUT /repos/jabopiti/initiative-planner/contents/initiatives': (_url, init) => {
           const body = JSON.parse(init!.body as string) as { message: string; content: string };
-          commits.push({ message: body.message, content: JSON.parse(atob(body.content)) });
+          commits.push({ message: subjectOf(body.message), trailers: splitMessage(body.message).trailers, content: JSON.parse(atob(body.content)) });
           return jsonResponse({ content: { sha: `sha-${commits.length}` } });
         },
       }),
@@ -672,6 +685,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     expect(repo.getState().initiatives[0].name).toBe('Payments API 2');
     expect(commits).toHaveLength(1);
     expect(commits[0].message).toBe('Payments API: renamed to Payments API 2');
+    expect(commits[0].trailers).toEqual([`Entity: initiative/${initiative.id}`]);
     expect(commits[0].content.name).toBe('Payments API 2');
   });
 
@@ -836,7 +850,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     vi.unstubAllGlobals();
   });
 
-  const commits: { message: string; content: Initiative }[] = [];
+  const commits: { message: string; trailers: string[]; content: Initiative }[] = [];
 
   /** Fraud Detection Upgrade with a period, an allocation and a cost item in Validation, every commit so far flushed and forgotten. */
   async function repoWithPlannedInitiative() {
@@ -846,7 +860,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       routingFetchMock({
         'PUT /repos/jabopiti/initiative-planner/contents/initiatives': (_url, init) => {
           const body = JSON.parse(init!.body as string) as { message: string; content: string };
-          commits.push({ message: body.message, content: JSON.parse(atob(body.content)) });
+          commits.push({ message: subjectOf(body.message), trailers: splitMessage(body.message).trailers, content: JSON.parse(atob(body.content)) });
           return jsonResponse({ content: { sha: `sha-${commits.length}` } });
         },
       }),

@@ -66,7 +66,12 @@ traceable change log per entity.
       trailers.
 - [ ] Given a conflict resolution commit, then it carries the entity's
       trailer.
-- [ ] Given a multi-file commit, then it carries none.
+- [ ] Given a multi-file commit, a dataset-level commit or an edit that
+      cancelled out entirely, then it carries none.
+- [ ] Given an initiative file deleted, then its commit carries the
+      initiative's trailer.
+- [ ] Given an edit retried after a 409 with a further edit joined in, then
+      each entity appears once.
 
 ## Delivery gate
 
@@ -79,3 +84,16 @@ None.
 ## Decided in review (pre-implementation)
 
 - **Format:** one `Entity: <kind>/<id>` git trailer per touched entity.
+- **Dataset-level commits carry no trailer.** The `dataset` notes ("Rates
+  copied into …", the Rates reviewed flag) touch the dataset as a whole, like
+  multi-file commits; trailers stay `<kind>/<uuid>`.
+- **Deleting an initiative file** (and the re-delete after GitHub recreates a
+  file someone else deleted) carries `Entity: initiative/<id>`.
+- **No trailer** on the `<path>: update` fallback (no notes) or the baseline
+  "Initialize dataset" commit.
+- **One trailer per entity,** however many of its fields changed; an entity
+  is listed while any of its notes remains after cancelling out. An
+  added-then-removed entity leaves none.
+- **Messages keep their entities** through retries (union, first-edit order)
+  and conflict handling: the message is a subject plus an entity list, not a
+  string.

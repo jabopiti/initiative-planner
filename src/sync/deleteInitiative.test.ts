@@ -20,7 +20,7 @@ describe('deleting an initiative (slice 017)', () => {
 
     await expect(repo.deleteInitiative('i1')).resolves.toBe('deleted');
 
-    expect(fake.deletes).toEqual([expect.objectContaining({ path: PATH, message: 'Payments API: deleted', status: 200 })]);
+    expect(fake.deletes).toEqual([expect.objectContaining({ path: PATH, message: 'Payments API: deleted\n\nEntity: initiative/i1', status: 200 })]);
     expect(fake.has(PATH)).toBe(false);
     expect(repo.getState().initiatives).toEqual([]);
     expect(cacheDelete).toHaveBeenCalledWith(PATH);
@@ -70,7 +70,7 @@ describe('deleting an initiative (slice 017)', () => {
     await saving;
 
     await expect(deleting).resolves.toBe('deleted');
-    expect(fake.deletes).toEqual([expect.objectContaining({ sha: fake.commits(PATH)[0].newSha, status: 200, message: 'Payments API v2: deleted' })]);
+    expect(fake.deletes).toEqual([expect.objectContaining({ sha: fake.commits(PATH)[0].newSha, status: 200, message: 'Payments API v2: deleted\n\nEntity: initiative/i1' })]);
   });
 
   it('refuses when another user passed a gate between confirm and delete, and shows their version', async () => {
@@ -140,7 +140,7 @@ describe('another user deleted the initiative (slice 017)', () => {
     await repo.flushPending();
 
     expect(fake.puts.map((p) => p.status)).toEqual([201]);
-    expect(fake.deletes).toEqual([expect.objectContaining({ sha: fake.puts[0].newSha, message: 'Payments API v2: deleted', status: 200 })]);
+    expect(fake.deletes).toEqual([expect.objectContaining({ sha: fake.puts[0].newSha, message: 'Payments API v2: deleted\n\nEntity: initiative/i1', status: 200 })]);
     expect(fake.has(PATH)).toBe(false);
     expect(repo.getState().initiatives).toEqual([]);
     expect(repo.getState().deletedWithLostEdit.get('i1')).toBe('Payments API v2');

@@ -175,8 +175,8 @@ describe('New initiative: name it on the page (§5.1, §5.4)', () => {
     await user.click(screen.getByRole('button', { name: 'Create initiative' }));
 
     await vi.waitFor(() => expect(initiativePuts()).toHaveLength(1));
-    expect(initiativePuts()[0].body.message).toBe('Payments API v2: created');
     const saved = JSON.parse(atob(initiativePuts()[0].body.content));
+    expect(initiativePuts()[0].body.message).toBe(`Payments API v2: created\n\nEntity: initiative/${saved.id}`);
     expect(saved).toMatchObject({ name: 'Payments API v2', teamId: 't1', status: 'Active' });
     expect(window.location.hash).toBe(`#/initiatives/${saved.id}`);
   });
