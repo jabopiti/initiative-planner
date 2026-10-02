@@ -9,6 +9,9 @@ import { CommitInput } from './CommitInput';
 import { ConflictBlock } from './ConflictBlock';
 import { InlineWarning } from './InlineWarning';
 
+const COST_FACTOR_REFUSAL = 'Enter a cost factor above 0.';
+const DAY_RATE_REFUSAL = 'Enter a day rate of 0 or more.';
+
 /**
  * A person's custom role (§5.6, §6): label, cost factor and a day rate per tracked year. A year with
  * no entered rate takes the nearest earlier entered year's (§7.2) and the row says which.
@@ -37,7 +40,7 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
       return;
     }
     const dayRate = parseAmount(text);
-    if (dayRate === null) return false;
+    if (dayRate === null) return DAY_RATE_REFUSAL;
     save({ dayRatesByYear: [...others, { year, dayRate }].sort((a, b) => a.year - b.year) });
   };
 
@@ -77,7 +80,8 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
           value={String(customRole.costFactor)}
           onCommit={(text) => {
             const costFactor = parseAmount(text);
-            if (costFactor === null || costFactor === customRole.costFactor) return false;
+            if (costFactor === null || costFactor <= 0) return COST_FACTOR_REFUSAL;
+            if (costFactor === customRole.costFactor) return false;
             save({ costFactor });
           }}
         />

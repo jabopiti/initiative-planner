@@ -92,12 +92,12 @@ export function CapacityGrid({ team }: { team: Team }) {
       </div>
 
       {!team.active ? (
-        <p className="m-0 py-6 text-[15px] text-text-secondary">This team is inactive, so its initiatives are not counted toward anyone&apos;s capacity. Reactivate the team to see its capacity.</p>
+        <p className="m-0 py-6 text-body-lg text-text-secondary">This team is inactive, so its initiatives are not counted toward anyone&apos;s capacity. Reactivate the team to see its capacity.</p>
       ) : capacity.rows.length === 0 ? (
-        <p className="m-0 py-6 text-[15px] text-text-secondary">No members yet. Add members to see their capacity.</p>
+        <p className="m-0 py-6 text-body-lg text-text-secondary">No members yet. Add members to see their capacity.</p>
       ) : capacity.months.length === 0 ? (
         <>
-          <p className="m-0 py-6 text-[15px] text-text-secondary">Nothing allocated yet. Allocate members to an initiative&apos;s phase and their months appear here.</p>
+          <p className="m-0 py-6 text-body-lg text-text-secondary">Nothing allocated yet. Allocate members to an initiative&apos;s phase and their months appear here.</p>
           <div className="flex flex-col items-start gap-1">
             {capacity.rows.flatMap((row) => otherWarnings(row, team)).map(({ Icon, text }) => (
               <InlineWarning key={text} icon={Icon}>

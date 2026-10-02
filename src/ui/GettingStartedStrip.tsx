@@ -25,7 +25,7 @@ export function GettingStartedStrip() {
             <li key={step.id} className={`flex items-center gap-1.5 ${step.done ? 'text-text-secondary' : ''}`}>
               <span
                 aria-hidden="true"
-                className={`inline-flex size-[18px] shrink-0 items-center justify-center rounded-full border text-[11px] font-medium ${step.done ? 'border-met bg-met-tint text-met-text' : 'border-border-strong bg-surface-subtle text-text-secondary'}`}
+                className={`inline-flex size-check shrink-0 items-center justify-center rounded-full border text-label font-medium ${step.done ? 'border-met bg-met-tint text-met-text' : 'border-border-strong bg-surface-subtle text-text-secondary'}`}
               >
                 {step.done ? <CheckIcon width={12} height={12} /> : index + 1}
               </span>

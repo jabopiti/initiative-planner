@@ -57,20 +57,20 @@ traceable change log per entity.
 
 ## Acceptance criteria
 
-- [ ] Given any single edit, then its commit message ends with a blank line and
+- [x] Given any single edit, then its commit message ends with a blank line and
       one `Entity: <kind>/<id>` trailer.
-- [ ] Given edits to two entities in one window of the same file (two people
+- [x] Given edits to two entities in one window of the same file (two people
       in `people.json`), then both trailers appear, each once, in first-edit
       order.
-- [ ] Given `git interpret-trailers --parse` on a message, then it lists the
+- [x] Given `git interpret-trailers --parse` on a message, then it lists the
       trailers.
-- [ ] Given a conflict resolution commit, then it carries the entity's
+- [x] Given a conflict resolution commit, then it carries the entity's
       trailer.
-- [ ] Given a multi-file commit, a dataset-level commit or an edit that
+- [x] Given a multi-file commit, a dataset-level commit or an edit that
       cancelled out entirely, then it carries none.
-- [ ] Given an initiative file deleted, then its commit carries the
+- [x] Given an initiative file deleted, then its commit carries the
       initiative's trailer.
-- [ ] Given an edit retried after a 409 with a further edit joined in, then
+- [x] Given an edit retried after a 409 with a further edit joined in, then
       each entity appears once.
 
 ## Delivery gate

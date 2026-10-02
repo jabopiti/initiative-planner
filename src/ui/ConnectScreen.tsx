@@ -47,9 +47,9 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
   const newTab = <span className="sr-only"> (opens in a new tab)</span>;
 
   return (
-    <main className="mx-auto flex w-full max-w-[560px] flex-col gap-4 px-4 py-12">
+    <main className="mx-auto flex w-full max-w-connect flex-col gap-4 px-4 py-12">
       <section className={`${cardClass} border-2 border-brand-accent`} aria-labelledby="connect-heading">
-        <h1 id="connect-heading" className="m-0 mb-1 text-[22px]">
+        <h1 id="connect-heading" className="m-0 mb-1 text-display">
           Connect to {brand.productName}
         </h1>
         <p className="m-0 mb-5 text-text-secondary">Paste your GitHub token to continue.</p>

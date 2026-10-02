@@ -151,6 +151,7 @@ function PersonDetails({ person }: { person: Person }) {
         <div className="flex flex-col gap-1">
           <Label htmlFor="person-capacity">Capacity</Label>
           <PercentInput
+            id="person-capacity"
             label="Capacity %"
             changed={changed(FILE_PATHS.people, [{ id: person.id }, 'capacityPct'])}
             failure={failure(FILE_PATHS.people, [{ id: person.id }, 'capacityPct'])}

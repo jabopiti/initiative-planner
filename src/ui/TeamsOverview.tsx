@@ -48,7 +48,7 @@ export function TeamsOverview() {
     return teams.map((team) => ({
       team,
       members: activeMembers(team.id, memberships, people).length,
-      capacityWarning: teamHasCapacityWarning(teamCapacity(team.id, data, loads)),
+      capacityWarning: team.active && teamHasCapacityWarning(teamCapacity(team.id, data, loads)),
       counts: brand.process.map((phase) => phaseCountsByTeam.get(team.id)?.get(phase.id) ?? 0),
     }));
   }, [teams, initiatives, memberships, people, brand.process, phaseCountsByTeam, today]);
@@ -109,7 +109,7 @@ export function TeamsOverview() {
               if (e.key === 'Escape') setCreating(false);
             }}
           >
-            <Input ref={inputRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Team name" />
+            <Input ref={inputRef} aria-label="Team name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Team name" />
             <Button type="submit" disabled={!name.trim()}>
               Create
             </Button>

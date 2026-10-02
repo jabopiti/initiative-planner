@@ -53,7 +53,7 @@ export function ProcessSection() {
             <span className="absolute top-0 left-0 flex size-8 items-center justify-center rounded-full bg-brand-accent-tint text-brand-accent-text">
               <PhaseIcon name={phase.icon} />
             </span>
-            <h3 className="m-0 flex items-center gap-1.5 text-[15px]">
+            <h3 className="m-0 flex items-center gap-1.5 text-body-lg">
               {phase.label}
               {phase.costed && phase.defaultDurationMonths !== undefined && (
                 <span className="rounded-full bg-surface-subtle px-2 py-px text-xs font-normal text-text-secondary">
@@ -70,7 +70,7 @@ export function ProcessSection() {
       <h2 className="mt-6 mb-3 text-lg">Approval tracks</h2>
       <table className="w-full border-collapse overflow-hidden rounded-lg border border-border-default bg-surface-card text-left">
         <thead>
-          <tr className="text-[13px] text-text-secondary">
+          <tr className="text-caption text-text-secondary">
             <th className={`${cell} font-medium`}>Name</th>
             <th className={`${cell} font-medium`}>Bounds</th>
             <th className={`${cell} font-medium`}>Requirement</th>

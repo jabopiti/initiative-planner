@@ -58,19 +58,19 @@ changed between the saved state before and after it — the net effect.
 
 ## Acceptance criteria
 
-- [ ] Given add then change in one window, then the message reads "<person>
+- [x] Given add then change in one window, then the message reads "<person>
       added to <phase> at <final %>".
-- [ ] Given add then remove in one window, then no commit is made.
-- [ ] Given rename A → B → C in one window, then the message reads "renamed
+- [x] Given add then remove in one window, then no commit is made.
+- [x] Given rename A → B → C in one window, then the message reads "renamed
       from A to C".
-- [ ] Given a change and a change back to the saved value, then no note for it
+- [x] Given a change and a change back to the saved value, then no note for it
       remains (and no commit if nothing else changed).
-- [ ] Given a person added and a person renamed A → B → C in one window, each
+- [x] Given a person added and a person renamed A → B → C in one window, each
       with the rename subject the saved name ("A: renamed to C").
-- [ ] Given a removal and its Undo in one window, then no note and no commit.
-- [ ] Given several fields of one person changed in one window, then one
+- [x] Given a removal and its Undo in one window, then no note and no commit.
+- [x] Given several fields of one person changed in one window, then one
       subject with the changes joined by commas.
-- [ ] Given edits to two different entities, then both notes appear, joined as
+- [x] Given edits to two different entities, then both notes appear, joined as
       today.
 
 ## Delivery gate

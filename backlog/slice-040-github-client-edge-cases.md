@@ -58,16 +58,16 @@ only rejects a token GitHub actually rejected.
 
 ## Acceptance criteria
 
-- [ ] Given branch `planning/data` (fake fetch), then the ref URL is
+- [x] Given branch `planning/data` (fake fetch), then the ref URL is
       `…/git/ref/heads/planning/data`, and the update URL
       `…/git/refs/heads/planning/data`.
-- [ ] Given a Contents response for a 1.2 MB file without inline content, then
+- [x] Given a Contents response for a 1.2 MB file without inline content, then
       the client fetches it by blob sha and returns its parsed content.
-- [ ] Given a 401 on the token check, then "GitHub doesn't accept this token."
-- [ ] Given a network error or a 502 on the token check, then "Couldn't reach
+- [x] Given a 401 on the token check, then "GitHub doesn't accept this token."
+- [x] Given a network error or a 502 on the token check, then "Couldn't reach
       GitHub to check the token. Check your connection and try again.", the
       token is kept in the field and Check is enabled.
-- [ ] Given a 5xx on the repo access step, then the same unreachable message,
+- [x] Given a 5xx on the repo access step, then the same unreachable message,
       not "can't see the repository".
 
 ## Delivery gate

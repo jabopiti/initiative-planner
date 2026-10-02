@@ -21,4 +21,11 @@ describe('the Teams overview marker (§5.7)', () => {
     const payments = await screen.findByRole('row', { name: /Payments/ });
     expect(within(payments).queryByRole('img', { name: 'Capacity warning' })).not.toBeInTheDocument();
   });
+
+  it('shows no warning on an inactive team', async () => {
+    fixture.teams = fixture.teams.map((t) => (t.id === 't1' ? { ...t, active: false } : t));
+    renderView(<TeamsOverview />);
+    const payments = await screen.findByRole('row', { name: /Payments/ });
+    expect(within(payments).queryByRole('img', { name: 'Capacity warning' })).not.toBeInTheDocument();
+  });
 });
