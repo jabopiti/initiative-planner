@@ -108,10 +108,6 @@ as today.
 - [ ] Given any invalid entry, when read by a screen reader, then the field
       is reported as invalid with the message as its description.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 The current behaviour is a deviation from §9.9, not a spec rule; the spec

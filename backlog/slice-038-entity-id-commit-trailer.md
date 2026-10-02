@@ -73,10 +73,6 @@ traceable change log per entity.
 - [x] Given an edit retried after a 409 with a further edit joined in, then
       each entity appears once.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

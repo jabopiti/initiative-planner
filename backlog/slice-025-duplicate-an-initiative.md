@@ -99,10 +99,6 @@ the first phase); duplicating to another team.
       works and the copy is Active.
 - [ ] Given the save fails, then nothing opens and the read-only banner shows.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 **Assumptions stated in review:** a deactivated owner is not carried over; the

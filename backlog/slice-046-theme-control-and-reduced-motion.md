@@ -52,10 +52,6 @@ survives a reload, and users who ask for less motion get none.
 - [ ] Given axe in dark mode on Portfolio, Initiatives, an initiative page
       and Settings, then there are no violations.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

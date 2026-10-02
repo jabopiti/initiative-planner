@@ -113,10 +113,6 @@ Initiatives table (slice 013); searching by description (slice 034).
       have the accessible names "Description" and "Owner", and the badge's
       text is read, not only its colour.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 The Closed/Cancelled read-only rule for description and owner belongs to

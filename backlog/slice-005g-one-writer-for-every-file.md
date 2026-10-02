@@ -102,10 +102,6 @@ recovery (§3, §9.9), which is listed in the backlog tail; loading and pulling
 - [ ] Given the existing tests for both writers, when they run against the
       new one, then they pass without changes to their expectations.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 Nothing in the spec changes. The current behaviour after a failed push,

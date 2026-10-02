@@ -94,10 +94,6 @@ metrics, Copy (021); the Getting started strip (033).
 - [ ] Given a screen reader, then each card's attention marker has an
       accessible name naming the kind.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 The compact-amount thresholds (k from 1,000, M with one decimal from

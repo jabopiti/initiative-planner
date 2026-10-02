@@ -125,10 +125,6 @@ later without changing this slice's core behaviour.
 - [x] Given a phase with no cost items, then it reads "No cost items yet" with
       the Add cost item action.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

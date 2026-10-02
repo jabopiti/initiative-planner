@@ -92,10 +92,6 @@ banner only points to conflicts whose field isn't on screen.
 - [x] Given another user's pull settles the conflict remotely (theirs equals
       mine), then the block disappears.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

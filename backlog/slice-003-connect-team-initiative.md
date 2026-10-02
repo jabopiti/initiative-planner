@@ -110,14 +110,6 @@ interactive walkthrough in a real browser against a mocked network
 screenshotted in both themes. No real GitHub commits were made in this
 verification — that's the one remaining step; see TODO.md.
 
-## Delivery gate
-
-- [x] Deployed to production-equivalent environment — live at
-      https://jabopiti.github.io/initiative-planner/ via the GitHub
-      Actions → Pages workflow (`.github/workflows/deploy.yml`),
-      confirmed working (Connect screen, correct CSP, no console errors)
-      after the first deploy run.
-
 ## Flags and compromises
 
 Scope was already minimal on first read for the *product* surface — no

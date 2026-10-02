@@ -111,10 +111,6 @@ estimates stated where it is made.
       so this is Enter/Space and `aria-pressed` for free — verified in the
       running app and by RTL's role queries.)
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

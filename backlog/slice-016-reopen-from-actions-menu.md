@@ -88,10 +88,6 @@ skipped gate's record like any other).
 - [ ] Given a costed gate reopened, then the cost summary's "approved at" and
       the escalation baseline use the previous passed costed gate, or none.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

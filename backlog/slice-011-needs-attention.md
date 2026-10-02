@@ -139,10 +139,6 @@ slice's core aggregation behaviour.
 - [ ] Given an On Hold initiative would otherwise qualify for an item,
       when the Portfolio loads, then it does not appear in the strip.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

@@ -89,10 +89,6 @@ summary (§9.2) is added by the slice that builds each of them.
 - [ ] Given a sortable header, when it is used with the keyboard only,
       then it can be sorted and its direction is announced.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

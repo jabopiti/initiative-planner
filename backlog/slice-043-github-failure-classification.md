@@ -64,10 +64,6 @@ cause and message the spec names, and a hung request ends.
 - [ ] Given the token check, then a rate-limited `/user` call does not read as
       unreachable.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

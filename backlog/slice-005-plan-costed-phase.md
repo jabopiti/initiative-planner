@@ -89,10 +89,6 @@ behaviour this slice proves.
 - [x] Given the phase's allocations are saved, when the page is reloaded,
       then the same period, allocations and total appear.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 A custom role can be stored and costs correctly, but no screen sets one

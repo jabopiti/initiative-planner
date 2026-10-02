@@ -103,10 +103,6 @@ which needs the field-level display of a later slice.
       then it merges by the same function, and the per-shape merge functions
       no longer exist.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 §10.5 describes the rules; this slice keeps them and generalises how they

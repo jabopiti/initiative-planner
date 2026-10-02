@@ -121,10 +121,6 @@ people, teams, roles, countries (never deleted, §9.3); bulk delete.
 - [x] Delete is the last menu item, after a separator, in the destructive
       style.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 The first delete in the dataset: the GitHub client, the file writer and the

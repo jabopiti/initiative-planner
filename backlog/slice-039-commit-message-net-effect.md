@@ -73,10 +73,6 @@ changed between the saved state before and after it — the net effect.
 - [x] Given edits to two different entities, then both notes appear, joined as
       today.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 Touches every repository write method. Run it after the feature slices that

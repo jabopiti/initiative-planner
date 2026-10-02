@@ -62,10 +62,6 @@ GitHub's limits.
 - [x] Given 005g's and 005j's interleaving tests, then they pass unchanged.
 - [x] Given the app, then no test waits on real time for backoff.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

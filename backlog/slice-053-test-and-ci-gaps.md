@@ -52,10 +52,6 @@ follows the brand pack's API host.
       quota.
 - [ ] Given each new axe scan, then no violations.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.
