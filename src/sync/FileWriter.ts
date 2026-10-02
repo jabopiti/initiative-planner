@@ -37,11 +37,6 @@ export interface FileConflict extends MergeConflict {
 /** The kinds of entity a commit can touch (§10.3). Each but `dataset` is rendered as an `Entity:` trailer. */
 export type EntityKind = 'initiative' | 'person' | 'team' | 'membership' | 'role' | 'country' | 'dataset';
 
-/**
- * One edit, as the commit message describes it (§10.3). Edits to the same `field` of the same entity within one
- * commit combine into one note, from the first `from` to the last `to`: `undefined` means it did not exist, and a
- * change back to where it started leaves no note. `words` phrases the net change in plain words naming the entity.
- */
 export type EntityRef = { kind: EntityKind; id: string };
 
 /** A commit message: the plain-words subject, and the entities it touched, which end it as trailer lines (§10.3). */
@@ -65,6 +60,11 @@ function distinctEntities(entities: EntityRef[]): EntityRef[] {
   });
 }
 
+/**
+ * One edit, as the commit message describes it (§10.3). Edits to the same `field` of the same entity within one
+ * commit combine into one note, from the first `from` to the last `to`: `undefined` means it did not exist, and a
+ * change back to where it started leaves no note. `words` phrases the net change in plain words naming the entity.
+ */
 export interface CommitNote {
   entity: EntityRef;
   field: string;
