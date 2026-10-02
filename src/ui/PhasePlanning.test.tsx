@@ -300,15 +300,22 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
   });
 
   it('moves into the calendar with the down arrow, and a day picked by keyboard fills the field', async () => {
-    const user = userEvent.setup();
-    renderPage();
-    const field = await screen.findByRole('textbox', { name: 'Validation start date' });
-    await user.type(field, '01.10.2026');
-    await user.keyboard('{ArrowDown}');
-    await vi.waitFor(() => expect(within(screen.getByRole('grid')).getAllByRole('button').includes(document.activeElement as HTMLElement)).toBe(true));
-    await user.keyboard('{Enter}');
-    expect(field).toHaveValue('01.10.2026'); // the focused day was the typed date, now picked
-    expect(field).toHaveFocus();
+    // Pinned so today falls outside the typed month; otherwise the calendar would give tabindex 0 to today's cell instead of the 1st.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 24, 12));
+    try {
+      const user = userEvent.setup();
+      renderPage();
+      const field = await screen.findByRole('textbox', { name: 'Validation start date' });
+      await user.type(field, '01.10.2026');
+      await user.keyboard('{ArrowDown}');
+      await vi.waitFor(() => expect(within(screen.getByRole('grid')).getAllByRole('button').includes(document.activeElement as HTMLElement)).toBe(true));
+      await user.keyboard('{Enter}');
+      expect(field).toHaveValue('01.10.2026'); // the focused day was the typed date, now picked
+      expect(field).toHaveFocus();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('highlights the period first, then the people, then nothing', async () => {

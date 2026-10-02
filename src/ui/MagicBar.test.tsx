@@ -54,8 +54,11 @@ beforeAll(() => {
 afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(2026, 8, 24, 12));
   puts = [];
 });
+afterEach(() => vi.useRealTimers());
 
 function renderPage() {
   return render(
