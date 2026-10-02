@@ -115,7 +115,7 @@ describe('The delete confirmation (§9.9)', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Confirm delete' }));
 
     await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith('/initiatives', { replace: true }));
-    expect(fake.deletes).toEqual([expect.objectContaining({ message: 'Checkout Redesign copy: deleted', status: 200 })]);
+    expect(fake.deletes).toEqual([expect.objectContaining({ message: expect.stringMatching(/^Checkout Redesign copy: deleted\n\nEntity: initiative\/.+$/), status: 200 })]);
     expect(fake.has(PATH)).toBe(false);
   });
 
