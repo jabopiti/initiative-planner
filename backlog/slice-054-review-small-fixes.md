@@ -59,7 +59,18 @@ spec_sections: ["§5.5 People overview", "§5.8 Team detail view", "§9.9 Interf
 
 None.
 
-## Open decisions
+## Decided in review (pre-implementation)
 
-- Copy for the disabled-add message and the custom-role refusals, drafted in
-  place against §9.2.
+- Disabled add (People quick-add and Team detail): a visible line under the
+  form, "Add a country and a role in Settings before adding people." (Team
+  detail: "…before creating people."), with Settings linked (§9.4).
+- Custom role fields keep the number field and refuse inline, as Percent and
+  Roles do: cost factor "Enter a cost factor above 0."; day rate "Enter a day
+  rate of 0 or more." The typed text stays until fixed or Esc.
+- Initiative not found: one primary button, "Back to Portfolio" (§9.4).
+- Pixel values become `@theme` tokens: `--text-body-lg` 15px, `--text-label`
+  11px, `--text-display` 22px, `--container-prose` 720px, `--container-narrow`
+  560px, `--radius-card` 10px, `--size-check` 18px.
+- `/` ignores focus inside `[role=menu]`, `[role=listbox]`, `[role=dialog]`.
+  Draft-page Esc listens on `document`; inputs that handle Esc win. A stale
+  Year pick falls back to the default year.
