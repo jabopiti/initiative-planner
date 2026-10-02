@@ -102,7 +102,7 @@ export function PortfolioBoard() {
   if (initiatives.length === 0) {
     return (
       <>
-        <div className="px-8 pt-6 [&>section]:mb-0">
+        <div className="px-8 pt-6 empty:hidden [&>section]:mb-0">
           <GettingStartedStrip />
         </div>
         <NoInitiatives />
