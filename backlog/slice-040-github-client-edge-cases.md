@@ -70,10 +70,6 @@ only rejects a token GitHub actually rejected.
 - [x] Given a 5xx on the repo access step, then the same unreachable message,
       not "can't see the repository".
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

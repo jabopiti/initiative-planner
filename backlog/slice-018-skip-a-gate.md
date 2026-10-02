@@ -108,10 +108,6 @@ same record and display but a different entry point.
       skipping G1" and the skip icon on the phase line has the accessible name
       "Skipped".
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

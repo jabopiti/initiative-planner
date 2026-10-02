@@ -114,10 +114,6 @@ a developer tool.
 - [ ] Given another user's client pulls after a Reset, then their lists empty
       and an open initiative shows "This initiative couldn't be found."
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 The example dataset file duplicates `backlog/example-data.md`'s content in

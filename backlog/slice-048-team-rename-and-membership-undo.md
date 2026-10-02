@@ -48,10 +48,6 @@ membership can be undone for the usual 10 seconds.
 - [ ] Given Undo after the person was re-added to the team, then nothing is
       duplicated.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

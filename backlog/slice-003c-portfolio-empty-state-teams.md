@@ -99,10 +99,6 @@ the draft.
       bar and the Portfolio render, then they offer **New initiative** and
       **Create your first initiative**.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 §9.4 named only the no-team and team cases; it is extended with the

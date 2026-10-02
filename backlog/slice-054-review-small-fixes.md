@@ -52,10 +52,6 @@ spec_sections: ["§5.5 People overview", "§5.8 Team detail view", "§9.9 Interf
 - [x] Given `grep` for the pixel utilities above in `src/ui`, then none
       remain.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

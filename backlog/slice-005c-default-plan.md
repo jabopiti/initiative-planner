@@ -125,10 +125,6 @@ period" prompt still guides them.
       plan is built, then it follows the user's local time (§7.1); the tests
       inject the date rather than reading the clock.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 Slice 005d's execution path said the creation writes "no phases yet"; it now

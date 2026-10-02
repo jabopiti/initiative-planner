@@ -80,10 +80,6 @@ of from zero.
 - [x] Given a frozen phase or a Cancelled/Closed initiative, then no Copy is
       offered.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

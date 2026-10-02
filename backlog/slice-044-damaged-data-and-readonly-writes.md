@@ -75,10 +75,6 @@ message naming the file and the problem; and read-only really refuses writes.
 - [ ] Given a hostile dataset (§10.8), then `Object.prototype` is unchanged
       after a pull and a merge.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 Schema migration was removed from the backlog at the user's request (see the

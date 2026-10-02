@@ -87,10 +87,6 @@ fields; recent searches.
 - [ ] Given a screen reader, then the dialog has the name "Search", results
       are announced with their group, and the arrow keys move between them.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 The shortcuts are an addition to §5.1, which names only the icon; record them

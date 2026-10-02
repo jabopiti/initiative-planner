@@ -126,10 +126,6 @@ gate from the **Actions menu** (016); Delete (017).
 - [x] Given a screen reader, then the frozen line is read with the page, and
       Reopen's accessible name is "Reopen <name>".
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 Checklist **statuses** freeze while their **notes** do not (§8.4 names only

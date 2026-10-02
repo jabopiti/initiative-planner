@@ -106,10 +106,6 @@ Retry button and the read-only banner (backlog tail).
 - [x] Given the pull fails, when the tool is open, then it shows the
       read-only state with its cause and keeps showing the cached data.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 §3 said the tool "always pulls before pushing a change". The writers instead

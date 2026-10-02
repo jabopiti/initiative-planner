@@ -48,10 +48,6 @@ the real app, and agrees with the Replace-token field.
 - [ ] Given each outcome of the §5.10 table, then an App-level test asserts
       its message and whether the app opens.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

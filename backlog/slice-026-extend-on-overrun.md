@@ -73,10 +73,6 @@ else (§5.11), so a known delay is recorded in a second.
 - [x] Given the phase is still past its end after extending, then the overrun
       state and the action remain.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 On Hold hides the overrun state, and with it this action; that rule and its

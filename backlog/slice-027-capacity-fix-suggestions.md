@@ -87,10 +87,6 @@ and for allocations that outlived a membership (§5.11 lists only the two).
       under the warnings, and it clears both.
 - [ ] Given each fix, then it is one commit with plain-words message.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

@@ -113,10 +113,6 @@ in the menu (016); Delete (017); Duplicate (025).
       Space, items are reachable with the arrow keys, and Esc closes it with
       focus back on the button; the button's accessible name is "Actions".
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

@@ -136,10 +136,6 @@ display.
 - [x] Given a team with a member who has a capacity warning, when the Teams
       overview is viewed, then that team carries the warning marker.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

@@ -155,10 +155,6 @@ trailer line (backlog tail).
       holds; that one test is updated to assert the new automatic-retry
       behaviour instead.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None anticipated. This closes the divergence from §3 that 005g's own Flags

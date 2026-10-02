@@ -110,10 +110,6 @@ team at once.
 - [ ] Given the confirmation, when read by a screen reader, then it is
       announced and the focus moves to its first action.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 This changes a spec rule: §5.4, §6 and §7.2 used to say a team change keeps

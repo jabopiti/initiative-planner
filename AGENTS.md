@@ -37,7 +37,9 @@ definitions themselves.
 ## Working from the backlog
 One slice at a time from `/backlog`, reading only the spec sections its
 `spec_sections` frontmatter cites. Acceptance criteria = definition of
-done; verify each before marking complete.
+done; verify each before marking complete. Merging to `main` deploys
+(`.github/workflows/deploy.yml`), so a slice is done on its `Slice <id>:`
+commit; slice files carry no separate delivery gate.
 
 ## Order of work
 1. Bug: reproduce first (failing test, `curl`, console) and name the

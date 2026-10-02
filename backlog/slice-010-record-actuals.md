@@ -110,10 +110,6 @@ one is missing is a separate, later aggregation on top of this data.
 - [x] Given a month that has not yet ended, when the phase is viewed, then
       it shows "not closed yet" with no actual field.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

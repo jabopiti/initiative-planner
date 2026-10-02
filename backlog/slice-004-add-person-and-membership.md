@@ -85,10 +85,6 @@ because nothing in this slice's core behaviour requires changing it.
 - [ ] Given a person is deactivated, when the People overview loads with
       its default filter, then the person no longer appears.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

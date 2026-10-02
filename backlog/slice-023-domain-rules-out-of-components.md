@@ -68,10 +68,6 @@ result — with no visible change.
 - [ ] Given the full test suite, then every existing component test passes
       unchanged.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

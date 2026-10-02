@@ -75,10 +75,6 @@ using that definition wherever the size is shown or copied.
 - [ ] Given the add-person picker of an initiative's phase, when it opens,
       then it lists the same people the size counts.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 §5.7 already says "the number of active members"; this slice fixes the

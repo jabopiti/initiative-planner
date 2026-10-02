@@ -62,10 +62,6 @@ the spec's wording and states, and no state is carried between initiatives.
 - [ ] Given Needs attention deep links to Escalated, Overdue, Due and Ready,
       then each lands on its target (tests cover all, not only Overrun).
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

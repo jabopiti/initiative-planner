@@ -112,10 +112,6 @@ quick-add row (§5.5) keeps creating standard-role people only.
 - [ ] Given a person with a custom role, when the People overview and an
       allocation table render, then both show the custom label as the role.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

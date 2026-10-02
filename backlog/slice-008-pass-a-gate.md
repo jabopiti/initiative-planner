@@ -128,10 +128,6 @@ historical work, built next once passing works.
       cleared, the frozen snapshot is discarded, and checklist statuses
       and notes are kept.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 Slice 005e (change an initiative's team) skips locked phases through one

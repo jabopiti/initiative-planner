@@ -71,10 +71,6 @@ them, 013).
       yet" with New initiative.
 - [ ] Given an inactive team, then New initiative is absent.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 §5.1 says the draft "always starts on 'Select team'" while §5.3 and §5.8 preset

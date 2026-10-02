@@ -115,10 +115,6 @@ description, Actions menu), which arrive with their own slices.
 - [x] Given an initiative's page, when its name is cleared, then the change
       is refused and the previous name stays.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 This changes a spec rule, not just its wording: the team no longer defaults
