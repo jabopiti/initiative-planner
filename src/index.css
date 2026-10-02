@@ -115,6 +115,15 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --radius-card: 10px;
+
+  --text-label: 11px;
+  --text-caption: 13px;
+  --text-body-lg: 15px;
+  --text-display: 22px;
+  --container-page: 720px;
+  --container-connect: 560px;
+  --spacing-check: 18px;
 
   /* shadcn/ui's colour contract, aliased onto the brand-pack roles above (§9.8) —
      kept distinct from --color-brand-accent since shadcn's own "accent" role

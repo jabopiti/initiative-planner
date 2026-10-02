@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useIsChangedByOthers, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { inactiveLabel, initiativeRows, NONE } from '../data/initiativeList';
-import { costedRows, isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, portfolioRows, portfolioYears, type PortfolioFilters, type PortfolioRow } from '../data/portfolio';
+import { costedRows, isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, portfolioRows, liveYear, portfolioYears, type PortfolioFilters, type PortfolioRow } from '../data/portfolio';
 import { FILE_PATHS, INITIATIVE_STATUSES, type InitiativeStatus } from '../data/types';
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
@@ -89,8 +89,8 @@ export function PortfolioBoard() {
   /** The session's picks, less any that no longer exist (an initiative deleted since) — they couldn't be unticked. */
   const filters = useMemo<PortfolioFilters>(() => {
     const live = (key: keyof typeof options) => stored[key].filter((v) => options[key].some((o) => o.value === v));
-    return { ...stored, team: live('team'), phase: live('phase'), initiative: live('initiative'), track: live('track'), status: live('status') };
-  }, [stored, options]);
+    return { ...stored, team: live('team'), phase: live('phase'), initiative: live('initiative'), track: live('track'), status: live('status'), year: liveYear(stored.year, years) };
+  }, [stored, options, years]);
   const shown = useMemo(() => portfolioRows(rows, filters), [rows, filters]);
   /** Board order: phase by phase, cards in list order — what Copy follows too. */
   const byPhase = useMemo(() => {
@@ -162,9 +162,9 @@ export function PortfolioBoard() {
         </div>
       </div>
       {shown.length === 0 && (
-        <p className="m-0 mb-3 rounded-lg border border-dashed border-border-strong bg-surface-card p-3.5 text-center text-[15px] text-text-secondary">
+        <p className="m-0 mb-3 rounded-lg border border-dashed border-border-strong bg-surface-card p-3.5 text-center text-body-lg text-text-secondary">
           No initiatives match these filters.
-          <button type="button" className="ml-2 cursor-pointer border-0 bg-transparent p-0 text-[15px] text-brand-accent-text underline" onClick={clear}>
+          <button type="button" className="ml-2 cursor-pointer border-0 bg-transparent p-0 text-body-lg text-brand-accent-text underline" onClick={clear}>
             Clear filters
           </button>
         </p>
@@ -174,7 +174,7 @@ export function PortfolioBoard() {
           const phaseRows = byPhase.get(phase.id) ?? [];
           const columnSum = phaseRows.reduce((sum, r) => sum + r.cost, 0);
           return (
-            <div key={phase.id} className="min-w-55 flex-[1_0_220px] rounded-[10px] bg-surface-subtle p-3">
+            <div key={phase.id} className="min-w-55 flex-[1_0_220px] rounded-card bg-surface-subtle p-3">
               <div className="mb-2.5 flex items-center justify-between px-0.5 text-sm font-semibold">
                 <span>{phase.label}</span>
                 <CompactAmount value={columnSum} prefix={`${phaseRows.length} · `} className="font-medium text-text-secondary" />

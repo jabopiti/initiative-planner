@@ -50,11 +50,11 @@ retry it.
   second needs a reload, and retrying either in the background can never
   succeed, so it would just loop forever for no benefit and, for a
   revoked token, keep hitting GitHub with it.
-- **Banner Retry, uniform.** The banner's own Retry button is shown and
-  clickable regardless of cause, per §9.9's literal text — for the two
-  non-recoverable-by-retry causes it will simply fail again with the same
-  message, and that message is what tells the user what actually fixes it
-  (paste a new token; reload). It retries the pull and flushes every
+- **Banner Retry.** The banner's own Retry button is shown for every cause
+  except a rejected token, where Retry can never succeed (§3: paste a new
+  token instead). For the other cause that retrying cannot fix (a stale
+  write needing a reload) it will fail again with the same message, which
+  tells the user what does fix it. It retries the pull and flushes every
   currently-failed writer immediately, the same action the automatic loop
   takes, just not waiting for the next tick.
 - **A failed edit stays in edit (§3, §9.5, §9.9).** Wired once into the two

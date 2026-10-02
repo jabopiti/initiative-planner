@@ -1,5 +1,5 @@
 ---
-slice_id: "042"
+slice_id: "055"
 title: "UX review quick fixes: fields, focus, row actions and small copy"
 type: "bugfix"
 status: "valid"
@@ -119,7 +119,7 @@ screenshots.
 
 Copy strings above are drafts from the review; the next-slice session
 confirms them with the user in place (§9.2). The ⋯ row menu is a new
-shared pattern: 044 and 045 reuse it.
+shared pattern: 057 and 058 reuse it.
 
 ## Decided in review (pre-implementation)
 

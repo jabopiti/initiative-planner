@@ -1,10 +1,10 @@
 ---
-slice_id: "045"
+slice_id: "058"
 title: "Page shell and layout: shared container, phase time strip, first-run and empty states"
 type: "feature"
 status: "valid"
 criteria_failures: []
-depends_on: ["043", "044"]
+depends_on: ["056", "057"]
 verification_status: null
 superseded_by: null
 supersedes: null
@@ -31,9 +31,9 @@ time strip; first-run and empty states each have one clear action.
 ## Scope
 
 1. **F11 Page shell.** One container (about 1280 px), 32 px gutters, the
-   044 `PageHeader` and a shared toolbar row (filters left, count and Copy
+   057 `PageHeader` and a shared toolbar row (filters left, count and Copy
    table right). The detail page is one centred column of 960 px with the
-   four key figures (046) in a row under the header; no rail. The magic bar
+   four key figures (059) in a row under the header; no rail. The magic bar
    is unchanged (§5.4).
 2. **Phase time strip** in the initiative header (§5.4): one segment per
    phase sized by its period, labelled with name and cost, past and current
@@ -99,15 +99,15 @@ time strip; first-run and empty states each have one clear action.
 
 ## Flags and compromises
 
-If the session finds it too large, split as 045 (shell, detail column,
-time strip) and 045b (first-run, empty and settings states).
+If the session finds it too large, split as 058 (shell, detail column,
+time strip) and 058b (first-run, empty and settings states).
 
 ## Decided in review (pre-implementation)
 
-Mockups 045-1 to 045-7 (2 October 2026):
+Mockups 045-1 to 045-7 (2 October 2026, when this slice was numbered 045):
 
 - **Detail layout: one wide column (C).** 960 px, key figures in a row,
-  gate panel after the current phase; no sticky rail. Keeps 046's
+  gate panel after the current phase; no sticky rail. Keeps 059's
   segmented checklist control at full width and the magic bar as §5.4
   specifies.
 - **Header timeline: time strip (A).** Recorded in §5.4.

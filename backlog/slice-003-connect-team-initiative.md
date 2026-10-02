@@ -103,8 +103,7 @@ anything to guide toward.
       one line and one primary action instead of an empty board.
 
 Verified by the automated suite (27 tests: `src/github/client.test.ts`'s
-branch-explicit regression coverage, `src/sync/DebouncedFileWriter.test.ts`
-and `Repository.test.ts` against a mocked GitHub API, `validateToken.test.ts`
+branch-explicit regression coverage, `Repository.test.ts` against a mocked GitHub API, `validateToken.test.ts`
 for the §5.10 outcomes table, `merge.test.ts` for §10.5) and by a full
 interactive walkthrough in a real browser against a mocked network
 (Connect → bootstrap → New team → New initiative → Portfolio placement),

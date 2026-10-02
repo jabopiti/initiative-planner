@@ -222,6 +222,15 @@ describe('New initiative: name it on the page (§5.1, §5.4)', () => {
     expect(initiativePuts()).toHaveLength(0);
   });
 
+  it('Esc also discards the draft when focus is on the page body', async () => {
+    const user = userEvent.setup();
+    renderWith(<NewInitiativeDraft />);
+    await nameField();
+    (document.activeElement as HTMLElement).blur();
+    await user.keyboard('{Escape}');
+    expect(window.location.hash).toBe('#/portfolio');
+  });
+
   it('Esc with the team dropdown open only closes the dropdown', async () => {
     const user = userEvent.setup();
     renderWith(<NewInitiativeDraft />);

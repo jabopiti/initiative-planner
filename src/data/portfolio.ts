@@ -48,6 +48,11 @@ export function portfolioYears(rows: PortfolioRow[]): number[] {
   return [...years].sort((a, b) => a - b);
 }
 
+/** A picked year that no longer has cost anywhere (an initiative edited or deleted since) falls back to All years, as the other chips drop a missing pick. */
+export function liveYear(year: number | null, years: number[]): number | null {
+  return year !== null && years.includes(year) ? year : null;
+}
+
 /**
  * The initiatives the Portfolio shows (§5.2): AND across chips, OR within one (§9.11). With a year chosen, an
  * initiative with no cost that year is hidden, and cost and deviation count only that year's months; the approval

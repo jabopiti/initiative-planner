@@ -1,14 +1,14 @@
 ---
-slice_id: "044"
+slice_id: "057"
 title: "Visual refresh: theme control, type scale, surfaces and status badges"
 type: "feature"
 status: "valid"
 criteria_failures: []
-depends_on: ["042"]
+depends_on: ["055"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Theme and tokens' plus the review's visual-design lens (type, fewer boxes, shadcn components, motion, test both themes): F04, F12, F14, F19, F20. Look-and-feel decisions settled with the user from mockups: Geist typeface, soft layers, neutral dot status with outline track badge, theme icon button with a menu (§9.1 updated), brand-pack team swatches, subtle motion; then zinc greys with forest accent, graphite dark theme, top bar kept, no extra themes. Component decisions moved to slice 046."
+change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Theme and tokens' plus the review's visual-design lens (type, fewer boxes, shadcn components, motion, test both themes): F04, F12, F14, F19, F20. Look-and-feel decisions settled with the user from mockups: Geist typeface, soft layers, neutral dot status with outline track badge, theme icon button with a menu (§9.1 updated), brand-pack team swatches, subtle motion; then zinc greys with forest accent, graphite dark theme, top bar kept, no extra themes. Component decisions moved to slice 059."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Changes tokens every screen reads and adds a brand-pack field (typeface, team palette); hard to reverse once screens are built on it."
 spec_sections: ["§2 What the build fixes (brand pack)", "§9.1 Theming", "§9.5 Accessibility", "§9.8 Visual design", "§9.10 Icons", "§10.1 Framework and UI foundations", "§10.7 Distribution, build and deploy", "§10.9 Security"]
@@ -92,7 +92,7 @@ used everywhere, and colour still only carries meaning (§9.8).
 
 ## Flags and compromises
 
-The page shell and two-column detail layout are slice 045, which builds on
+The page shell and two-column detail layout are slice 058, which builds on
 these tokens. The mockups the user picked from are in the session that
 created this slice (Geist; soft layers; dot + outline track; icon + menu;
 small swatch).
@@ -135,12 +135,12 @@ surfaces, badges, theme control, team colours).
   a state. Warning, Alarm and Met roles unchanged.
 - **Dark theme:** neutral graphite (near-black greys) matching the zinc
   light theme; accent and roles keep today's dark values.
-- **Navigation:** the top bar stays, restyled (no sidebar); built in 045.
+- **Navigation:** the top bar stays, restyled (no sidebar); built in 058.
 - **Themes:** System, Light and Dark only; no high-contrast or density
   options for now.
-- **Moved to 046:** the header key figures, the checklist control, the
+- **Moved to 059:** the header key figures, the checklist control, the
   period range picker and the extra motion (hover lift, figure roll, page
   fade, gate pass celebration).
 - **Assumptions (cheap to change, not asked):** radius stays 8 px (cards 10 px); compact amounts read
   "€395k" (no space); date fields display "1 Oct 2026"; the §9.10 icon
-  vocabulary table from 042 is reused.
+  vocabulary table from 055 is reused.

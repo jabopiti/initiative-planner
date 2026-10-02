@@ -84,20 +84,20 @@ concern if it becomes necessary.
 
 ## Acceptance criteria
 
-- [ ] Given the GitHub plan tier is checked, when private Pages or branch
+- [x] Given the GitHub plan tier is checked, when private Pages or branch
       protection is unavailable on it, then this is recorded as a finding
       in `spike-findings.md` before proceeding.
-- [ ] Given a fine-grained token scoped to the repository, when a file is
+- [x] Given a fine-grained token scoped to the repository, when a file is
       written via the Contents API, then it appears in the repository and
       can be read back with the same content.
-- [ ] Given a write made against a stale file version, when it is
+- [x] Given a write made against a stale file version, when it is
       submitted, then GitHub returns 409 and the re-read/retry path
       successfully lands the change afterward.
-- [ ] Given a brand-pack-only change in the fork, when fork-sync runs,
+- [x] Given a brand-pack-only change in the fork, when fork-sync runs,
       then it fast-forwards with no conflict.
-- [ ] Given the meta-tag CSP is applied, when an inline script is present
+- [x] Given the meta-tag CSP is applied, when an inline script is present
       on the page, then the browser refuses to execute it.
-- [ ] Given any of the above fails, then `spike-findings.md` names the
+- [x] Given any of the above fails, then `spike-findings.md` names the
       specific spec section affected and the change needed.
 
 ## Delivery gate

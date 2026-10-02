@@ -1,5 +1,5 @@
 ---
-slice_id: "043"
+slice_id: "056"
 title: "Initiative detail: current phase first, complete gate panel, clearer magic bar"
 type: "feature"
 status: "valid"

@@ -1,14 +1,14 @@
 ---
-slice_id: "046"
+slice_id: "059"
 title: "Detail components: key figures, labelled checklist, period range picker, motion"
 type: "feature"
 status: "valid"
 criteria_failures: []
-depends_on: ["043", "044"]
+depends_on: ["056", "057"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Split from 044 while settling the modernization decisions with the user (2 Oct 2026, from rendered mockups): the initiative header gets four key figures, the checklist a labelled segmented control with the status icon at the left, the phase period one Airbnb-style range picker that saves on Done, and four extra motions. §5.4 and §9.11 updated."
+change_summary: "Split from 057 while settling the modernization decisions with the user (2 Oct 2026, from rendered mockups): the initiative header gets four key figures, the checklist a labelled segmented control with the status icon at the left, the phase period one Airbnb-style range picker that saves on Done, and four extra motions. §5.4 and §9.11 updated."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "The range picker is a new shared control with keyboard, typing, preview and a save-on-Done exception; the header and checklist touch hot files."
 spec_sections: ["§5.4 Initiative detail view", "§7.1 Time granularity and cost of an allocation", "§8.1 Passing a gate", "§9.5 Accessibility", "§9.8 Visual design", "§9.11 Lists, filters, inputs and amounts"]

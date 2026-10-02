@@ -40,7 +40,7 @@ export function TopBar({ route }: { route: string }) {
             >
               {item.label}
               {item.path === '/initiatives' && needsAttentionCount > 0 && (
-                <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-[11px] font-medium text-text-secondary" aria-label={`${needsAttentionCount} needing attention`}>
+                <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-label font-medium text-text-secondary" aria-label={`${needsAttentionCount} needing attention`}>
                   {needsAttentionCount}
                 </span>
               )}

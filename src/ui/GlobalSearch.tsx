@@ -17,6 +17,12 @@ const EXCERPT_LEAD = 30;
 
 const isMac = () => /Mac|iPhone|iPad/.test(navigator.platform);
 
+const POPUP = '[role="dialog"], [role="menu"], [role="listbox"]';
+
+function inPopup(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(POPUP) !== null;
+}
+
 function inTextField(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
@@ -47,7 +53,7 @@ export function GlobalSearch() {
     const onKeyDown = (event: KeyboardEvent) => {
       const modifier = event.ctrlKey || event.metaKey;
       const isK = modifier && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k';
-      const isSlash = event.key === '/' && !modifier && !event.altKey && !inTextField(event.target) && !document.querySelector('[role="dialog"]');
+      const isSlash = event.key === '/' && !modifier && !event.altKey && !inTextField(event.target) && !inPopup(event.target);
       if (isK || isSlash) {
         event.preventDefault();
         show();
@@ -194,7 +200,7 @@ function InitiativeItem({ hit, onChoose }: { hit: InitiativeHit; onChoose: () =>
             {hit.field === 'name' ? <Highlighted text={initiative.name} range={hit.range} /> : initiative.name}
           </span>
           {StatusIcon && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-[11px] text-text-secondary">
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-label text-text-secondary">
               <StatusIcon width={12} height={12} aria-hidden />
               {initiative.status}
             </span>

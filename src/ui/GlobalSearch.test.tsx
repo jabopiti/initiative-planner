@@ -132,6 +132,27 @@ describe('opening and closing', () => {
     expect(field()).toHaveValue('');
   });
 
+  it('leaves / alone while focus is inside a menu or listbox, but not when one is merely mounted', async () => {
+    await renderPage();
+    const user = userEvent.setup();
+    for (const role of ['menu', 'listbox']) {
+      const open = document.createElement('div');
+      open.setAttribute('role', role);
+      const item = document.createElement('button');
+      item.textContent = `${role} item`;
+      open.append(item);
+      document.body.append(open);
+      await user.click(screen.getByRole('button', { name: 'Elsewhere' }));
+      await user.keyboard('/');
+      expect(screen.getByRole('dialog', { name: 'Search' })).toBeInTheDocument();
+      await user.keyboard('{Escape}');
+      item.focus();
+      await user.keyboard('/');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      open.remove();
+    }
+  });
+
   it('closes with Esc and returns focus to the element focused before', async () => {
     await renderPage();
     const user = userEvent.setup();
