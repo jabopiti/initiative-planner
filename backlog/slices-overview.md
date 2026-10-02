@@ -115,6 +115,10 @@ for the AI-agent-driven build the team asked for:
 | 039 | Commit messages describe the net effect of grouped edits | ✅ valid | 005g |
 | 040 | GitHub client edge cases: slashed branch names, large files, token check failures | ✅ valid | 003 |
 | 041 | Copied cells that look like formulas stay text | ✅ valid | 004c |
+| 042 | UX review quick fixes: fields, focus, row actions and small copy | ✅ valid | 036 |
+| 043 | Initiative detail: current phase first, complete gate panel, clearer magic bar | ✅ valid | 015, 026 |
+| 044 | Visual refresh: theme control, type scale, surfaces and status badges | ✅ valid | 042 |
+| 045 | Page shell and layout: shared container, two-column detail, first-run and empty states | ✅ valid | 043, 044 |
 
 ## Dependency chain
 
@@ -198,6 +202,13 @@ for the AI-agent-driven build the team asked for:
     removes initiatives the same way.
   - 039 (structured commit notes carrying the entity) before 038, which only
     renders those entities as trailers.
+
+- Slices 042 to 045, from the October 2026 UX review
+  (`docs/ux-review-2026-10.md`), run in order in one lane: 042 first,
+  because its focus token and ⋯ row-actions menu are shared patterns 044
+  and 045 reuse; 043 after 015 and 026, which own the magic bar and the
+  frozen gate; 044 after 042 (it restyles the controls 042 fixes); 045
+  last, on 043's detail page and 044's tokens and PageHeader.
 
 ## Build plan (slices 012 to 041, parallel sessions)
 
@@ -360,6 +371,14 @@ Initial run entries:
     every session with the list of gaps, questions and decisions, and shows
     UI and copy options as rendered mockups (`scripts/screenshot.mjs`), not
     text sketches.
+
+- **After slice 041**, the October 2026 UX review
+  (`docs/ux-review-2026-10.md`, 31 findings) was turned into four slices
+  following its roadmap: 042 quick fixes, 043 detail page, 044 visual
+  refresh (theme, type, surfaces) and 045 page shell and layout. F18, left
+  out of the review's roadmap, went into 042. 043 carries an open spec
+  question: §9.10 makes the stepper icon-only, the review recommends
+  labels.
 
 ## Backlog tail (not yet fully sliced)
 
