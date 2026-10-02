@@ -3,7 +3,9 @@ import type { Initiative } from '../data/types';
 import type { PhaseDef } from '../brand/types';
 import { reopenGate } from '../data/gate';
 import { hasPassedGate, isInitiativeFrozen } from '../data/frozen';
-import { CancelledIcon, OnHoldIcon, RemoveIcon, ReopenIcon, ResumeIcon } from './icons';
+import { toast } from 'sonner';
+import { navigate, normalizeHash } from '../router/useHashRoute';
+import { CancelledIcon, DuplicateIcon, OnHoldIcon, RemoveIcon, ReopenIcon, ResumeIcon } from './icons';
 
 /** What an action can ask of the page around the menu, for an action that does not act in one click. */
 export interface InitiativeActionUi {
@@ -25,6 +27,30 @@ export interface InitiativeAction {
   destructive?: boolean;
 }
 
+let duplicating = false;
+
+/**
+ * Duplicate (§5.11): the copy opens in place as a new history entry once it is saved, and a toast names anyone left out
+ * of its allocations. A second choice while one is saving is ignored; a failed save opens nothing (the read-only banner
+ * says why); a user who has moved on meanwhile is left where they are.
+ */
+function duplicate(repository: Repository, initiative: Initiative): void {
+  if (duplicating) return;
+  duplicating = true;
+  const origin = `/initiatives/${initiative.id}`;
+  repository
+    .duplicateInitiative(initiative.id)
+    .then((result) => {
+      if (!result || normalizeHash(window.location.hash).split('?')[0] !== origin) return;
+      navigate(`/initiatives/${result.initiative.id}`);
+      if (result.skipped.length > 0) toast(`Not copied: ${result.skipped.map((p) => p.name).join(', ')}, no longer on ${result.team.name}.`);
+    })
+    .catch(() => {})
+    .finally(() => {
+      duplicating = false;
+    });
+}
+
 /**
  * Every action the menu knows, in menu order. Each slice that adds an action (Cancel, Reopen, Delete, Duplicate)
  * adds an entry here, without touching the menu component.
@@ -33,6 +59,7 @@ export const initiativeActions: InitiativeAction[] = [
   { id: 'put-on-hold', label: () => 'Put on hold', icon: OnHoldIcon, applies: (i) => i.status === 'Active', run: (repository, i) => repository.putOnHold(i.id) },
   { id: 'resume', label: () => 'Resume', icon: ResumeIcon, applies: (i) => i.status === 'On Hold', run: (repository, i) => repository.resume(i.id) },
   { id: 'cancel', label: () => 'Cancel', icon: CancelledIcon, applies: (i) => !isInitiativeFrozen(i), run: (repository, i) => repository.cancel(i.id) },
+  { id: 'duplicate', label: () => 'Duplicate', icon: DuplicateIcon, applies: () => true, run: (repository, i) => duplicate(repository, i) },
   { id: 'reopen', label: () => 'Reopen', icon: ReopenIcon, applies: (i) => i.status === 'Cancelled', run: (repository, i) => repository.reopen(i.id) },
   {
     id: 'reopen-gate',

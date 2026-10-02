@@ -22,6 +22,7 @@ import { allocationRefusal, trackedYears } from '../data/cost';
 import { formatDate, formatMonth, monthKey } from '../data/dates';
 import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysByMonth } from '../data/rates';
 import { localToday } from '../data/dates';
+import { duplicateInitiative, type DuplicateResult } from '../data/duplicate';
 import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
 import { frozenPaths, hasPassedGate, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
 import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
@@ -1162,10 +1163,36 @@ export class Repository {
     const phases = buildDefaultPlan(this.brand.process, today);
     const hasPlan = Object.keys(phases).length > 0;
     const initiative: Initiative = { id, name, teamId, status: 'Active', ...(hasPlan && { phases, defaultPlan: true }) };
+    return this.saveNewInitiative(initiative, `${name}: created`);
+  }
+
+  /**
+   * Duplicate an initiative of any status (§5.11): a new Active one named "<name> copy", re-planned from `today`, in one
+   * commit "<copy>: created from <name>". Returns the copy with the people left out of its allocations, or null when
+   * the initiative is not there. Throws like a failed creation when the file could not be saved.
+   */
+  async duplicateInitiative(id: string, today: string = localToday()): Promise<DuplicateResult | null> {
+    const source = this.state.initiatives.find((i) => i.id === id);
+    if (!source) return null;
+    const result = duplicateInitiative(source, {
+      process: this.brand.process,
+      people: this.state.people,
+      memberships: this.state.memberships,
+      teams: this.state.teams,
+      existingNames: this.state.initiatives.map((i) => i.name),
+      today,
+    });
+    await this.saveNewInitiative(result.initiative, `${result.initiative.name}: created from ${source.name}`);
+    return result;
+  }
+
+  /** Add a new initiative and save its file (its writer's first save), taking it back out when that fails. */
+  private async saveNewInitiative(initiative: Initiative, message: string): Promise<Initiative> {
+    const { id } = initiative;
     this.setState({ initiatives: [...this.state.initiatives, initiative] });
 
     const writer = this.createInitiativeWriter(initiative, null);
-    writer.schedule(initiative, this.note('initiative', id, 'record', undefined, initiative, () => `${name}: created`));
+    writer.schedule(initiative, this.note('initiative', id, 'record', undefined, initiative, () => message));
     if ((await writer.flush()) !== 'saved') {
       // No file exists, so nothing would ever save edits to it: take it back out rather than leave a page that only looks saved.
       this.initiativeWriters.delete(id);

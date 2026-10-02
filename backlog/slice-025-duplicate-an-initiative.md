@@ -8,7 +8,7 @@ depends_on: ["005c", "007", "014"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Promoted from the backlog tail (Duplicate an initiative, §5.11). §5.11 specifies it fully; no open decisions were found in review, only assumptions."
+change_summary: "Promoted from the backlog tail (Duplicate an initiative, §5.11). Review settled: a toast names people left out of the copy, a period's length is whole months or else its exact day count, and the other behaviours §5.11 leaves open (see Decided in review)."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "One data-layer function re-chaining periods (reusing 005c's rule), mapping allocations and cost items to new ids and keeping one-month items' position within their phase; the date arithmetic needs careful tests, the rest is straightforward."
 spec_sections: ["§5.11 Suggestions and shortcuts (Duplicate, Default plan)", "§5.4 Initiative detail view (Actions menu)", "§6 Data model", "§10.3 Writing", "§10.6 Identifiers and links"]
@@ -85,6 +85,19 @@ the first phase); duplicating to another team.
 - [ ] Given "Checkout Redesign copy" exists, then the new one is named
       "Checkout Redesign copy 2".
 - [ ] Given Back after duplicating, then the original opens.
+- [ ] Given an owner who is deactivated, then the copy has no owner.
+- [ ] Given a costed phase without a valid period, then the copy's phase has
+      no period but keeps its allocations and cost items, and is left out of the chaining.
+- [ ] Given a period that is not a whole number of months (1 Jan to 20 Mar),
+      then the copy's period has the same number of days.
+- [ ] Given a one-month item outside its phase's period, then it keeps its
+      distance in months from the period's start in the copy.
+- [ ] Given someone was left out of the copy's allocations, then a toast on
+      the new page reads "Not copied: Lucía Ramos, no longer on Platform."
+      (names joined with commas); with nobody left out, no toast.
+- [ ] Given Duplicate on a Closed, Cancelled or On Hold initiative, then it
+      works and the copy is Active.
+- [ ] Given the save fails, then nothing opens and the read-only banner shows.
 
 ## Delivery gate
 
@@ -98,4 +111,31 @@ period is copied without a period.
 
 ## Decided in review (pre-implementation)
 
-No open decisions: §5.11 specifies the behaviour; the assumptions above apply.
+User decisions:
+
+- **Skipped people.** When anyone is left out of the copy's allocations, a
+  toast on the new page reads "Not copied: <names>, no longer on <team>."
+  (the wording of §5.11 Copy allocations, §9.2); no toast when nobody was left out.
+
+Assumptions confirmed:
+
+- **Length.** A period that is a whole number of months (its end day plus one
+  equals its start plus n months) is copied as n months, chained by 005c's
+  rule. Any other period keeps its exact day count.
+- **One-month items.** The month's distance from the period's start month is
+  kept, also for an item outside the period (it still counts) and for a spread
+  item's remembered month.
+- **Frozen phases** are copied from the gate's snapshot (period, allocations,
+  cost items). Actuals, gates, checklist state and the default-plan flag are not copied;
+  the copy starts in the first phase.
+- **Phases without a valid period** are copied with their allocations and cost
+  items but no period, and are left out of the chaining; the others chain from today in
+  process order.
+- **Owner and team.** The owner carries over only if still active; the team is
+  kept even if deactivated.
+- **Menu.** Duplicate (Lucide Copy) sits after Cancel and before Reopen
+  (§5.4's order), in every status.
+- **Name clash.** Checked against all initiatives, trimmed and case-insensitive:
+  "X copy", then "X copy 2", "X copy 3". Duplicating "X copy" gives "X copy copy".
+- **Opening.** A new history entry, only after the file is saved; a second
+  click while saving is ignored. One commit "<copy name>: created from <name>".

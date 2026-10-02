@@ -93,7 +93,7 @@ describe('Actions menu (§5.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel', 'Reopen G1']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel', 'Duplicate', 'Reopen G1']);
     await user.click(screen.getByRole('menuitem', { name: 'Put on hold' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(); // no confirmation
@@ -108,7 +108,7 @@ describe('Actions menu (§5.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel', 'Reopen G1']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel', 'Duplicate', 'Reopen G1']);
     expect(screen.getAllByText('On Hold').length).toBeGreaterThan(0);
   });
 
@@ -126,12 +126,13 @@ describe('Actions menu (§5.4)', () => {
     expect(within(bar()).queryByText('On hold')).not.toBeInTheDocument();
   });
 
-  it('has no Actions button for a Closed initiative, since no action applies (AC10)', async () => {
+  it('lists only Duplicate for a Closed initiative, since no other action applies (AC10)', async () => {
+    const user = userEvent.setup();
     initiative = initiativeWith({ status: 'Closed' });
     renderPage();
 
-    await screen.findByRole('heading', { level: 1, name: 'Checkout Redesign' });
-    expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Duplicate']);
   });
 
   it('opens with Enter, walks items with the arrow keys and Esc returns focus to the button (AC11)', async () => {
