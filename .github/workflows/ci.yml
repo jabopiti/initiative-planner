@@ -2,14 +2,6 @@ name: CI
 
 on:
   pull_request:
-    # Docs-only changes can't affect any check below. If these jobs are ever
-    # made required status checks, remove this filter: a skipped workflow
-    # leaves required checks pending.
-    paths-ignore:
-      - 'docs/**'
-      - 'backlog/**'
-      - '**/*.md'
-      - 'LICENSE'
 
 permissions:
   contents: read
