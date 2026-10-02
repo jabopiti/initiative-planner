@@ -33,7 +33,8 @@ test('the app screens have no accessibility violations', async ({ page }) => {
   await connect(page);
 
   await expect(page.getByText('No initiatives yet')).toBeVisible();
-  await expectNoViolations(page); // portfolio, empty
+  await expect(page.getByRole('heading', { name: 'Getting started' })).toBeVisible();
+  await expectNoViolations(page); // portfolio, empty, with the Getting started strip
 
   await createTeam(page, 'Platform');
   await expectNoViolations(page); // teams overview
@@ -50,6 +51,7 @@ test('the app screens have no accessibility violations', async ({ page }) => {
   const screens: [route: string, ready: () => Locator][] = [
     ['/#/initiatives', () => page.getByRole('heading', { level: 1, name: 'Initiatives' })],
     // The portfolio has no nav item of its own: it is the screen where Initiatives is no longer the current page.
+    // Rates are never confirmed in this flow, so the Getting started strip is still up, with three steps done.
     ['/#/portfolio', () => page.getByRole('navigation', { name: 'Primary' }).locator('a:not([aria-current])', { hasText: 'Initiatives' })],
     ['/#/settings/roles', section('Roles')],
     ['/#/settings/countries', section('Countries & rates')],

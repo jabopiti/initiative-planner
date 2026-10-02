@@ -117,11 +117,11 @@ describe('Needs attention strip (§5.2, §8.5)', () => {
     const user = userEvent.setup();
     renderWith(<PortfolioBoard />);
 
-    await screen.findByRole('heading', { name: 'Needs attention' });
-    expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    const section = (await screen.findByRole('heading', { name: 'Needs attention' })).closest('section')!;
+    expect(within(section).getAllByRole('listitem')).toHaveLength(3);
     const more = screen.getByRole('button', { name: 'Show 1 more' });
     await user.click(more);
-    expect(screen.getAllByRole('listitem')).toHaveLength(4);
+    expect(within(section).getAllByRole('listitem')).toHaveLength(4);
     expect(screen.queryByRole('button', { name: /Show/ })).not.toBeInTheDocument();
   });
 

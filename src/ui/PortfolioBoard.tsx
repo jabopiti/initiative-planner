@@ -15,6 +15,7 @@ import { formatAmount, formatSignedAmount } from './formatAmount';
 import { StatusCancelledIcon, StatusClosedIcon, StatusOnHoldIcon } from './icons';
 import { TruncatedText } from './TruncatedText';
 import { NoInitiatives } from './NoInitiatives';
+import { GettingStartedStrip } from './GettingStartedStrip';
 import { NeedsAttentionStrip } from './NeedsAttentionStrip';
 import { useSessionFilters } from './sessionFilters';
 import { YearChip } from './YearChip';
@@ -57,8 +58,8 @@ function BoardCard({ row }: { row: PortfolioRow }) {
 }
 
 /**
- * Portfolio overview (§5.2): the Needs attention strip, the filters, the key metrics, the board and Copy. The
- * Getting started strip is later work (033).
+ * Portfolio overview (§5.2): the Getting started and Needs attention strips, the filters, the key metrics, the
+ * board and Copy.
  */
 export function PortfolioBoard() {
   const brand = useBrand();
@@ -98,7 +99,16 @@ export function PortfolioBoard() {
     return map;
   }, [process, shown]);
 
-  if (initiatives.length === 0) return <NoInitiatives />;
+  if (initiatives.length === 0) {
+    return (
+      <>
+        <div className="px-8 pt-6 [&>section]:mb-0">
+          <GettingStartedStrip />
+        </div>
+        <NoInitiatives />
+      </>
+    );
+  }
 
   const totalCost = shown.reduce((sum, r) => sum + r.cost, 0);
   const deviation = shown.reduce((sum, r) => sum + r.deviation, 0);
@@ -123,6 +133,7 @@ export function PortfolioBoard() {
 
   return (
     <div className="px-8 py-6">
+      <GettingStartedStrip />
       <NeedsAttentionStrip />
       <div className="mb-3 flex flex-wrap gap-2">
         {chip('team', 'Team')}
