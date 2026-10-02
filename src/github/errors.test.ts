@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GithubApiError, toReadOnlyState } from './errors';
+import { GithubApiError, shortCause, toReadOnlyState } from './errors';
 
 describe('toReadOnlyState (§3 Sync failures)', () => {
   it('says what §3 says for an access failure, whatever the API returned', () => {
@@ -26,5 +26,20 @@ describe('toReadOnlyState (§3 Sync failures)', () => {
 
   it('uses the fallback for a failure that did not come from GitHub', () => {
     expect(toReadOnlyState(new Error('boom'), 'Could not save.')).toEqual({ cause: 'unknown', message: 'Could not save.' });
+  });
+});
+
+describe('shortCause (§5.1 sync indicator)', () => {
+  it.each([
+    ['unreachable', 'Cannot reach GitHub'],
+    ['rate-limited', 'Rate limited'],
+    ['access-denied', 'Access denied'],
+    ['dataset-newer', 'Dataset newer than this build'],
+    ['process-mismatch', 'Different process build'],
+    ['conflict', 'Cannot save'],
+    ['not-found', 'Cannot save'],
+    ['unknown', 'Cannot save'],
+  ] as const)('names %s as "%s"', (cause, label) => {
+    expect(shortCause({ cause, message: 'long sentence' })).toBe(label);
   });
 });

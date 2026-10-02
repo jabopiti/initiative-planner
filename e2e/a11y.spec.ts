@@ -42,6 +42,16 @@ test('the app screens have no accessibility violations', async ({ page }) => {
   await addPerson(page, 'Mara Voss');
   await expectNoViolations(page); // people
 
+  // Team detail with the Add member list open and an option active (§9.5).
+  await page.goto('/#/teams');
+  await page.getByRole('link', { name: 'Platform' }).first().click();
+  const add = page.getByRole('combobox', { name: 'Add member' });
+  await add.fill('Mara');
+  await add.press('ArrowDown');
+  await expect(page.getByRole('option', { name: /Mara Voss/ })).toHaveAttribute('aria-selected', 'true');
+  await expectNoViolations(page); // team detail
+  await add.press('Escape');
+
   await createInitiative(page, 'Checkout Redesign', 'Platform');
   await expectNoViolations(page); // initiative detail
 

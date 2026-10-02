@@ -315,11 +315,13 @@ export class Repository {
   }
 
   /** Why a dataset may not be used by this build (§3 Data integrity), or null. */
-  private refusal(flags: DatasetFlags): string | null {
+  private refusal(flags: DatasetFlags): ReadOnlyState | null {
     if (flags.processIdentity.id !== this.brand.processIdentity.id) {
-      return 'This dataset belongs to a different process build. Use the matching build.';
+      return { cause: 'process-mismatch', message: 'This dataset belongs to a different process build. Use the matching build.' };
     }
-    if (flags.schemaVersion > SCHEMA_VERSION) return 'Dataset is newer than this version — reload to update.';
+    if (flags.schemaVersion > SCHEMA_VERSION) {
+      return { cause: 'dataset-newer', message: 'Dataset is newer than this version — reload to update.' };
+    }
     return null;
   }
 
@@ -483,7 +485,7 @@ export class Repository {
     const flagsFile = pulled.files.get(FILE_PATHS.datasetFlags);
     const refusal = flagsFile ? this.refusal(flagsFile.value as DatasetFlags) : null;
     if (refusal) {
-      this.pullFailure = { cause: 'unknown', message: refusal };
+      this.pullFailure = refusal;
       return false;
     }
     const complete = this.state.status === 'ready' ? this.mergeIn(pulled) : (this.build(pulled), true);
@@ -1080,7 +1082,12 @@ export class Repository {
     const person = this.state.people.find((p) => p.id === personId);
     if (!person) return null;
     const existing = this.state.memberships.find((m) => m.personId === personId && m.teamId === teamId);
-    if (existing) return existing;
+    if (existing?.active) return existing;
+    if (existing) {
+      // Rejoining (§5.6): the same record comes back, keeping its Team FTE % unless the person no longer has room.
+      this.updateMembership(existing.id, { active: true, teamFtePct: existing.teamFtePct });
+      return this.state.memberships.find((m) => m.id === existing.id) ?? null;
+    }
     const unclaimed = unclaimedCapacityPct(person, this.state.memberships);
     const teamFtePct = requestedPct === undefined ? unclaimed : allowOver ? requestedPct : Math.min(requestedPct, unclaimed);
     const membership: Membership = { id: newId(), personId, teamId, teamFtePct, active: true };
@@ -1114,8 +1121,10 @@ export class Repository {
       if (!f) return `${names.who}: added to ${names.where} at ${t?.teamFtePct}%`;
       if (!t) return `${names.who}: removed from ${names.where}`;
       const parts: string[] = [];
-      if (t.teamFtePct !== f.teamFtePct) parts.push(`Team FTE % on ${names.where} set to ${t.teamFtePct}%`);
-      if (t.active !== f.active) parts.push(`${t.active ? 'reactivated' : 'deactivated'} on ${names.where}`);
+      const rejoined = !f.active && t.active;
+      if (rejoined) parts.push(`rejoined ${names.where}`);
+      if (t.teamFtePct !== f.teamFtePct) parts.push(rejoined ? `Team FTE % set to ${t.teamFtePct}%` : `Team FTE % on ${names.where} set to ${t.teamFtePct}%`);
+      if (f.active && !t.active) parts.push(`deactivated on ${names.where}`);
       return `${names.who}: ${parts.join(', ') || 'updated'}`;
     });
   }

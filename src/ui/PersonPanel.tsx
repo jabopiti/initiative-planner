@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
@@ -46,6 +46,7 @@ function PersonDetails({ person }: { person: Person }) {
   // An inactive person's fields are disabled, the choices with them: the banner resolves their conflicts (§9.9).
   const conflict = person.active ? fieldConflict : () => null;
   const { roles, countries, teams, memberships } = useRepositoryState();
+  const [rejoinCap, setRejoinCap] = useState<{ id: string; pct: number } | null>(null);
   const customRole = person.customRole;
   const customActive = customRole?.active === true;
   const setMode = (mode: string) => {
@@ -61,6 +62,12 @@ function PersonDetails({ person }: { person: Person }) {
   const claimed = claimedFtePct(person.id, memberships);
   const unclaimed = unclaimedCapacityPct(person, memberships);
   const joinable = joinableTeams(person.id, teams, memberships);
+  /** Joining a team; a membership that was inactive comes back (§5.6), and the note says if it came back smaller. */
+  const join = (teamId: string) => {
+    const before = memberships.find((m) => m.personId === person.id && m.teamId === teamId);
+    const joined = repository.addMembership(person.id, teamId);
+    if (before && joined && joined.teamFtePct < before.teamFtePct) setRejoinCap({ id: joined.id, pct: joined.teamFtePct });
+  };
   const barPct = (pct: number) => `${Math.min(100, (pct / Math.max(person.capacityPct, 1)) * 100)}%`;
 
   return (
@@ -187,6 +194,7 @@ function PersonDetails({ person }: { person: Person }) {
                 label={`Team FTE % for ${team?.name ?? 'team'}`}
                 value={m.teamFtePct}
                 max={max}
+                initialCappedAt={rejoinCap?.id === m.id ? rejoinCap.pct : null}
                 onChange={(teamFtePct) => repository.updateMembership(m.id, { teamFtePct })}
               />
               <Button
@@ -209,7 +217,7 @@ function PersonDetails({ person }: { person: Person }) {
         {joinable.length > 0 && unclaimed > 0 && (
           <div className="mt-2 flex items-center gap-2">
             <PlusIcon width={16} height={16} className="text-text-secondary" />
-            <Select value="" onValueChange={(teamId) => repository.addMembership(person.id, teamId)}>
+            <Select value="" onValueChange={join}>
               <SelectTrigger className="w-full" aria-label="Add to team">
                 <SelectValue placeholder={`Add to team (${unclaimed}% free)`} />
               </SelectTrigger>

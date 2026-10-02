@@ -620,8 +620,9 @@ same once a team is selected); leaving a field saves nothing. Creating the
 initiative saves it and its detail page replaces the draft, so Back skips the
 draft. Esc discards the draft, without asking, and returns to the Portfolio.
 The Portfolio's empty state (§9.4) opens the same draft page. The **sync indicator** is a small check icon while everything is
-synced; its label appears while syncing and stays visible in read-only mode
-with the cause (§3).
+synced (named "Synced" for screen readers); its label appears while syncing
+and stays visible in read-only mode as "Read-only · <short cause>" in the
+Warning colour, e.g. "Read-only · Cannot reach GitHub" (§3).
 
 **Search.** The search icon opens a search overlay. Typing shows matches
 from the cached data, grouped as Initiatives (by name and description),

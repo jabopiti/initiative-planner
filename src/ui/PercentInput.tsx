@@ -21,6 +21,7 @@ export function PercentInput({
   changed,
   failure = null,
   conflict = null,
+  initialCappedAt = null,
   onChange,
 }: {
   value: number;
@@ -35,10 +36,12 @@ export function PercentInput({
   failure?: FieldFailure | null;
   /** A same-field conflict at this field's path (§3, §9.9). */
   conflict?: FieldConflict | null;
+  /** The value was already set down to this cap before the field appeared (a rejoin); its note shows from the start. */
+  initialCappedAt?: number | null;
   onChange: (value: number) => void;
 }) {
   const [over, setOver] = useState(false);
-  const [cappedAt, setCappedAt] = useState<number | null>(null);
+  const [cappedAt, setCappedAt] = useState<number | null>(initialCappedAt);
   const limit = max ?? 100;
   const parse = (text: string) => parseAmount(text) ?? NaN;
   const messageClass = 'mt-1 order-last w-full';

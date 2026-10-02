@@ -27,6 +27,8 @@ export function TeamDetail({ id }: { id: string }) {
   const conflict = useFieldConflict();
   const { teams, people, memberships, roles, countries } = useRepositoryState();
   const [query, setQuery] = useState('');
+  const [focused, setFocused] = useState(false);
+  const [active, setActive] = useState(-1);
   const [personId, setPersonId] = useState<string | null>(null);
   const sort = useTableSort('name');
   const team = teams.find((t) => t.id === id);
@@ -73,6 +75,24 @@ export function TeamDetail({ id }: { id: string }) {
     (p) => p.active && !memberIds.has(p.id) && p.name.toLowerCase().includes(trimmed.toLowerCase()),
   );
   const exact = people.some((p) => p.name.toLowerCase() === trimmed.toLowerCase());
+
+  const listOpen = focused && trimmed.length > 0;
+  // The list's options in order, for the arrow keys: the matching people, then Create (§9.5).
+  const choices = [
+    ...matches.map((p) => ({
+      key: p.id,
+      choose: () => addExisting(p.id),
+      label: (
+        <>
+          <span>{p.name}</span>
+          <span className="text-text-secondary">{unclaimedCapacityPct(p, memberships)}% unclaimed</span>
+        </>
+      ),
+    })),
+    ...(trimmed && !exact ? [{ key: 'create', choose: createInline, label: <>Create “{trimmed}”</> }] : []),
+  ];
+  // The list can shrink under the highlight when the data changes; past its end nothing is highlighted.
+  const current = active < choices.length ? active : -1;
 
   function copyData() {
     // Status appears only when someone is inactive, so a plain roster stays three columns.
@@ -129,45 +149,58 @@ export function TeamDetail({ id }: { id: string }) {
         <div className="relative mb-4 max-w-sm">
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActive(-1);
+            }}
+            onFocus={() => setFocused(true)}
+            onBlur={() => {
+              setFocused(false);
+              setActive(-1);
+            }}
             placeholder="Add member"
             aria-label="Add member"
             role="combobox"
-            aria-expanded={trimmed.length > 0}
+            aria-autocomplete="list"
+            aria-expanded={listOpen}
             aria-controls="add-member-options"
+            aria-activedescendant={current >= 0 ? `add-member-option-${current}` : undefined}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') setQuery('');
+              if (e.key === 'Escape') {
+                setQuery('');
+                setActive(-1);
+              } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && choices.length > 0) {
+                e.preventDefault();
+                const step = e.key === 'ArrowDown' ? 1 : -1;
+                setActive(current < 0 ? (step === 1 ? 0 : choices.length - 1) : (current + step + choices.length) % choices.length);
+              } else if (e.key === 'Enter' && current >= 0) {
+                e.preventDefault();
+                choices[current].choose();
+                setActive(-1);
+              }
             }}
           />
-          {trimmed && (
+          {listOpen && (
             <ul
               id="add-member-options"
               role="listbox"
+              aria-label="People to add"
               className="absolute z-10 m-0 mt-1 w-full list-none rounded-md border border-border-default bg-surface-card p-1 shadow-md"
             >
-              {matches.map((p) => (
-                <li key={p.id} role="option" aria-selected={false}>
-                  <button
-                    type="button"
-                    className="flex w-full cursor-pointer justify-between rounded-sm border-0 bg-transparent px-2 py-1.5 text-left text-sm hover:bg-surface-subtle"
-                    onClick={() => addExisting(p.id)}
-                  >
-                    <span>{p.name}</span>
-                    <span className="text-text-secondary">{unclaimedCapacityPct(p, memberships)}% unclaimed</span>
-                  </button>
+              {choices.map((choice, i) => (
+                <li
+                  key={choice.key}
+                  id={`add-member-option-${i}`}
+                  role="option"
+                  aria-selected={i === current}
+                  className={`flex w-full cursor-pointer justify-between rounded-sm px-2 py-1.5 text-left text-sm hover:bg-surface-subtle ${i === current ? 'bg-surface-subtle outline-2 outline-accent' : ''}`}
+                  // Keep focus in the field, so a click chooses without blurring the list away first.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={choice.choose}
+                >
+                  {choice.label}
                 </li>
               ))}
-              {!exact && (
-                <li role="option" aria-selected={false}>
-                  <button
-                    type="button"
-                    className="w-full cursor-pointer rounded-sm border-0 bg-transparent px-2 py-1.5 text-left text-sm hover:bg-surface-subtle"
-                    onClick={createInline}
-                  >
-                    Create “{trimmed}”
-                  </button>
-                </li>
-              )}
               {matches.length === 0 && exact && (
                 <li className="px-2 py-1.5 text-sm text-text-secondary">No one else to add.</li>
               )}
