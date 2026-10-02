@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { initiativeRows } from './initiativeList';
-import { costedRows, isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, portfolioRows, portfolioYears, type PortfolioFilters } from './portfolio';
+import { costedRows, isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, liveYear, portfolioRows, portfolioYears, type PortfolioFilters } from './portfolio';
 import type { Country, Initiative, Person, Role, Team } from './types';
 
 const { process, approvalTracks } = defaultBrandPack;
@@ -70,6 +70,14 @@ describe('portfolioRows (§5.2)', () => {
 describe('portfolioYears', () => {
   it('lists every year any initiative of any status has cost in', () => {
     expect(portfolioYears(rows)).toEqual([2026, 2027]);
+  });
+});
+
+describe('liveYear', () => {
+  it('keeps a picked year that still has cost and falls back to All years otherwise', () => {
+    expect(liveYear(2026, [2026, 2027])).toBe(2026);
+    expect(liveYear(2025, [2026, 2027])).toBeNull();
+    expect(liveYear(null, [2026])).toBeNull();
   });
 });
 

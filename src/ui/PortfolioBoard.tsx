@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useIsChangedByOthers, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { inactiveLabel, initiativeRows, NONE } from '../data/initiativeList';
-import { costedRows, isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, portfolioRows, portfolioYears, type PortfolioFilters, type PortfolioRow } from '../data/portfolio';
+import { costedRows, isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, portfolioRows, liveYear, portfolioYears, type PortfolioFilters, type PortfolioRow } from '../data/portfolio';
 import { FILE_PATHS, INITIATIVE_STATUSES, type InitiativeStatus } from '../data/types';
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
@@ -89,8 +89,8 @@ export function PortfolioBoard() {
   /** The session's picks, less any that no longer exist (an initiative deleted since) — they couldn't be unticked. */
   const filters = useMemo<PortfolioFilters>(() => {
     const live = (key: keyof typeof options) => stored[key].filter((v) => options[key].some((o) => o.value === v));
-    return { ...stored, team: live('team'), phase: live('phase'), initiative: live('initiative'), track: live('track'), status: live('status') };
-  }, [stored, options]);
+    return { ...stored, team: live('team'), phase: live('phase'), initiative: live('initiative'), track: live('track'), status: live('status'), year: liveYear(stored.year, years) };
+  }, [stored, options, years]);
   const shown = useMemo(() => portfolioRows(rows, filters), [rows, filters]);
   /** Board order: phase by phase, cards in list order — what Copy follows too. */
   const byPhase = useMemo(() => {

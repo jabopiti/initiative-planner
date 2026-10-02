@@ -132,6 +132,20 @@ describe('opening and closing', () => {
     expect(field()).toHaveValue('');
   });
 
+  it('leaves / alone while a menu or listbox is open', async () => {
+    await renderPage();
+    const user = userEvent.setup();
+    for (const role of ['menu', 'listbox']) {
+      const open = document.createElement('div');
+      open.setAttribute('role', role);
+      document.body.append(open);
+      await user.click(screen.getByRole('button', { name: 'Elsewhere' }));
+      await user.keyboard('/');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      open.remove();
+    }
+  });
+
   it('closes with Esc and returns focus to the element focused before', async () => {
     await renderPage();
     const user = userEvent.setup();

@@ -47,7 +47,7 @@ export function GlobalSearch() {
     const onKeyDown = (event: KeyboardEvent) => {
       const modifier = event.ctrlKey || event.metaKey;
       const isK = modifier && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k';
-      const isSlash = event.key === '/' && !modifier && !event.altKey && !inTextField(event.target) && !document.querySelector('[role="dialog"]');
+      const isSlash = event.key === '/' && !modifier && !event.altKey && !inTextField(event.target) && !document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]');
       if (isK || isSlash) {
         event.preventDefault();
         show();
