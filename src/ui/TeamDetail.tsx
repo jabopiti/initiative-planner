@@ -91,6 +91,8 @@ export function TeamDetail({ id }: { id: string }) {
     })),
     ...(trimmed && !exact ? [{ key: 'create', choose: createInline, label: <>Create “{trimmed}”</> }] : []),
   ];
+  // The list can shrink under the highlight when the data changes; past its end nothing is highlighted.
+  const current = active < choices.length ? active : -1;
 
   function copyData() {
     // Status appears only when someone is inactive, so a plain roster stays three columns.
@@ -162,7 +164,7 @@ export function TeamDetail({ id }: { id: string }) {
             aria-autocomplete="list"
             aria-expanded={listOpen}
             aria-controls="add-member-options"
-            aria-activedescendant={active >= 0 ? `add-member-option-${active}` : undefined}
+            aria-activedescendant={current >= 0 ? `add-member-option-${current}` : undefined}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setQuery('');
@@ -170,10 +172,10 @@ export function TeamDetail({ id }: { id: string }) {
               } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && choices.length > 0) {
                 e.preventDefault();
                 const step = e.key === 'ArrowDown' ? 1 : -1;
-                setActive(active < 0 ? (step === 1 ? 0 : choices.length - 1) : (active + step + choices.length) % choices.length);
-              } else if (e.key === 'Enter' && active >= 0) {
+                setActive(current < 0 ? (step === 1 ? 0 : choices.length - 1) : (current + step + choices.length) % choices.length);
+              } else if (e.key === 'Enter' && current >= 0) {
                 e.preventDefault();
-                choices[active].choose();
+                choices[current].choose();
                 setActive(-1);
               }
             }}
@@ -190,8 +192,8 @@ export function TeamDetail({ id }: { id: string }) {
                   key={choice.key}
                   id={`add-member-option-${i}`}
                   role="option"
-                  aria-selected={i === active}
-                  className={`flex w-full cursor-pointer justify-between rounded-sm px-2 py-1.5 text-left text-sm hover:bg-surface-subtle ${i === active ? 'bg-surface-subtle outline-2 outline-accent' : ''}`}
+                  aria-selected={i === current}
+                  className={`flex w-full cursor-pointer justify-between rounded-sm px-2 py-1.5 text-left text-sm hover:bg-surface-subtle ${i === current ? 'bg-surface-subtle outline-2 outline-accent' : ''}`}
                   // Keep focus in the field, so a click chooses without blurring the list away first.
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={choice.choose}

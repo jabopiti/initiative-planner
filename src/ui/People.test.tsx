@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import { BrandProvider } from '../state/BrandContext';
-import { RepositoryProvider } from '../state/DataContext';
+import { RepositoryProvider, useRepository, useRepositoryState } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PeopleOverview } from './PeopleOverview';
 import { TeamDetail } from './TeamDetail';
@@ -44,10 +44,14 @@ function stubGithub() {
 }
 
 let goTo: (view: string) => void = () => {};
+let addToTeam: (name: string, teamId: string) => void = () => {};
 
 function Harness() {
   const [view, setView] = useState('people');
   goTo = setView;
+  const repository = useRepository();
+  const { people } = useRepositoryState();
+  addToTeam = (name, teamId) => repository.addMembership(people.find((p) => p.name === name)!.id, teamId);
   return view === 'people' ? <PeopleOverview /> : <TeamDetail id={view} />;
 }
 
@@ -174,6 +178,23 @@ describe('People overview and team members (slice 004)', () => {
     await user.keyboard('{Escape}');
     expect(field).toHaveValue('');
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('highlights nothing when the list shrinks past the highlighted option, and Enter does nothing', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await addPerson(user, 'Felix Brandt');
+    goTo('t1');
+    const field = await screen.findByRole('combobox', { name: 'Add member' });
+    await user.type(field, 'fe');
+    await user.keyboard('{ArrowUp}'); // the last option, Create
+    expect(field).toHaveAttribute('aria-activedescendant');
+    // Felix joins from elsewhere, so only Create is left and the highlight points past the end.
+    act(() => addToTeam('Felix Brandt', 't1'));
+    await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(1));
+    expect(field).not.toHaveAttribute('aria-activedescendant');
+    await user.keyboard('{Enter}');
+    expect(screen.getAllByRole('spinbutton', { name: /Team FTE % for/ })).toHaveLength(1);
   });
 
   it('reaches "Create" by arrow keys and creates the person with Enter', async () => {
