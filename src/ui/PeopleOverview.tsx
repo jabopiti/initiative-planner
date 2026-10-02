@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useRevealTarget } from '../state/ConflictUi';
 import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { roleLabel } from '../data/roleLabel';
+import { MissingDefaultsNote } from './MissingDefaultsNote';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
 import { PersonPanel } from './PersonPanel';
 import { usePersonRequests } from './personRequest';
@@ -163,10 +164,11 @@ export function PeopleOverview() {
               ))}
           </SelectContent>
         </Select>
-        <Button type="submit" disabled={!name.trim()}>
+        <Button type="submit" disabled={!name.trim() || !effectiveCountry || !effectiveRole}>
           <PlusIcon />
           Add person
         </Button>
+        {(!effectiveCountry || !effectiveRole) && <MissingDefaultsNote verb="adding" className="w-full" />}
       </form>
 
       <div className="flex items-start gap-4">

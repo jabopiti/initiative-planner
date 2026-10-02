@@ -3,6 +3,7 @@ import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
 import { roleLabel } from '../data/roleLabel';
+import { MissingDefaultsNote } from './MissingDefaultsNote';
 import { defaultCountryId, defaultRoleId, rememberPersonDefaults } from './personDefaults';
 import { PercentInput } from './PercentInput';
 import { ConflictRow, inRow } from './ConflictBlock';
@@ -76,6 +77,8 @@ export function TeamDetail({ id }: { id: string }) {
   );
   const exact = people.some((p) => p.name.toLowerCase() === trimmed.toLowerCase());
 
+  // Creating a person needs an active country and role to give them (§9.4).
+  const canCreate = Boolean(defaultCountryId(countries) && defaultRoleId(roles));
   const listOpen = focused && trimmed.length > 0;
   // The list's options in order, for the arrow keys: the matching people, then Create (§9.5).
   const choices = [
@@ -89,7 +92,7 @@ export function TeamDetail({ id }: { id: string }) {
         </>
       ),
     })),
-    ...(trimmed && !exact ? [{ key: 'create', choose: createInline, label: <>Create “{trimmed}”</> }] : []),
+    ...(trimmed && !exact && canCreate ? [{ key: 'create', choose: createInline, label: <>Create “{trimmed}”</> }] : []),
   ];
   // The list can shrink under the highlight when the data changes; past its end nothing is highlighted.
   const current = active < choices.length ? active : -1;
@@ -180,6 +183,7 @@ export function TeamDetail({ id }: { id: string }) {
               }
             }}
           />
+          {trimmed && !exact && !canCreate && <MissingDefaultsNote verb="creating" className="mt-1" />}
           {listOpen && (
             <ul
               id="add-member-options"

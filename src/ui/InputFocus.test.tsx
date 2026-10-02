@@ -57,7 +57,7 @@ describe('name inputs take keyboard focus (shadcn Input receives ref, React 19)'
     const user = userEvent.setup();
     renderWith(<TeamsOverview />);
     await user.click(await screen.findByRole('button', { name: 'New team' }));
-    await vi.waitFor(() => expect(screen.getByPlaceholderText('Team name')).toHaveFocus());
+    await vi.waitFor(() => expect(screen.getByRole('textbox', { name: 'Team name' })).toHaveFocus());
   });
 
   it('People overview: adding a person returns focus to the quick-add name field', async () => {
