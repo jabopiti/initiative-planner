@@ -1082,9 +1082,8 @@ export class Repository {
     if (existing?.active) return existing;
     if (existing) {
       // Rejoining (§5.6): the same record comes back, keeping its Team FTE % unless the person no longer has room.
-      const rejoined = { ...existing, active: true, teamFtePct: Math.min(existing.teamFtePct, unclaimedCapacityPct(person, this.state.memberships)) };
-      this.commitMemberships(this.state.memberships.map((m) => (m.id === existing.id ? rejoined : m)), this.membershipNote(existing.id, existing, rejoined));
-      return rejoined;
+      this.updateMembership(existing.id, { active: true, teamFtePct: existing.teamFtePct });
+      return this.state.memberships.find((m) => m.id === existing.id) ?? null;
     }
     const unclaimed = unclaimedCapacityPct(person, this.state.memberships);
     const teamFtePct = requestedPct === undefined ? unclaimed : allowOver ? requestedPct : Math.min(requestedPct, unclaimed);
