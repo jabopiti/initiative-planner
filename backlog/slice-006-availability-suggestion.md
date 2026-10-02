@@ -80,10 +80,6 @@ exists, not what's shown after.
       allocation is saved, then it does not exceed the person's Team FTE %
       or Capacity % for any month of the phase.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

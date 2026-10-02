@@ -62,10 +62,6 @@ the live plan diverge from `frozenSnapshot`.
 - [ ] Given an edit queued for a phase a pull freezes, then it is not
       written and the user sees the failed-edit message.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

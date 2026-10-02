@@ -120,10 +120,6 @@ Danger zone (032).
 - [x] Given About, then product name, build version, schema version and process
       identity are shown.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 The build version's source (package version plus short commit via a Vite

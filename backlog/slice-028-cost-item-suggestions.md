@@ -82,10 +82,6 @@ and realistic amounts with less typing.
 - [ ] Given a screen reader, then the field is announced as a combobox and the
       number of suggestions is announced.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 "Most recent" means the latest phase start date, since cost items carry no

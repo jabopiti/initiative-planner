@@ -100,10 +100,6 @@ concern if it becomes necessary.
 - [x] Given any of the above fails, then `spike-findings.md` names the
       specific spec section affected and the change needed.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None. This slice is an enabling investigation rather than a strict

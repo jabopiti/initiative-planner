@@ -116,10 +116,6 @@ lookup; the Getting started strip itself (033).
       working days = weekdays), and a second client doing the same makes no
       duplicate and no conflict.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

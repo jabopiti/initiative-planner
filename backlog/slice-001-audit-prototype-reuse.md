@@ -85,10 +85,6 @@ importing files as-is.
       state which functions slice 005 may import unchanged, without
       asking the auditor.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None. This slice is an enabling investigation rather than a strict

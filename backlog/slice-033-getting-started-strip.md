@@ -78,10 +78,6 @@ from the data as each is done (§5.2), without ever blocking anything.
 - [ ] Given another user completes an item, then after the pull it shows
       checked here too.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

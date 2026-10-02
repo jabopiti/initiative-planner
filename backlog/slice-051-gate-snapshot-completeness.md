@@ -43,10 +43,6 @@ estimate, or the spec states plainly that resolved figures are all it keeps.
 - [ ] Given a later rate or person change, then the snapshot is unchanged.
 - [ ] Given an old snapshot without the new fields, then everything renders.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 Adds weight to every initiative file (§3 Storage limits); measure it.

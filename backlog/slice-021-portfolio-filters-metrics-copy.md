@@ -107,10 +107,6 @@ from the board, not rebuilt in a spreadsheet.
       initiatives" over every initiative and Clear filters is hidden.
 - [ ] Given a reload, then every filter is back to its default.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 §9.11 says every filter chip is a multi-select; the Year chip is

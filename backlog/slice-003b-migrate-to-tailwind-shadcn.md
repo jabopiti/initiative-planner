@@ -286,10 +286,6 @@ needing their own migration step.
       total slices, shows 003b between 003 and 004, and 004 depends on
       003b.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 This slice is a retrofit migration rather than new capability — see

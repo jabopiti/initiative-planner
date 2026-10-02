@@ -82,10 +82,6 @@ reader, and a deactivated membership can be taken up again.
 - [ ] Given axe (or equivalent) on Team detail and the top bar, then no
       violations for these elements.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 The short cause labels ("Cannot reach GitHub", "Rate limited", "Access

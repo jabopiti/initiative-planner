@@ -61,10 +61,6 @@ while numbers still paste as numbers.
 - [x] Given every existing Copy button, then its numeric columns are declared
       and its current tests pass.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

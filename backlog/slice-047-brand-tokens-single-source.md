@@ -50,10 +50,6 @@ unreadable text/background pair, naming the token.
 - [ ] Given the strict CSP in the production build, then the e2e CSP test
       still passes.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

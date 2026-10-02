@@ -44,10 +44,6 @@ a full local cache is reported, not ignored.
       failed with the storage-full message and input kept.
 - [ ] Given the cache budget, then it is computed from encoded byte length.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

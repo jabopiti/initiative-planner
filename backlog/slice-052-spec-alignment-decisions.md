@@ -51,10 +51,6 @@ in `docs/spec.md`, and the code matches.
 - [ ] Given the spec afterwards, then no sentence in it contradicts another
       on these points.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

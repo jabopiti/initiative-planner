@@ -127,10 +127,6 @@ metrics (slice 021, which reuses the chip); a search field on the table
 - [x] Given a screen reader, then each Needs attention marker has an
       accessible name naming the kind (e.g. "Overrun").
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 The filter chip is built from shadcn's `popover`, `checkbox` and `input`

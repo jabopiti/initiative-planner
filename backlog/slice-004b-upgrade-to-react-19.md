@@ -77,10 +77,6 @@ with the slices that need them.
 - [x] Given `npm run build:quiet && npm run preview`, when the app loads,
       then there are no console errors and the CSP (§10.1) is unchanged.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 None.

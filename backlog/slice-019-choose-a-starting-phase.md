@@ -120,10 +120,6 @@ on the phase); choosing a starting phase on Duplicate (025).
 - [x] Given a starting phase is set and the first phase is chosen, then no
       reason field shows and "Start at Discovery" is enabled at once.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 **Spec updates this slice must record (§5.4, §8.2, §6) when it ships:**
