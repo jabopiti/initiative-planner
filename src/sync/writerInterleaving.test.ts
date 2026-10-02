@@ -238,7 +238,7 @@ describe('creating an initiative (AC 4)', () => {
     const created = await repo.createInitiative('Checkout Redesign', 'team-1', '2026-01-05');
     const path = `initiatives/${created.id}.json`;
     expect(fake.commits(path)).toHaveLength(1);
-    expect(fake.commits(path)[0]).toMatchObject({ message: 'Checkout Redesign: created', sha: undefined });
+    expect(fake.commits(path)[0]).toMatchObject({ message: `Checkout Redesign: created\n\nEntity: initiative/${created.id}`, sha: undefined });
 
     repo.renameInitiative(created.id, 'Checkout v2');
     await repo.flushPending();
@@ -246,7 +246,7 @@ describe('creating an initiative (AC 4)', () => {
     const commits = fake.commits(path);
     expect(commits).toHaveLength(2);
     expect(commits[1].sha).toBe(commits[0].newSha);
-    expect(commits[1].message).toBe('Checkout Redesign: renamed to Checkout v2');
+    expect(commits[1].message).toBe(`Checkout Redesign: renamed to Checkout v2\n\nEntity: initiative/${created.id}`);
     expect(fake.puts.filter((p) => p.path === path && p.status >= 300)).toEqual([]);
     expect(repo.getState().syncing).toBe(false);
     expect(repo.getState().readOnly).toBeNull();
@@ -431,8 +431,8 @@ describe('decided in chat for slice 005g', () => {
     await repo.resolveConflict(repo.getState().conflicts[0], 'mine');
 
     const [first, second] = fake.commits('people.json').slice(-2);
-    expect(first.message).toMatch(/ \(conflict: used mine\)$/);
-    expect(second.message).toMatch(/ \(conflict: used mine\)$/);
+    expect(first.message).toMatch(/ \(conflict: used mine\)\n\nEntity: person\/p\d$/m);
+    expect(second.message).toMatch(/ \(conflict: used mine\)\n\nEntity: person\/p\d$/m);
     expect(first.message).toContain('Base: renamed to Mine');
   });
 

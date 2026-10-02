@@ -10,6 +10,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { rootListing } from '../sync/testing/rootListing';
 import { CountriesSection } from './CountriesSection';
 import { useSectionLock } from './useSectionLock';
+import { subjectOf } from '../sync/testing/commitMessage';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
@@ -28,7 +29,7 @@ beforeAll(() => {
       if ((init.method ?? 'GET') === 'PUT') {
         if (countriesUnreachable && url.includes('/contents/countries.json')) return json({ message: 'Server Error' }, 500);
         const body = JSON.parse(init.body as string) as { message: string; content: string };
-        puts.push({ path: new URL(url).pathname.split('/contents/')[1], message: body.message, content: JSON.parse(atob(body.content)) });
+        puts.push({ path: new URL(url).pathname.split('/contents/')[1], message: subjectOf(body.message), content: JSON.parse(atob(body.content)) });
         return json({ content: { sha: `next-${puts.length}` } });
       }
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();

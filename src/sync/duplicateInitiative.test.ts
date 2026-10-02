@@ -23,7 +23,7 @@ describe('duplicating an initiative (slice 025)', () => {
     expect(copy).toMatchObject({ name: 'Payments API copy', status: 'Active', teamId: 'team-1', description: 'Redo checkout' });
     expect(copy.gates).toBeUndefined();
     expect(repo.getState().initiatives.map((i) => i.id)).toEqual(['i1', copy.id]);
-    expect(fake.commits(`initiatives/${copy.id}.json`).map((p) => p.message)).toEqual(['Payments API copy: created from Payments API']);
+    expect(fake.commits(`initiatives/${copy.id}.json`).map((p) => p.message)).toEqual([`Payments API copy: created from Payments API\n\nEntity: initiative/${copy.id}`]);
     expect(fake.puts).toHaveLength(1);
     expect(result!.skipped.map((p) => p.name)).toEqual(['Lucía Ramos']);
   });

@@ -35,7 +35,7 @@ import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
-import { FileWriter, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
+import { FileWriter, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { WriteQueue } from './WriteQueue';
 
@@ -104,7 +104,10 @@ interface PulledFile {
 }
 
 /** The commit message deleting an initiative (§10.3). */
-const deletedMessage = (initiative: Initiative): string => `${initiative.name}: deleted`;
+const deletedMessage = (initiative: Initiative): CommitMessage => ({
+  subject: `${initiative.name}: deleted`,
+  entities: [{ kind: 'initiative', id: initiative.id }],
+});
 
 const jsonFile = (path: string, value: unknown) => ({ path, content: JSON.stringify(value) });
 

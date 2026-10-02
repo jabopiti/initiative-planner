@@ -328,7 +328,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
       expect(puts()).toHaveLength(2);
       const retried = JSON.parse((puts()[1][1] as RequestInit).body as string) as { content: string; message: string };
       expect((JSON.parse(atob(retried.content)) as Team[]).map((t) => t.id)).toEqual(['t1', 't2']);
-      expect(retried.message).toBe('Platform: added; Growth: added');
+      expect(retried.message).toBe('Platform: added; Growth: added\n\nEntity: team/t1\nEntity: team/t2');
       await writer.flush();
       expect(puts()).toHaveLength(2); // the folded edit is not written a second time
     });
@@ -445,13 +445,34 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
     });
     const sentMessages = () => fetchMock.mock.calls.map(([, init]) => (JSON.parse((init as RequestInit).body as string) as { message: string }).message);
 
+    it('ends the message with one Entity trailer per touched entity, each once, in first-edit order (§10.3)', async () => {
+      const writer = makeWriter({ content: [], sha: 's0' });
+      fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's1' } }));
+      writer.schedule([team('Platform')], note(undefined, team('Platform'), 't1'));
+      writer.schedule([team('Platform'), team('Growth')], note(undefined, team('Growth'), 't2'));
+      writer.schedule([team('Platform 2'), team('Growth')], note(team('Platform'), team('Platform 2'), 't1'));
+      await writer.flush();
+      expect(sentMessages()).toEqual(['Platform 2 added; Growth added\n\nEntity: team/t1\nEntity: team/t2']);
+    });
+
+    it('lists no trailer for an entity whose notes cancelled out, nor for a dataset-level note', async () => {
+      const writer = makeWriter({ content: [team('Platform')], sha: 's0' });
+      fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's1' } }));
+      writer.schedule([team('Platform'), team('Growth')], note(undefined, team('Growth'), 't2'));
+      writer.schedule([team('Platform')], note(team('Growth'), undefined, 't2'));
+      writer.schedule([team('Platform 2')], note(team('Platform'), team('Platform 2'), 't1'));
+      writer.schedule([team('Platform 2')], { entity: { kind: 'dataset', id: 'rates' }, field: 'x', from: 1, to: 2, words: () => 'Rates copied' });
+      await writer.flush();
+      expect(sentMessages()).toEqual(['Platform renamed to Platform 2; Rates copied\n\nEntity: team/t1']);
+    });
+
     it('reads add then change as one added note with the final values', async () => {
       const writer = makeWriter({ content: [], sha: 's0' });
       fetchMock.mockResolvedValueOnce(jsonResponse({ content: { sha: 's1' } }));
       writer.schedule([team('Platform')], note(undefined, team('Platform')));
       writer.schedule([team('Platform 2')], note(team('Platform'), team('Platform 2')));
       await writer.flush();
-      expect(sentMessages()).toEqual(['Platform 2 added']);
+      expect(sentMessages()).toEqual(['Platform 2 added\n\nEntity: team/t1']);
     });
 
     it('makes no commit for add then remove, or for a change back to the saved value', async () => {
@@ -472,7 +493,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
       writer.schedule([team('B')], note(team('A'), team('B')));
       writer.schedule([team('C')], note(team('B'), team('C')));
       await writer.flush();
-      expect(sentMessages()).toEqual(['A renamed to C']);
+      expect(sentMessages()).toEqual(['A renamed to C\n\nEntity: team/t1']);
     });
 
     it('joins the notes of two entities in first-edit order', async () => {
@@ -482,7 +503,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
       writer.schedule([team('B'), { id: 't2', name: 'Growth', active: true }], note(undefined, team('Growth'), 't2'));
       writer.schedule([team('C'), { id: 't2', name: 'Growth', active: true }], note(team('B'), team('C')));
       await writer.flush();
-      expect(sentMessages()).toEqual(['A renamed to C; Growth added']);
+      expect(sentMessages()).toEqual(['A renamed to C; Growth added\n\nEntity: team/t1\nEntity: team/t2']);
     });
   });
 
@@ -562,7 +583,7 @@ describe('FileWriter (list file) — §10.3 debounce + §10.5 409-retry-with-mer
       expect(closed).toEqual([conflicts[0]]);
       await writer.flush();
       expect(sent(1).sha).toBe('s1');
-      expect(sent(1).message).toBe('Their Rename renamed to Typed Anew (conflict: replaced)');
+      expect(sent(1).message).toBe('Their Rename renamed to Typed Anew (conflict: replaced)\n\nEntity: team/t1');
     });
 
     it('leaves an open conflict alone when an edit changes another field of the file', async () => {

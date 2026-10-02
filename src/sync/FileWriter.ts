@@ -34,7 +34,7 @@ export interface FileConflict extends MergeConflict {
   resolve: (choice: 'mine' | 'theirs') => Promise<boolean>;
 }
 
-/** The kinds of entity a commit can touch (§10.3). Slice 038 renders the entity as a trailer. */
+/** The kinds of entity a commit can touch (§10.3). Each but `dataset` is rendered as an `Entity:` trailer. */
 export type EntityKind = 'initiative' | 'person' | 'team' | 'membership' | 'role' | 'country' | 'dataset';
 
 /**
@@ -42,8 +42,31 @@ export type EntityKind = 'initiative' | 'person' | 'team' | 'membership' | 'role
  * commit combine into one note, from the first `from` to the last `to`: `undefined` means it did not exist, and a
  * change back to where it started leaves no note. `words` phrases the net change in plain words naming the entity.
  */
+export type EntityRef = { kind: EntityKind; id: string };
+
+/** A commit message: the plain-words subject, and the entities it touched, which end it as trailer lines (§10.3). */
+export interface CommitMessage {
+  subject: string;
+  entities: EntityRef[];
+}
+
+/** The subject, then a blank line and one `Entity: <kind>/<id>` trailer per entity (dataset-level notes have none). */
+export function renderMessage({ subject, entities }: CommitMessage): string {
+  const trailers = entities.filter((e) => e.kind !== 'dataset').map((e) => `Entity: ${e.kind}/${e.id}`);
+  return trailers.length === 0 ? subject : `${subject}\n\n${trailers.join('\n')}`;
+}
+
+/** Entities in first-seen order, each once. */
+function distinctEntities(entities: EntityRef[]): EntityRef[] {
+  const seen = new Set<string>();
+  return entities.filter((e) => {
+    const key = `${e.kind}/${e.id}`;
+    return !seen.has(key) && seen.add(key);
+  });
+}
+
 export interface CommitNote {
-  entity: { kind: EntityKind; id: string };
+  entity: EntityRef;
   field: string;
   from: unknown;
   to: unknown;
@@ -69,7 +92,7 @@ export interface FileWriterOptions<D> {
   /** Someone else deleted the file while an edit waited to be saved (§3): the edit is dropped, not resaved,
    * and `tell` is told. GitHub recreates a file a write names a sha for, so a save that recreated it deletes it
    * again in a commit `message` names. Without it, a file gone on re-read is an error. */
-  whenGone?: { message: (doc: D) => string; tell: () => void };
+  whenGone?: { message: (doc: D) => CommitMessage; tell: () => void };
   /** The file as last read, or null while it does not exist yet: the first save then creates it. */
   initial: SyncedFile<D> | null;
   /** What to tell the user when that first save fails. */
@@ -111,6 +134,10 @@ export class FileWriter<D> {
   private readonly notes = new Map<string, CommitNote>();
   /** Words added verbatim to the message, such as a conflict's outcome. */
   private readonly extras = new Map<string, string>();
+  /** The entities of the commits those extras stand for. */
+  private extraEntities: EntityRef[] = [];
+  /** The commit each open conflict was raised under: its entities end the message that settles it. */
+  private readonly conflictCommits = new WeakMap<FileConflict, CommitMessage>();
   /** An edit since the last save answered an open conflict: the message ends "(conflict: replaced)". */
   private replaced = false;
   /** An edit with a note was made since the last save, even if its note has cancelled out. */
@@ -278,7 +305,10 @@ export class FileWriter<D> {
     this.options.onDocument(outcome.merged);
     if (this.openConflicts.length === 0 && !sameValue(outcome.merged, file.content)) {
       this.pending = outcome.merged;
-      for (const c of closing) this.extras.set(`conflict:${pathKey(c.path)}`, message);
+      for (const c of closing) {
+        this.extras.set(`conflict:${pathKey(c.path)}`, message.subject);
+        this.extraEntities.push(...(this.conflictCommits.get(c)?.entities ?? []));
+      }
       this.options.onStatus('syncing');
       void this.flush();
     }
@@ -311,8 +341,22 @@ export class FileWriter<D> {
     return this.replaced ? `${parts.join('; ')} (conflict: replaced)` : parts.join('; ');
   }
 
-  private commitMessage(): string {
-    return this.describe() ?? `${this.options.path}: update`;
+  private commitMessage(): CommitMessage {
+    return { subject: this.describe() ?? `${this.options.path}: update`, entities: this.touched() };
+  }
+
+  /** The entities with a note left, or an extra standing for one, in first-edit order. */
+  private touched(): EntityRef[] {
+    return distinctEntities([...[...this.notes.values()].map((n) => n.entity), ...this.extraEntities]);
+  }
+
+  /** The edits so far are written into a commit: they start afresh. */
+  private clearEdits(): void {
+    this.notes.clear();
+    this.extras.clear();
+    this.extraEntities = [];
+    this.replaced = false;
+    this.noted = false;
   }
 
   private async saveNext(): Promise<SaveResult> {
@@ -326,10 +370,7 @@ export class FileWriter<D> {
     this.pending = null;
     const message = this.commitMessage();
     const cancelled = this.noted && this.describe() === null && this.synced !== null && sameValue(mine, this.synced.content);
-    this.notes.clear();
-    this.extras.clear();
-    this.replaced = false;
-    this.noted = false;
+    this.clearEdits();
     if (cancelled) {
       // The edits undid each other, nothing changed, so nothing to commit (§10.3).
       this.reportIdle();
@@ -343,7 +384,7 @@ export class FileWriter<D> {
     }
   }
 
-  private async save(mine: D, message: string): Promise<SaveResult> {
+  private async save(mine: D, message: CommitMessage): Promise<SaveResult> {
     let sent = mine;
     let merged = false;
     for (let retries = MAX_RETRIES; ; retries -= 1) {
@@ -355,11 +396,11 @@ export class FileWriter<D> {
           this.pending = null;
           sent = this.rebase(mine, newer, sent, message);
           mine = newer;
-          message = [message, this.describe()].filter(Boolean).join('; ');
-          this.notes.clear();
-          this.extras.clear();
-          this.replaced = false;
-          this.noted = false;
+          message = {
+            subject: [message.subject, this.describe()].filter(Boolean).join('; '),
+            entities: distinctEntities([...message.entities, ...this.touched()]),
+          };
+          this.clearEdits();
         }
       }
       try {
@@ -368,7 +409,7 @@ export class FileWriter<D> {
             path: this.options.path,
             branch: this.options.branch,
             content: JSON.stringify(sent),
-            message,
+            message: renderMessage(message),
             sha: this.synced?.sha,
           }),
         );
@@ -445,10 +486,10 @@ export class FileWriter<D> {
    * again, and the edit dropped as if the save had found it gone. Should that delete fail, the file stays with the
    * edit in it, and the next pull brings it back here: nothing is lost, only the other user's delete undone.
    */
-  private async recreated(sent: D, sha: string, whenGone: { message: (doc: D) => string }): Promise<SaveResult> {
+  private async recreated(sent: D, sha: string, whenGone: { message: (doc: D) => CommitMessage }): Promise<SaveResult> {
     try {
       await this.options.queue.run(() =>
-        this.options.github.deleteFile({ path: this.options.path, branch: this.options.branch, message: whenGone.message(sent), sha }),
+        this.options.github.deleteFile({ path: this.options.path, branch: this.options.branch, message: renderMessage(whenGone.message(sent)), sha }),
       );
     } catch {
       // Left recreated: see above.
@@ -462,7 +503,7 @@ export class FileWriter<D> {
    * and shows the newer version; `refuses` decides from it whether to stop, otherwise the delete is sent again
    * at its sha, since what was confirmed is deleting the file, not one version of it.
    */
-  deleteFile(message: string, refuses: (doc: D) => boolean): Promise<DeleteResult> {
+  deleteFile(message: CommitMessage, refuses: (doc: D) => boolean): Promise<DeleteResult> {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -481,7 +522,7 @@ export class FileWriter<D> {
     });
   }
 
-  private async deleteNow(message: string, refuses: (doc: D) => boolean): Promise<DeleteResult> {
+  private async deleteNow(message: CommitMessage, refuses: (doc: D) => boolean): Promise<DeleteResult> {
     // The version to delete: the synced one, then whatever each conflict's re-read finds. Kept apart from
     // `synced`, which only moves when the re-read can be shown (no choice open, no failed save waiting).
     let sha = this.synced?.sha;
@@ -490,7 +531,7 @@ export class FileWriter<D> {
       if (retries < MAX_RETRIES) await this.backoff(MAX_RETRIES - retries - 1);
       const at = sha;
       try {
-        await this.options.queue.run(() => this.options.github.deleteFile({ path: this.options.path, branch: this.options.branch, message, sha: at }));
+        await this.options.queue.run(() => this.options.github.deleteFile({ path: this.options.path, branch: this.options.branch, message: renderMessage(message), sha: at }));
         return 'deleted';
       } catch (error) {
         const stale = error instanceof GithubApiError && error.cause_ === 'conflict';
@@ -541,6 +582,7 @@ export class FileWriter<D> {
     this.pending = null;
     this.notes.clear();
     this.extras.clear();
+    this.extraEntities = [];
     this.clearFailure();
     const open = this.openConflicts;
     this.openConflicts = [];
@@ -548,7 +590,7 @@ export class FileWriter<D> {
   }
 
   /** A save landed. Newer edits are rebased onto what it wrote when that was a merge; otherwise the screen shows it. */
-  private landed(mine: D, sent: D, merged: boolean, message: string): void {
+  private landed(mine: D, sent: D, merged: boolean, message: CommitMessage): void {
     if (this.pending === null) {
       this.screen = sent;
       this.options.onDocument(sent);
@@ -561,14 +603,14 @@ export class FileWriter<D> {
   }
 
   /** The other writer's changes into an edit made while a save was in flight; a clash between the two is a conflict. */
-  private rebase(mine: D, newer: D, sent: D, message: string): D {
+  private rebase(mine: D, newer: D, sent: D, message: CommitMessage): D {
     const { merged, conflicts } = this.options.merge(mine, newer, sent);
     this.raise(conflicts, message);
     return merged;
   }
 
   /** Conflicts found: nothing is written until the user chooses, and the screen shows the merge meanwhile. */
-  private surface(merged: D, conflicts: MergeConflict[], mine: D, message: string): SaveResult {
+  private surface(merged: D, conflicts: MergeConflict[], mine: D, message: CommitMessage): SaveResult {
     const screen = this.pending === null ? merged : this.rebase(mine, this.pending, merged, message);
     if (this.pending !== null) this.pending = screen;
     this.screen = screen;
@@ -579,7 +621,7 @@ export class FileWriter<D> {
     return 'conflicts';
   }
 
-  private raise(conflicts: MergeConflict[], message: string): void {
+  private raise(conflicts: MergeConflict[], message: CommitMessage): void {
     for (const c of conflicts) {
       if (this.openConflicts.some((open) => pathKey(open.path) === pathKey(c.path))) continue;
       const conflict: FileConflict = {
@@ -588,12 +630,13 @@ export class FileWriter<D> {
         resolve: (choice) => this.resolve(conflict, choice, message),
       };
       this.openConflicts.push(conflict);
+      this.conflictCommits.set(conflict, message);
       this.options.onConflict(conflict);
     }
   }
 
   /** The chosen side's value goes in at the conflict's path, and only there: the rest of the merge stays as it was. */
-  private async resolve(conflict: FileConflict, choice: 'mine' | 'theirs', message: string): Promise<boolean> {
+  private async resolve(conflict: FileConflict, choice: 'mine' | 'theirs', message: CommitMessage): Promise<boolean> {
     // Free for a newer conflict on the same field, should the save find one.
     this.openConflicts = this.openConflicts.filter((open) => open !== conflict);
     this.options.onStatus('syncing');
@@ -609,7 +652,8 @@ export class FileWriter<D> {
         return 'saved';
       }
       this.pending = doc;
-      this.extras.set(`conflict:${pathKey(conflict.path)}`, `${message} (conflict: ${choice === 'mine' ? 'used mine' : 'kept theirs'})`);
+      this.extras.set(`conflict:${pathKey(conflict.path)}`, `${message.subject} (conflict: ${choice === 'mine' ? 'used mine' : 'kept theirs'})`);
+      this.extraEntities.push(...message.entities);
       return this.saveNext();
     });
     if (result === 'failed') this.openConflicts.push(conflict);

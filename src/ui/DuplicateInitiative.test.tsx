@@ -70,7 +70,7 @@ describe('Duplicate in the Actions menu (§5.4, §5.11)', () => {
     expect(window.location.hash).toMatch(/^#\/initiatives\/.+/);
     expect(toast).toHaveBeenCalledWith('Not copied: Lucía Ramos, no longer on Platform.');
     const [commit] = fake.puts.filter((p) => p.path !== 'initiatives/i1.json');
-    expect(commit.message).toBe('Checkout Redesign copy: created from Checkout Redesign');
+    expect(commit.message).toBe(`Checkout Redesign copy: created from Checkout Redesign\n\nEntity: initiative/${window.location.hash.slice('#/initiatives/'.length)}`);
   });
 
   it('shows no toast when nobody was left out', async () => {
