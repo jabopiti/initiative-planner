@@ -133,6 +133,10 @@ for the AI-agent-driven build the team asked for:
 | 057 | Visual refresh: theme control, type scale, surfaces and status badges | ✅ valid | 055 |
 | 058 | Page shell and layout: shared container, phase time strip, first-run and empty states | ✅ valid | 056, 057 |
 | 059 | Detail components: key figures, labelled checklist, period range picker, motion | ✅ valid | 056, 057 |
+| 060 | Amount input: shorthand, simple sums and the currency inside the field | ✅ valid | 052 |
+| 061 | Phase editing: allocation load bar, team roster, cost item month strip, actuals that record in one click | ✅ valid | 056, 057, 059, 060 |
+| 062 | Team capacity: split bar in the person panel, heatmap with fixes on the team page | ✅ valid | 048, 057 |
+| 063 | Changed since you last looked: dots on cards and rows, previous figures on the page | ✅ valid | 058, 059 |
 
 ## Dependency chain
 
@@ -224,6 +228,14 @@ for the AI-agent-driven build the team asked for:
   frozen gate; 057 after 055 (it restyles the controls 055 fixes); 058
   and 059 last, on 056's detail page and 057's tokens and PageHeader (059
   was split from 057 for the detail page's new components).
+- Slices 060 to 063 come from the interaction patterns the user chose on
+  2 Oct 2026 and are placed so no screen is reworked twice: 060 builds the
+  shared amount field first (after 052 settles number formats), so 061's
+  tables use it from the start; 061 rebuilds the current phase's three
+  tables in one pass and takes over F02 (from 055) and F15 (from 056);
+  062 waits for 048's membership Undo and 057's team colours; 063 adds
+  its markers last, onto 058's cards and 059's key figures. The bullet bar
+  went into 059 itself, where the Grand estimate tile is built.
 
 ## Build plan (slices 012 to 041, parallel sessions)
 

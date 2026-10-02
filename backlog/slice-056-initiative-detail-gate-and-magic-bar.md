@@ -8,7 +8,7 @@ depends_on: ["015", "026"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Detail page': F05, F06, F07, F08, F15. F07's labelled stepper conflicts with §9.10 (phases icon-only in the stepper) and must be settled with the user and recorded in the spec."
+change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Detail page': F05, F06, F07, F08. F15 (actuals) moved to 061, which rebuilds the phase's three tables together. F07's labelled stepper conflicts with §9.10 (phases icon-only in the stepper) and must be settled with the user and recorded in the spec."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Touches the magic bar, phase editor and gate panel (hot files), and one item changes specified behaviour (§9.10), so it needs a spec decision first."
 spec_sections: ["§5.4 Initiative detail view", "§8.1 Passing a gate", "§9.5 Accessibility", "§9.8 Visual design", "§9.10 Icons"]
@@ -43,9 +43,6 @@ names and a Pass gate that reads as a button even when blocked.
    open").
 4. **F08** Editable header fields show a hover and focus state (subtle fill
    and border); the title text lines up with the cards below it.
-5. **F15** Actuals: € sits inside the field, placeholder "Actual"; the
-   one-click action is a text button "Use estimate"; the estimate shows
-   once, in its own column.
 
 ## Execution path
 
@@ -76,8 +73,6 @@ names and a Pass gate that reads as a button even when blocked.
       the open count and is announced as disabled with the reason.
 - [ ] Given hover or focus on the title, owner or dates, then a fill and
       border show in both themes.
-- [ ] Given an actual cost row, then € is inside the field and "Use
-      estimate" is a labelled text button.
 
 ## Flags and compromises
 

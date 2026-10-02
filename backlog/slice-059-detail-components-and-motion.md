@@ -8,10 +8,10 @@ depends_on: ["056", "057"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Split from 057 while settling the modernization decisions with the user (2 Oct 2026, from rendered mockups): the initiative header gets four key figures, the checklist a labelled segmented control with the status icon at the left, the phase period one Airbnb-style range picker that saves on Done, and four extra motions. §5.4 and §9.11 updated."
+change_summary: "Split from 057 while settling the modernization decisions with the user (2 Oct 2026, from rendered mockups): the initiative header gets four key figures, the checklist a labelled segmented control with the status icon at the left, the phase period one Airbnb-style range picker that saves on Done, and four extra motions. §5.4 and §9.11 updated. Later the same day the user chose the bullet bar against the approval bands (research pattern 8) for the Grand estimate tile and the board cards; §5.2 and §5.4 updated."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "The range picker is a new shared control with keyboard, typing, preview and a save-on-Done exception; the header and checklist touch hot files."
-spec_sections: ["§5.4 Initiative detail view", "§7.1 Time granularity and cost of an allocation", "§8.1 Passing a gate", "§9.5 Accessibility", "§9.8 Visual design", "§9.11 Lists, filters, inputs and amounts"]
+spec_sections: ["§5.2 Portfolio overview (landing page)", "§5.4 Initiative detail view", "§7.4 Approval tracks", "§7.1 Time granularity and cost of an allocation", "§8.1 Passing a gate", "§9.5 Accessibility", "§9.8 Visual design", "§9.11 Lists, filters, inputs and amounts"]
 ---
 
 # Detail components: key figures, labelled checklist, period range picker, motion
@@ -34,6 +34,12 @@ a stay, and changes are confirmed by small, purposeful motion.
    once a costed gate has passed), Deviation (signed; overspend in
    Warning), Current phase with its period, and the current gate's "X of Y
    complete". Copy stays with the figures. Replaces the cost summary box.
+   The Grand estimate tile carries a **bullet bar** (§5.4): the estimate
+   as a bar over the approval tracks' bands from the brand pack (§7.4),
+   the approved-at figure as a tick, recorded actuals to date as a thinner
+   inner bar; a gap between bands stays unshaded. The same `BulletBar`, in
+   miniature, goes on each board card (§5.2). The figure stays as text
+   beside it (§9.5).
 2. **Checklist control (§5.4).** Each item: status icon at the left, the
    name, and a labelled segmented control "Incomplete · Tentative ·
    Complete" (shadcn ToggleGroup), the selected segment in its colour role
@@ -80,6 +86,12 @@ a stay, and changes are confirmed by small, purposeful motion.
 
 - [ ] Given any initiative, then the header shows the four key figures; the
       approved-at line appears only after a costed gate has passed.
+- [ ] Given Checkout Redesign (€394,800, Elevated, approved at G2), then
+      the Grand estimate tile's bullet bar shows three shaded bands, the
+      bar ending in Elevated and the approved-at tick; a brand pack with a
+      gap between two bands leaves the gap unshaded.
+- [ ] Given a board card, then it shows the miniature bullet bar and its
+      estimate as text.
 - [ ] Given a checklist item, then its status icon is at the left and the
       segmented control reads Incomplete, Tentative, Complete; the selected
       segment has the role colour and an accessible pressed state.
