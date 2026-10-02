@@ -1,3 +1,4 @@
+import exampleDataset from './exampleDataset.json';
 import type { BrandPack, CountryYearRates } from './types';
 
 /**
@@ -161,6 +162,8 @@ export const defaultBrandPack: BrandPack = {
       { name: 'Spain', ratesByYear: spainRates },
     ],
   },
+
+  exampleDataset,
 
   colours: {
     surfacePage: { light: 'oklch(0.983 0.003 174.5)', dark: 'oklch(0.187 0.012 167.0)' },

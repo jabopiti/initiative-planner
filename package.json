@@ -16,10 +16,9 @@
     "test:watch": "vitest",
     "test:quiet": "vitest run --reporter=dot",
     "build:quiet": "tsc -b && vite build --logLevel error",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc -b --noEmit",
-    "dev:reset-data": "node --env-file=.env.local scripts/reset-dev-data.mjs",
-    "dev:seed-data": "node --env-file=.env.local scripts/seed-dev-data.mjs"
+    "dev:reset-data": "node --env-file=.env.local scripts/reset-dev-data.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -34,6 +33,7 @@
     "sonner": "^2.0.8"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.3.3",
@@ -49,7 +49,6 @@
     "@vitest/coverage-v8": "^5.0.2",
     "eslint": "^10.11.0",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.7",
     "fake-indexeddb": "^6.0.0",
     "globals": "^17.12.0",
     "jsdom": "^30.1.0",

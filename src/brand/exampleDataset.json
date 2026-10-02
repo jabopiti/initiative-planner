@@ -1,0 +1,76 @@
+{
+  "teams": [
+    { "key": "platform", "name": "Platform" },
+    { "key": "growth", "name": "Growth" }
+  ],
+  "people": [
+    { "key": "mara", "name": "Mara Voss", "role": "PM", "country": "Germany", "team": "platform" },
+    { "key": "lucia", "name": "Lucía Ramos", "role": "XD", "country": "Spain", "team": "platform" },
+    { "key": "jonas", "name": "Jonas Keller", "role": "TL", "country": "Germany", "team": "platform" },
+    { "key": "felix", "name": "Felix Brandt", "role": "Dev", "country": "Germany", "team": "platform" },
+    { "key": "elena", "name": "Elena Torres", "role": "Dev", "country": "Spain", "team": "platform" },
+    { "key": "carla", "name": "Carla Fernández", "role": "PM", "country": "Spain", "team": "growth" },
+    { "key": "tobias", "name": "Tobias Wagner", "role": "TL", "country": "Germany", "team": "growth" },
+    { "key": "sofia", "name": "Sofia Molina", "role": "Dev", "country": "Spain", "team": "growth" },
+    { "key": "paul", "name": "Paul Richter", "role": "Dev", "country": "Germany", "team": "growth" }
+  ],
+  "initiatives": [
+    {
+      "name": "Checkout Redesign",
+      "description": "Rebuild the checkout flow to cut abandonment.",
+      "owner": "mara",
+      "team": "platform",
+      "phases": {
+        "validation": {
+          "fromMonth": -3,
+          "toMonth": -1,
+          "allocations": [
+            { "person": "mara", "pct": 50 },
+            { "person": "lucia", "pct": 60 },
+            { "person": "jonas", "pct": 30 }
+          ]
+        },
+        "development": {
+          "fromMonth": 0,
+          "toMonth": 5,
+          "allocations": [
+            { "person": "mara", "pct": 30 },
+            { "person": "lucia", "pct": 40 },
+            { "person": "jonas", "pct": 50 },
+            { "person": "felix", "pct": 100 },
+            { "person": "elena", "pct": 80 }
+          ]
+        }
+      },
+      "passedGates": [
+        { "phase": "discovery", "month": -3 },
+        { "phase": "validation", "month": 0 }
+      ]
+    },
+    {
+      "name": "Fraud Detection Upgrade",
+      "description": "Replace the rules engine with a scored model.",
+      "team": "platform",
+      "passedGates": []
+    },
+    {
+      "name": "Onboarding Flow v2",
+      "description": "Shorten sign-up to the first successful action.",
+      "owner": "carla",
+      "team": "growth",
+      "phases": {
+        "validation": {
+          "fromMonth": -1,
+          "toMonth": 1,
+          "allocations": [
+            { "person": "carla", "pct": 60 },
+            { "person": "tobias", "pct": 20 },
+            { "person": "sofia", "pct": 50 }
+          ]
+        },
+        "development": { "fromMonth": 2, "toMonth": 7, "allocations": [] }
+      },
+      "passedGates": [{ "phase": "discovery", "month": -1 }]
+    }
+  ]
+}

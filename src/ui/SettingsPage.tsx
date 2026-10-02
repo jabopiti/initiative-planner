@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { AboutSection } from './AboutSection';
 import { ConnectionSection } from './ConnectionSection';
 import { CountriesSection } from './CountriesSection';
+import { DangerZoneSection } from './DangerZoneSection';
 import { ProcessSection } from './ProcessSection';
 import { RolesSection } from './RolesSection';
 import { useSectionLock } from './useSectionLock';
@@ -17,6 +18,7 @@ const SETTINGS_SECTIONS: { id: string; label: string }[] = [
   { id: 'process', label: 'Process' },
   { id: 'connection', label: 'Connection' },
   { id: 'about', label: 'About' },
+  { id: 'danger-zone', label: 'Danger zone' },
 ];
 
 export const DEFAULT_SECTION = SETTINGS_SECTIONS[0].id;
@@ -29,12 +31,14 @@ export function SettingsPage({ section }: { section: string }) {
   // whole component, does. A section other slices add gets its own `useSectionLock()` call here, the same way.
   const rolesLock = useSectionLock();
   const countriesLock = useSectionLock();
+  const dangerZoneLock = useSectionLock();
   const sections: Record<string, ReactNode> = {
     roles: <RolesSection lock={rolesLock} />,
     countries: <CountriesSection lock={countriesLock} />,
     process: <ProcessSection />,
     connection: <ConnectionSection />,
     about: <AboutSection />,
+    'danger-zone': <DangerZoneSection lock={dangerZoneLock} />,
   };
   const content = sections[active.id];
 

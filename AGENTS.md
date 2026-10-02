@@ -18,10 +18,15 @@ app never does).
 `npm run test:quiet` (Vitest, `--reporter=dot`) runs the suite once with
 minimal passing-test noise — failures still print full detail. `npm run
 test:watch` for iterating. `npm run typecheck` for a standalone type
-check.
+check. `npm run test:coverage` is what CI runs and it fails below the
+thresholds in vite.config.ts (raise them as coverage grows).
+`npm run test:e2e` drives the production build in Chromium against a fake
+GitHub (`e2e/support/fakeGithub.ts`): the strict CSP, real connect and
+planning flows, and an axe WCAG A/AA scan of each screen. A new screen
+gets a scan in `e2e/a11y.spec.ts`.
 
 ## Code style
-ESLint (`npm run lint`). No Prettier config yet — match surrounding
+ESLint (`npm run lint`, warnings fail it). No Prettier config yet — match surrounding
 style. This project uses Tailwind CSS v4: no `tailwind.config.js` —
 tokens live in CSS via `@theme`/`@theme inline`. Add UI components with
 `npx shadcn@latest add <component>`, not by hand-writing them or
@@ -70,8 +75,9 @@ While this repo's `data` branch is a development dataset (it is, until a
 real dataset is put there), you may empty or reset it at any time for
 testing, without asking — but only with `npm run dev:reset-data`, which
 empties teams, people and memberships and deletes initiative files,
-keeping roles and countries, or `npm run dev:seed-data`, which does that
-reset and then writes the example data from `backlog/example-data.md`.
+keeping roles and countries, or the app's own Settings → Danger zone
+(Reset, then Load example data for the brand pack's example teams, people
+and initiatives).
 This exception ends when real data lives on that branch: remove this
 section then.
 
@@ -85,9 +91,9 @@ section then.
   can still be set directly as a real environment variable — check for it
   (`[ -n "$VITE_DEV_TOKEN" ]`, never print it) before concluding there's
   no token; `npm run dev` picks it up either way, and the
-  `dev:reset-data`/`dev:seed-data` scripts (which invoke node with
+  `dev:reset-data` script (which invokes node with
   `--env-file=.env.local`) can be run directly as `node
-  scripts/<name>.mjs` to use the environment variable instead.
+  scripts/reset-dev-data.mjs` to use the environment variable instead.
 - Outbound requests: only the configured GitHub API host.
 - CSP forbids `eval`, `new Function`, inline scripts (§10.1, §10.9) —
   don't write code needing them.

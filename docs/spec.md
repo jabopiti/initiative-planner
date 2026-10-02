@@ -983,6 +983,12 @@ Contains the following sections:
   - **Reset**: returns the dataset to the fresh-install baseline (§2), which
     also removes any loaded example data.
 
+  Each is one commit (§10.3) and then opens the Portfolio. The example
+  initiatives load at different phases, their earlier gates passed at load
+  with the dataset's own rates; example people refer to roles by abbreviation
+  and countries by name, and one that is missing or inactive is added from
+  the fresh-install baseline.
+
 Lock/unlock behaviour is defined in §2.
 
 ### 5.10 Connect screen
@@ -1688,7 +1694,8 @@ delay. Critical information is never only in a tooltip.
   in one click and offer their undo (Resume, Reopen). Irreversible actions
   (delete, Reset) ask inline: the button turns into "Confirm …" with Cancel.
   Reset says what it removes, for example "This removes 12 initiatives, 34
-  people and 5 teams."
+  people and 5 teams, and sets roles, countries and rates back to their
+  defaults. This can't be undone."
 - **Messages:** there is no toast stack. A message appears where the action
   happened, near the control or in the magic bar. Success is silent; errors
   stay until they are resolved or dismissed.

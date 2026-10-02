@@ -197,7 +197,7 @@ function CostedPhase({
   const picker =
     team && teamMembers.length === 0 ? (
       <p className="m-0 text-sm text-text-secondary">
-        {team.name} has no active members yet. Add people on <a href={`#/teams/${team.id}`}>the team&apos;s page</a>.
+        {team.name} has no active members yet. Add people on <a href={`#/teams/${team.id}`} className="underline">the team&apos;s page</a>.
       </p>
     ) : addable.length > 0 ? (
       <div className="flex items-center gap-2">
