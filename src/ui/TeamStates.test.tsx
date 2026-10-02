@@ -59,7 +59,7 @@ describe('Portfolio empty state names the missing prerequisite (§9.4)', () => {
     renderWith(<PortfolioBoard />);
     expect(await screen.findByText('No teams yet.')).toBeInTheDocument();
     expect(screen.getByText('No initiatives yet')).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getAllByRole('button')).toHaveLength(2); // the empty state's one primary action, and the strip's Dismiss for now
     await user.click(screen.getByRole('button', { name: 'Create a team' }));
     expect(window.location.hash).toBe('#/teams');
   });
@@ -70,7 +70,7 @@ describe('Portfolio empty state names the missing prerequisite (§9.4)', () => {
     renderWith(<PortfolioBoard />);
     expect(await screen.findByText('All your teams are inactive.')).toBeInTheDocument();
     expect(screen.getByText('No initiatives yet')).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getAllByRole('button')).toHaveLength(2); // the empty state's one primary action, and the strip's Dismiss for now
     await user.click(screen.getByRole('button', { name: 'Reactivate a team' }));
     expect(window.location.hash).toBe('#/teams');
   });

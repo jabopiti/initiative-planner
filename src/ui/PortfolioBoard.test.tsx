@@ -12,6 +12,7 @@ import { PortfolioBoard } from './PortfolioBoard';
 import { rootListing } from '../sync/testing/rootListing';
 import { NO_FILTERS } from '../data/initiativeList';
 import { PORTFOLIO_DEFAULTS, type PortfolioFilters } from '../data/portfolio';
+import { resetGettingStartedDismissal } from './gettingStartedDismissal';
 import { resetSessionFilters, useSessionFilters } from './sessionFilters';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
@@ -68,6 +69,7 @@ afterAll(() => vi.unstubAllGlobals());
 afterEach(() => {
   cleanup();
   resetSessionFilters();
+  resetGettingStartedDismissal();
 });
 
 /** Shows the Initiatives table's filters, to prove the Portfolio's are kept apart. */
@@ -102,6 +104,33 @@ async function renderBoard(list: Initiative[], brand = defaultBrandPack) {
   );
   await screen.findByRole('button', { name: 'Status: Active' });
 }
+
+describe('Getting started strip on the Portfolio (§5.2)', () => {
+  it('shows above the empty state, with the steps the data has already done checked', async () => {
+    initiatives = [];
+    render(
+      <BrandProvider brand={defaultBrandPack}>
+        <TooltipProvider>
+          <RepositoryProvider token="token">
+            <NeedsAttentionProvider>
+              <Gated />
+            </NeedsAttentionProvider>
+          </RepositoryProvider>
+        </TooltipProvider>
+      </BrandProvider>,
+    );
+    const strip = await screen.findByRole('heading', { name: 'Getting started' });
+    expect(screen.getByText('No initiatives yet')).toBeInTheDocument();
+    expect(strip.compareDocumentPosition(screen.getByText('No initiatives yet')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(screen.getByRole('link', { name: /Create a team/ }).closest('li')!).getByText('Done')).toBeInTheDocument();
+  });
+
+  it('shows above the Needs attention strip once initiatives exist', async () => {
+    await renderBoard([big]);
+    const strip = screen.getByRole('heading', { name: 'Getting started' });
+    expect(strip.compareDocumentPosition(screen.getByRole('heading', { name: 'Needs attention' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
 
 /** A board card, not the Needs attention strip's link to the same initiative (strip links sit in list items). */
 const card = (name: string | RegExp) => screen.getAllByRole('link', { name }).find((a) => !a.closest('li'))!;

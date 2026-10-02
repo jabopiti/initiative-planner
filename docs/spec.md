@@ -1861,6 +1861,9 @@ separately from the dataset (§3, Authentication), and is never dropped to make
 room. The cache holds at most half the storage quota; over that, the oldest
 files are dropped first, initiative files before master files. The size rule in
 §3 (at most half the storage quota) is checked by an automated test.
+The Portfolio's **Dismiss for now** on the Getting started strip (§5.2) is kept in
+session storage, never synced; if session storage cannot be used, the
+dismissal lasts for the page's lifetime.
 
 ### 10.5 Merging
 
