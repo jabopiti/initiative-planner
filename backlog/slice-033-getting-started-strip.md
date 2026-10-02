@@ -90,3 +90,20 @@ None.
 
 - **Layout:** one row of four numbered steps; done steps stay visible, checked
   and muted, until all four are done.
+- **Layout (mockup option A):** a bordered row in the Needs attention card
+  style; a done step shows a green check badge in place of its number, an
+  open step keeps its number and is an underlined link. The row wraps on
+  narrow widths. A done step carries a visually hidden "Done" (§9.8).
+- **Copy:** only the §5.2 strings: "Getting started", "Review rates",
+  "Create a team", "Add people to the team", "Create your first initiative",
+  "Dismiss for now".
+- **Links with no active team:** item 3 opens the first active team's
+  detail, or Teams when no team is active; item 4 opens the draft page, or
+  Teams when no team is active (as the New initiative button does).
+- **Active member:** an active membership of an active person on an active
+  team. Until the dataset flags have loaded, rates count as not reviewed.
+- **Dismissal:** one session-storage key; every access in try/catch with an
+  in-memory fallback, so Dismiss lasts for the page's lifetime when storage
+  throws. It survives Settings › Reset within the same session.
+- **Tests:** component tests beside the strip, and an axe scan of the
+  Portfolio with the strip showing in `e2e/a11y.spec.ts`.
