@@ -33,7 +33,8 @@ test('a team, a person and an initiative are created, saved to the repository an
   await expect.poll(() => github.paths('initiatives/').length).toBe(1);
   const [path] = github.paths('initiatives/');
   expect(github.read<StoredInitiative>(path)).toMatchObject({ name: 'Checkout Redesign', status: 'Active' });
-  expect(github.writes.at(-1)).toEqual({ path, message: 'Checkout Redesign: created' });
+  const id = path.replace(/^initiatives\/(.*)\.json$/, '$1');
+  expect(github.writes.at(-1)).toEqual({ path, message: `Checkout Redesign: created\n\nEntity: initiative/${id}` });
 
   // A reload starts the app from the repository alone: everything above has to come back from there.
   await page.reload();

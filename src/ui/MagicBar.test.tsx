@@ -9,6 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
 import { rootListing } from '../sync/testing/rootListing';
+import { subjectOf } from '../sync/testing/commitMessage';
 
 const twenty = Array(12).fill(20);
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
@@ -37,7 +38,7 @@ beforeAll(() => {
     vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') {
         const body = JSON.parse(String(init.body)) as { message: string; content: string };
-        puts.push({ message: body.message, content: JSON.parse(atob(body.content)) });
+        puts.push({ message: subjectOf(body.message), content: JSON.parse(atob(body.content)) });
         return json({ content: { sha: 'next' } });
       }
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();

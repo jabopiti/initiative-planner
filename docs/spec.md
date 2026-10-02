@@ -1842,8 +1842,9 @@ dataset changes onto the app branch instead of the data branch with no error
 (confirmed against the real API; spike-findings.md). No code path may omit it.
 
 Commit messages are written by the app in plain words, for example "Payments
-API: Development period set to Apr–Sep", with the entity's id in a trailer
-line, so the history reads as a change log.
+API: Development period set to Apr–Sep", with one trailer line per touched
+entity, `Entity: <kind>/<id>` (each entity once, in first-edit order), so the
+history reads as a change log. Multi-file and dataset-level commits carry none.
 Edits grouped into one commit are described by their net effect: what
 changed between the saved state before and after, per entity and field. An
 added-then-changed entity reads as added with its final values, an
