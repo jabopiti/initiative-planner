@@ -1515,7 +1515,8 @@ computed, so the strip never invents a separate colour scale.
 
 ### 9.1 Theming
 
-System (follows the OS), Light or Dark, cycled by one control and
+System (follows the OS), Light or Dark, chosen from one control (an icon
+button at the right end of the top bar opening a menu of the three) and
 remembered across reloads in the browser (never synced). The resolved
 theme is applied as a single `.dark` class on the document root; every
 page repaints under all three without a reload, because every CSS rule
