@@ -8,7 +8,7 @@ depends_on: ["017", "029"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Fourth of the four Settings slices (§5.9), added in review. Needs two things the build lacks: the brand pack's example dataset file (§2; today the example exists only as backlog/example-data.md and a dev script), and deleting files in a multi-file commit: `createFilesCommit` (Git data API, used at setup) writes several files in one commit today, but a Reset must also remove every initiative file."
+change_summary: "Fourth of the four Settings slices (§5.9), added in review. Needs two things the build lacks: the brand pack's example dataset file (§2; today the example exists only as backlog/example-data.md and a dev script), and deleting files in a multi-file commit: `createFilesCommit` (Git data API, used at setup) writes several files in one commit today, but a Reset must also remove every initiative file. Review settled: the example initiatives load with their earlier gates passed (snapshots computed at load), example people match roles by abbreviation and countries by name with any missing one added from the baseline, the dev seed script is retired in favour of the in-app Load, and the Danger zone is a bordered alarm card with the drafted copy."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "The first many-file write: one commit through the Git data API (blobs, tree, commit, ref update) that must fail atomically, and must interleave safely with the one writer's pending edits and other users' pulls. Irreversible for the user, so every path needs fake-repository tests."
 spec_sections: ["§5.9 Settings (Danger zone)", "§2 What the build fixes (Brand pack: fresh-install baseline, example dataset; Editable by the user)", "§3 Storage & sync (Setup, Sync behaviour)", "§9.3 Deletion rules", "§9.9 Interface states (Confirmations)", "§10.2 Data layout", "§10.3 Writing"]
@@ -86,7 +86,19 @@ a developer tool.
       initiatives are written in one commit, with dates relative to this month,
       and the Portfolio opens.
 - [ ] Given Reset, then the button becomes "Confirm reset" with Cancel and the
-      counted line "This removes <n> initiatives, <n> people and <n> teams."
+      counted line "This removes <n> initiatives, <n> people and <n> teams,
+      and sets roles, countries and rates back to their defaults. This can't
+      be undone." (a zero count left out, the singular for 1).
+- [ ] Given Load example data, then Checkout Redesign is in Development and
+      Onboarding Flow v2 in Validation with their earlier gates passed (frozen
+      snapshot and approval track from the dataset's rates), and Fraud
+      Detection Upgrade is in Discovery.
+- [ ] Given a role abbreviation or country name the example needs is missing
+      or inactive, then Load adds it from the brand pack's baseline in the
+      same commit.
+- [ ] Given someone adds a person, team or initiative between the check and
+      the commit, then Load stops with "Not loaded: someone added data
+      meanwhile. Reset first." and writes nothing.
 - [ ] Given Confirm reset, then one commit leaves only the baseline (roles,
       countries, rates, empty teams/people/memberships, no initiative files),
       and the Portfolio empty state opens.
@@ -109,9 +121,52 @@ a developer tool.
 ## Flags and compromises
 
 The example dataset file duplicates `backlog/example-data.md`'s content in
-the brand pack; the dev seed script should read the brand-pack file afterwards
-so the two can't drift (small follow-up inside this slice if cheap).
+the brand pack. The dev seed script is retired rather than taught to read the
+file (it would need the app's cost engine for the passed gates); developers
+and agents load example data in the app instead.
 
 ## Decided in review (pre-implementation)
 
 - **After Reset or Load:** land on the Portfolio; the Danger zone re-locks.
+- **Example initiatives:** Checkout Redesign loads in Development (G1 and G2
+  passed), Onboarding Flow v2 in Validation (G1 passed), Fraud Detection
+  Upgrade in Discovery. Passed gates' checklist items are complete; each gate
+  is passed at load through the app's own `passGate`, so frozen snapshots and
+  approval tracks come from the dataset's current rates. Content otherwise
+  follows today's seed script (people, teams, memberships, phase plans).
+- **Example file:** `src/brand/exampleDataset.json`, bundled. Phase dates are
+  month offsets from the load month (a phase starts on the 1st, ends on the
+  last day of a month); people refer to roles by abbreviation and countries by
+  name.
+- **Roles and countries on Load:** matched among active roles (abbreviation)
+  and countries (name); any missing one is added from the brand pack's
+  fresh-install baseline in the same commit. `ratesReviewed` is unchanged.
+- **Seed script retired:** `scripts/seed-dev-data.mjs` and `npm run
+  dev:seed-data` are removed; AGENTS.md, `.claude/settings.json` and the
+  `run-initiative-planner` skill point to `npm run dev:reset-data`, then
+  Settings → Danger zone → Load example data (or the in-app Reset).
+- **Layout (Option 1):** heading "Danger zone" with the lock toggle; locked,
+  "Locked. Unlock to edit." Below, one card with an Alarm border, two rows,
+  each a title, a description and its button on the right:
+  - "Load example data" — "Fills an empty dataset with example teams, people
+    and initiatives." Outline button; disabled with "Reset first" under it
+    while there is data.
+  - "Reset" — "Returns the dataset to a fresh install." Outline Alarm button;
+    clicked, a confirmation opens under the row: "This removes 3 initiatives,
+    9 people and 2 teams, and sets roles, countries and rates back to their
+    defaults. This can't be undone." with **Confirm reset** (Alarm fill) and
+    **Cancel**, focus on Cancel, Esc closes. With nothing to remove the line
+    reads "This sets roles, countries and rates back to their defaults. This
+    can't be undone."
+- **States:** busy "Resetting…" / "Loading…" (both buttons disabled); errors
+  under the action, Alarm text with the warning icon, until retried or
+  cancelled: "Not reset: <cause>.", "Not loaded: <cause>.", and for data
+  added meanwhile "Not loaded: someone added data meanwhile. Reset first."
+  Both actions are disabled while the app is read-only (§3).
+- **Counts** include inactive people and teams; "has data" does too.
+- **Writing:** through the shared write queue. A ref update refused as not a
+  fast-forward rebuilds on the new head (Reset re-lists `initiatives/` there;
+  Load re-checks emptiness), up to 3 times (§10.3). Reset waits for a save in
+  flight, then drops every pending, failed or conflicted edit and closes open
+  conflicts; Load flushes pending edits first. Either pulls right after its
+  commit, then opens the Portfolio.

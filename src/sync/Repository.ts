@@ -1,6 +1,7 @@
 import type { BrandPack } from '../brand/types';
 import { cacheScope, FileCache, type CacheMeta } from '../cache/db';
-import { buildBaselineDataset } from '../data/baseline';
+import { buildBaselineDataset, type BaselineDataset } from '../data/baseline';
+import { buildExampleData } from '../data/exampleDataset';
 import { newId } from '../data/ids';
 import {
   FILE_PATHS,
@@ -27,7 +28,7 @@ import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
 import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { GithubClient, type BranchHead } from '../github/client';
+import { GithubClient, parseJsonFile, type BranchHead } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
@@ -103,6 +104,24 @@ interface PulledFile {
 
 /** The commit message deleting an initiative (§10.3). */
 const deletedMessage = (initiative: Initiative): string => `${initiative.name}: deleted`;
+
+const jsonFile = (path: string, value: unknown) => ({ path, content: JSON.stringify(value) });
+
+/** The master files of a fresh-install baseline (§2), as written. */
+const baselineFiles = (baseline: BaselineDataset) => [
+  jsonFile(FILE_PATHS.datasetFlags, baseline.datasetFlags),
+  jsonFile(FILE_PATHS.roles, baseline.roles),
+  jsonFile(FILE_PATHS.countries, baseline.countries),
+  jsonFile(FILE_PATHS.teams, baseline.teams),
+  jsonFile(FILE_PATHS.people, baseline.people),
+  jsonFile(FILE_PATHS.memberships, baseline.memberships),
+];
+
+/** How Load example data ended (§5.9): loaded, stopped because the dataset has data, or failed with the cause. */
+export type LoadExampleResult = 'loaded' | 'not-empty' | { failed: ReadOnlyState };
+
+/** How Reset ended (§5.9): reset, or failed with the cause. */
+export type ResetResult = 'reset' | { failed: ReadOnlyState };
 
 const pulledFile = ({ content, sha }: { content: string; sha: string }): PulledFile => ({ raw: content, sha, value: JSON.parse(content) });
 
@@ -219,6 +238,8 @@ export class Repository {
   /** Why the last delete failed (§9.9): shown in the read-only banner until a pull succeeds. */
   private deleteFailure: ReadOnlyState | null = null;
   private tintTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The pull running brings in this client's own Reset or Load (§5.9): nothing it changes is "updated by others". */
+  private ownCommitPull = false;
 
   constructor(
     private readonly brand: BrandPack,
@@ -504,7 +525,7 @@ export class Repository {
     if (removed.size > 0) this.forgetInitiatives(removed);
     if (added.length > 0) this.setState({ initiatives: [...this.state.initiatives, ...added] });
 
-    if (changed.length > 0) this.markChanged(changed);
+    if (changed.length > 0 && !this.ownCommitPull) this.markChanged(changed);
     return complete;
   }
 
@@ -818,14 +839,7 @@ export class Repository {
       this.github.createFilesCommit({
         branch,
         message: 'Initialize dataset from fresh-install baseline',
-        files: [
-          { path: FILE_PATHS.datasetFlags, content: JSON.stringify(baseline.datasetFlags) },
-          { path: FILE_PATHS.roles, content: JSON.stringify(baseline.roles) },
-          { path: FILE_PATHS.countries, content: JSON.stringify(baseline.countries) },
-          { path: FILE_PATHS.teams, content: JSON.stringify(baseline.teams) },
-          { path: FILE_PATHS.people, content: JSON.stringify(baseline.people) },
-          { path: FILE_PATHS.memberships, content: JSON.stringify(baseline.memberships) },
-        ],
+        files: baselineFiles(baseline),
       }),
     );
   }
@@ -1764,6 +1778,87 @@ export class Repository {
       ...patch,
     });
     this.publishStatus();
+  }
+
+  /**
+   * Load example data (§2, §5.9): the brand pack's example people, teams and initiatives in one commit "Example data
+   * loaded" (§10.3), after every edit waiting to be saved has been. It never overwrites: it stops when the data
+   * branch, read at the head the commit builds on, has any person, team, membership or initiative.
+   */
+  async loadExampleData(today: Date = new Date()): Promise<LoadExampleResult> {
+    await this.flushPending();
+    const result = await this.commitDataset('Example data loaded', 'Something went wrong loading the example data.', async (at) => {
+      const read = async <T>(path: string, fallback: T): Promise<T> => parseJsonFile(await this.github.getFile({ path, branch: at }), fallback);
+      const [teams, people, memberships, initiatives, roles, countries] = await Promise.all([
+        read<Team[]>(FILE_PATHS.teams, []),
+        read<Person[]>(FILE_PATHS.people, []),
+        read<Membership[]>(FILE_PATHS.memberships, []),
+        this.github.listDirectory({ path: 'initiatives', branch: at }),
+        read<Role[]>(FILE_PATHS.roles, []),
+        read<Country[]>(FILE_PATHS.countries, []),
+      ]);
+      if (teams.length + people.length + memberships.length + initiatives.length > 0) return null;
+      const data = buildExampleData(this.brand, { roles, countries }, today);
+      return {
+        files: [
+          jsonFile(FILE_PATHS.teams, data.teams),
+          jsonFile(FILE_PATHS.people, data.people),
+          jsonFile(FILE_PATHS.memberships, data.memberships),
+          // Roles and countries only grow when one the example needs was added from the baseline.
+          ...(data.roles.length > roles.length ? [jsonFile(FILE_PATHS.roles, data.roles)] : []),
+          ...(data.countries.length > countries.length ? [jsonFile(FILE_PATHS.countries, data.countries)] : []),
+          ...data.initiatives.map((i) => jsonFile(FILE_PATHS.initiative(i.id), i)),
+        ],
+        deletes: [],
+      };
+    });
+    if (typeof result === 'object') return result;
+    return result === 'stopped' ? 'not-empty' : 'loaded';
+  }
+
+  /**
+   * Reset (§5.9): the dataset back to the fresh-install baseline (§2) in one commit "Dataset reset" (§10.3) — roles,
+   * countries and rates from the brand pack, `ratesReviewed` false, no people, teams, memberships or initiatives.
+   * Every edit not saved yet is dropped first (it would bring data back); a save in flight finishes. The initiative
+   * files removed are those the data branch lists at the head the commit builds on, so one created meanwhile goes too.
+   */
+  async resetDataset(): Promise<ResetResult> {
+    await Promise.all(this.allWriters().map(([, writer]) => writer.drop()));
+    const result = await this.commitDataset('Dataset reset', 'Something went wrong resetting the dataset.', async (at) => {
+      const listed = await this.github.listDirectory({ path: 'initiatives', branch: at });
+      return {
+        files: baselineFiles(buildBaselineDataset(this.brand)),
+        deletes: listed.filter((entry) => entry.type === 'file').map((entry) => entry.path),
+      };
+    });
+    return typeof result === 'object' ? result : 'reset';
+  }
+
+  /** One many-file commit on the data branch through the write queue (§10.3), then this client pulls it in. */
+  private async commitDataset(
+    message: string,
+    failureText: string,
+    build: Parameters<GithubClient['commitOnHead']>[0]['build'],
+  ): Promise<'done' | 'stopped' | { failed: ReadOnlyState }> {
+    let result: { commitSha: string } | 'stopped';
+    try {
+      result = await this.queue.run(() => this.github.commitOnHead({ branch: this.brand.github.dataBranch, message, build }));
+    } catch (error) {
+      return { failed: toReadOnlyState(error, failureText) };
+    }
+    await this.pullOwnCommit();
+    return result === 'stopped' ? 'stopped' : 'done';
+  }
+
+  /** Brings in this client's own many-file commit at once, through the ordinary pull (§3), without the "updated by others" tint. */
+  private async pullOwnCommit(): Promise<void> {
+    await this.pulling;
+    this.ownCommitPull = true;
+    try {
+      await this.pull();
+    } finally {
+      this.ownCommitPull = false;
+    }
   }
 
   /** Flush any pending debounced write immediately (page unload). */

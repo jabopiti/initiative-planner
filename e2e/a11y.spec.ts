@@ -56,6 +56,7 @@ test('the app screens have no accessibility violations', async ({ page }) => {
     ['/#/settings/process', section('Process')],
     ['/#/settings/connection', section('Connection')],
     ['/#/settings/about', section('About')],
+    ['/#/settings/danger-zone', section('Danger zone')],
   ];
   for (const [route, ready] of screens) {
     await page.goto(route);

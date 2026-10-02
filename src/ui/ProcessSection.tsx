@@ -1,10 +1,10 @@
 import { useBrand } from '../state/BrandContext';
 import { formatAmount } from './formatAmount';
+import { plural } from './plural';
 import { ChevronRightIcon, PhaseIcon } from './icons';
 import type { ApprovalTrackDef, GateDef } from '../brand/types';
 
 const cell = 'border-b border-border-default px-3 py-2';
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 /** "€50,000 – €200,000", or "€200,000 and above" for a track with no upper bound (§5.9). */
 function trackBounds(track: ApprovalTrackDef, symbol: string): string {
