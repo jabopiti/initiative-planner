@@ -34,7 +34,7 @@ cause and message the spec names, and a hung request ends.
   403 or 429 with remaining 0, a `retry-after`, or a body naming a rate limit
   is `rate-limited`; any other 403 stays `access-denied`.
 - 5xx and network failures are `unreachable` (the banner already exists for
-  them), and join the writers' automatic retry causes.
+  them); the 30 s recovery loop retries them, as for rate limits.
 - A request timeout (default 30 s, injectable) aborts the fetch and counts as
   `unreachable`; the write queue moves on.
 - A 422 non-fast-forward on updateRef while bootstrapping an existing branch
@@ -58,7 +58,7 @@ cause and message the spec names, and a hung request ends.
       and a 403 whose body says "rate limit", then each is `rate-limited`.
 - [ ] Given a plain 403, then it is `access-denied`.
 - [ ] Given 500, 502, 503 and a network error, then each is `unreachable` and
-      auto-retried by writers.
+      retried by the 30 s recovery loop.
 - [ ] Given a fetch that never settles (fake clock), then it aborts at the
       timeout and the next queued write runs.
 - [ ] Given the token check, then a rate-limited `/user` call does not read as
@@ -75,5 +75,6 @@ None.
 ## Open decisions
 
 - Timeout length (recommended 30 s; blobs for large files may need longer).
-- Whether "unreachable" is auto-retried by writers with the 037 backoff or by
-  the 30 s recovery loop only (recommended: the loop, as for rate limits).
+- Whether "unreachable" is also auto-retried by writers with the 037 backoff
+  (recommended: no, the loop only, as for rate limits). Scope and criteria
+  assume the loop; if the user picks writer retry, change both.
