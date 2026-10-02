@@ -140,7 +140,7 @@ describe('custom role in the person panel (slice 005b)', () => {
     expect(within(panel).getByRole('spinbutton', { name: `Day rate ${thisYear}` })).toHaveValue(900);
   });
 
-  it('rejects a negative or unreadable rate and puts the last value back', async () => {
+  it('rejects a negative rate inline and keeps the typed text until the field is fixed', async () => {
     const { user, panel } = await openPanel();
     await user.click(within(panel).getByRole('radio', { name: 'Custom role' }));
     const current = within(panel).getByRole('spinbutton', { name: `Day rate ${thisYear}` });
@@ -149,6 +149,34 @@ describe('custom role in the person panel (slice 005b)', () => {
     await user.clear(current);
     await user.type(current, '-5');
     await user.tab();
-    expect(current).toHaveValue(800);
+    expect(within(panel).getByText('Enter a day rate of 0 or more.')).toBeInTheDocument();
+    expect(current).toHaveValue(-5);
+    await user.clear(current);
+    await user.type(current, '900');
+    await user.tab();
+    expect(within(panel).queryByText('Enter a day rate of 0 or more.')).not.toBeInTheDocument();
+    expect(current).toHaveValue(900);
+  });
+
+  it('refuses a cost factor of 0 and a bad day rate inline instead of reverting silently', async () => {
+    const { user, panel } = await openPanel();
+    await user.click(within(panel).getByRole('radio', { name: 'Custom role' }));
+
+    const factor = within(panel).getByRole('spinbutton', { name: 'Cost factor' });
+    await user.clear(factor);
+    await user.type(factor, '0');
+    await user.tab();
+    expect(within(panel).getByText('Enter a cost factor above 0.')).toBeInTheDocument();
+    expect(factor).toHaveValue(0);
+
+    const rate = within(panel).getByRole('spinbutton', { name: `Day rate ${thisYear}` });
+    await user.type(rate, '-5');
+    await user.tab();
+    expect(within(panel).getByText('Enter a day rate of 0 or more.')).toBeInTheDocument();
+  });
+
+  it('ties the Capacity label to its field', async () => {
+    const { panel } = await openPanel();
+    expect(within(panel).getByLabelText('Capacity')).toBe(within(panel).getByRole('spinbutton', { name: 'Capacity %' }));
   });
 });

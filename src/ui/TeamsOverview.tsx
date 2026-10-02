@@ -109,7 +109,7 @@ export function TeamsOverview() {
               if (e.key === 'Escape') setCreating(false);
             }}
           >
-            <Input ref={inputRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Team name" />
+            <Input ref={inputRef} aria-label="Team name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Team name" />
             <Button type="submit" disabled={!name.trim()}>
               Create
             </Button>

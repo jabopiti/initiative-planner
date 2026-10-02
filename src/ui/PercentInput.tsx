@@ -16,6 +16,7 @@ export function PercentInput({
   value,
   max,
   label,
+  id,
   disabled,
   flat,
   changed,
@@ -27,6 +28,8 @@ export function PercentInput({
   value: number;
   max?: number;
   label: string;
+  /** The id a visible `<Label htmlFor>` points at. */
+  id?: string;
   disabled?: boolean;
   /** Lays the field and its message out as items of the parent flex-wrap row; the message wraps below it. */
   flat?: boolean;
@@ -58,6 +61,7 @@ export function PercentInput({
         max={limit}
         className="w-16"
         errorClassName={messageClass}
+        id={id}
         aria-label={label}
         disabled={disabled}
         value={String(value)}
