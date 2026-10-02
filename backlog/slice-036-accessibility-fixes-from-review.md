@@ -95,3 +95,22 @@ table; the full sentence stays in the banner.
 ## Decided in review (pre-implementation)
 
 - **Rejoin:** reactivates the existing membership record; no new record.
+- **Commit wording:** a membership going from inactive to active is committed
+  as "<Person>: rejoined <Team>" from both the person panel's Add to team and
+  the team detail's Reactivate button; a changed Team FTE % is appended
+  ("…, Team FTE % set to 20%").
+- **Sync label:** read-only reads "Read-only · <cause>" in Warning: "Cannot
+  reach GitHub", "Rate limited", "Access denied", "Dataset newer than this
+  build", "Different process build", and "Cannot save" for any other cause.
+  Dataset refusals get their own failure cause so the last three can be told
+  apart.
+- **Rejoin entry:** the person panel lists a team with an inactive membership
+  by its plain name, like any other joinable team.
+- **Add member keys:** no option is active until ArrowDown; Enter with none
+  active does nothing; arrows wrap; options are not tab stops; blur closes
+  the list and keeps the text.
+- **Rejoin cap message:** the panel remembers a clamp on rejoin so the
+  existing cap message shows beside the field.
+- **Synced icon:** `role="img"` with the accessible name; no live region.
+- **Tests:** an axe scan of Team detail with the Add member list open joins
+  `e2e/a11y.spec.ts`.
