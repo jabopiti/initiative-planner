@@ -602,7 +602,8 @@ icon, the sync indicator (§3) and the theme control (§9.1):
 
 The **New initiative** button names the missing prerequisite while there is
 no active team, so it is never a dead end: it reads **Create a team** while no
-team exists and **Reactivate a team** while teams exist but none is active,
+team exists (hidden on the Portfolio, whose welcome card carries that action,
+§9.4) and **Reactivate a team** while teams exist but none is active,
 and either opens the Teams overview. With an active team it reads **New
 initiative** and opens a **draft page**, laid out like the
 initiative's header (§5.4): the name field is the title and is focused, with
@@ -658,7 +659,12 @@ Contents, top to bottom:
   once any rate is edited or **Rates are correct** is confirmed, §5.9),
   **Create a team**, **Add people to the team**, and **Create your first
   initiative**. Each item links to where it is done and clears when the data
-  shows it is done; the strip disappears when none remain. A **Dismiss for
+  shows it is done; the strip disappears when none remain. Cleared items
+  stay in the strip, ticked and struck through, beside a count ("2 of 4
+  done") and a small progress bar. With three of four done the strip
+  collapses to a chip in the filter row ("Getting started · 3 of 4 done")
+  that opens the remaining step in a popover. While no team exists the strip
+  is shown instead as the Portfolio's welcome card (§9.4). A **Dismiss for
   now** on the strip hides it for the browser session; it reappears on the
   next visit if items are still outstanding. It never blocks anything. The
   state is derived from the dataset, so every user sees the same strip, and
@@ -795,7 +801,12 @@ Its layout follows the design rules in §9.8.
 
 - **Header**: initiative name (editable), description (editable, plain text,
   1–2 lines), owner (selected from People list), team, status badge,
-  approval track badge, and the Actions menu. Changing the team while
+  approval track badge, and the Actions menu. Under them, a **time strip**:
+  one segment per phase, sized by its period and labelled with its name and
+  cost, past and current phases filled, a phase without a period hatched,
+  month labels beneath and a **Today** marker; selecting a segment scrolls
+  to that phase. It adds time to the magic bar's status stepper and is not
+  interactive otherwise. Changing the team while
   allocations exist asks for an inline confirmation first, naming the people
   who are not on the new team and will be removed from the phases that are
   still open (§7.2); it is not possible on a Closed or Cancelled initiative.
@@ -960,7 +971,9 @@ Contains the following sections:
   (§8.1), falling in that year (day rate) or month (working days), of a
   person in that country — for a day rate, excluding a person whose active
   custom role replaces it. A locked section shows its
-  values read-only with a hint on how to unlock. A **Rates are correct**
+  values as plain text, not disabled fields, with **Unlock to edit** in the
+  section header; unlocked, the fields appear, the header shows an
+  "Editing" tag and the button reads **Lock**. A **Rates are correct**
   confirmation clears the Getting started item (§5.2).
 - **Process** (read-only): a vertical timeline of the phases in order, each
   with its label, description and, for costed phases, its default duration.
@@ -1053,7 +1066,7 @@ A pasted token is checked immediately, and the result is specific:
 | Cannot see the repository | "This token can't see <repository>. Create it with access to that repository." |
 | Read-only | "This token can read but not write. Set Contents to Read and write." |
 | Waiting for approval | "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." |
-| Expired or invalid (a 401) | "GitHub doesn't accept this token." |
+| Expired or invalid (a 401) | "GitHub doesn't accept this token. It has probably expired or been revoked, or part of it is missing from the paste.", then a **Create a new token** link opening GitHub's token page as in step 1 |
 | Network failure or a server error while checking | "Couldn't reach GitHub to check the token. Check your connection and try again." The token stays in the field and the check can be run again. |
 
 ### 5.11 Suggestions and shortcuts
@@ -1569,11 +1582,15 @@ People and Teams overviews, and the members, initiatives and capacity
 sections of the team detail — shows a single line saying what it holds and
 **one primary action** (for example "No initiatives yet — Create your first
 initiative"). The Portfolio with no initiatives shows the same instead of an
-empty board; its action is **Create a team** while no team exists,
+empty board. While no team exists, that empty state is a **welcome card**
+instead: "Welcome to <product>", the line "Four steps to your first costed
+initiative." and the four Getting started items (§5.2) as rows, cleared ones
+ticked, with the next item's action as the card's only primary button; the
+top bar's create button is hidden meanwhile, so "Create a team" appears
+once. Otherwise its action is
 **Reactivate a team** (opening the Teams overview) while teams exist but none
-is active, and **Create your first initiative** after. The first two add a
-line under the heading saying why: "No teams yet." and "All your teams are
-inactive."
+is active, and **Create your first initiative** after. Reactivate a team
+adds a line under the heading saying why: "All your teams are inactive."
 
 An action blocked by a missing prerequisite links to it instead of
 dead-ending: an allocation section on a team without members reads "This

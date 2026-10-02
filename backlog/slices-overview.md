@@ -118,7 +118,7 @@ for the AI-agent-driven build the team asked for:
 | 042 | UX review quick fixes: fields, focus, row actions and small copy | ✅ valid | 036 |
 | 043 | Initiative detail: current phase first, complete gate panel, clearer magic bar | ✅ valid | 015, 026 |
 | 044 | Visual refresh: theme control, type scale, surfaces and status badges | ✅ valid | 042 |
-| 045 | Page shell and layout: shared container, two-column detail, first-run and empty states | ✅ valid | 043, 044 |
+| 045 | Page shell and layout: shared container, phase time strip, first-run and empty states | ✅ valid | 043, 044 |
 | 046 | Detail components: key figures, labelled checklist, period range picker, motion | ✅ valid | 043, 044 |
 
 ## Dependency chain
