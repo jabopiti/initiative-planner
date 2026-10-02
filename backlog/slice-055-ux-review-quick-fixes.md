@@ -111,10 +111,6 @@ screenshots.
       separator.
 - [ ] Given the Actions menu closes, then its tooltip stays closed.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 Copy strings above are drafts from the review; the next-slice session

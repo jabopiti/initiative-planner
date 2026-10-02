@@ -79,10 +79,6 @@ names and a Pass gate that reads as a button even when blocked.
 - [ ] Given an actual cost row, then € is inside the field and "Use
       estimate" is a labelled text button.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 §9.10 says phases are icon-only in the stepper; F07 recommends labels.

@@ -93,10 +93,6 @@ time strip; first-run and empty states each have one clear action.
       links to creating a new token.
 - [ ] Given the e2e axe scan in both themes, then every changed screen passes.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 If the session finds it too large, split as 058 (shell, detail column,

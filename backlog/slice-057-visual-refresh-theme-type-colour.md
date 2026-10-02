@@ -86,10 +86,6 @@ used everywhere, and colour still only carries meaning (§9.8).
 - [ ] Given the production build, then no request leaves for any host but
       the GitHub API (fonts are bundled).
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 The page shell and two-column detail layout are slice 058, which builds on

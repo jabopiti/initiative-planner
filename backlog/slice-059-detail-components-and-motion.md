@@ -98,10 +98,6 @@ a stay, and changes are confirmed by small, purposeful motion.
 - [ ] Given the e2e axe scan in both themes, then the detail page passes
       with the picker open.
 
-## Delivery gate
-
-- [ ] Deployed to production-equivalent environment
-
 ## Flags and compromises
 
 Saving on Done is the one exception to "fields save as you edit"; agreed
