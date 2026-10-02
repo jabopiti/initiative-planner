@@ -171,4 +171,15 @@ describe('Deleted by someone else (§3)', () => {
     expect(screen.getByText("Checkout Redesign test was deleted, so your last change to it wasn't saved.")).toBeInTheDocument();
     expect(fake.has(PATH)).toBe(false);
   });
+
+  it('offers one way back to the Portfolio on the not-found page (§9.4)', async () => {
+    const user = userEvent.setup();
+    renderPage(copy());
+    await screen.findByRole('textbox', { name: 'Initiative name' });
+    fake.remove(PATH);
+    await user.type(screen.getByRole('textbox', { name: 'Initiative name' }), 'x{Enter}');
+    await screen.findByText("This initiative couldn't be found.", {}, { timeout: 3000 });
+    await user.click(screen.getByRole('button', { name: 'Back to Portfolio' }));
+    expect(window.location.hash).toBe('#/portfolio');
+  });
 });

@@ -19,6 +19,14 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
   const repository = useRepository();
   const { teams } = useRepositoryState();
   const [name, setName] = useState('');
+  // On the window, so Esc works wherever focus is; a dropdown that Esc just closed has already claimed the key.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented) navigate('/portfolio', { replace: true });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
   // The team page presets its own team (§5.8); a team that is gone or inactive is not chosen for the user.
   const [picked, setPicked] = useState<string | null>(null);
   const teamId = picked ?? (teams.some((t) => t.id === presetTeamId && t.active) ? presetTeamId! : '');
@@ -51,13 +59,7 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
   }
 
   return (
-    <div
-      className="max-w-page p-8"
-      onKeyDown={(e) => {
-        // A dropdown that Esc just closed has already claimed the key.
-        if (e.key === 'Escape' && !e.defaultPrevented) navigate('/portfolio', { replace: true });
-      }}
-    >
+    <div className="max-w-page p-8">
       <div className="flex items-center gap-3">
         <Input
           autoFocus

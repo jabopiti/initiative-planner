@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { navigate } from '../router/useHashRoute';
+import { Button } from '@/components/ui/button';
 import { isInitiativeFrozen } from '../data/frozen';
 import { FILE_PATHS } from '../data/types';
 import { useFieldConflict } from '../state/ConflictUi';
@@ -38,6 +40,9 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
         {deletedWithLostEdit.has(id) && (
           <p className="text-sm text-text-secondary">{deletedWithLostEdit.get(id)} was deleted, so your last change to it wasn&apos;t saved.</p>
         )}
+        <Button type="button" className="mt-3" onClick={() => navigate('/portfolio')}>
+          Back to Portfolio
+        </Button>
       </div>
     );
   }
