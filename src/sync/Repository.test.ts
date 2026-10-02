@@ -320,6 +320,43 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     ]);
   });
 
+  it('rejoins an inactive membership: same id, Team FTE % kept but capped at what is unclaimed, one record', async () => {
+    const mock = routingFetchMock();
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const team = repo.createTeam('Platform');
+    const other = repo.createTeam('Payments');
+    const ada = repo.createPerson({ name: 'Ada Lovelace', countryId: 'c1', roleId: 'r1' });
+    const first = repo.addMembership(ada.id, team.id)!;
+    repo.updateMembership(first.id, { teamFtePct: 70 });
+    repo.updateMembership(first.id, { active: false });
+    repo.addMembership(ada.id, other.id); // takes the 100% now unclaimed
+    await repo.flushPending();
+
+    const rejoined = repo.addMembership(ada.id, team.id)!;
+    await repo.flushPending();
+    expect(rejoined.id).toBe(first.id);
+    expect(rejoined).toMatchObject({ active: true, teamFtePct: 0 });
+    expect(repo.getState().memberships.filter((m) => m.teamId === team.id)).toHaveLength(1);
+    expect(messagesFor(mock, 'memberships.json').at(-1)).toBe('Ada Lovelace: rejoined Platform, Team FTE % set to 0%');
+  });
+
+  it('words every inactive-to-active membership change as a rejoin', async () => {
+    const mock = routingFetchMock();
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const team = repo.createTeam('Platform');
+    const ada = repo.createPerson({ name: 'Ada Lovelace', countryId: 'c1', roleId: 'r1' });
+    const m = repo.addMembership(ada.id, team.id)!;
+    repo.updateMembership(m.id, { active: false });
+    await repo.flushPending();
+    repo.updateMembership(m.id, { active: true }, true);
+    await repo.flushPending();
+    expect(messagesFor(mock, 'memberships.json').at(-1)).toBe('Ada Lovelace: rejoined Platform');
+  });
+
   it('says which team was deactivated and reactivated (§9.3)', async () => {
     const mock = routingFetchMock();
     vi.stubGlobal('fetch', mock);

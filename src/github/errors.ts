@@ -4,6 +4,8 @@ export type GithubFailureCause =
   | 'rate-limited'
   | 'not-found'
   | 'conflict'
+  | 'dataset-newer'
+  | 'process-mismatch'
   | 'unknown';
 
 export class GithubApiError extends Error {
@@ -54,4 +56,17 @@ export const AUTOMATIC_RETRY_CAUSES: readonly GithubFailureCause[] = ['unreachab
 /** `state.message` without trailing punctuation, for splicing into a sentence (e.g. "Not saved: `<this>`."). */
 export function causeText(state: ReadOnlyState): string {
   return state.message.replace(/[.\s]+$/, '');
+}
+
+const SHORT_CAUSES: Partial<Record<GithubFailureCause, string>> = {
+  unreachable: 'Cannot reach GitHub',
+  'rate-limited': 'Rate limited',
+  'access-denied': 'Access denied',
+  'dataset-newer': 'Dataset newer than this build',
+  'process-mismatch': 'Different process build',
+};
+
+/** The few words the sync indicator shows beside "Read-only" (§5.1); the banner carries the full message. */
+export function shortCause(state: ReadOnlyState): string {
+  return SHORT_CAUSES[state.cause] ?? 'Cannot save';
 }

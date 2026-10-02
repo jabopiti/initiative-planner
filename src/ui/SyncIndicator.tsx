@@ -1,3 +1,4 @@
+import { shortCause } from '../github/errors';
 import { useRepositoryState } from '../state/DataContext';
 import { CheckIcon, SyncingIcon, WarningIcon } from './icons';
 
@@ -7,9 +8,9 @@ export function SyncIndicator() {
 
   if (state.readOnly) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm text-alarm-text" title={state.readOnly.message}>
+      <span className="inline-flex items-center gap-1.5 text-sm text-warning-text" title={state.readOnly.message}>
         <WarningIcon />
-        Read-only
+        Read-only · {shortCause(state.readOnly)}
       </span>
     );
   }
@@ -24,7 +25,12 @@ export function SyncIndicator() {
   }
 
   return (
-    <span className="inline-flex items-center gap-1.5 text-sm text-met-text" title={state.updatedByOthers ? 'Updated by others' : 'Synced'}>
+    <span
+      role="img"
+      aria-label={state.updatedByOthers ? 'Synced, updated by others' : 'Synced'}
+      className="inline-flex items-center gap-1.5 text-sm text-met-text"
+      title={state.updatedByOthers ? 'Updated by others' : 'Synced'}
+    >
       <CheckIcon />
     </span>
   );

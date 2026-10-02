@@ -20,7 +20,8 @@ export function activeMembers(teamId: string, memberships: Membership[], people:
   return people.filter((p) => isActiveMember(p, teamId, memberships));
 }
 
-/** The teams a person can still be added to: active ones they have no membership of, active or not (§5.6). */
+/** The teams a person can still be added to: active ones where they have no active membership. An inactive one is
+ * offered too; joining reactivates that membership (§5.6). */
 export function joinableTeams(personId: string, teams: Team[], memberships: Membership[]): Team[] {
-  return teams.filter((t) => t.active && !memberships.some((m) => m.personId === personId && m.teamId === t.id));
+  return teams.filter((t) => t.active && !memberships.some((m) => m.personId === personId && m.teamId === t.id && m.active));
 }

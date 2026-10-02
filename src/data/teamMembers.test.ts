@@ -69,8 +69,8 @@ describe('joinableTeams', () => {
     expect(joinableTeams('ana', teams, [membership('ana', 't1')]).map((t) => t.id)).toEqual(['t2']);
   });
 
-  it('leaves out a team where the membership is inactive: it is reactivated, not joined again', () => {
-    expect(joinableTeams('ana', teams, [membership('ana', 't1', false)]).map((t) => t.id)).toEqual(['t2']);
+  it('offers a team where the membership is inactive: joining it again reactivates that membership', () => {
+    expect(joinableTeams('ana', teams, [membership('ana', 't1', false)]).map((t) => t.id)).toEqual(['t1', 't2']);
   });
 
   it('leaves out inactive teams and ignores other people’s memberships', () => {
