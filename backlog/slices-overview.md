@@ -1,7 +1,7 @@
 ---
 generated_from: "Initiative Planner (white-label core) spec, v1 — 22 September 2026"
-total_slices: 55
-valid_slices: 55
+total_slices: 68
+valid_slices: 68
 flagged_slices: 0
 ---
 
@@ -115,6 +115,19 @@ for the AI-agent-driven build the team asked for:
 | 039 | Commit messages describe the net effect of grouped edits | ✅ valid | 005g |
 | 040 | GitHub client edge cases: slashed branch names, large files, token check failures | ✅ valid | 003 |
 | 041 | Copied cells that look like formulas stay text | ✅ valid | 004c |
+| 042 | A frozen phase refuses every edit in the data layer | ✅ valid | 008, 015 |
+| 043 | Classify GitHub failures correctly: rate-limit 403, 5xx, timeouts | ✅ valid | 005j, 037 |
+| 044 | Detect damaged data, never bootstrap over it, and refuse writes in read-only | ✅ valid | 005j, 040 |
+| 045 | Warn before closing with unsaved changes, and handle a full local cache | ✅ valid | 005i |
+| 046 | Theme control (System, Light, Dark) and reduced motion | ✅ valid | — |
+| 047 | Brand pack colours are the single source; contrast enforced in the build | ✅ valid | 046 |
+| 048 | Rename a team, and Undo removing a membership | ✅ valid | — |
+| 049 | Connect screen: check on paste, show the classic-token warning, name the repository | ✅ valid | 040 |
+| 050 | Initiative page and Needs attention fixes from the review | ✅ valid | 011, 019, 026 |
+| 051 | Frozen snapshot keeps the rates, roles, countries and person data | ✅ valid | 008 |
+| 052 | Align the spec and the build: locale formats, toasts, Teams cards, deep links | ✅ valid | — |
+| 053 | Close the §10.8 test and CI gaps | ✅ valid | 037, 044 |
+| 054 | Small fixes from the review | ✅ valid | — |
 
 ## Dependency chain
 
@@ -360,6 +373,16 @@ Initial run entries:
     every session with the list of gaps, questions and decisions, and shows
     UI and copy options as rendered mockups (`scripts/screenshot.mjs`), not
     text sketches.
+- **After slices 001 to 041 were built**, five parallel reviews compared the
+  code with the spec and the slices (storage and sync; calculation and
+  lifecycle; Portfolio, Initiatives and the initiative page; people, teams,
+  capacity and Settings; cross-cutting rules). The suite was green; the
+  review found gaps no test covered. They became slices 042 to 054, listed in
+  the index above. Each lists its open decisions, which `/next-slice` settles
+  with the user before implementation. Highest priority: 042 (frozen phases),
+  043 (rate-limit 403), 044 (damaged data), 045 (unsaved changes), 046 (theme).
+  Findings that conflict with the spec itself (locale, toasts, Teams cards)
+  are in 052 as decisions, not code.
 
 ## Backlog tail (not yet fully sliced)
 
