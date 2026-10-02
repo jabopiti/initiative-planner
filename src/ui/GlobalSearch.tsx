@@ -17,6 +17,12 @@ const EXCERPT_LEAD = 30;
 
 const isMac = () => /Mac|iPhone|iPad/.test(navigator.platform);
 
+const POPUP = '[role="dialog"], [role="menu"], [role="listbox"]';
+
+function inPopup(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest(POPUP) !== null;
+}
+
 function inTextField(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
@@ -47,7 +53,7 @@ export function GlobalSearch() {
     const onKeyDown = (event: KeyboardEvent) => {
       const modifier = event.ctrlKey || event.metaKey;
       const isK = modifier && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k';
-      const isSlash = event.key === '/' && !modifier && !event.altKey && !inTextField(event.target) && !document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]');
+      const isSlash = event.key === '/' && !modifier && !event.altKey && !inTextField(event.target) && !inPopup(event.target);
       if (isK || isSlash) {
         event.preventDefault();
         show();
