@@ -42,13 +42,14 @@ spec_sections: ["§5.5 People overview", "§5.8 Team detail view", "§9.9 Interf
   `@theme` tokens (AGENTS.md).
 - Backlog hygiene: tick the satisfied criteria of 002, 038, 039, 040; remove
   the stale `DebouncedFileWriter.test.ts` reference in 003; correct 005j's
-  Retry text (hidden for a rejected token, per §3); add the missing test for
-  the PATCH on a slashed ref (040).
+  Retry text (hidden for a rejected token, per §3). The PATCH-on-slashed-ref
+  test the review called missing already exists (`client.test.ts`, `it.each`
+  over `data` and `planning/data`).
 
 ## Acceptance criteria
 
-- [ ] Given each item, then a test or an axe check demonstrates the fix.
-- [ ] Given `grep` for the pixel utilities above in `src/ui`, then none
+- [x] Given each item, then a test or an axe check demonstrates the fix.
+- [x] Given `grep` for the pixel utilities above in `src/ui`, then none
       remain.
 
 ## Delivery gate
