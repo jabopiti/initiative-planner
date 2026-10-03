@@ -384,6 +384,7 @@ because each needs a different fix:
 | Access denied | The token check (§5.10) runs once on the failure and the message is its outcome: "GitHub doesn't accept this token. It has expired or been revoked; create a new one.", "This token can read but not write. Set Contents to Read and write.", "This token can't see <repository>. Create it with access to that repository.", or "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." | Paste a new token into the banner (below), or fix the token in GitHub and Retry |
 | Rate limited by GitHub | GitHub is limiting requests; try again shortly | Automatic once the limit resets, or Retry |
 | Process mismatch, or dataset newer than this build | Which of the two failed (see Data integrity) | Matching build or dataset; reload to update |
+| Dataset damaged | "Dataset damaged: <file>: <what>. Ask the repository owner to restore an earlier version from the commit history." with **Open commit history** (see Damaged data) | The owner restores the files; the next pull recovers, or Retry |
 
 **Replacing the token from the banner.** In read-only mode with the cause
 "Access denied", the banner carries a **token field** and a **Replace**
@@ -445,9 +446,19 @@ different process id, or a dataset **newer** than the build (schema or
 process structure version), refuses the sync and shows the user which of the
 two failed, because "wrong process" and "dataset too new" need different
 fixes. A dataset with an **older** schema or process structure version is
-migrated (see Versioning and migration below).
+refused too in v1, with "Dataset is older than this version and can't be
+opened by it." (see Versioning and migration below).
+
+While the dataset is refused (process mismatch, older or newer, or damaged),
+every write is refused before anything is sent: an edited field keeps the
+typed value and shows "Not saved: <short cause>." with Retry, as for a
+failed push (Sync failures).
 
 ### Versioning and migration
+
+**Out of scope for v1:** no migration steps ship yet; every build accepts
+only its own schema and structure version and refuses others (Data
+integrity). The rules below apply once a second version exists.
 
 A build ships with **migration steps** from every earlier schema version and
 process structure version to its own, fixed at build time. The migration is
@@ -486,9 +497,22 @@ damaged but foreign, and is handled under Data integrity above.
 - **Repository dataset damaged.** The tool enters read-only mode with a
   "Dataset damaged" message that names what failed and tells the repo owner
   to restore an earlier version from the repository's commit history, since
-  every sync is a commit. There is no in-app repair.
+  every sync is a commit. There is no in-app repair. The message reads
+  "Dataset damaged: <file>: <what>. Ask the repository owner to restore an
+  earlier version from the commit history." with an **Open commit history**
+  link to the data branch's commits; it names the first problem found, for
+  example "memberships.json: membership m-41 refers to person p-17, which
+  doesn't exist". Validation covers file shapes, ids present and unique,
+  references (membership → person and team, person → role and country,
+  initiative → team and owner, allocation → person), an initiative file
+  whose id differs from its file name, and the keys `__proto__`,
+  `constructor` and `prototype`. A broken reference is refused, never
+  repaired. A cold client shows the same message and link in place of the
+  screens.
 - **No fallback over existing data.** The fresh-install baseline (§2) is
-  loaded only when no dataset exists anywhere. It is never loaded in place
+  loaded only when no dataset exists anywhere. A dataset exists when the
+  data branch lists any master file or initiative file; one without
+  `dataset.json` is damaged ("dataset.json is missing"), not empty. It is never loaded in place
   of a damaged or foreign dataset, so an automatic push can never overwrite
   one.
 

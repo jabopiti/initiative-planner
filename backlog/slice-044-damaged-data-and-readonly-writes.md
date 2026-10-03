@@ -8,7 +8,7 @@ depends_on: ["005j", "040"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Added from the post-build review of the implementation against the spec (slices 001 to 041). Review findings H1, H2, M1, M2 of the storage review: bootstrap decided by dataset.json alone, no validation, read-only only displays a banner, structureVersion unchecked."
+change_summary: "Added from the post-build review of the implementation against the spec (slices 001 to 041). Review findings H1, H2, M1, M2 of the storage review: bootstrap decided by dataset.json alone, no validation, read-only only displays a banner, structureVersion unchecked. Review 3 Oct 2026: older versions refused (migration out of scope for v1), broken references refused, banner carries Open commit history, writes refused per field, hand-written validator — recorded in §3."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Safety-critical: data validation, a hostile-input surface (prototype keys) and the rule that nothing overwrites existing data. Hard to verify by tests alone."
 spec_sections: ["§3 Storage & sync (Setup, Data integrity, Versioning and migration, Damaged data)", "§10.5 Merging", "§10.8 Testing", "§2 Hosting & technology"]
@@ -49,6 +49,44 @@ message naming the file and the problem; and read-only really refuses writes.
 - Tests for hostile datasets, damaged files, the refusal paths and the
   bootstrap guard.
 
+### Decided in review (pre-implementation)
+
+Settled with the user on 3 Oct 2026, from mockups:
+
+- **Older versions refused.** A dataset with an older `schemaVersion` or
+  `structureVersion` is refused read-only with "Dataset is older than this
+  version and can't be opened by it." (new cause `dataset-older`); §3
+  records migration as out of scope for v1. A newer `structureVersion`
+  reads as a newer schema: "Dataset is newer than this version — reload to
+  update."
+- **Broken references refused**, never repaired: the owner restores from
+  history.
+- **Banner (option B):** "Dataset damaged: <file>: <what>. Ask the
+  repository owner to restore an earlier version from the commit history."
+  then an **Open commit history** link (the data branch's commits on
+  GitHub, new tab) and Retry. The sync indicator reads "Read-only ·
+  Dataset damaged". A cold client shows the same text and link in place of
+  the screens.
+- **Writes refused per field (option A):** while the cause is `damaged`,
+  `dataset-newer`, `dataset-older` or `process-mismatch`, a write is refused
+  before anything is sent; the field keeps the typed value and shows
+  "Not saved: <short cause>." with Retry, through the existing failed-push
+  path. Unreachable, access denied and rate limited still attempt the write
+  as today.
+- **Validator:** hand-written `validateDataset`, no new dependency
+  (§10.5's reasoning).
+- **Assumptions accepted:** the message names the first problem found
+  (files in listing order), items by id. `<what>` wording: "is missing",
+  "isn't valid JSON", "should be a list", "<item> has no id", "id <id>
+  appears twice", "<item> refers to <kind> <id>, which doesn't exist",
+  "contains the forbidden key \"__proto__\"", "initiative file holds id
+  <x>". References checked: membership → person, team; person → role,
+  country; initiative → team, owner; allocation → person. Unknown phase or
+  gate ids are not checked. Bootstrap only when the listing has no master
+  file and no initiative file; another missing master file still reads as
+  empty (§10.2). A damaged or foreign cache is discarded and pulled again;
+  the 30s retry and 5-minute pull recover once the files are restored.
+
 ## Execution path
 
 1. A bad commit removes `dataset.json`.
@@ -70,8 +108,12 @@ message naming the file and the problem; and read-only really refuses writes.
 - [ ] Given `{}` where an array is expected, a person referencing a missing
       team, duplicate ids, and a `__proto__` key, then each yields a `damaged`
       read-only state naming file and problem; none reaches the UI.
-- [ ] Given a newer `schemaVersion` or `structureVersion`, or another process
-      id, when a field is edited, then no write is attempted.
+- [ ] Given a newer or older `schemaVersion` or `structureVersion`, or another
+      process id, or a damaged dataset, when a field is edited, then no write
+      is attempted and the field shows "Not saved: <short cause>." with the
+      typed value kept.
+- [ ] Given a damaged dataset, then the banner carries an Open commit history
+      link to the data branch's commits, on a warm and a cold client.
 - [ ] Given a hostile dataset (§10.8), then `Object.prototype` is unchanged
       after a pull and a merge.
 
@@ -82,9 +124,4 @@ overview), so this slice refuses older/newer data rather than migrating it.
 
 ## Open decisions
 
-- Is an older `schemaVersion` or `structureVersion` refused, or accepted as
-  today? §3 Versioning and migration promises migration; the backlog dropped
-  it. Recommended: record in the spec that migration is out of scope for v1,
-  accept equal versions only, refuse others read-only.
-- How strict is validation of references (refuse, or repair-and-warn for a
-  membership of a deleted person)? Recommended: refuse, owner repairs.
+None: settled in review (above).
