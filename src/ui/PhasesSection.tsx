@@ -571,12 +571,15 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
           </thead>
           <tbody>
             {phase.allocations.map((allocation) => {
+              // A gate's snapshot names who it costed and as what (§8.1); an older snapshot, or a Closed or Cancelled
+              // initiative's live plan, falls back to the person as they are now.
               const person = people.find((p) => p.id === allocation.personId);
+              const role = allocation.roleName ?? (person && roleLabel(person, roles));
               return (
                 <tr key={allocation.id} className="border-t border-border-default">
                   <td className="py-1.5 pr-2 text-text-muted">
-                    <div>{person?.name ?? 'Unknown person'}</div>
-                    {person && <div className="text-xs text-text-muted">{roleLabel(person, roles)}</div>}
+                    <div>{allocation.personName ?? person?.name ?? 'Unknown person'}</div>
+                    {role && <div className="text-xs text-text-muted">{role}</div>}
                   </td>
                   <td className="py-1.5 pr-2 tabular-nums text-text-muted">{allocation.allocationPct}%</td>
                   <td className="py-1.5 pr-2 text-right tabular-nums text-text-muted">{allocation.cost === undefined ? '—' : formatAmount(allocation.cost, currencySymbol)}</td>

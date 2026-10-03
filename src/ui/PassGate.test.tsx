@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
@@ -290,5 +290,37 @@ describe('a frozen phase refuses what the page no longer offers (§5.11, §8.1)'
     expect(await screen.findByRole('alert')).toHaveTextContent("G2 was passed while you were editing, so your last change to Validation wasn't saved.");
     await user.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText(/your last change to Validation/)).not.toBeInTheDocument();
+  });
+
+  it('names each frozen allocation as its snapshot costed it, and falls back to today’s data for an older snapshot', async () => {
+    const user = userEvent.setup();
+    const frozenSnapshot = {
+      startDate: '2026-10-01',
+      endDate: '2026-11-30',
+      allocations: [
+        { id: 'a1', personId: 'ana', allocationPct: 50, cost: 8000, personName: 'Ana Ruiz', roleName: 'Product Manager', countryName: 'Germany', costFactor: 0.8, months: {} },
+        { id: 'a2', personId: 'gone', allocationPct: 20, cost: 3200, personName: 'Bea Holm', roleName: 'Tech Lead', countryName: 'Germany', costFactor: 0.8, months: {} },
+        { id: 'a3', personId: 'ana', allocationPct: 10, cost: 1600 },
+      ],
+      costItems: [],
+      estimateByMonth: { '2026-10': 6400, '2026-11': 6400 },
+    };
+    initiative = {
+      id: 'i1',
+      name: 'Checkout Redesign',
+      teamId: 't1',
+      status: 'Active',
+      gates: { [discoveryId]: discoveryPassed, [validationId]: { outcome: 'passed', passedOn: '2026-11-30', recordedGrandEstimate: 12800, frozenSnapshot, checklist: [] } },
+      phases: { [validationId]: bothPlanned[validationId] },
+    };
+    renderPage();
+    const validation = await screen.findByRole('button', { name: /^Validation/ });
+    if (validation.getAttribute('aria-expanded') !== 'true') await user.click(validation);
+
+    const table = await screen.findByRole('table', { name: 'Frozen allocations' });
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(rows[0]).toHaveTextContent('Ana RuizProduct Manager'); // as costed, not today's Developer
+    expect(rows[1]).toHaveTextContent('Bea HolmTech Lead'); // gone since, still named
+    expect(rows[2]).toHaveTextContent('Ana RuizDeveloper'); // an older snapshot: today's data
   });
 });

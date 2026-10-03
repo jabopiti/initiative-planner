@@ -197,11 +197,92 @@ describe('passGate (§8.1)', () => {
     expect(record.frozenSnapshot).toEqual({
       startDate: '2026-01-01',
       endDate: '2026-01-31',
-      allocations: [{ id: 'a1', personId: 'ana', allocationPct: 100, cost: 20_000 }],
+      allocations: [
+        {
+          id: 'a1',
+          personId: 'ana',
+          allocationPct: 100,
+          cost: 20_000,
+          personName: 'Ana Ruiz',
+          roleName: 'Developer',
+          countryName: 'Germany',
+          costFactor: 1,
+          months: { '2026-01': { workingDays: 20, dayRate: 1000 } },
+        },
+      ],
       costItems: [],
       estimateByMonth: { '2026-01': 20_000 },
     });
     expect(currentPhaseId(result.initiative, process)).toBe('beta');
+  });
+
+  describe('the snapshot keeps what its figures came from (§6, §8.1)', () => {
+    const cai: Person = {
+      id: 'cai',
+      name: 'Cai Wu',
+      countryId: 'de',
+      roleId: 'dev',
+      capacityPct: 100,
+      active: true,
+      customRole: { active: true, label: 'Fractional CTO', costFactor: 1.5, dayRatesByYear: [{ year: 2026, dayRate: 1200 }] },
+    };
+    // Mid-month to mid-month, so the first and last months are prorated; a cost item adds to the estimate too.
+    const alpha = {
+      startDate: '2026-01-15',
+      endDate: '2026-03-13',
+      allocations: [
+        { id: 'a1', personId: 'ana', allocationPct: 60 },
+        { id: 'a2', personId: 'cai', allocationPct: 25 },
+        { id: 'a3', personId: 'gone', allocationPct: 10 },
+      ],
+      costItems: [{ id: 'c1', label: 'Licences', amount: 900, timing: 'spread' as const }],
+    };
+    const pass = () => {
+      const beta = { startDate: '2026-04-01', endDate: '2026-04-30', allocations: [{ id: 'b1', personId: 'ana', allocationPct: 50 }] };
+      const initiative = withChecklistItem(planned({ phases: { alpha, beta } }), 'alpha', 'a1', 'complete', '');
+      const result = passGate(process, initiative, [ana, cai], data, tracks, takenAt);
+      if (!result.ok) throw new Error('expected the gate to pass');
+      return result.initiative.gates!.alpha.frozenSnapshot!;
+    };
+
+    it('holds the person, role, country, cost factor, and each month’s days counted and day rate', () => {
+      const [anaFrozen, caiFrozen, gone] = pass().allocations;
+      expect(anaFrozen).toMatchObject({ personName: 'Ana Ruiz', roleName: 'Developer', countryName: 'Germany', costFactor: 1 });
+      expect(Object.keys(anaFrozen.months!)).toEqual(['2026-01', '2026-02', '2026-03']);
+      expect(anaFrozen.months!['2026-02']).toEqual({ workingDays: 20, dayRate: 1000 });
+      expect(anaFrozen.months!['2026-01'].workingDays).toBeLessThan(20); // prorated
+      expect(caiFrozen).toMatchObject({ personName: 'Cai Wu', roleName: 'Fractional CTO', countryName: 'Germany', costFactor: 1.5 });
+      expect(caiFrozen.months!['2026-02']).toEqual({ workingDays: 20, dayRate: 1200 });
+      expect(gone).toEqual({ id: 'a3', personId: 'gone', allocationPct: 10, cost: 0 });
+    });
+
+    it('recomputes to the stored estimate from the snapshot alone', () => {
+      const snapshot = pass();
+      const recomputed: Record<string, number> = {};
+      for (const a of snapshot.allocations) {
+        for (const [month, { workingDays, dayRate }] of Object.entries(a.months ?? {})) {
+          recomputed[month] = (recomputed[month] ?? 0) + workingDays * (a.allocationPct / 100) * dayRate * a.costFactor!;
+        }
+        const cost = Object.values(a.months ?? {}).reduce((sum, m) => sum + m.workingDays * (a.allocationPct / 100) * m.dayRate * (a.costFactor ?? 0), 0);
+        expect(cost).toBeCloseTo(a.cost, 6);
+      }
+      for (const month of Object.keys(recomputed)) recomputed[month] += 300; // the cost item, spread over three months
+      expect(Object.keys(recomputed)).toEqual(Object.keys(snapshot.estimateByMonth));
+      for (const [month, amount] of Object.entries(snapshot.estimateByMonth)) expect(recomputed[month]).toBeCloseTo(amount, 6);
+    });
+
+    it('is a value of its own: a later rate or person change leaves it as it was', () => {
+      const snapshot = pass();
+      const before = structuredClone(snapshot);
+      countries[0].ratesByYear[0].dayRate = 2000;
+      ana.name = 'Ana Ruiz-Ortega';
+      try {
+        expect(snapshot).toEqual(before);
+      } finally {
+        countries[0].ratesByYear[0].dayRate = 1000;
+        ana.name = 'Ana Ruiz';
+      }
+    });
   });
 
   it('records no grand estimate or approval track when the exited phase is not costed', () => {

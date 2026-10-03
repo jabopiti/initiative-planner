@@ -113,27 +113,27 @@ figures are all it keeps.
 
 ## Acceptance criteria
 
-- [ ] Given a passed gate, when `setPhaseDate`, `addAllocation`,
+- [x] Given a passed gate, when `setPhaseDate`, `addAllocation`,
       `updateAllocation`, `removeAllocation`, `restoreAllocation`,
       `addCostItem`, `updateCostItem`, a cost-item remove or restore, or
       `extendPhase` targets that phase, then nothing changes and no commit is
       made.
-- [ ] Given a frozen phase, when `setActual` is called, then it is accepted.
-- [ ] Given Undo is available and the gate is then passed, then the toast is
+- [x] Given a frozen phase, when `setActual` is called, then it is accepted.
+- [x] Given Undo is available and the gate is then passed, then the toast is
       gone and a late `restoreAllocation` does nothing.
-- [ ] Given an edit queued for a phase a pull freezes, then it is not
+- [x] Given an edit queued for a phase a pull freezes, then it is not
       written and the phase shows "<gate> was passed while you were
       editing, so your last change to <phase> wasn't saved." until
       dismissed.
-- [ ] Given a frozen phase whose person later changed role or was deleted,
+- [x] Given a frozen phase whose person later changed role or was deleted,
       then the frozen table shows the snapshot's name and role.
-- [ ] Given a Jan–Feb phase with a one-month cost item or an actual in June
+- [x] Given a Jan–Feb phase with a one-month cost item or an actual in June
       and no actual in Jan or Feb, then its coverage is Estimate.
-- [ ] Given a gate passed, then its snapshot holds rate, factor, working days,
+- [x] Given a gate passed, then its snapshot holds rate, factor, working days,
       person, role and country per allocation, and the estimate recomputed
       from those equals the stored estimate.
-- [ ] Given a later rate or person change, then the snapshot is unchanged.
-- [ ] Given an old snapshot without the new fields, then everything renders.
+- [x] Given a later rate or person change, then the snapshot is unchanged.
+- [x] Given an old snapshot without the new fields, then everything renders.
 
 ## Flags and compromises
 

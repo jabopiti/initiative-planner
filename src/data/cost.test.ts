@@ -238,6 +238,13 @@ describe('actuals default to the estimate once a month closes (§7.3, §4)', () 
     expect(phaseCoverage(plan({ '2026-10': 4000 }))).toBe('forecast');
     expect(phaseCoverage(plan({ '2026-10': 4000, '2026-11': 3800 }))).toBe('actual');
   });
+
+  it('counts only the period’s months towards coverage: an item or actual outside it moves nothing (§4)', () => {
+    const june: CostItem = { id: 'c1', label: 'Audit', amount: 1000, timing: 'month', month: '2026-06' };
+    expect(phaseCoverage(plan({}, [june]))).toBe('estimate');
+    expect(phaseCoverage(plan({ '2026-06': 500 }))).toBe('estimate');
+    expect(phaseCoverage(plan({ '2026-10': 4000, '2026-11': 3800 }, [june]))).toBe('actual'); // not held at Forecast by June
+  });
 });
 
 describe('only a team’s members may be allocated (§7.2)', () => {
