@@ -39,8 +39,8 @@ describe('checkBuildOutput (§10.8 build output)', () => {
     expect(problems.map((p) => p.split(' — ')[0])).toEqual(['index.html: inline script', 'index.html: inline event handler']);
   });
 
-  it('reports an inline script whose end tag has a space, which browsers still accept', () => {
-    expect(check({ 'index.html': PAGE.replace('</body>', '<script>alert(1)</script ></body>') }).join()).toContain('inline script');
+  it('reports an inline script whose end tag carries whitespace or attributes, which browsers still accept', () => {
+    expect(check({ 'index.html': PAGE.replace('</body>', '<script>alert(1)</script\t\n bar></body>') }).join()).toContain('inline script');
   });
 
   it('reports a script, stylesheet or font loaded from another origin', () => {

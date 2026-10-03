@@ -48,7 +48,7 @@ export function checkBuildOutput(dir, { apiBaseUrl }) {
     const text = readFileSync(file, 'utf8');
 
     if (name.endsWith('.html')) {
-      for (const tag of text.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)) {
+      for (const tag of text.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script[^>]*>/gi)) {
         if (!/\bsrc=/.test(tag[1]) || tag[2].trim()) report(name, 'inline script', text, tag.index);
       }
       for (const tag of text.matchAll(/<(?:script|link|img|iframe|source)\b[^>]*\b(?:src|href)="([^"]*)"/gi)) {
