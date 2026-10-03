@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CommitInput } from './CommitInput';
 import { FILE_PATHS } from '../data/types';
+import { TeamSwatch } from './TeamSwatch';
 
 /** Team detail (§5.8): the Members list, the Initiatives list and the Capacity view. */
 export function TeamDetail({ id }: { id: string }) {
@@ -137,6 +138,7 @@ export function TeamDetail({ id }: { id: string }) {
       </a>
       <div className="mt-1 mb-5 flex items-center justify-between gap-4">
         <h1 className="m-0 flex items-center gap-2 text-display font-medium">
+          <TeamSwatch teamId={team.id} large />
           <CommitInput
             aria-label="Team name"
             className="h-auto w-64 max-w-full border-transparent bg-transparent px-2 py-0.5 text-display font-medium shadow-none hover:border-input focus-visible:border-ring "

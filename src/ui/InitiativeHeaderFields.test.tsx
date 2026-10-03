@@ -199,6 +199,7 @@ describe('Initiative header: approval track badge (§5.4, §7.4)', () => {
     const user = userEvent.setup();
     renderPage();
     const badge = await screen.findByText('Standard');
+    expect(badge.closest('[data-variant="outline"]')).toHaveTextContent(/^S Standard$/);
     await user.hover(badge);
     expect(await screen.findByText('Requires department head approval')).toBeInTheDocument();
   });

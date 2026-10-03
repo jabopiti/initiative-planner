@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { FILE_PATHS } from '../data/types';
 import { PageHeader } from './PageHeader';
+import { TeamSwatch } from './TeamSwatch';
 
 /** Teams overview (§5.7): name, size, per-phase initiative counts, and New team. */
 export function TeamsOverview() {
@@ -172,6 +173,7 @@ export function TeamsOverview() {
             >
               <td className="px-3 py-2 font-medium">
                 <div className="flex items-center gap-2">
+                  <TeamSwatch teamId={team.id} />
                   <TruncatedText text={team.name}>
                     <a href={`#/teams/${team.id}`} className="text-inherit no-underline">
                       {team.name}

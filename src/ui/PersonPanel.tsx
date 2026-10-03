@@ -17,6 +17,7 @@ import { CommitInput } from './CommitInput';
 import { CustomRoleFields } from './CustomRoleFields';
 import { PercentInput } from './PercentInput';
 import { teamColorClass } from './teamColors';
+import { TeamSwatch } from './TeamSwatch';
 
 /** Person detail drawer (§5.6), shared by every view that opens a person. Carries no warnings and no allocation list. */
 export function PersonPanel({ person, onClose }: { person: Person | null; onClose: () => void }) {
@@ -192,7 +193,7 @@ function PersonDetails({ person }: { person: Person }) {
           const max = unclaimedCapacityPct(person, memberships, m.id);
           return (
             <div key={m.id} className="flex flex-wrap items-center gap-x-2 gap-y-0 py-1">
-              <span className={`size-2.5 shrink-0 rounded-full ${teamColorClass(teamIds, m.teamId)}`} aria-hidden="true" />
+              <TeamSwatch teamId={m.teamId} />
               <span className="min-w-0 flex-1 truncate text-body">{team?.name ?? 'Unknown team'}</span>
               <PercentInput
                 flat

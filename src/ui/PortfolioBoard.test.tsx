@@ -141,7 +141,8 @@ describe('Portfolio board cards (§5.2)', () => {
     const c = card(/Big One/);
     expect(within(c).getByText('Platform · Ana Ruiz')).toBeTruthy();
     expect(within(c).getByText('€412 k')).toBeTruthy();
-    expect(within(c).getByText('Elevated')).toBeTruthy();
+    // The full track badge, letter and name, on the card too (§9.10).
+    expect(within(c).getByText('Elevated').closest('[data-variant="outline"]')).toHaveTextContent(/^E Elevated$/);
   });
 
   it('names a missing owner and marks a deactivated one', async () => {
@@ -159,7 +160,7 @@ describe('Portfolio board cards (§5.2)', () => {
   it('reads "No approval track" when no band covers the total', async () => {
     const gapped = { ...defaultBrandPack, approvalTracks: defaultBrandPack.approvalTracks.filter((t) => t.id !== 'elevated') };
     await renderBoard([gap], gapped);
-    expect(within(card(/Gap One/)).getByText('No approval track')).toBeTruthy();
+    expect(within(card(/Gap One/)).getByText('No approval track')).toHaveClass('border-dashed');
     expect(within(card(/Gap One/)).getByText('€4.2 M')).toBeTruthy();
   });
 
