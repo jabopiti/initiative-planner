@@ -20,7 +20,6 @@ import { NeedsAttentionStrip } from './NeedsAttentionStrip';
 import { useSessionFilters } from './sessionFilters';
 import { YearChip } from './YearChip';
 
-
 /** A non-Active status on a card (§5.2): a neutral icon named by the status, the same pattern as the attention marker. */
 function StatusMarker({ status }: { status: InitiativeStatus }) {
   if (status === 'Active') return null;

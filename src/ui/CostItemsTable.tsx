@@ -61,14 +61,14 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
 
   return (
     <section aria-labelledby={`cost-items-${phase.id}`} className="flex flex-col gap-2">
-      <h3 id={`cost-items-${phase.id}`} className="m-0 text-heading font-medium">
+      <h3 id={`cost-items-${phase.id}`} className="m-0 text-heading">
         Cost items
       </h3>
       {items.length > 0 && (
         <table className="tabular-nums w-full border-collapse text-body">
           <caption className="sr-only">{phase.label} cost items</caption>
           <thead>
-            <tr className="text-left text-label font-medium text-text-secondary">
+            <tr className="text-left text-label text-text-secondary">
               <th className="py-1 pr-2 font-medium">Label</th>
               <th className="py-1 pr-2 font-medium">Amount</th>
               <th className="py-1 pr-2 font-medium">When</th>

@@ -5,7 +5,7 @@ import { cn } from 'cn';
 export function PageHeader({ title, actions, className }: { title: ReactNode; actions?: ReactNode; className?: string }) {
   return (
     <div className={cn('mb-5 flex items-center justify-between gap-4', className)}>
-      <h1 className="m-0 min-w-0 text-display font-medium">{title}</h1>
+      <h1 className="m-0 flex min-w-0 items-center gap-2 text-display">{title}</h1>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
   );
@@ -15,7 +15,7 @@ export function PageHeader({ title, actions, className }: { title: ReactNode; ac
 export function SectionHeader({ id, title, actions, className }: { id?: string; title: ReactNode; actions?: ReactNode; className?: string }) {
   return (
     <div className={cn('mb-3 flex items-center justify-between gap-4', className)}>
-      <h2 id={id} className="m-0 flex min-w-0 items-center gap-2 text-title font-medium">
+      <h2 id={id} className="m-0 flex min-w-0 items-center gap-2 text-title">
         {title}
       </h2>
       {actions && <div className="flex items-center gap-2">{actions}</div>}

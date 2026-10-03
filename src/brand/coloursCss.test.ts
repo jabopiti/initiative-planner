@@ -38,8 +38,18 @@ describe('typefaceCss (§2, §9.8)', () => {
   it('declares one @font-face per brand-folder file, served from the given URL, and the family with its fallback', () => {
     const css = typefaceCss(defaultBrandPack.typeface, (path) => `/src/brand/${path}`);
     expect(css.match(/@font-face/g)).toHaveLength(2);
-    expect(css).toContain("src: url('/src/brand/fonts/geist-latin-wght-normal.woff2') format('woff2-variations');");
+    expect(css).toContain("src: url('/src/brand/fonts/geist-latin-wght-normal.woff2') format('woff2');");
+    expect(css).toContain('font-weight: 100 900;');
     expect(css).toContain("--font-brand: 'Geist', system-ui,");
+  });
+
+  it("takes a static or italic file's own weight and style, so a fork can bring a non-variable typeface", () => {
+    const css = typefaceCss(
+      { family: 'Brand', fallback: 'sans-serif', files: [{ path: 'fonts/brand-500-italic.woff2', unicodeRange: 'U+0000-00FF', weight: '500', style: 'italic' }] },
+      (path) => `/${path}`,
+    );
+    expect(css).toContain('font-weight: 500;');
+    expect(css).toContain('font-style: italic;');
   });
 });
 

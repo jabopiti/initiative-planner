@@ -110,36 +110,36 @@ export function TeamsOverview() {
         title="Teams"
         actions={
           <>
-        {teams.length > 0 && <CopyButton getData={copyData} noun={['team', 'teams']} />}
-        {creating ? (
-          <form
-            className="flex gap-1.5"
-            onSubmit={handleSubmit}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setCreating(false);
-            }}
-          >
-            <Input
-              ref={inputRef}
-              aria-label="Team name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setRefusal(null);
-              }}
-              aria-invalid={refusal ? true : undefined}
-              placeholder="Team name"
-            />
-            <Button type="submit" disabled={!name.trim()}>
-              Create
-            </Button>
-          </form>
-        ) : (
-          <Button type="button" onClick={startCreating}>
-            <PlusIcon />
-            New team
-          </Button>
-        )}
+            {teams.length > 0 && <CopyButton getData={copyData} noun={['team', 'teams']} />}
+            {creating ? (
+              <form
+                className="flex gap-1.5"
+                onSubmit={handleSubmit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setCreating(false);
+                }}
+              >
+                <Input
+                  ref={inputRef}
+                  aria-label="Team name"
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setRefusal(null);
+                  }}
+                  aria-invalid={refusal ? true : undefined}
+                  placeholder="Team name"
+                />
+                <Button type="submit" disabled={!name.trim()}>
+                  Create
+                </Button>
+              </form>
+            ) : (
+              <Button type="button" onClick={startCreating}>
+                <PlusIcon />
+                New team
+              </Button>
+            )}
           </>
         }
       />
@@ -147,7 +147,7 @@ export function TeamsOverview() {
 
       <table className="tabular-nums w-full border-collapse text-body">
         <thead>
-          <tr className="text-label font-medium text-left text-text-secondary">
+          <tr className="text-label text-left text-text-secondary">
             <SortableHeader label="Name" sortKey="name" sort={sort} />
             <SortableHeader label="Members" sortKey="members" sort={sort} align="right" />
             {brand.process.map((phase) => (

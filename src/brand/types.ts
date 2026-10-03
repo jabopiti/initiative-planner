@@ -95,9 +95,13 @@ export interface FontFile {
   /** Relative to the brand folder, e.g. `fonts/geist-latin-wght-normal.woff2`. */
   path: string;
   unicodeRange: string;
+  /** The weights this file covers: a range for a variable font (the default, `100 900`) or one weight for a static one. */
+  weight?: string;
+  /** `normal` (the default) or `italic`. */
+  style?: 'normal' | 'italic';
 }
 
-/** The brand pack's typeface (§2, §9.8): a variable font whose files live in the brand folder, and a fallback stack. */
+/** The brand pack's typeface (§2, §9.8): woff2 files that live in the brand folder, and a fallback stack. */
 export interface Typeface {
   family: string;
   files: FontFile[];

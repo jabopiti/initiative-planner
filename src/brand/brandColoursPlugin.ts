@@ -9,7 +9,7 @@ const ID = 'virtual:brand-colours.css';
 // The `.css` suffix keeps the resolved id on Vite's CSS pipeline, so the build emits it into the stylesheet.
 const RESOLVED = `\0${ID}`;
 
-export type BrandStyles = Pick<BrandPack, 'colours' | 'teamColours' | 'typeface'>;
+type BrandStyles = Pick<BrandPack, 'colours' | 'teamColours' | 'typeface'>;
 
 /**
  * Generates the brand stylesheet from the brand pack (colour roles, team colours and the typeface's @font-face rules),

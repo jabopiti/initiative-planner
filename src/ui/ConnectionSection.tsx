@@ -5,6 +5,7 @@ import { useSession } from '../state/SessionContext';
 import { Button } from '@/components/ui/button';
 import { DefinitionList } from './DefinitionList';
 import { ReplaceTokenField } from './ReplaceTokenField';
+import { cardClass } from './cardClass';
 
 const number = new Intl.NumberFormat('en');
 const clock = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -41,10 +42,10 @@ export function ConnectionSection() {
     else setConfirming(unsaved);
   }
 
-  const card = 'rounded-xl border border-border-default bg-surface-card px-4';
+  const card = `${cardClass} px-4`;
   return (
     <section aria-labelledby="connection-heading" className="flex flex-col gap-4">
-      <h2 id="connection-heading" className="m-0 text-title font-medium">
+      <h2 id="connection-heading" className="m-0 text-title">
         Connection
       </h2>
       <DefinitionList
@@ -56,13 +57,13 @@ export function ConnectionSection() {
       />
 
       <div className={`${card} flex flex-col gap-2 py-3`}>
-        <h3 className="m-0 text-heading font-medium">Replace token</h3>
+        <h3 className="m-0 text-heading">Replace token</h3>
         <p className="m-0 text-text-secondary">Paste a new token to swap it in. Your unsaved changes are kept.</p>
         <ReplaceTokenField />
       </div>
 
       <div className={`${card} flex flex-col gap-2 py-3`}>
-        <h3 className="m-0 text-heading font-medium">Disconnect</h3>
+        <h3 className="m-0 text-heading">Disconnect</h3>
         <p className="m-0 text-text-secondary">Removes the token from this browser and opens the Connect screen.</p>
         {confirming === null ? (
           <div>

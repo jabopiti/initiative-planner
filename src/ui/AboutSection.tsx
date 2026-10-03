@@ -13,7 +13,7 @@ export function AboutSection() {
   ];
   return (
     <section aria-labelledby="about-heading">
-      <h2 id="about-heading" className="m-0 mb-4 text-title font-medium">
+      <h2 id="about-heading" className="m-0 mb-4 text-title">
         About
       </h2>
       <DefinitionList rows={rows} />

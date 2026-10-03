@@ -58,10 +58,14 @@ export const ReopenIcon = iconWrapper(RotateCcw);
  * CirclePause for On hold, Ban (the Cancel action's glyph) for Cancelled and CircleCheck for Closed.
  */
 export function StatusActiveIcon(props: SVGProps<SVGSVGElement>) {
-  return <Circle size={18} strokeWidth={0} fill="currentColor" aria-hidden="true" className="scale-[0.45]" {...props} />;
+  return (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="4.5" />
+    </svg>
+  );
 }
 export const StatusOnHoldIcon = iconWrapper(CirclePause);
-export const StatusCancelledIcon = iconWrapper(Ban);
+export const StatusCancelledIcon = CancelledIcon;
 export const StatusClosedIcon = iconWrapper(CircleCheck);
 /** The header's Actions menu button (§5.4). */
 export const ActionsIcon = iconWrapper(Ellipsis);

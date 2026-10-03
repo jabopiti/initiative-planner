@@ -14,9 +14,8 @@ import { InitiativeActionsMenu } from './InitiativeActionsMenu';
 import { FrozenStrip } from './FrozenStrip';
 import { OwnerSelect } from './OwnerSelect';
 import { TeamSelect } from './TeamSelect';
-import { Button } from '@/components/ui/button';
 import { StatusLabel } from './StatusLabel';
-
+import { Button } from '@/components/ui/button';
 
 /**
  * The initiative header's meta row (§5.4): team, owner, status badge and approval track badge. The team is a

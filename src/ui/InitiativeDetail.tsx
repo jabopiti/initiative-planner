@@ -53,14 +53,14 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
         {isInitiativeFrozen(initiative) ? (
           // A Closed or Cancelled initiative is a record (§8.4): name and description read-only and muted, an empty description hidden.
           <>
-            <h1 className="m-0 mb-2 px-3 py-1.5 text-display font-medium text-text-secondary">{initiative.name}</h1>
+            <h1 className="m-0 mb-2 px-3 py-1.5 text-display text-text-secondary">{initiative.name}</h1>
             {initiative.description && <p className="m-0 mb-2 px-3 py-1.5 text-caption text-text-muted">{initiative.description}</p>}
           </>
         ) : (
           <>
-            <h1 className="text-display font-medium m-0 mb-2">
+            <h1 className="m-0 mb-2">
               <CommitInput
-                className="h-auto border-transparent bg-transparent px-3 py-1.5 text-display font-medium shadow-none hover:border-border-default "
+                className="h-auto border-transparent bg-transparent px-3 py-1.5 text-display shadow-none hover:border-border-default"
                 aria-label="Initiative name"
                 changed={changed(FILE_PATHS.initiative(initiative.id), ['name'])}
                 failure={failure(FILE_PATHS.initiative(initiative.id), ['name'])}

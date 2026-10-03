@@ -16,7 +16,7 @@ import { RowActionsMenu } from './RowActionsMenu';
 import { CommitInput } from './CommitInput';
 import { CustomRoleFields } from './CustomRoleFields';
 import { PercentInput } from './PercentInput';
-import { teamColorClass } from './teamColors';
+import { useTeamColors } from './teamColors';
 import { TeamSwatch } from './TeamSwatch';
 
 /** Person detail drawer (§5.6), shared by every view that opens a person. Carries no warnings and no allocation list. */
@@ -54,6 +54,7 @@ function PersonDetails({ person }: { person: Person }) {
   // An inactive person's fields are disabled, the choices with them: the banner resolves their conflicts (§9.9).
   const conflict = person.active ? fieldConflict : () => null;
   const { roles, countries, teams, memberships } = useRepositoryState();
+  const teamColor = useTeamColors();
   const [rejoinCap, setRejoinCap] = useState<{ id: string; pct: number } | null>(null);
   const customRole = person.customRole;
   const customActive = customRole?.active === true;
@@ -66,7 +67,6 @@ function PersonDetails({ person }: { person: Person }) {
   };
 
   const mine = memberships.filter((m) => m.personId === person.id && m.active);
-  const teamIds = teams.map((t) => t.id);
   const claimed = claimedFtePct(person.id, memberships);
   const unclaimed = unclaimedCapacityPct(person, memberships);
   const joinable = joinableTeams(person.id, teams, memberships);
@@ -171,7 +171,7 @@ function PersonDetails({ person }: { person: Person }) {
       </div>
 
       <section className="mt-4 border-t border-border-default pt-3" aria-label="Teams">
-        <h3 className="m-0 mb-2 flex items-center gap-1.5 text-heading font-medium">
+        <h3 className="m-0 mb-2 flex items-center gap-1.5 text-heading">
           <TeamsIcon width={16} height={16} />
           Teams
         </h3>
@@ -181,7 +181,7 @@ function PersonDetails({ person }: { person: Person }) {
           aria-label={`${claimed}% of ${person.capacityPct}% claimed`}
         >
           {mine.map((m) => (
-            <div key={m.id} className={teamColorClass(teamIds, m.teamId)} style={{ width: barPct(m.teamFtePct) }} />
+            <div key={m.id} className={teamColor(m.teamId)} style={{ width: barPct(m.teamFtePct) }} />
           ))}
         </div>
         <p className="m-0 mt-1 mb-2 text-caption text-text-secondary">

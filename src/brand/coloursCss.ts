@@ -26,8 +26,8 @@ export function coloursCss(colours: BrandColours, teamColours: ColourRole[] = []
 export function typefaceCss(typeface: Typeface, url: (path: string) => string): string {
   const faces = typeface.files.map(
     (file) =>
-      `@font-face {\n  font-family: '${typeface.family}';\n  font-style: normal;\n  font-display: swap;\n  font-weight: 100 900;\n` +
-      `  src: url('${url(file.path)}') format('woff2-variations');\n  unicode-range: ${file.unicodeRange};\n}\n`,
+      `@font-face {\n  font-family: '${typeface.family}';\n  font-style: ${file.style ?? 'normal'};\n  font-display: swap;\n  font-weight: ${file.weight ?? '100 900'};\n` +
+      `  src: url('${url(file.path)}') format('woff2');\n  unicode-range: ${file.unicodeRange};\n}\n`,
   );
   return `${faces.join('\n')}\n:root {\n  --font-brand: '${typeface.family}', ${typeface.fallback};\n}\n`;
 }

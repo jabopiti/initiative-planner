@@ -19,6 +19,7 @@ import { LockToggle } from './LockToggle';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { SectionHeader } from './PageHeader';
 
 const NAME_REFUSAL = 'Enter a name.';
 const DAY_RATE_REFUSAL = 'Enter a day rate of 0 or more.';
@@ -71,32 +72,34 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
 
   return (
     <section aria-labelledby="settings-countries-title" className="flex flex-col gap-1">
-      <div className="flex items-center justify-between">
-        <h2 id="settings-countries-title" className="m-0 text-title font-medium">
-          Countries &amp; rates
-        </h2>
-        <div className="flex items-center gap-2">
-          {datasetFlags?.ratesReviewed ? (
-            <span className="inline-flex items-center gap-1 text-caption text-text-secondary">
-              <CheckIcon width={16} height={16} />
-              Rates reviewed
-            </span>
-          ) : (
-            // Usable while locked: it confirms the rates, it doesn't edit them (§5.9).
-            <Button type="button" variant="outline" size="sm" onClick={() => repository.confirmRates()}>
-              <CheckIcon width={16} height={16} />
-              Rates are correct
-            </Button>
-          )}
-          <LockToggle lock={lock} />
-        </div>
-      </div>
+      <SectionHeader
+        id="settings-countries-title"
+        title="Countries & rates"
+        className="mb-0"
+        actions={
+          <>
+            {datasetFlags?.ratesReviewed ? (
+              <span className="inline-flex items-center gap-1 text-caption text-text-secondary">
+                <CheckIcon width={16} height={16} />
+                Rates reviewed
+              </span>
+            ) : (
+              // Usable while locked: it confirms the rates, it doesn't edit them (§5.9).
+              <Button type="button" variant="outline" size="sm" onClick={() => repository.confirmRates()}>
+                <CheckIcon width={16} height={16} />
+                Rates are correct
+              </Button>
+            )}
+            <LockToggle lock={lock} />
+          </>
+        }
+      />
       {lock.locked && <p className="m-0 text-caption text-text-secondary">Locked. Unlock to edit.</p>}
 
       <table className="tabular-nums mt-3 w-full border-collapse text-body">
         <caption className="sr-only">Countries</caption>
         <thead>
-          <tr className="text-left text-label font-medium text-text-secondary">
+          <tr className="text-left text-label text-text-secondary">
             <th className="py-1 pr-2 font-medium">Name</th>
             <th className="py-1 pr-2 text-right font-medium">Day rate</th>
             <th className="w-10 py-1">
@@ -157,7 +160,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                       )}
                     </div>
                   </td>
-                  <td className="py-1.5 pr-2 text-right tabular-nums">
+                  <td className="py-1.5 pr-2 text-right">
                     {current ? `${formatAmount(current.dayRate, currencySymbol)} / day (${tracked[0]})` : '—'}
                   </td>
                   <td className="py-1.5 text-right">
@@ -252,7 +255,7 @@ function YearTable({
     <table className="tabular-nums w-full border-collapse text-body">
       <caption className="sr-only">{country.name} rates by year</caption>
       <thead>
-        <tr className="text-left text-label font-medium text-text-secondary">
+        <tr className="text-left text-label text-text-secondary">
           <th className="py-1 pr-2 font-medium">Year</th>
           <th className="py-1 pr-3 text-right font-medium">Day rate</th>
           {MONTHS.map((m) => (

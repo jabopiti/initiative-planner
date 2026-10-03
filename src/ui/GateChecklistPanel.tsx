@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cardClass } from './cardClass';
 
 const STATUS_LABEL: Record<ChecklistStatus, string> = { incomplete: 'Incomplete', tentative: 'Tentative', complete: 'Complete' };
 const STATUS_ICON: Record<ChecklistStatus, typeof IncompleteIcon> = { incomplete: IncompleteIcon, tentative: TentativeIcon, complete: CompleteIcon };
@@ -38,9 +39,9 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
   if (items.length === 0 && carried.length === 0) return null;
 
   return (
-    <section aria-labelledby="gate-checklist-heading" className="flex flex-col gap-3 rounded-card bg-surface-card shadow-card p-3">
+    <section aria-labelledby="gate-checklist-heading" className={`${cardClass} flex flex-col gap-3 p-3`}>
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="gate-checklist-heading" className="m-0 text-title font-medium">
+        <h2 id="gate-checklist-heading" className="m-0 text-title">
           Gate / Checklist — {phase.exitGate.label}
         </h2>
         <span className="text-caption text-text-secondary">{gateProgressText({ complete, total })}</span>

@@ -29,6 +29,8 @@ import { TruncatedText } from './TruncatedText';
 import { undoToast } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { cardClass } from './cardClass';
 
 /** A phase nobody has planned yet. One shared object, so the picker's memo isn't invalidated on every render. */
 const UNPLANNED: PhasePlan = { allocations: [] };
@@ -70,7 +72,7 @@ export function PhasesSection({ initiative, team, openPhaseId }: { initiative: I
 
   return (
     <section aria-labelledby="phases-heading">
-      <h2 id="phases-heading" className="m-0 mb-3 text-title font-medium">
+      <h2 id="phases-heading" className="m-0 mb-3 text-title">
         Phases
       </h2>
       {initiative.defaultPlan && !initiativeFrozen && (
@@ -84,7 +86,7 @@ export function PhasesSection({ initiative, team, openPhaseId }: { initiative: I
       )}
       <ol className="m-0 flex list-none flex-col gap-2 p-0">
         {process.map((phase) => (
-          <li key={phase.id} id={`phase-row-${phase.id}`} className="rounded-card bg-surface-card shadow-card">
+          <li key={phase.id} id={`phase-row-${phase.id}`} className={cardClass}>
             {phase.costed ? (
               <CostedPhase
                 phase={phase}
@@ -262,7 +264,7 @@ function CostedPhase({
           <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>· Add people</span>
         )}
         <span className="ml-auto font-medium tabular-nums">{costed && hasCost ? formatAmount(total, currencySymbol) : '—'}</span>
-        <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-caption text-text-secondary">{coverageLabel}</span>
+        <Badge variant="subtle">{coverageLabel}</Badge>
       </button>
 
       {frozen && frozenWithLostEdit.has(lostEditKey(initiative.id, phase.id)) && (
@@ -349,7 +351,7 @@ function CostedPhase({
                 <table className="tabular-nums w-full border-collapse text-body">
                   <caption className="sr-only">{phase.label} allocations</caption>
                   <thead>
-                    <tr className="text-left text-label font-medium text-text-secondary">
+                    <tr className="text-left text-label text-text-secondary">
                       <th className="py-1 pr-2 font-medium">Person</th>
                       <th className="py-1 pr-2 font-medium">Allocation %</th>
                       <th className="py-1 pr-2 text-right font-medium">Days</th>
@@ -425,8 +427,8 @@ function CostedPhase({
                               onChange={(pct) => repository.updateAllocation(initiative.id, phase.id, allocation.id, pct)}
                             />
                           </td>
-                          <td className="py-1.5 pr-2 text-right tabular-nums">{costed && figures ? figures.personDays.toFixed(1) : '—'}</td>
-                          <td className="py-1.5 pr-2 text-right tabular-nums">
+                          <td className="py-1.5 pr-2 text-right">{costed && figures ? figures.personDays.toFixed(1) : '—'}</td>
+                          <td className="py-1.5 pr-2 text-right">
                             {costed && figures ? formatAmount(figures.cost, currencySymbol) : '—'}
                           </td>
                           <td className="py-1.5 text-right">
@@ -473,11 +475,11 @@ function CostedPhase({
 
           {costed && months.length > 0 && (
             <div className="flex flex-col gap-2">
-              <h3 className="m-0 text-heading font-medium text-text-primary">Actuals</h3>
+              <h3 className="m-0 text-heading text-text-primary">Actuals</h3>
               <table className="tabular-nums w-full border-collapse text-body">
                 <caption className="sr-only">{phase.label} actuals</caption>
                 <thead>
-                  <tr className="text-left text-label font-medium text-text-secondary">
+                  <tr className="text-left text-label text-text-secondary">
                     <th className="py-1 pr-2 font-medium">Month</th>
                     <th className="py-1 pr-2 text-right font-medium">Estimate</th>
                     <th className="py-1 pr-2 text-right font-medium">Actual</th>
@@ -490,7 +492,7 @@ function CostedPhase({
                     <Fragment key={month}>
                     <tr id={actualCellAnchor(phase.id, month)} className="border-t border-border-default">
                       <td className="py-1.5 pr-2">{formatMonth(month)}</td>
-                      <td className="py-1.5 pr-2 text-right tabular-nums">{formatAmount(estimateByMonth[month] ?? 0, currencySymbol)}</td>
+                      <td className="py-1.5 pr-2 text-right">{formatAmount(estimateByMonth[month] ?? 0, currencySymbol)}</td>
                       <td className="py-1.5 pr-2">
                         <ActualCell
                           phase={phase}
@@ -563,7 +565,7 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
         <table className="tabular-nums w-full border-collapse text-body">
           <caption className="sr-only">Frozen allocations</caption>
           <thead>
-            <tr className="text-left text-label font-medium text-text-secondary">
+            <tr className="text-left text-label text-text-secondary">
               <th className="py-1 pr-2 font-medium">Person</th>
               <th className="py-1 pr-2 font-medium">Allocation %</th>
               <th className="py-1 pr-2 text-right font-medium">Cost</th>
@@ -581,8 +583,8 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
                     <div>{allocation.personName ?? person?.name ?? 'Unknown person'}</div>
                     {role && <div className="text-caption text-text-muted">{role}</div>}
                   </td>
-                  <td className="py-1.5 pr-2 tabular-nums text-text-muted">{allocation.allocationPct}%</td>
-                  <td className="py-1.5 pr-2 text-right tabular-nums text-text-muted">{allocation.cost === undefined ? '—' : formatAmount(allocation.cost, currencySymbol)}</td>
+                  <td className="py-1.5 pr-2 text-text-muted">{allocation.allocationPct}%</td>
+                  <td className="py-1.5 pr-2 text-right text-text-muted">{allocation.cost === undefined ? '—' : formatAmount(allocation.cost, currencySymbol)}</td>
                 </tr>
               );
             })}
@@ -593,7 +595,7 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
         <table className="tabular-nums w-full border-collapse text-body">
           <caption className="sr-only">Frozen cost items</caption>
           <thead>
-            <tr className="text-left text-label font-medium text-text-secondary">
+            <tr className="text-left text-label text-text-secondary">
               <th className="py-1 pr-2 font-medium">Label</th>
               <th className="py-1 pr-2 font-medium">Amount</th>
               <th className="py-1 pr-2 font-medium">When</th>
@@ -603,7 +605,7 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
             {phase.costItems.map((item) => (
               <tr key={item.id} className="border-t border-border-default">
                 <td className="py-1.5 pr-2 text-text-muted">{item.label}</td>
-                <td className="py-1.5 pr-2 tabular-nums text-text-muted">{formatAmount(item.amount, currencySymbol)}</td>
+                <td className="py-1.5 pr-2 text-text-muted">{formatAmount(item.amount, currencySymbol)}</td>
                 <td className="py-1.5 pr-2 text-text-muted">{item.timing === 'month' && item.month ? `${TIMING_LABELS.month} (${formatMonth(item.month)})` : TIMING_LABELS[item.timing]}</td>
               </tr>
             ))}

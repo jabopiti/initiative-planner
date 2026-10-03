@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cardClass } from './cardClass';
 
 const MESSAGE_STYLES: Record<TokenCheckResult['outcome'], string> = {
   works: 'bg-met-tint text-met-text',
@@ -58,13 +59,13 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
   const tokenManagementLink = tokenManagementUrl(brand.github);
   const apiHost = new URL(brand.github.apiBaseUrl).host;
   const isError = result !== null && result.outcome !== 'works' && result.outcome !== 'classic-warning';
-  const cardClass = 'rounded-xl border border-border-default bg-surface-card p-6';
+  const panelClass = `${cardClass} p-6`;
   const newTab = <span className="sr-only"> (opens in a new tab)</span>;
 
   return (
     <main className="mx-auto flex w-full max-w-connect flex-col gap-4 px-4 py-12">
-      <section className={`${cardClass} border-2 border-brand-accent`} aria-labelledby="connect-heading">
-        <h1 id="connect-heading" className="m-0 mb-1 text-display font-medium">
+      <section className={`${panelClass} border-2 border-brand-accent`} aria-labelledby="connect-heading">
+        <h1 id="connect-heading" className="m-0 mb-1 text-display">
           Connect to {brand.productName}
         </h1>
         <p className="m-0 mb-5 text-text-secondary">Paste your GitHub token to continue.</p>
@@ -118,8 +119,8 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
         )}
       </section>
 
-      <section className={cardClass} aria-labelledby="guide-heading">
-        <h2 id="guide-heading" className="m-0 mb-3 text-title font-medium">
+      <section className={panelClass} aria-labelledby="guide-heading">
+        <h2 id="guide-heading" className="m-0 mb-3 text-title">
           No token yet? Create one in 4 steps
         </h2>
         <TokenSteps

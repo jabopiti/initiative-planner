@@ -85,7 +85,7 @@ function Calendar({
           "font-medium select-none",
           captionLayout === "label"
             ? "text-body"
-            : "flex h-8 items-center gap-1 rounded-md pr-1 pl-2 text-caption [&>svg]:size-3.5 [&>svg]:text-muted-foreground",
+            : "flex h-8 items-center gap-1 rounded-md pr-1 pl-2 text-body [&>svg]:size-3.5 [&>svg]:text-muted-foreground",
           defaultClassNames.caption_label
         ),
         month_grid: cn("w-full border-collapse", defaultClassNames.month_grid),

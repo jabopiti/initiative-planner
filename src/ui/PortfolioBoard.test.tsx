@@ -142,7 +142,7 @@ describe('Portfolio board cards (§5.2)', () => {
     expect(within(c).getByText('Platform · Ana Ruiz')).toBeTruthy();
     expect(within(c).getByText('€412 k')).toBeTruthy();
     // The full track badge, letter and name, on the card too (§9.10).
-    expect(within(c).getByText('Elevated').closest('[data-variant="outline"]')).toHaveTextContent(/^E Elevated$/);
+    expect(within(c).getByText((_, el) => el?.textContent === 'E Elevated')).toBeTruthy();
   });
 
   it('names a missing owner and marks a deactivated one', async () => {

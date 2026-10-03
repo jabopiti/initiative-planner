@@ -112,17 +112,17 @@ export function PeopleOverview() {
         title="People"
         actions={
           <>
-          <Select value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
-            <SelectTrigger aria-label="Show people">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-              <SelectItem value="all">All</SelectItem>
-            </SelectContent>
-          </Select>
-          {visible.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} />}
+            <Select value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
+              <SelectTrigger aria-label="Show people">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+              </SelectContent>
+            </Select>
+            {visible.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} />}
           </>
         }
       />
@@ -190,7 +190,7 @@ export function PeopleOverview() {
           ) : (
             <table className="tabular-nums w-full border-collapse text-body">
               <thead>
-                <tr className="text-label font-medium text-left text-text-secondary">
+                <tr className="text-label text-left text-text-secondary">
                   <SortableHeader label="Name" sortKey="name" sort={sort} />
                   <SortableHeader label="Role" sortKey="role" sort={sort} />
                   <SortableHeader label="Country" sortKey="country" sort={sort} />

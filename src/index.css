@@ -24,7 +24,8 @@
 
 /*
  * The fixed type scale (§9.8): six sizes and two weights, and nothing else — Tailwind's own size and weight scales
- * are reset so a stray text-sm or font-semibold generates no CSS (src/test/typeScale.test.ts fails on one).
+ * are reset so a stray text-sm or font-semibold generates no CSS (src/test/typeScale.test.ts fails on one). The three
+ * heading sizes carry the medium weight themselves, so a heading never needs font-medium beside its size.
  */
 @theme {
   --text-*: initial;
@@ -35,10 +36,13 @@
   --text-body: 15px;
   --text-body--line-height: 22px;
   --text-heading: 16px;
+  --text-heading--font-weight: 500;
   --text-heading--line-height: 24px;
   --text-title: 18px;
+  --text-title--font-weight: 500;
   --text-title--line-height: 26px;
   --text-display: 24px;
+  --text-display--font-weight: 500;
   --text-display--line-height: 32px;
 
   --font-weight-*: initial;

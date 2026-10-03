@@ -46,7 +46,7 @@ export function NeedsAttentionStrip() {
 
   return (
     <section aria-labelledby="needs-attention-heading" className="mb-6 overflow-hidden rounded-card bg-surface-subtle">
-      <h2 id="needs-attention-heading" className="m-0 border-b border-border-default px-3.5 py-2 text-heading font-medium">
+      <h2 id="needs-attention-heading" className="m-0 border-b border-border-default px-3.5 py-2 text-heading">
         Needs attention
       </h2>
       <ul className="m-0 flex list-none flex-col p-0">

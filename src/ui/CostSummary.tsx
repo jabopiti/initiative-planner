@@ -6,6 +6,7 @@ import type { Initiative } from '../data/types';
 import { CopyButton } from './CopyButton';
 import type { CopyTableData } from './copyTable';
 import { formatAmount, formatSignedAmount } from './formatAmount';
+import { cardClass } from './cardClass';
 
 function Stat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
@@ -45,7 +46,7 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
   };
 
   return (
-    <section id="cost-summary-section" aria-labelledby="cost-summary-heading" className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card bg-surface-card shadow-card px-4 py-3 tabular-nums text-body">
+    <section id="cost-summary-section" aria-labelledby="cost-summary-heading" className={`${cardClass} mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 tabular-nums text-body`}>
       <h2 id="cost-summary-heading" className="sr-only">
         Cost summary
       </h2>

@@ -125,7 +125,7 @@ export function InitiativesTable() {
       ) : (
         <table className="tabular-nums w-full border-collapse text-body">
           <thead>
-            <tr className="text-label font-medium text-left text-text-secondary">
+            <tr className="text-label text-left text-text-secondary">
               <SortableHeader label="Name" sortKey="name" sort={sort} />
               <SortableHeader label="Team" sortKey="team" sort={sort} />
               <SortableHeader label="Owner" sortKey="owner" sort={sort} />

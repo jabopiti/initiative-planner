@@ -9,6 +9,8 @@ import { CopyButton } from './CopyButton';
 import { InlineWarning } from './InlineWarning';
 import { OverCapacityIcon, OverTeamFteIcon, WarningIcon } from './icons';
 import { Button } from '@/components/ui/button';
+import { SectionHeader } from './PageHeader';
+import { cardClass } from './cardClass';
 
 /** Allocation % are unrounded, so a figure shows at most one decimal. */
 const pct = (value: number) => `${Math.round(value * 10) / 10}%`;
@@ -86,10 +88,10 @@ export function CapacityGrid({ team }: { team: Team }) {
 
   return (
     <section aria-label="Capacity" className="mt-8">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="m-0 text-title font-medium">Capacity</h2>
-        {team.active && capacity.months.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} label="Copy capacity" />}
-      </div>
+      <SectionHeader
+        title="Capacity"
+        actions={team.active && capacity.months.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} label="Copy capacity" />}
+      />
 
       {!team.active ? (
         <p className="m-0 py-6 text-body text-text-secondary">This team is inactive, so its initiatives are not counted toward anyone&apos;s capacity. Reactivate the team to see its capacity.</p>
@@ -108,10 +110,10 @@ export function CapacityGrid({ team }: { team: Team }) {
         </>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-card bg-surface-card shadow-card">
+          <div className={`${cardClass} overflow-x-auto`}>
             <table className="tabular-nums w-max min-w-full border-collapse text-body">
               <thead>
-                <tr className="text-label font-medium text-left text-text-secondary">
+                <tr className="text-label text-left text-text-secondary">
                   <th scope="col" className="sticky left-0 z-10 min-w-44 border-b border-border-default bg-surface-card px-3 py-2 font-medium">
                     Name
                   </th>
@@ -253,9 +255,9 @@ function Detail({ row, month, team, capacity, data, onClose }: { row: CapacityRo
   };
 
   return (
-    <section aria-label="Capacity detail" className="mt-4 rounded-card bg-surface-card shadow-card p-4">
+    <section aria-label="Capacity detail" className={`${cardClass} mt-4 p-4`}>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 ref={heading} tabIndex={-1} className="m-0 text-heading font-medium">
+        <h3 ref={heading} tabIndex={-1} className="m-0 text-heading">
           {person.name} · {month ? formatMonth(month) : 'all months'}
         </h3>
         <Button type="button" variant="ghost" size="sm" onClick={onClose}>
