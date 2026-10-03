@@ -13,6 +13,7 @@ import { SortableHeader } from './SortableHeader';
 import { TruncatedText } from './TruncatedText';
 import { sortRows, type SortValue } from '../data/sortRows';
 import { useTableSort } from './tableSort';
+import { Refusal } from './CommitInput';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -28,6 +29,7 @@ export function TeamsOverview() {
   const [name, setName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const sort = useTableSort('name');
+  const [refusal, setRefusal] = useState<string | null>(null);
 
   const phaseCountsByTeam = useMemo(() => {
     const byTeam = new Map<string, Map<string, number>>();
@@ -76,12 +78,17 @@ export function TeamsOverview() {
   function startCreating() {
     setCreating(true);
     setName('');
+    setRefusal(null);
     requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!name.trim()) return;
+    const refused = repository.teamNameRefusal(name);
+    if (refused) {
+      setRefusal(refused);
+      return;
+    }
     repository.createTeam(name.trim());
     setCreating(false);
     setName('');
@@ -109,7 +116,12 @@ export function TeamsOverview() {
               if (e.key === 'Escape') setCreating(false);
             }}
           >
-            <Input ref={inputRef} aria-label="Team name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Team name" />
+            <Input ref={inputRef} aria-label="Team name" value={name} onChange={(e) => {
+                setName(e.target.value);
+                setRefusal(null);
+              }}
+              aria-invalid={refusal ? true : undefined}
+              placeholder="Team name" />
             <Button type="submit" disabled={!name.trim()}>
               Create
             </Button>
@@ -122,6 +134,7 @@ export function TeamsOverview() {
         )}
         </div>
       </div>
+      {creating && refusal && <Refusal className="mb-3 w-fit">{refusal}</Refusal>}
 
       <table className="w-full border-collapse text-sm">
         <thead>

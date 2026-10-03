@@ -265,6 +265,40 @@ describe('Repository — slice 004 people and memberships', () => {
     expect(repo.getState().memberships).toHaveLength(1);
   });
 
+  it('restores a removed membership at its position, refusing once the pair is back (§5.11)', async () => {
+    const repo = await readyRepo();
+    const a = repo.createPerson(input);
+    const b = repo.createPerson(input);
+    const teamId = repo.createTeam('Team A').id;
+    const first = repo.addMembership(a.id, teamId)!;
+    repo.updateMembership(first.id, { teamFtePct: 40 }, true);
+    repo.addMembership(b.id, teamId);
+    const removed = repo.removeMembership(first.id)!;
+    expect(removed.index).toBe(0);
+    expect(repo.restoreMembership(removed.membership, removed.index)).toEqual({ ok: true });
+    expect(repo.getState().memberships[0]).toMatchObject({ id: first.id, teamFtePct: 40 });
+    expect(repo.getState().memberships).toHaveLength(2);
+
+    repo.removeMembership(first.id);
+    repo.addMembership(a.id, teamId);
+    const refused = repo.restoreMembership(removed.membership, removed.index);
+    expect(refused).toMatchObject({ ok: false });
+    expect(repo.getState().memberships).toHaveLength(2);
+  });
+
+  it('renames a team, refusing an empty or duplicate name case-insensitively (§5.8)', async () => {
+    const repo = await readyRepo();
+    const team = repo.createTeam('Payments');
+    repo.createTeam('Platform');
+    expect(repo.teamNameRefusal('  ', team.id)).toBe('Enter a name.');
+    expect(repo.teamNameRefusal('platform', team.id)).toBe('A team named Platform already exists.');
+    expect(repo.teamNameRefusal('payments', team.id)).toBeNull();
+    repo.updateTeam(team.id, { name: 'platform' });
+    expect(repo.getState().teams[0].name).toBe('Payments');
+    repo.updateTeam(team.id, { name: 'Billing' });
+    expect(repo.getState().teams[0].name).toBe('Billing');
+  });
+
   it('deactivates and reactivates a person, keeping the record; removes a membership', async () => {
     const repo = await readyRepo();
     const person = repo.createPerson(input);
@@ -292,6 +326,18 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
   const messagesFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => rawMessagesFor(mock, file).map(subjectOf);
   /** The `Entity:` trailer lines of each commit to the file (§10.3). */
   const trailersFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => rawMessagesFor(mock, file).map((m) => splitMessage(m).trailers);
+
+  it('says which team was renamed to what', async () => {
+    const mock = routingFetchMock();
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const team = repo.createTeam('Payments');
+    await repo.flushPending();
+    repo.updateTeam(team.id, { name: 'Billing' });
+    await repo.flushPending();
+    expect(messagesFor(mock, 'teams.json')).toEqual(['Payments: team created', 'Payments: team renamed to Billing']);
+  });
 
   it('says who was added, changed and added to which team', async () => {
     const mock = routingFetchMock();
