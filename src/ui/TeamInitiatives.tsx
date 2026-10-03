@@ -6,6 +6,7 @@ import { sortRows } from '../data/sortRows';
 import { navigate } from '../router/useHashRoute';
 import type { Team } from '../data/types';
 import { SortableHeader } from './SortableHeader';
+import { openRowProps } from './openRowProps';
 import { TruncatedText } from './TruncatedText';
 import { useTableSort } from './tableSort';
 import { PlusIcon } from './icons';
@@ -80,9 +81,9 @@ export function TeamInitiatives({ team }: { team: Team }) {
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.initiative.id} className="cursor-pointer border-b border-border-default" onClick={() => navigate(`/initiatives/${r.initiative.id}`)}>
+              <tr key={r.initiative.id} className="cursor-pointer border-b border-border-default" {...openRowProps(() => navigate(`/initiatives/${r.initiative.id}`))}>
                 <td className="px-3 py-2">
-                  <a href={`#/initiatives/${r.initiative.id}`} className="font-medium text-inherit no-underline hover:underline" onClick={(e) => e.stopPropagation()}>
+                  <a href={`#/initiatives/${r.initiative.id}`} className="font-medium text-inherit no-underline hover:underline">
                     <TruncatedText text={r.initiative.name} />
                   </a>
                 </td>

@@ -140,7 +140,7 @@ describe('Portfolio board cards (§5.2)', () => {
     await renderBoard([big]);
     const c = card(/Big One/);
     expect(within(c).getByText('Platform · Ana Ruiz')).toBeTruthy();
-    expect(within(c).getByText('€412 k')).toBeTruthy();
+    expect(within(c).getByText('€412k')).toBeTruthy();
     // The full track badge, letter and name, on the card too (§9.10).
     expect(within(c).getByText((_, el) => el?.textContent === 'E Elevated')).toBeTruthy();
   });
@@ -161,7 +161,7 @@ describe('Portfolio board cards (§5.2)', () => {
     const gapped = { ...defaultBrandPack, approvalTracks: defaultBrandPack.approvalTracks.filter((t) => t.id !== 'elevated') };
     await renderBoard([gap], gapped);
     expect(within(card(/Gap One/)).getByText('No approval track')).toHaveClass('border-dashed');
-    expect(within(card(/Gap One/)).getByText('€4.2 M')).toBeTruthy();
+    expect(within(card(/Gap One/)).getByText('€4.2M')).toBeTruthy();
   });
 
   it('gives a long name in full as its tooltip text', async () => {
@@ -178,14 +178,14 @@ describe('Portfolio board column headers (§5.2)', () => {
     await renderBoard([big, small]);
     const validation = process.find((p) => p.id === validationId)!;
     expect(screen.getByText(validation.label)).toBeTruthy();
-    expect(screen.getByText('2 · €530 k')).toBeTruthy();
+    expect(screen.getByText('2 · €530k')).toBeTruthy();
     expect(screen.getAllByText('0 · €0').length).toBeGreaterThan(0);
-    await user.hover(screen.getByText('2 · €530 k'));
+    await user.hover(screen.getByText('2 · €530k'));
     expect((await screen.findAllByText('€530,000')).length).toBeGreaterThan(0);
   });
 });
 
-/** Over: €100 k estimated for Feb 2026, €104 k recorded — deviation +€4 k. */
+/** Over: €100k estimated for Feb 2026, €104k recorded — deviation +€4k. */
 const over: Initiative = {
   id: 'ov',
   name: 'Over One',
@@ -281,10 +281,10 @@ describe('Portfolio filters (§5.2, §9.11)', () => {
     await pickYear(user, '2027');
     expect(chipButton('Year: 2027')).toBeInTheDocument();
     expect(cardNames()).toHaveLength(1);
-    expect(within(card(/Later One/)).getByText('€30 k')).toBeInTheDocument();
-    expect(screen.getByText('1 · €30 k')).toBeInTheDocument();
+    expect(within(card(/Later One/)).getByText('€30k')).toBeInTheDocument();
+    expect(screen.getByText('1 · €30k')).toBeInTheDocument();
     await pickYear(user, '2026');
-    expect(within(card(/Big One/)).getByText('€412 k')).toBeInTheDocument();
+    expect(within(card(/Big One/)).getByText('€412k')).toBeInTheDocument();
     expect(within(card(/Big One/)).getByText('Elevated')).toBeInTheDocument();
     expect(shownCard('Later One')).toBe(false);
     await pickYear(user, 'All years');
@@ -294,8 +294,8 @@ describe('Portfolio filters (§5.2, §9.11)', () => {
 
   it('states Total cost and a signed Deviation for what is shown, overspend in Warning', async () => {
     await renderBoard([small, over]);
-    expect(screen.getByText('€222 k')).toBeInTheDocument();
-    const deviation = screen.getByText('+€4 k');
+    expect(screen.getByText('€222k')).toBeInTheDocument();
+    const deviation = screen.getByText('+€4k');
     expect(deviation).toHaveClass('text-warning-text');
   });
 

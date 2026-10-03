@@ -212,7 +212,7 @@ describe('Pass a gate with its checklist (§8.1)', () => {
 
     await vi.waitFor(() => expect(puts.some((p) => p.message.includes('G2 reopened'))).toBe(true), { timeout: 3000 });
     expect(screen.queryByText('Approved at (G2)')).not.toBeInTheDocument();
-    expect(await screen.findByRole('textbox', { name: 'Validation start date' })).toHaveValue('01.10.2026'); // editable again
+    expect(await screen.findByRole('textbox', { name: 'Validation start date' })).toHaveValue('01/10/2026'); // editable again
 
     // Checklist note kept, not reset (AC5).
     expect(await screen.findByRole('heading', { name: /Gate \/ Checklist — G2/ })).toBeInTheDocument();

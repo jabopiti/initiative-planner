@@ -26,3 +26,6 @@ window.matchMedia ??= ((query: string) => ({
   addEventListener() {},
   removeEventListener() {},
 })) as unknown as typeof window.matchMedia;
+
+// Display formats follow the browser's locale (§9.7); a test reads British English unless it sets its own.
+Object.defineProperty(navigator, 'language', { value: 'en-GB', configurable: true });

@@ -285,7 +285,7 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
 
     await user.type(field, '01.10.2026'); // the calendar moves to October 2026
     await user.click(within(await screen.findByRole('grid')).getByRole('button', { name: /October 15th/ }));
-    expect(field).toHaveValue('15.10.2026');
+    expect(field).toHaveValue('15/10/2026');
     expect(screen.queryByText('Or type a date, e.g. 26.06.2026')).not.toBeInTheDocument();
     expect(validationRow()).toHaveTextContent('Set period'); // only the start is set so far
   });
@@ -312,7 +312,7 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
       await user.keyboard('{ArrowDown}');
       await vi.waitFor(() => expect(within(screen.getByRole('grid')).getAllByRole('button').includes(document.activeElement as HTMLElement)).toBe(true));
       await user.keyboard('{Enter}');
-      expect(field).toHaveValue('01.10.2026'); // the focused day was the typed date, now picked
+      expect(field).toHaveValue('01/10/2026'); // the focused day was the typed date, now picked
       expect(field).toHaveFocus();
     } finally {
       vi.useRealTimers();
@@ -347,9 +347,9 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     renderPage();
     await typeDate(user, 'Validation start date', '07.09.2026');
     await typeDate(user, 'Validation end date', '30.09.2026');
-    expect(validationRow()).toHaveTextContent('7 Sep – 30 Sep 2026');
+    expect(validationRow()).toHaveTextContent('7 Sept – 30 Sept 2026');
     await typeDate(user, 'Validation end date', '08.01.2027');
-    expect(validationRow()).toHaveTextContent('7 Sep 2026 – 8 Jan 2027');
+    expect(validationRow()).toHaveTextContent('7 Sept 2026 – 8 Jan 2027');
   });
 
   it('shows the same period, allocations and total after a reload', async () => {
@@ -366,7 +366,7 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     renderPage();
     const row = await screen.findByRole('row', { name: /Ana Ruiz/ });
     expect(within(row).getByLabelText('Allocation % for Ana Ruiz')).toHaveValue(50);
-    expect(screen.getByRole('textbox', { name: 'Validation start date' })).toHaveValue('01.10.2026');
+    expect(screen.getByRole('textbox', { name: 'Validation start date' })).toHaveValue('01/10/2026');
     expect(validationRow()).toHaveTextContent('€8,000');
   });
 });
@@ -382,7 +382,7 @@ describe('Default plan (§5.11)', () => {
     initiative = { ...initiative, phases: suggested, defaultPlan: true };
     renderPage();
     expect(await screen.findByText('Suggested dates, starting today. Adjust them, then add people to see the cost.')).toBeInTheDocument();
-    expect(validationRow()).toHaveTextContent('24 Sep – 23 Dec 2026');
+    expect(validationRow()).toHaveTextContent('24 Sept – 23 Dec 2026');
     expect(developmentRow()).toHaveTextContent('24 Dec 2026 – 23 Jun 2027');
     expect(validationRow()).not.toHaveTextContent('Set period');
     expect(screen.queryByText('Set the period to calculate cost.')).not.toBeInTheDocument();
@@ -814,7 +814,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
 
     await user.clear(month);
     await user.type(month, 'soon{Enter}');
-    expect(within(row).getByRole('alert')).toHaveTextContent('Enter a month such as Sep 2026.');
+    expect(within(row).getByRole('alert')).toHaveTextContent('Enter a month such as Sept 2026.');
     expect(month).toHaveValue('soon');
   });
 

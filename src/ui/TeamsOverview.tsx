@@ -5,6 +5,7 @@ import { activeLoads, teamCapacity, teamHasCapacityWarning } from '../data/capac
 import { localToday } from '../data/dates';
 import { currentPhaseId } from '../data/processState';
 import { activeMembers } from '../data/teamMembers';
+import { openRowProps } from './openRowProps';
 import { navigate } from '../router/useHashRoute';
 import { EmptyState } from './EmptyState';
 import { PlusIcon, WarningIcon } from './icons';
@@ -166,10 +167,7 @@ export function TeamsOverview() {
             <tr
               key={team.id}
               className={`cursor-pointer border-b border-border-default transition-colors duration-500 motion-reduce:transition-none ${changed(FILE_PATHS.teams, [{ id: team.id }]) ? 'bg-met-tint' : ''} ${team.active ? '' : 'text-text-secondary'}`}
-              onClick={(e) => {
-                // A click on the name link is the link's own (Cmd-click opens a new tab, without also leaving this one); the warning marker only shows its tooltip.
-                if (!(e.target as HTMLElement).closest('a, [data-row-action]')) navigate(`/teams/${team.id}`);
-              }}
+              {...openRowProps(() => navigate(`/teams/${team.id}`))}
             >
               <td className="px-3 py-2 font-medium">
                 <div className="flex items-center gap-2">

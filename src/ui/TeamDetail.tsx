@@ -12,6 +12,7 @@ import { SortableHeader } from './SortableHeader';
 import { CapacityGrid } from './CapacityGrid';
 import { TeamInitiatives } from './TeamInitiatives';
 import { PersonPanel } from './PersonPanel';
+import { openRowProps } from './openRowProps';
 import { TruncatedText } from './TruncatedText';
 import { sortRows } from '../data/sortRows';
 import { useTableSort } from './tableSort';
@@ -259,10 +260,7 @@ export function TeamDetail({ id }: { id: string }) {
                   <Fragment key={m.id}>
                   <tr
                     className={`cursor-pointer border-b border-border-default ${m.active && person.active ? '' : 'text-text-secondary'}`}
-                    onClick={(e) => {
-                      // Editing the FTE or using the row actions must not open the drawer.
-                      if (!(e.target as HTMLElement).closest('input, [data-row-action]')) setPersonId(person.id);
-                    }}
+                    {...openRowProps(() => setPersonId(person.id))}
                   >
                     <td className="px-3 py-2 font-medium">
                       <button

@@ -9,6 +9,7 @@ import { usePersonRequests } from './personRequest';
 import { EmptyState } from './EmptyState';
 import { CopyButton } from './CopyButton';
 import { SortableHeader } from './SortableHeader';
+import { openRowProps } from './openRowProps';
 import { TruncatedText } from './TruncatedText';
 import { sortRows } from '../data/sortRows';
 import { useTableSort } from './tableSort';
@@ -208,7 +209,7 @@ export function PeopleOverview() {
                     <tr
                       key={p.id}
                       className={`cursor-pointer border-b border-border-default transition-colors duration-500 motion-reduce:transition-none ${p.id === selectedId ? 'bg-brand-accent-tint' : changed(FILE_PATHS.people, [{ id: p.id }]) ? 'bg-met-tint' : ''} ${p.active ? '' : 'text-text-secondary'}`}
-                      onClick={() => setSelectedId(p.id)}
+                      {...openRowProps(() => setSelectedId(p.id))}
                     >
                       <td className="px-3 py-2">
                         <button
