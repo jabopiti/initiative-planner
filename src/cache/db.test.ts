@@ -110,6 +110,16 @@ describe('FileCache (§10.4)', () => {
     expect([...(await cache.all()).keys()].sort()).toEqual(['initiatives/a.json', 'initiatives/b.json']);
   });
 
+  it('counts the budget in encoded bytes, not UTF-16 units', async () => {
+    // 40 euro signs are 40 UTF-16 units but 120 UTF-8 bytes: two of them cannot fit in 200 bytes.
+    const cache = new FileCache('a/b@data', async () => 200);
+    const euros = { content: '€'.repeat(40), sha: 's' };
+    await cache.set('initiatives/a.json', euros);
+    await cache.set('initiatives/b.json', euros);
+
+    expect([...(await cache.all()).keys()]).toEqual(['initiatives/b.json']);
+  });
+
   it('budgets half of what the browser reports as its quota', async () => {
     vi.stubGlobal('navigator', { storage: { estimate: async () => ({ quota: 1000, usage: 10 }) } });
     expect(await defaultBudget()).toBe(500);

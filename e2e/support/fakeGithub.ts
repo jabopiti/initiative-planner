@@ -17,6 +17,7 @@ interface StoredFile {
 }
 
 export function fakeGithub(page: Page, options: { login?: string; rejectedTokens?: string[]; classicTokens?: string[] } = {}) {
+  const rejectedTokens = [...(options.rejectedTokens ?? [])];
   const files = new Map<string, StoredFile>();
   const blobs = new Map<string, string>();
   const trees = new Map<string, Map<string, string>>();
@@ -52,7 +53,7 @@ export function fakeGithub(page: Page, options: { login?: string; rejectedTokens
     const method = request.method();
 
     const token = (request.headers().authorization ?? '').replace('Bearer ', '');
-    if (options.rejectedTokens?.includes(token)) return json(route, { message: 'Bad credentials' }, 401);
+    if (rejectedTokens.includes(token)) return json(route, { message: 'Bad credentials' }, 401);
     if (method === 'GET' && pathname === '/user' && options.classicTokens?.includes(token)) {
       return json(route, { login: options.login ?? 'e2e-user' }, 200, { 'x-oauth-scopes': 'repo' });
     }
@@ -147,5 +148,17 @@ export function fakeGithub(page: Page, options: { login?: string; rejectedTokens
     paths: (dir = '') => [...files.keys()].filter((path) => path.startsWith(dir)),
     /** Every write made through the Contents API, oldest first. */
     writes,
+    /** From now on GitHub answers 401 to this token, as it does once a token is revoked or expires. */
+    rejectToken: (token: string) => void rejectedTokens.push(token),
+    /**
+     * Another user's save: replaces a file's content behind the app's back, so its next write carries a stale
+     * `sha` (a 409) and its next pull sees a new branch head.
+     */
+    edit: <T>(path: string, change: (current: T) => T) => {
+      const file = files.get(path);
+      if (!file) throw new Error(`No file to edit: ${path}`);
+      files.set(path, { content: JSON.stringify(change(JSON.parse(file.content) as T)), sha: next('sha') });
+      headCommit = next('commit');
+    },
   };
 }
