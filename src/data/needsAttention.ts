@@ -64,7 +64,7 @@ function overdueTarget(initiative: Initiative, process: PhaseDef[], today: strin
 export function overdueActualMonths(initiative: Initiative, phase: PhaseDef, today: string): string[] {
   const plan = initiative.phases?.[phase.id];
   if (!phase.costed || !plan) return [];
-  return phaseMonths(plan).filter((month) => plan.actualMonths?.[month] === undefined && month < monthOf(today) && monthOf(today) > nextMonth(month));
+  return phaseMonths(plan).filter((month) => plan.actualMonths?.[month] === undefined && monthOf(today) > nextMonth(month));
 }
 
 /**

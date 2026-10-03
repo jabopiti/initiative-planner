@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { currentPhaseId, gateBlockers, gateOpenCount, gateOverdue, gateRequirements, onHoldMessage, overrunMessage, READY_MESSAGE } from '../data/gate';
+import { currentPhaseId, gateBlockers, gateOverdue, gateRequirements, onHoldMessage, overrunMessage, READY_MESSAGE } from '../data/gate';
 import { localToday } from '../data/dates';
 import { useBrand } from '../state/BrandContext';
 import { useRepository } from '../state/DataContext';
 import type { Initiative } from '../data/types';
 import { isInitiativeFrozen } from '../data/frozen';
 import { canChooseStartingPhase, gatesBehindLabel, hasStartingPhase, startingPhaseChoices } from '../data/startingPhase';
-import { jumpTargetId, jumpTo } from './jumpTo';
+import { firstBlockerJump, useJump } from './jumpTo';
 import { OnHoldIcon, OverrunIcon, ResumeIcon } from './icons';
 import { PhaseStepper } from './PhaseStepper';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ const GUIDANCE_ID = 'magic-bar-guidance';
 export function MagicBar({ initiative }: { initiative: Initiative }) {
   const { process } = useBrand();
   const repository = useRepository();
+  const jump = useJump();
   // "Passed G2" or "Skipped G2", shown with Reopen for a few seconds after the gate is passed or skipped.
   const [doneMessage, setDoneMessage] = useState<string | null>(null);
   const [holdAsked, setHoldAsked] = useState<'pass' | 'skip' | null>(null);
@@ -67,7 +68,6 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   const requirements = gateRequirements(process, initiative, phaseId);
   const blockers = gateBlockers(requirements);
   const ready = blockers.length === 0;
-  const openCount = gateOpenCount(requirements);
   const overdue = gateOverdue(initiative, phase, today);
   const endDate = initiative.phases?.[phase.id]?.endDate;
 
@@ -104,7 +104,10 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   };
   const offerStart = canStart && !skipping && !starting && !doneMessage;
 
-  const jump = () => jumpTo(jumpTargetId(requirements, phaseId));
+  const jumpToBlocker = () => {
+    const target = firstBlockerJump(requirements, phaseId);
+    if (target) jump(target);
+  };
   const extend = () => repository.extendPhase(initiative.id, phase.id);
 
   const resume = () => {
@@ -113,15 +116,14 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
     passButton.current?.focus();
   };
 
-  // The first blocker always names something specific (AC1, AC2), whatever else is also open.
-  const blockerText = ready ? '' : blockers.length > 1 ? `${blockers[0]} (+${blockers.length - 1} more)` : blockers[0];
-  // In Overrun, the late phase leads and the first blocker follows on the same line (§5.4).
+  // In Overrun, the late phase leads the line, and the first blocker, if any, follows it (§5.4).
   const overrunText = overdue && endDate && !doneMessage && !onHold ? overrunMessage(phase, endDate, today) : null;
   let guidance: string;
   if (onHold) guidance = holdAsked ? onHoldMessage(initiative, process, holdAsked) : 'On hold';
   else if (doneMessage) guidance = doneMessage;
-  else if (ready) guidance = overrunText ?? READY_MESSAGE;
-  else guidance = blockerText;
+  else if (ready) guidance = overrunText ? '' : READY_MESSAGE;
+  // The first blocker always names something specific (AC1, AC2), whatever else is also open.
+  else guidance = blockers.length > 1 ? `${blockers[0]} (+${blockers.length - 1} more)` : blockers[0];
   // A blocked Pass gate stays selectable, to jump to what blocks it, but is announced as disabled with the reason (§5.4, §9.5).
   const passBlocked = onHold || !ready;
 
@@ -216,9 +218,14 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
           <div className="flex flex-col gap-1">
             <p id={GUIDANCE_ID} className={`m-0 flex items-center gap-1.5 text-sm ${overrunText ? 'font-medium text-alarm-text' : 'text-text-secondary'}`}>
               {overrunText && <OverrunIcon width={16} height={16} className="shrink-0" />}
-              {overrunText && !ready && <span>{overrunText} ·</span>}
+              {overrunText && (
+                <span>
+                  {overrunText}
+                  {!ready && ' ·'}
+                </span>
+              )}
               {!ready && !doneMessage ? (
-                <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-left underline" onClick={jump}>
+                <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-left underline" onClick={jumpToBlocker}>
                   {guidance}
                 </button>
               ) : (
@@ -273,11 +280,10 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
               variant={passBlocked ? 'outline' : 'default'}
               aria-disabled={passBlocked || undefined}
               aria-describedby={passBlocked ? GUIDANCE_ID : undefined}
-              onClick={onHold ? () => setHoldAsked('pass') : ready ? pass : jump}
+              onClick={onHold ? () => setHoldAsked('pass') : ready ? pass : jumpToBlocker}
             >
-              {onHold || ready ? 'Pass gate' : `Pass gate · ${openCount} open`}
+              {onHold || ready ? 'Pass gate' : `Pass gate · ${blockers.length} open`}
             </Button>
-
           </div>
         )}
       </div>

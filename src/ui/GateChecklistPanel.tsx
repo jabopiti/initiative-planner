@@ -6,7 +6,7 @@ import { useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { isInitiativeFrozen } from '../data/frozen';
 import { FILE_PATHS, type ChecklistStatus, type Initiative } from '../data/types';
 import { Refusal } from './CommitInput';
-import { jumpTo, requirementAnchor } from './jumpTo';
+import { requirementJump, useJump } from './jumpTo';
 import { CompleteIcon, IncompleteIcon, InfoIcon, TentativeIcon } from './icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -77,6 +77,7 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
 /** The estimates requirement as a row (§5.4, §8.1): a statement whose icon and Open / Met carry the state, with Go to <phase> while open. */
 function EstimatesRow({ requirement, phaseId }: { requirement: EstimatesRequirement; phaseId: string }) {
   const { process } = useBrand();
+  const jump = useJump();
   const met = requirement.state === 'met';
   const Icon = met ? CompleteIcon : IncompleteIcon;
   const target = process.find((p) => p.id === requirement.missingPhaseIds[0]);
@@ -88,7 +89,7 @@ function EstimatesRow({ requirement, phaseId }: { requirement: EstimatesRequirem
       </div>
       <div className="flex shrink-0 items-center gap-3">
         {target && (
-          <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => jumpTo(requirementAnchor(requirement, phaseId))}>
+          <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => jump(requirementJump(requirement, phaseId))}>
             Go to {target.label}
           </Button>
         )}

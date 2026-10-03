@@ -4,7 +4,6 @@ import {
   carriedForwardItems,
   currentPhaseId,
   gateBlockers,
-  gateOpenCount,
   gateOverdue,
   gateProgress,
   gateRequirements,
@@ -87,8 +86,8 @@ describe('the estimates requirement as the gate panel states it (§5.4, §8.1)',
   });
 
   it('counts blockers only as open, never a Tentative item (§5.4 "Pass gate · 3 open")', () => {
-    expect(gateOpenCount(gateRequirements(process, planned(), 'alpha'))).toBe(2);
-    expect(gateOpenCount(gateRequirements(process, withChecklistItem(planned(), 'alpha', 'a1', 'tentative', 'why'), 'alpha'))).toBe(1);
+    expect(gateBlockers(gateRequirements(process, planned(), 'alpha'))).toHaveLength(2);
+    expect(gateBlockers(gateRequirements(process, withChecklistItem(planned(), 'alpha', 'a1', 'tentative', 'why'), 'alpha'))).toHaveLength(1);
   });
 });
 

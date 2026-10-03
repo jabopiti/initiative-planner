@@ -8,7 +8,7 @@ import { activeLoads, allocationWarnings, raiseFix, reduceFix, type Load } from 
 import { actualOrEstimate, allocationFigures } from '../data/cost';
 import { RaiseFixButton, ReduceFixButton } from './CapacityFixButtons';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
-import { allocationsWithCost, currentPhaseId } from '../data/gate';
+import { allocationsWithCost, costedPhasesFrom, currentPhaseId } from '../data/gate';
 import { copySource, skippedNote } from '../data/copyAllocations';
 import { isInitiativeFrozen, isPhaseFrozen, skipReason } from '../data/frozen';
 import { overdueActualMonths } from '../data/needsAttention';
@@ -27,14 +27,14 @@ import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DismissIcon, FrozenIcon, 
 import { InlineWarning } from './InlineWarning';
 import { PercentInput } from './PercentInput';
 import { TruncatedText } from './TruncatedText';
+import type { Jump } from './jumpTo';
 import { undoToast } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 /** The phase that opens with the page (§5.4): the current one, or without cost of its own the next costed phase ahead. */
 function phaseToOpen(process: PhaseDef[], currentId: string): string | undefined {
-  const index = process.findIndex((p) => p.id === currentId);
-  return process.slice(index).find((p) => p.costed)?.id;
+  return costedPhasesFrom(process, currentId)[0]?.id;
 }
 
 /** A phase's overdue actuals as its header chip says them (§5.4): the month for one, a count for more. */
@@ -49,7 +49,7 @@ const UNPLANNED: PhasePlan = { allocations: [] };
 export const actualCellAnchor = (phaseId: string, month: string) => `actual-${phaseId}-${month}`;
 
 /** The initiative page's Phases section (§5.4): every phase in order, costed ones expandable, with the current phase's Gate / Checklist panel directly beneath it. */
-export function PhasesSection({ initiative, team, openPhaseId }: { initiative: Initiative; team: Team | undefined; openPhaseId?: string | null }) {
+export function PhasesSection({ initiative, team, reveal = null }: { initiative: Initiative; team: Team | undefined; reveal?: Jump | null }) {
   const { process } = useBrand();
   const { initiatives, teams } = useRepositoryState();
   // One portfolio-wide pass for every allocation row of every phase (§5.4 warnings).
@@ -59,18 +59,17 @@ export function PhasesSection({ initiative, team, openPhaseId }: { initiative: I
   const currentId = currentPhaseId(initiative, process);
   // The current phase opens; the others are one line until clicked (§5.4). Without cost of its own, the next costed
   // phase ahead opens instead, so a new initiative still lands on its period and people. Once a gate moves the
-  // current phase on, the new one opens too, leaving whatever the user opened as it is.
-  const [open, setOpen] = useState<Set<string>>(() => {
-    const initial = new Set([phaseToOpen(process, currentId)].filter((id) => id !== undefined));
-    // A Needs attention deep link into a collapsed phase's actuals table (§8.5 Overdue) opens it on arrival.
-    if (openPhaseId) initial.add(openPhaseId);
-    return initial;
-  });
-  const [openedFor, setOpenedFor] = useState(currentId);
-  if (openedFor !== currentId) {
-    setOpenedFor(currentId);
-    const id = phaseToOpen(process, currentId);
-    if (id && !open.has(id)) setOpen(new Set(open).add(id));
+  // current phase on, the new one opens too, leaving whatever the user opened as it is. A jump into a collapsed phase
+  // (Go to <phase>, a Needs attention deep link, §5.4, §8.5) opens it, while rendering, so its place exists to focus.
+  const [open, setOpen] = useState<Set<string>>(() => new Set([phaseToOpen(process, currentId), reveal?.phaseId].filter((id) => id !== undefined)));
+  const [openedFor, setOpenedFor] = useState({ currentId, reveal });
+  if (openedFor.currentId !== currentId || openedFor.reveal !== reveal) {
+    const next = new Set(open);
+    const phaseId = phaseToOpen(process, currentId);
+    if (openedFor.currentId !== currentId && phaseId) next.add(phaseId);
+    if (openedFor.reveal !== reveal && reveal?.phaseId) next.add(reveal.phaseId);
+    setOpenedFor({ currentId, reveal });
+    if (next.size !== open.size) setOpen(next);
   }
   // The banner's Show opens the phase its conflict is in (§9.9).
   useRevealTarget(FILE_PATHS.initiative(initiative.id), (path) => {
@@ -262,7 +261,6 @@ function CostedPhase({
       <button
         type="button"
         className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-sm text-text-primary"
-        data-phase-toggle
         aria-expanded={expanded}
         aria-controls={bodyId}
         onClick={onToggle}
