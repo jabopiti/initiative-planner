@@ -50,7 +50,7 @@ export function PercentInput({
   const messageClass = 'mt-1 order-last w-full';
 
   return (
-    <div className={flat ? 'contents' : 'flex flex-wrap items-center gap-x-1'}>
+    <div className={flat ? 'contents' : 'flex flex-wrap items-center'}>
       <CommitInput
         changed={changed}
         failure={failure}

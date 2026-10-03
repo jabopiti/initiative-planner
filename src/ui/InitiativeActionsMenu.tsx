@@ -3,7 +3,7 @@ import { useBrand } from '../state/BrandContext';
 import { useRepository } from '../state/DataContext';
 import type { Initiative } from '../data/types';
 import { ActionsIcon } from './icons';
-import { initiativeActions, type InitiativeAction, type InitiativeActionUi } from './initiativeActions';
+import { initiativeActions, menuOrder, type InitiativeActionUi } from './initiativeActions';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -30,10 +30,9 @@ export function InitiativeActionsMenu({ initiative, ui, triggerRef }: { initiati
     },
     [triggerRef],
   );
-  const applicable = initiativeActions.filter((action) => action.applies(initiative, process));
-  const isLast = (a: InitiativeAction) => a.ending || a.destructive;
-  const actions = [...applicable.filter((a) => !isLast(a)), ...applicable.filter((a) => a.ending), ...applicable.filter((a) => a.destructive)];
+  const actions = menuOrder(initiativeActions.filter((action) => action.applies(initiative, process)));
   if (actions.length === 0) return null;
+  const separatorAt = actions.findIndex((a) => a.tier);
 
   return (
     <DropdownMenu>
@@ -59,18 +58,15 @@ export function InitiativeActionsMenu({ initiative, ui, triggerRef }: { initiati
           returningFocus.current = false;
         }}
       >
-        {actions.map((action, index) => {
-          const { id, label, icon: Icon, run, destructive } = action;
-          return (
+        {actions.map(({ id, label, icon: Icon, run, tier }, index) => (
           <Fragment key={id}>
-            {index > 0 && isLast(action) && !isLast(actions[index - 1]) && <DropdownMenuSeparator />}
-            <DropdownMenuItem variant={destructive ? 'destructive' : 'default'} onSelect={() => (afterClose.current = run(repository, initiative, ui))}>
+            {index > 0 && index === separatorAt && <DropdownMenuSeparator />}
+            <DropdownMenuItem variant={tier === 'destructive' ? 'destructive' : 'default'} onSelect={() => (afterClose.current = run(repository, initiative, ui))}>
               <Icon />
               {label(initiative, process)}
             </DropdownMenuItem>
           </Fragment>
-          );
-        })}
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -21,15 +21,17 @@ import { teamColorClass } from './teamColors';
 export function PersonPanel({ person, onClose }: { person: Person | null; onClose: () => void }) {
   // The drawer has no trigger element, so hand focus back to whatever opened it (§5.6).
   const opener = useRef<HTMLElement | null>(null);
+  const content = useRef<HTMLDivElement>(null);
   return (
     <Sheet open={person !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
+        ref={content}
         className="w-96 overflow-y-auto p-4"
         onOpenAutoFocus={(e) => {
           opener.current = document.activeElement as HTMLElement | null;
           // Land on the heading, not the Name field: a stray key press must not replace the name (§5.6).
           e.preventDefault();
-          document.querySelector<HTMLElement>('[data-slot="sheet-title"]')?.focus();
+          content.current?.querySelector<HTMLElement>('[data-slot="sheet-title"]')?.focus();
         }}
         onCloseAutoFocus={(e) => {
           e.preventDefault();

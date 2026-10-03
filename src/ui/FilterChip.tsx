@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { chipTriggerClass } from './chipTriggerClass';
 import { ChevronDownIcon, SearchIcon } from './icons';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,8 +10,9 @@ export interface FilterOption {
 }
 
 /** Options in A–Z order by their label. */
+const collator = new Intl.Collator();
 export function byLabel(options: FilterOption[]): FilterOption[] {
-  return [...options].sort((a, b) => a.label.localeCompare(b.label));
+  return [...options].sort((a, b) => collator.compare(a.label, b.label));
 }
 
 interface Props {
@@ -35,8 +36,11 @@ export function FilterChip({ label, options, selected, onChange, selectedFirst }
   const [query, setQuery] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
   const [firstValues, setFirstValues] = useState<string[]>([]);
-  const ordered = selectedFirst ? [...options.filter((o) => firstValues.includes(o.value)), ...options.filter((o) => !firstValues.includes(o.value))] : options;
-  const shown = ordered.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()));
+  const shown = useMemo(() => {
+    const first = new Set(selectedFirst ? firstValues : []);
+    const ordered = [...options.filter((o) => first.has(o.value)), ...options.filter((o) => !first.has(o.value))];
+    return ordered.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()));
+  }, [options, firstValues, selectedFirst, query]);
   const active = selected.length > 0;
   const chosen = selected.length === 1 ? (options.find((o) => o.value === selected[0])?.label ?? '1') : String(selected.length);
 
