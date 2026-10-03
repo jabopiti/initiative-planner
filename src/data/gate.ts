@@ -2,7 +2,8 @@ import type { ApprovalTrackDef, GateDef, PhaseDef } from '../brand/types';
 import { allocationFigures, grandEstimate, hasValidPeriod, phaseByMonth, resolveApprovalTrack, type RateData } from './cost';
 import { daysBetween } from './dates';
 import { currentPhaseId } from './processState';
-import type { ChecklistItemRecord, ChecklistItemState, ChecklistStatus, FrozenAllocation, FrozenPhaseSnapshot, GateRecord, Initiative, Person } from './types';
+import { roleLabel } from './roleLabel';
+import type { Allocation, ChecklistItemRecord, ChecklistItemState, ChecklistStatus, FrozenAllocation, FrozenPhaseSnapshot, GateRecord, Initiative, Person } from './types';
 
 export { currentPhaseId };
 
@@ -176,10 +177,29 @@ export function allocationsWithCost(plan: NonNullable<Initiative['phases']>[stri
   });
 }
 
+/** One allocation as a gate freezes it: its cost and the person, role, country, rates and working days behind it (§6, §8.1). */
+function freezeAllocation({ id, personId, allocationPct }: Allocation, plan: NonNullable<Initiative['phases']>[string], people: Person[], data: RateData): FrozenAllocation {
+  const person = people.find((p) => p.id === personId);
+  if (!person) return { id, personId, allocationPct, cost: 0 };
+  const { cost, basis, costFactor } = allocationFigures(plan, person, allocationPct, data);
+  const country = data.countries.find((c) => c.id === person.countryId);
+  return {
+    id,
+    personId,
+    allocationPct,
+    cost,
+    personName: person.name,
+    roleName: roleLabel(person, data.roles),
+    ...(country && { countryName: country.name }),
+    ...(costFactor !== undefined && { costFactor }),
+    months: basis,
+  };
+}
+
 /** Snapshot everything an approved figure depends on, so it can never move (§8.1). */
 function freezePhase(plan: NonNullable<Initiative['phases']>[string], people: Person[], data: RateData): FrozenPhaseSnapshot {
   const estimateByMonth = phaseByMonth(plan, people, data);
-  const allocations: FrozenAllocation[] = allocationsWithCost(plan, people, data).map((allocation) => ({ ...allocation, cost: allocation.cost ?? 0 }));
+  const allocations = plan.allocations.map((allocation) => freezeAllocation(allocation, plan, people, data));
   return { startDate: plan.startDate!, endDate: plan.endDate!, allocations, costItems: plan.costItems ?? [], estimateByMonth };
 }
 

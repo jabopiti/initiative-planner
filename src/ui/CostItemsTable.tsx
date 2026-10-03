@@ -169,7 +169,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                       onClick={() => {
                         const removed = repository.removeCostItem(initiativeId, phase.id, item.id);
                         if (!removed) return;
-                        undoToast(() => repository.restoreCostItem(initiativeId, phase.id, removed.item, removed.index));
+                        undoToast(() => repository.restoreCostItem(initiativeId, phase.id, removed.item, removed.index), { repository, initiativeId, phaseId: phase.id });
                       }}
                     >
                       <RemoveIcon />

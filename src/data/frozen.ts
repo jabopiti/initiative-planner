@@ -6,6 +6,9 @@ export type PhaseFrozen = (initiative: Initiative, phaseId: string) => boolean;
 /** A phase is frozen once its own exit gate has been passed (never for a skipped gate, §8.2), and not since reopened (§8.3). */
 export const isPhaseFrozen: PhaseFrozen = (initiative, phaseId) => initiative.gates?.[phaseId]?.outcome === 'passed';
 
+/** Whether a phase refuses edits other than recorded actuals: its own gate was passed (§8.1) or its initiative is Closed or Cancelled (§8.4). */
+export const isPhaseLocked: PhaseFrozen = (initiative, phaseId) => isInitiativeFrozen(initiative) || isPhaseFrozen(initiative, phaseId);
+
 /** Some gate of the initiative was passed (§9.3): it is then a record of an approval and can't be deleted. A skipped gate approved nothing. */
 export const hasPassedGate = (initiative: Initiative): boolean => Object.keys(initiative.gates ?? {}).some((phaseId) => isPhaseFrozen(initiative, phaseId));
 
@@ -27,7 +30,7 @@ export function isStartingPhaseSkip(record: GateRecord | undefined): boolean {
 export const isInitiativeFrozen = (initiative: Initiative): boolean => initiative.status === 'Closed' || initiative.status === 'Cancelled';
 
 /** What passing a gate freezes in its phase (§8.1). Actuals stay recordable on a frozen phase (§6, §8.4), so they are not here. */
-const FROZEN_PHASE_FIELDS = ['startDate', 'endDate', 'allocations', 'costItems'];
+export const FROZEN_PHASE_FIELDS = ['startDate', 'endDate', 'allocations', 'costItems'] as const;
 
 /**
  * The paths of an initiative a merge must leave as frozen (§10.5, §8.1), each with the gate record that froze it:

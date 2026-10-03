@@ -549,8 +549,10 @@ cross-references point there.
   estimate. See §7.4.
 - **Estimate:** a costed phase's cost while no month of its period has a
   recorded actual.
-- **Forecast:** a costed phase's cost while some months have a recorded
-  actual and the rest use estimates.
+- **Forecast:** a costed phase's cost while some months of its period have a
+  recorded actual and the rest use estimates. Only the period's months
+  count towards Estimate, Forecast and Actual; a cost item or actual
+  outside the period still adds to the total.
 - **Actual:** a costed phase's cost once every month of its period has a
   recorded actual. A closed month that merely defaults to its estimate
   (§7.3) does not count as recorded.
@@ -1165,6 +1167,8 @@ local time, determined the same way as Confirmed vs. Provisional in §4.
   A frozen allocation offers no reduce.
 - **Undo.** Removing an allocation, a cost item or a membership shows
   "Removed. Undo" for 10 seconds; Undo restores it as a normal edit.
+  Once the item's phase is frozen (§8.1) or the initiative is Closed or
+  Cancelled (§8.4), here or by a pull, the Undo is withdrawn.
   Deleting an initiative is not undoable; it is protected by an inline
   confirmation and the rules in §9.3.
 - **Cost item suggestions.** Typing a cost item's label suggests earlier
@@ -1262,7 +1266,7 @@ Created when a gate is passed or skipped; cleared when it is reopened
 | Passed on | Date | Set when the gate is passed; not set for a skipped gate |
 | Recorded grand estimate | Currency | Passed gates that carried cost: the grand estimate (§4) at pass time, shown as "approved at" (§5.4) |
 | Recorded approval track | Id, name and severity | Passed gates that carried cost: the band resolved at pass time; the baseline for escalation (§7.4) |
-| Frozen estimate snapshot | Object | The exited phase's period, allocations, cost items and monthly estimate, with the rates, roles, countries and person data behind them (§8.1) |
+| Frozen estimate snapshot | Object | The exited phase's period, allocations, cost items and monthly estimate, with the rates, roles, countries and person data behind them (§8.1): per allocation the person's name, role name (the custom label for a custom role), country name and cost factor, and per month the working days counted (after proration, §7.1) and the day rate, so the estimate can be recomputed from the snapshot alone. Snapshots taken before these fields existed lack them and are never backfilled |
 
 ### Person
 
@@ -1486,7 +1490,13 @@ itself estimated to end on.
 Passing **freezes** the exited phase's estimate, allocations and cost
 items, along with the role, country and person data behind them, so later
 master-data changes can never move a recorded figure. Every gate records one gate record, whether or not it
-required cost.
+required cost. A frozen phase shows the person names and roles its
+snapshot holds, not today's. The freeze is enforced in the data layer, not
+only on screen: no edit reaches a frozen phase except a recorded actual
+(§8.4). An edit of this user's that a freeze overtakes (one still waiting
+to save when a pull brings the gate pass, or one committed after it) is not
+saved, and the phase says so until dismissed: "<gate> was passed while you
+were editing, so your last change to <phase> wasn't saved."
 
 ### 8.2 Skipping a gate
 

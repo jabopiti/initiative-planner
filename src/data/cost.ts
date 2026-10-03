@@ -2,7 +2,7 @@ import type { ApprovalTrackDef, PhaseDef } from '../brand/types';
 import { monthKey, monthOf, parseIso } from './dates';
 import { isPhaseFrozen } from './frozen';
 import { isActiveMember } from './teamMembers';
-import type { CostItem, Country, FrozenPhaseSnapshot, Initiative, Membership, PhasePlan, Person, Role, Team } from './types';
+import type { CostItem, Country, FrozenMonth, FrozenPhaseSnapshot, Initiative, Membership, PhasePlan, Person, Role, Team } from './types';
 
 /**
  * The cost of an allocation (§7.1), ported from the audited prototype engine
@@ -143,6 +143,10 @@ export function resolveRate(person: Person, data: RateData, year: number): { day
 
 export interface AllocationFigures {
   byMonth: Record<string, number>;
+  /** Each costed month's working days and day rate, so a gate's snapshot can keep what its figure came from (§8.1). */
+  basis: Record<string, FrozenMonth>;
+  /** The role's cost factor (the custom role's, for a custom role); undefined when no month could be costed. */
+  costFactor?: number;
   /** Working days × Allocation % over the period. The role factor is a cost weight, not time. */
   personDays: number;
   cost: number;
@@ -150,11 +154,13 @@ export interface AllocationFigures {
 
 /** What one allocation costs across a period, month by month (§7.1). */
 export function allocationFigures(period: Period, person: Person, allocationPct: number, data: RateData): AllocationFigures {
-  const none: AllocationFigures = { byMonth: {}, personDays: 0, cost: 0 };
+  const none: AllocationFigures = { byMonth: {}, basis: {}, personDays: 0, cost: 0 };
   const country = data.countries.find((c) => c.id === person.countryId);
   if (!country) return none;
 
   const byMonth: Record<string, number> = {};
+  const basis: Record<string, FrozenMonth> = {};
+  let costFactor: number | undefined;
   let personDays = 0;
   let cost = 0;
   for (const [key, workingDays] of Object.entries(workingDaysForPeriod(country, period.startDate, period.endDate))) {
@@ -163,9 +169,11 @@ export function allocationFigures(period: Period, person: Person, allocationPct:
     const days = workingDays * (allocationPct / 100);
     personDays += days;
     byMonth[key] = days * rate.factor * rate.dayRate;
+    basis[key] = { workingDays, dayRate: rate.dayRate };
+    costFactor ??= rate.factor; // the role's, the same every month
     cost += byMonth[key];
   }
-  return { byMonth, personDays, cost };
+  return { byMonth, basis, costFactor, personDays, cost };
 }
 
 /** The calendar months of a period, or none while a date is unset or the period is inverted: a phase without months is not costed yet (§7.1). */
@@ -250,9 +258,9 @@ export function actualOrEstimate(plan: PhasePlan, month: string, today: string, 
   return estimateByMonth[month] ?? 0;
 }
 
-/** Estimate / Forecast / Actual, by how far recorded actuals cover the phase's months (§4). */
+/** Estimate / Forecast / Actual, by how far recorded actuals cover the months of the phase's period (§4); an item or actual outside the period counts towards the total only. */
 export function phaseCoverage(plan: PhasePlan): 'estimate' | 'forecast' | 'actual' {
-  const months = phaseMonths(plan);
+  const months = periodMonths(plan);
   const actuals = plan.actualMonths ?? {};
   const recorded = months.filter((key) => actuals[key] !== undefined).length;
   if (recorded === 0) return 'estimate';

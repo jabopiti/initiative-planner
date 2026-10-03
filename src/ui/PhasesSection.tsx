@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { useFieldConflict, useRevealTarget, type FieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState, type FieldFailure } from '../state/DataContext';
+import { lostEditKey } from '../sync/Repository';
 import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, raiseFix, reduceFix, type Load } from '../data/capacity';
 import { actualOrEstimate, allocationFigures } from '../data/cost';
@@ -21,7 +22,7 @@ import { TIMING_LABELS } from './costItemTiming';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
 import { GateChecklistPanel } from './GateChecklistPanel';
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, FrozenIcon, InfoIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DismissIcon, FrozenIcon, InfoIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
 import { PercentInput } from './PercentInput';
 import { TruncatedText } from './TruncatedText';
@@ -148,7 +149,7 @@ function CostedPhase({
   const conflict = useFieldConflict();
   const file = FILE_PATHS.initiative(initiative.id);
   const { currencySymbol, process } = useBrand();
-  const { people, roles, countries, memberships, initiatives, teams } = useRepositoryState();
+  const { people, roles, countries, memberships, initiatives, teams, frozenWithLostEdit } = useRepositoryState();
   const [refusal, setRefusal] = useState<string | null>(null);
   // Who the last Copy skipped (§5.11): shown until this phase's plan next changes, never stored.
   const [notCopied, setNotCopied] = useState<{ text: string; plan: PhasePlan } | null>(null);
@@ -206,7 +207,7 @@ function CostedPhase({
           value=""
           onValueChange={(personId) => {
             const result = repository.addAllocation(initiative.id, phase.id, personId, free?.get(personId));
-            setRefusal(result.ok ? null : result.reason);
+            setRefusal(result.ok ? null : (result.reason ?? null));
           }}
         >
           <SelectTrigger
@@ -263,6 +264,10 @@ function CostedPhase({
         <span className="ml-auto font-medium tabular-nums">{costed && hasCost ? formatAmount(total, currencySymbol) : '—'}</span>
         <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary">{coverageLabel}</span>
       </button>
+
+      {frozen && frozenWithLostEdit.has(lostEditKey(initiative.id, phase.id)) && (
+        <LostEditMessage gateLabel={phase.exitGate.label} phaseLabel={phase.label} onDismiss={() => repository.dismissLostEdit(initiative.id, phase.id)} />
+      )}
 
       {expanded && (
         <div id={bodyId} className="flex flex-col gap-4 border-t border-border-default px-3 py-3">
@@ -433,7 +438,7 @@ function CostedPhase({
                               onClick={() => {
                                 const removed = repository.removeAllocation(initiative.id, phase.id, allocation.id);
                                 if (!removed) return;
-                                undoToast(() => repository.restoreAllocation(initiative.id, phase.id, removed.allocation, removed.index));
+                                undoToast(() => repository.restoreAllocation(initiative.id, phase.id, removed.allocation, removed.index), { repository, initiativeId: initiative.id, phaseId: phase.id });
                               }}
                             >
                               <RemoveIcon />
@@ -514,6 +519,21 @@ function CostedPhase({
   );
 }
 
+/** A change of this user's that a gate pass overtook, and so wasn't saved (§8.1); an error, so it stays until dismissed (§9.9). */
+function LostEditMessage({ gateLabel, phaseLabel, onDismiss }: { gateLabel: string; phaseLabel: string; onDismiss: () => void }) {
+  return (
+    <div role="alert" className="mx-3 mb-2 flex items-start gap-2 rounded-md bg-warning-tint px-2.5 py-2 text-sm text-warning-text">
+      <WarningIcon width={16} height={16} className="mt-0.5 shrink-0" />
+      <span className="flex-1">
+        {gateLabel} was passed while you were editing, so your last change to {phaseLabel} wasn&apos;t saved.
+      </span>
+      <Button type="button" variant="ghost" size="icon" className="size-6 shrink-0 text-warning-text" aria-label="Dismiss" onClick={onDismiss}>
+        <DismissIcon width={16} height={16} />
+      </Button>
+    </div>
+  );
+}
+
 /** What a read-only phase body shows: a gate's frozen snapshot, or the live plan of a Closed or Cancelled initiative's other phases. */
 type ReadOnlyPhase = Pick<FrozenPhaseSnapshot, 'costItems'> & {
   startDate?: string;
@@ -551,12 +571,15 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
           </thead>
           <tbody>
             {phase.allocations.map((allocation) => {
+              // A gate's snapshot names who it costed and as what (§8.1); an older snapshot, or a Closed or Cancelled
+              // initiative's live plan, falls back to the person as they are now.
               const person = people.find((p) => p.id === allocation.personId);
+              const role = allocation.roleName ?? (person && roleLabel(person, roles));
               return (
                 <tr key={allocation.id} className="border-t border-border-default">
                   <td className="py-1.5 pr-2 text-text-muted">
-                    <div>{person?.name ?? 'Unknown person'}</div>
-                    {person && <div className="text-xs text-text-muted">{roleLabel(person, roles)}</div>}
+                    <div>{allocation.personName ?? person?.name ?? 'Unknown person'}</div>
+                    {role && <div className="text-xs text-text-muted">{role}</div>}
                   </td>
                   <td className="py-1.5 pr-2 tabular-nums text-text-muted">{allocation.allocationPct}%</td>
                   <td className="py-1.5 pr-2 text-right tabular-nums text-text-muted">{allocation.cost === undefined ? '—' : formatAmount(allocation.cost, currencySymbol)}</td>

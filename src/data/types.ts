@@ -102,12 +102,28 @@ export interface ChecklistItemRecord extends ChecklistItemState {
   description: string;
 }
 
-/** One allocation as frozen: its resolved cost, so a later rate change can never move it (§8.1). */
+/** One month of a frozen allocation: the working days counted (after proration, §7.1) and that year's day rate. */
+export interface FrozenMonth {
+  workingDays: number;
+  dayRate: number;
+}
+
+/**
+ * One allocation as frozen: its resolved cost, so a later rate change can never move it, and the data behind it, so
+ * the cost can be explained later: cost = Σ workingDays × Allocation % × dayRate × costFactor (§6, §8.1). The data
+ * fields are absent from snapshots taken before they existed (never backfilled) and for a person gone at pass time.
+ */
 export interface FrozenAllocation {
   id: string;
   personId: string;
   allocationPct: number;
   cost: number;
+  personName?: string;
+  /** The role the person was costed with: the custom role's label for a custom role. */
+  roleName?: string;
+  countryName?: string;
+  costFactor?: number;
+  months?: Record<string, FrozenMonth>;
 }
 
 /** The exited phase's period, allocations, cost items and monthly estimate, frozen at pass time (§6 "Gate record"). */
