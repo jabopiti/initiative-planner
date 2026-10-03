@@ -41,4 +41,13 @@ describe('a clickable table row (§9.5)', () => {
     await user.keyboard('{Enter}');
     expect(open).not.toHaveBeenCalled();
   });
+
+  it('opens on a click on the row, but not on a click on the link inside it', async () => {
+    const open = setup();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('row'));
+    expect(open).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('link'));
+    expect(open).toHaveBeenCalledTimes(1);
+  });
 });

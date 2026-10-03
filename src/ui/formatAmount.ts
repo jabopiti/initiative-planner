@@ -2,7 +2,7 @@ import { displayLocale } from '../data/dates';
 
 const formats = new Map<string, Intl.NumberFormat>();
 /** A number format in the display locale (§9.7), made once per locale and digit count. */
-function numberFormat(digits: number): Intl.NumberFormat {
+export function numberFormat(digits: number): Intl.NumberFormat {
   const locale = displayLocale();
   const key = `${locale}|${digits}`;
   let format = formats.get(key);

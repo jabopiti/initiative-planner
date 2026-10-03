@@ -8,6 +8,7 @@ import { joinList } from '../data/joinList';
 import { initiativesAffectedByRate, weekdaysByMonth, type RateEdit } from '../data/rates';
 import { FILE_PATHS, type Country, type CountryYearRateRecord } from '../data/types';
 import { AmountInput } from './AmountInput';
+import { openRowProps } from './openRowProps';
 import { CommitInput, FailedEdit } from './CommitInput';
 import { ConflictBlock, ConflictRow, inRow } from './ConflictBlock';
 import { DraftField } from './DraftField';
@@ -118,7 +119,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                 <tr
                   className={`border-t border-border-default align-middle ${country.active ? '' : 'text-text-secondary'} ${open ? 'bg-surface-subtle' : ''} ${lock.locked ? 'cursor-pointer' : ''}`}
                   // Locked, the whole row opens the country; unlocked, the name is a field, so only the chevron does.
-                  onClick={lock.locked ? () => toggle(country.id) : undefined}
+                  {...(lock.locked ? openRowProps(() => toggle(country.id)) : {})}
                 >
                   <td className="py-1.5 pr-2">
                     <div className="flex items-center gap-1.5">

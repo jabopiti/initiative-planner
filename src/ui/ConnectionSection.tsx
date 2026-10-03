@@ -1,20 +1,17 @@
-import { displayLocale } from '../data/dates';
 import { useEffect, useState } from 'react';
+import { formatClock } from '../data/dates';
 import { useBrand } from '../state/BrandContext';
 import { useRateLimit, useRepository } from '../state/DataContext';
 import { useSession } from '../state/SessionContext';
 import { Button } from '@/components/ui/button';
+import { numberFormat } from './formatAmount';
 import { DefinitionList } from './DefinitionList';
 import { ReplaceTokenField } from './ReplaceTokenField';
-
-// Made on use, not at load, so they follow the browser's locale (§9.7).
-const number = { format: (n: number) => new Intl.NumberFormat(displayLocale()).format(n) };
-const clock = { format: (d: Date | number) => new Intl.DateTimeFormat(displayLocale(), { hour: '2-digit', minute: '2-digit' }).format(d) };
 
 /** "4,812 of 5,000 API requests left this hour, resets at 14:20" from the latest response, or "Not known yet" (§5.9). */
 function requestsText(limit: ReturnType<typeof useRateLimit>): string {
   if (!limit) return 'Not known yet';
-  return `${number.format(limit.remaining)} of ${number.format(limit.limit)} API requests left this hour, resets at ${clock.format(limit.resetsAt)}`;
+  return `${numberFormat(0).format(limit.remaining)} of ${numberFormat(0).format(limit.limit)} API requests left this hour, resets at ${formatClock(limit.resetsAt)}`;
 }
 
 /** Settings' Connection section (§5.9): who and what is connected, the request budget, replacing the token and Disconnect. */

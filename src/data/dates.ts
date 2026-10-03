@@ -1,41 +1,59 @@
 /** The English month abbreviations: the one fixed form, for commit messages in the shared history (§10.3). */
-export const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 
 /** The locale a date, number or time is shown in (§9.7): the browser's, English when it reports none. */
 export const displayLocale = (): string => (typeof navigator !== 'undefined' && navigator.language) || 'en';
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
-function dateFormat(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
-  const key = `${locale}|${JSON.stringify(options)}`;
+/** A date format in a locale, made once per locale and options. Dates are read as UTC calendar days unless `timeZone` says otherwise. */
+function dateFormat(locale: string, options: Intl.DateTimeFormatOptions, timeZone = 'UTC'): Intl.DateTimeFormat {
+  const key = `${locale}|${timeZone}|${JSON.stringify(options)}`;
   let format = formatters.get(key);
-  if (!format) formatters.set(key, (format = new Intl.DateTimeFormat(locale, { ...options, timeZone: 'UTC' })));
+  if (!format) formatters.set(key, (format = new Intl.DateTimeFormat(locale, { ...options, timeZone })));
   return format;
 }
 const utc = (year: number, month: number, day = 1) => new Date(Date.UTC(year, month - 1, day));
 
-/** The abbreviated month names in the display locale, January first ("Sep" or "Sept", "Mai"). */
-export function shortMonths(locale = displayLocale()): string[] {
-  return MONTHS_EN.map((_, i) => dateFormat(locale, { month: 'short' }).format(utc(2000, i + 1)));
+/** Computed once per locale and kept. */
+function perLocale<T>(cache: Map<string, T>, locale: string, make: () => T): T {
+  let value = cache.get(locale);
+  if (value === undefined) cache.set(locale, (value = make()));
+  return value;
+}
+
+const monthNames = new Map<string, string[]>();
+/** The abbreviated month names in a locale, January first ("Sep" or "Sept", "Mai"). Shared: do not change it. */
+export function shortMonths(locale = displayLocale()): readonly string[] {
+  return perLocale(monthNames, locale, () => MONTHS_EN.map((_, i) => dateFormat(locale, { month: 'short' }).format(utc(2000, i + 1))));
 }
 
 const plain = (word: string) => word.toLowerCase().replace(/\.$/, '');
 
+const monthWords = new Map<string, Map<string, number>>();
 /** A month's number (1-12) from its name, its three-letter form or "sept" in English or the display locale; 0 when it is none of them. */
 function monthFromWord(word: string): number {
   const english = MONTH_NAMES.findIndex((name) => name === word || name.slice(0, 3) === word || (word === 'sept' && name === 'september')) + 1;
   if (english) return english;
   const locale = displayLocale();
-  const long = MONTH_NAMES.map((_, i) => plain(dateFormat(locale, { month: 'long' }).format(utc(2000, i + 1))));
-  const short = shortMonths(locale).map(plain);
-  return Math.max(long.indexOf(word), short.indexOf(word)) + 1;
+  const words = perLocale(monthWords, locale, () => {
+    const lookup = new Map<string, number>();
+    shortMonths(locale).forEach((name, i) => lookup.set(plain(name), i + 1));
+    MONTH_NAMES.forEach((_, i) => lookup.set(plain(dateFormat(locale, { month: 'long' }).format(utc(2000, i + 1))), i + 1));
+    return lookup;
+  });
+  return words.get(word) ?? 0;
 }
 
-/** The order of day, month and year in the display locale's short numeric date, and its separator. */
-function datePattern(locale = displayLocale()): { order: Array<'day' | 'month' | 'year'>; separator: string } {
-  const parts = dateFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }).formatToParts(utc(2000, 2, 3));
-  const order = parts.flatMap((part) => (part.type === 'day' || part.type === 'month' || part.type === 'year' ? [part.type] : []));
-  return { order, separator: parts.find((part) => part.type === 'literal')?.value.trim() || '.' };
+const monthFirst = new Map<string, boolean>();
+/** Whether the display locale's short numeric date puts the month before the day. */
+function isMonthFirst(locale = displayLocale()): boolean {
+  return perLocale(monthFirst, locale, () => {
+    const order = dateFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })
+      .formatToParts(utc(2000, 2, 3))
+      .map((part) => part.type);
+    return order.indexOf('month') < order.indexOf('day');
+  });
 }
 
 function isRealDate(year: number, month: number, day: number): boolean {
@@ -84,10 +102,10 @@ export function formatPeriod(startIso: string, endIso: string): string {
   const locale = displayLocale();
   const [sy, sm, sd] = parseIso(startIso);
   const [ey] = parseIso(endIso);
-  if (sy !== ey) return `${formatDate(startIso)} – ${formatDate(endIso)}`;
+  if (sy !== ey) return `${formatDate(startIso, locale)} – ${formatDate(endIso, locale)}`;
   // The locale orders and punctuates day and month its own way, so the start's year is left out with Intl, not by cutting text.
   const withoutYear = dateFormat(locale, { day: 'numeric', month: 'short' }).format(utc(sy, sm, sd));
-  return `${withoutYear} – ${formatDate(endIso)}`;
+  return `${withoutYear} – ${formatDate(endIso, locale)}`;
 }
 
 /** A date's month as `YYYY-MM` (§6 Month encoding). */
@@ -112,10 +130,15 @@ export function formatMonth(key: string, locale = displayLocale()): string {
 }
 
 /** The fixed English "Sep 2026", for commit messages (§10.3). */
-export const formatMonthEn = (key: string): string => {
+export function formatMonthEn(key: string): string {
   const [y, m] = parseMonth(key);
   return `${MONTHS_EN[m - 1]} ${y}`;
-};
+}
+
+/** The time of day in the display locale, in the user's own time zone: "14:20", "02:20 PM". */
+export function formatClock(time: Date | number): string {
+  return dateFormat(displayLocale(), { hour: '2-digit', minute: '2-digit' }, Intl.DateTimeFormat().resolvedOptions().timeZone).format(time);
+}
 
 /** "Sep 26", for a grid column. */
 export function formatMonthShort(key: string): string {
@@ -175,8 +198,7 @@ export function parseDateText(text: string): string | null {
   if (numeric) {
     // Dotted dates are day first everywhere; slashed and dashed ones follow the display locale's order.
     const [a, b, y] = [Number(numeric[1]), Number(numeric[3]), Number(numeric[4])];
-    const monthFirst = numeric[2] !== '.' && datePattern().order.indexOf('month') < datePattern().order.indexOf('day');
-    const [d, m] = monthFirst ? [b, a] : [a, b];
+    const [d, m] = numeric[2] !== '.' && isMonthFirst() ? [b, a] : [a, b];
     return isRealDate(y, m, d) ? iso(y, m, d) : null;
   }
   const textMatch = /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/.exec(t);

@@ -146,11 +146,10 @@ export function InitiativesTable() {
                 <tr
                   key={r.initiative.id}
                   className={`cursor-pointer border-b border-border-default transition-colors duration-500 motion-reduce:transition-none ${changed(FILE_PATHS.initiative(r.initiative.id), []) ? 'bg-met-tint' : ''}`}
-                  onClick={() => navigate(`/initiatives/${r.initiative.id}`)}
                   {...openRowProps(() => navigate(`/initiatives/${r.initiative.id}`))}
                 >
                   <td className="px-3 py-2">
-                    <a href={href} className="font-medium text-inherit no-underline hover:underline" onClick={(e) => e.stopPropagation()}>
+                    <a href={href} className="font-medium text-inherit no-underline hover:underline">
                       <TruncatedText text={r.initiative.name} />
                     </a>
                   </td>

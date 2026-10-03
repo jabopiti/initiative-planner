@@ -35,19 +35,19 @@ export function CopyButton({ getData, noun, label = 'Copy' }: Props) {
   }
   return (
     <>
-    {message && (
-      <span role={message.error ? 'alert' : 'status'} className={`text-sm ${message.error ? 'text-alarm-text' : 'text-text-secondary'}`}>
-        {message.text}
-      </span>
-    )}
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button type="button" variant="outline" size="icon" aria-label={label} onClick={() => void handleCopy()}>
-          <Copy size={18} aria-hidden="true" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+      {message && (
+        <span role={message.error ? 'alert' : 'status'} className={`text-sm ${message.error ? 'text-alarm-text' : 'text-text-secondary'}`}>
+          {message.text}
+        </span>
+      )}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button type="button" variant="outline" size="icon" aria-label={label} onClick={() => void handleCopy()}>
+            <Copy size={18} aria-hidden="true" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
     </>
   );
 }

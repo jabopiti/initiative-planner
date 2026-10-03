@@ -46,7 +46,7 @@ export function MonthInput({
     <PopoverTextField
       value={value}
       label={label}
-      placeholder="Sep 2026"
+      placeholder={formatMonth('2026-09')}
       refusal={`Enter a month such as ${formatMonth('2026-09')}.`}
       required={required}
       changed={changed}
@@ -94,7 +94,7 @@ export function MonthInput({
               );
             })}
           </div>
-          <p className="m-0 mt-2 px-1 text-xs text-text-muted">Or type a month, e.g. Sep 2026</p>
+          <p className="m-0 mt-2 px-1 text-xs text-text-muted">Or type a month, e.g. {formatMonth('2026-09')}</p>
         </>
       )}
     </PopoverTextField>
