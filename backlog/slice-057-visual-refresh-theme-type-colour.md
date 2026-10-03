@@ -1,72 +1,60 @@
 ---
 slice_id: "057"
-title: "Visual refresh: theme control, type scale, surfaces and status badges"
+title: "Visual refresh: type scale, surfaces, status badges and team colours"
 type: "feature"
 status: "valid"
 criteria_failures: []
-depends_on: ["047", "055"]
+depends_on: ["046", "047", "055"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Theme and tokens' plus the review's visual-design lens (type, fewer boxes, shadcn components, motion, test both themes): F04, F12, F14, F19, F20. Look-and-feel decisions settled with the user from mockups: Geist typeface, soft layers, neutral dot status with outline track badge, theme icon button with a menu (§9.1 updated), brand-pack team swatches, subtle motion; then zinc greys with forest accent, graphite dark theme, top bar kept, no extra themes. Component decisions moved to slice 059. Backlog reshuffle (3 Oct 2026): F14 moved to 052 with the locale formats decision; the motion item moved into 059's motion list; now after 047, so the palette and team colours land in the brand pack once it is the single colour source."
+change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Theme and tokens' plus the review's visual-design lens (type, fewer boxes, shadcn components, motion, test both themes): F04, F12, F14, F19, F20. Look-and-feel decisions settled with the user from mockups: Geist typeface, soft layers, neutral dot status with outline track badge, theme icon button with a menu (§9.1 updated), brand-pack team swatches, subtle motion; then zinc greys with forest accent, graphite dark theme, top bar kept, no extra themes. Component decisions moved to slice 059. Backlog reshuffle (3 Oct 2026): F14 moved to 052 with the locale formats decision; the motion item moved into 059's motion list; now after 047, so the palette and team colours land in the brand pack once it is the single colour source. On 3 Oct 2026 the user moved F04 (the theme control, as decided here) to 046, which builds it once."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Changes tokens every screen reads and adds a brand-pack field (typeface, team palette); hard to reverse once screens are built on it."
 spec_sections: ["§2 What the build fixes (brand pack)", "§9.1 Theming", "§9.5 Accessibility", "§9.8 Visual design", "§9.10 Icons", "§10.1 Framework and UI foundations", "§10.7 Distribution, build and deploy", "§10.9 Security"]
 ---
 
-# Visual refresh: theme control, type scale, surfaces and status badges
+# Visual refresh: type scale, surfaces, status badges and team colours
 
 ## Intent
 
-**Problem statement:** The dark theme exists but can't be reached (§9.1
-names a System / Light / Dark control that was never built). The app uses
-a 14 px system font with no type scale, every block is a bordered box,
-numbers and dates are written several ways, status and approval track look
-the same, and team colours sit outside the brand palette.
+**Problem statement:** The app uses a 14 px system font with no type
+scale, every block is a bordered box, status and approval track look the
+same, and team colours sit outside the brand palette.
 
 **Outcome statement:** A modern, calm, consistent look built on tokens:
-one control switches the theme, one type scale and one surface system are
-used everywhere, and colour still only carries meaning (§9.8).
+one type scale and one surface system are used everywhere in both themes
+(switched by 046's control), and colour still only carries meaning (§9.8).
 
 ## Scope
 
-1. **F04 Theme control (§9.1).** System / Light / Dark, remembered in
-   `localStorage`, chosen from an icon button with a menu, applied before
-   first paint by the app's own module
-   script (no inline script, §10.9).
-2. **F12 Type.** A brand-pack typeface (bundled, never fetched from a
+1. **F12 Type.** A brand-pack typeface (bundled, never fetched from a
    third party: outbound requests go only to GitHub) with tabular figures;
    15 px body; six type tokens in `@theme`; a shared `PageHeader` and
    `SectionHeader`; table rows `h-10` (§9.8).
-3. **Surfaces.** Cards only for objects; sections separated by spacing and
+2. **Surfaces.** Cards only for objects; sections separated by spacing and
    a heading; shadows only on floating layers; page and card surfaces
    tuned so cards stand apart without borders.
-4. **F19 Badges.** Status and approval track use distinct shadcn Badge
+3. **F19 Badges.** Status and approval track use distinct shadcn Badge
    variants, sentence case.
-5. **F20 Team colours.** Brand-pack categorical tokens for light and dark,
+4. **F20 Team colours.** Brand-pack categorical tokens for light and dark,
    checked by the existing contrast check, shown as a small swatch.
-6. **Both themes tested.** The e2e axe pass runs in light and dark.
+5. **Both themes tested.** The e2e axe pass runs in light and dark.
 
 ## Execution path
 
-1. Top bar → theme control → Dark → every screen repaints without reload.
-2. Reload → still Dark. Choose System → follows the OS.
-3. Portfolio, detail, People, Teams and Settings use the new type scale and
+1. Portfolio, detail, People, Teams and Settings use the new type scale and
    surfaces in both themes.
 
 ## Value
 
 - **Desirable:** Answers the user's ask for a more modern, higher-quality,
   more appealing look (review lens D).
-- **Usable:** Consistent type, formats and badges make screens faster to read.
-- **Valuable:** Ships a specified feature (§9.1) and makes later screens
-  cheaper to build on shared tokens.
+- **Usable:** Consistent type, surfaces and badges make screens faster to read.
+- **Valuable:** Makes later screens cheaper to build on shared tokens.
 
 ## Acceptance criteria
 
-- [ ] Given the theme control, then it offers System, Light and Dark, the
-      choice survives a reload, and no flash of the other theme shows on
-      load under the production CSP.
 - [ ] Given body text, then it is 15 px in the brand-pack typeface, and
       every heading uses one of the type tokens.
 - [ ] Given figures in tables and the cost summary, then they use tabular

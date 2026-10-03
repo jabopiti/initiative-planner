@@ -130,7 +130,7 @@ for the AI-agent-driven build the team asked for:
 | 054 | Small fixes from the review | ✅ valid | — |
 | 055 | UX review quick fixes: fields, focus, row actions and small copy | ✅ valid | 036 |
 | 056 | Initiative detail: current phase first, complete gate panel, clearer magic bar | ✅ valid | 015, 026, 050 |
-| 057 | Visual refresh: theme control, type scale, surfaces and status badges | ✅ valid | 047, 055 |
+| 057 | Visual refresh: type scale, surfaces, status badges and team colours | ✅ valid | 046, 047, 055 |
 | 058 | Page shell and layout: shared container, phase time strip, first-run and empty states | ✅ valid | 056, 057 |
 | 059 | Detail components: key figures with bullet bar, labelled checklist, motion | ✅ valid | 056, 057 |
 | 059b | Period range picker: Start and End in one control, saved on Done | ✅ valid | 056, 057 |
@@ -252,9 +252,9 @@ for the AI-agent-driven build the team asked for:
   (allocations) and 061b (cost items and actuals). Suggested order:
   (1) any time, no UI overlap: 042, 044, 045, 048, 049, 052, 053;
   (2) foundations: 046 → 047 → 055 → 057; (3) initiative page: 050 → 056
-  → 058, 059, 059b; (4) editing: 060 → 061, 061b; 062; 063. Not applied:
-  moving 057's decided theme control (icon button with a menu) into 046,
-  so as written 046 builds a cycle button that 057 then replaces.
+  → 058, 059, 059b; (4) editing: 060 → 061, 061b; 062; 063. The user then
+  moved 057's theme control (F04, icon button with a menu) into 046, so
+  it is built once.
 
 ## Build plan (slices 012 to 041, parallel sessions)
 
