@@ -37,7 +37,7 @@ import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
 import { FileWriter, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
-import { parseDataFile, validateDataset } from './validateDataset';
+import { MASTER_FILES, parseDataFile, validateDataset } from './validateDataset';
 import { WriteQueue } from './WriteQueue';
 
 export type { ReadOnlyState } from '../github/errors';
@@ -159,15 +159,6 @@ interface Pulled {
   /** The version each path had on screen when the pull compared, so a save that lands meanwhile is not undone. */
   compared: Map<string, string>;
 }
-
-const MASTER_FILES: string[] = [
-  FILE_PATHS.datasetFlags,
-  FILE_PATHS.roles,
-  FILE_PATHS.countries,
-  FILE_PATHS.teams,
-  FILE_PATHS.people,
-  FILE_PATHS.memberships,
-];
 
 
 /** New people (§5.5) take these; country and role default to the last values used. */
@@ -552,7 +543,7 @@ export class Repository {
       validateDataset(whole);
       return null;
     } catch (error) {
-      if (error instanceof DamagedDataError) return toReadOnlyState(error, error.message);
+      if (error instanceof DamagedDataError) return { cause: 'damaged', message: error.message };
       throw error;
     }
   }

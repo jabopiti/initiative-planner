@@ -22,13 +22,13 @@ export function parseDataFile(path: string, text: string): unknown {
   return value;
 }
 
-type Plain = Record<string, unknown>;
+export type Plain = Record<string, unknown>;
 
-const isRecord = (value: unknown): value is Plain => typeof value === 'object' && value !== null && !Array.isArray(value);
+export const isRecord = (value: unknown): value is Plain => typeof value === 'object' && value !== null && !Array.isArray(value);
 const hasId = (value: unknown): value is Plain & { id: string } => isRecord(value) && typeof value.id === 'string' && value.id !== '';
 
-/** The master files in the order their problems are reported (§10.2). */
-const MASTER_ORDER: string[] = [FILE_PATHS.datasetFlags, FILE_PATHS.roles, FILE_PATHS.countries, FILE_PATHS.teams, FILE_PATHS.people, FILE_PATHS.memberships];
+/** The master files (§10.2), in the order their problems are reported. */
+export const MASTER_FILES: string[] = [FILE_PATHS.datasetFlags, FILE_PATHS.roles, FILE_PATHS.countries, FILE_PATHS.teams, FILE_PATHS.people, FILE_PATHS.memberships];
 
 /**
  * Checks a whole dataset, by path, before any of it is used (§3 Damaged data): file shapes, ids present and unique,
@@ -68,12 +68,11 @@ export function validateDataset(files: ReadonlyMap<string, unknown>): void {
     refers(FILE_PATHS.memberships, `membership ${membership.id as string}`, 'team', membership.teamId);
   }
 
-  const initiatives = [...files.keys()].filter((path) => !MASTER_ORDER.includes(path)).sort();
+  const initiatives = [...files.keys()].filter((path) => !MASTER_FILES.includes(path)).sort();
   for (const path of initiatives) {
     const initiative = files.get(path);
-    const expected = path.replace(/^initiatives\//, '').replace(/\.json$/, '');
     if (!hasId(initiative)) throw new DamagedDataError(path, 'initiative has no id');
-    if (initiative.id !== expected) throw new DamagedDataError(path, `initiative file holds id ${initiative.id}`);
+    if (path !== FILE_PATHS.initiative(initiative.id)) throw new DamagedDataError(path, `initiative file holds id ${initiative.id}`);
     refers(path, `initiative ${initiative.id}`, 'team', initiative.teamId);
     if (initiative.ownerId !== undefined) refers(path, `initiative ${initiative.id}`, 'person', initiative.ownerId);
     const phases = initiative.phases;

@@ -1,4 +1,4 @@
-import { FORBIDDEN_KEYS } from './validateDataset';
+import { FORBIDDEN_KEYS, isRecord, type Plain } from './validateDataset';
 
 /**
  * Three-way merge by path (§10.5). No merge library: the shape is narrow
@@ -40,10 +40,6 @@ export interface MergeOptions<D> {
   /** Paths frozen in a version of the document (§8.1): they keep their snapshot and never merge. */
   frozen?: (doc: D) => FrozenPath[];
 }
-
-type Plain = Record<string, unknown>;
-
-const isRecord = (value: unknown): value is Plain => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** A list whose every item carries a distinct string id: merged per item (§10.5 step 4). Any other list is one value. */
 function isIdList(value: unknown): value is Plain[] {
