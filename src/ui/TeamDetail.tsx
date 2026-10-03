@@ -132,14 +132,14 @@ export function TeamDetail({ id }: { id: string }) {
 
   return (
     <div className="px-8 py-6">
-      <a href="#/teams" className="text-sm text-text-secondary">
+      <a href="#/teams" className="text-caption text-text-secondary">
         Teams
       </a>
       <div className="mt-1 mb-5 flex items-center justify-between gap-4">
-        <h1 className="m-0 flex items-center gap-2 text-xl">
+        <h1 className="m-0 flex items-center gap-2 text-display font-medium">
           <CommitInput
             aria-label="Team name"
-            className="h-auto w-64 max-w-full border-transparent bg-transparent px-2 py-0.5 text-xl font-semibold shadow-none hover:border-input focus-visible:border-ring md:text-xl"
+            className="h-auto w-64 max-w-full border-transparent bg-transparent px-2 py-0.5 text-display font-medium shadow-none hover:border-input focus-visible:border-ring "
             changed={changed(FILE_PATHS.teams, [{ id: team.id }, 'name'])}
             failure={failure(FILE_PATHS.teams, [{ id: team.id }, 'name'])}
             conflict={conflict(FILE_PATHS.teams, [{ id: team.id }, 'name'])}
@@ -154,7 +154,7 @@ export function TeamDetail({ id }: { id: string }) {
               repository.updateTeam(team.id, { name: trimmed });
             }}
           />
-          {!team.active && <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-normal text-text-secondary">Inactive</span>}
+          {!team.active && <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-caption font-normal text-text-secondary">Inactive</span>}
         </h1>
         <Button type="button" variant="ghost" size="sm" onClick={() => repository.updateTeam(team.id, { active: !team.active })}>
           {team.active ? <DeactivateIcon /> : <ReactivateIcon />}
@@ -164,7 +164,7 @@ export function TeamDetail({ id }: { id: string }) {
 
       <section aria-label="Members" className="max-w-3xl">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="m-0 text-base">Members</h2>
+          <h2 className="m-0 text-title font-medium">Members</h2>
           {members.length > 0 && <CopyButton getData={copyData} noun={['member', 'members']} />}
         </div>
 
@@ -216,7 +216,7 @@ export function TeamDetail({ id }: { id: string }) {
                   id={`add-member-option-${i}`}
                   role="option"
                   aria-selected={i === current}
-                  className={`flex w-full cursor-pointer justify-between rounded-sm px-2 py-1.5 text-left text-sm hover:bg-surface-subtle ${i === current ? 'bg-surface-subtle outline-2 outline-accent' : ''}`}
+                  className={`flex w-full cursor-pointer justify-between rounded-sm px-2 py-1.5 text-left text-body hover:bg-surface-subtle ${i === current ? 'bg-surface-subtle outline-2 outline-accent' : ''}`}
                   // Keep focus in the field, so a click chooses without blurring the list away first.
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={choice.choose}
@@ -225,18 +225,18 @@ export function TeamDetail({ id }: { id: string }) {
                 </li>
               ))}
               {matches.length === 0 && exact && (
-                <li className="px-2 py-1.5 text-sm text-text-secondary">No one else to add.</li>
+                <li className="px-2 py-1.5 text-caption text-text-secondary">No one else to add.</li>
               )}
             </ul>
           )}
         </div>
 
         {members.length === 0 ? (
-          <p className="m-0 py-6 text-body-lg text-text-secondary">No members yet. Add someone to start staffing initiatives.</p>
+          <p className="m-0 py-6 text-body text-text-secondary">No members yet. Add someone to start staffing initiatives.</p>
         ) : (
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full border-collapse text-body">
             <thead>
-              <tr className="text-left text-text-secondary">
+              <tr className="text-label font-medium text-left text-text-secondary">
                 <SortableHeader label="Name" sortKey="name" sort={sort} />
                 <SortableHeader label="Role" sortKey="role" sort={sort} />
                 <SortableHeader label="Team FTE %" sortKey="fte" sort={sort} />

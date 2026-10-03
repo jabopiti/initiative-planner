@@ -1,4 +1,4 @@
-import type { BrandColours } from './types';
+import type { BrandColours, ColourRole } from './types';
 
 /**
  * The brand-pack contrast rule (§9.5): every text and UI colour role, in both
@@ -58,9 +58,16 @@ export function contrastRatio(a: Oklch, b: Oklch): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/** Every problem with the pack's colours, one line each; empty when it passes. */
-export function checkBrandColours(colours: BrandColours): string[] {
+/** The number of team colours the pack defines (§2). */
+export const TEAM_COLOUR_COUNT = 6;
+
+/**
+ * Every problem with the pack's colours, one line each; empty when it passes. Team colours are swatches, so like the
+ * other fills they need 3:1 on page and card (§9.5).
+ */
+export function checkBrandColours(colours: BrandColours, teamColours: ColourRole[]): string[] {
   const failures: string[] = [];
+  if (teamColours.length !== TEAM_COLOUR_COUNT) failures.push(`teamColours has ${teamColours.length} colours, needs ${TEAM_COLOUR_COUNT}`);
   for (const theme of ['light', 'dark'] as const) {
     const parsed = new Map<Role, Oklch>();
     for (const role of Object.keys(colours) as Role[]) {
@@ -79,6 +86,20 @@ export function checkBrandColours(colours: BrandColours): string[] {
         if (ratio < min) failures.push(`${fg} (${theme}) on ${bg} is ${ratio.toFixed(2)}:1, needs ${min}:1`);
       }
     }
+    teamColours.forEach((colour, i) => {
+      const name = `teamColours[${i}]`;
+      const t = parseOklch(colour[theme]);
+      if (!t) {
+        failures.push(`${name} (${theme}) is not an oklch(L C H) colour: "${colour[theme]}"`);
+        return;
+      }
+      for (const bg of PAGE_CARD) {
+        const b = parsed.get(bg);
+        if (!b) continue;
+        const ratio = contrastRatio(t, b);
+        if (ratio < UI) failures.push(`${name} (${theme}) on ${bg} is ${ratio.toFixed(2)}:1, needs ${UI}:1`);
+      }
+    });
   }
   return failures;
 }

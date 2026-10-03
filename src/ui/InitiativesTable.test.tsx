@@ -230,10 +230,10 @@ describe('Initiatives table filters (§9.11)', () => {
     await user.click(chipButton('Status'));
     expect(await screen.findByRole('textbox', { name: 'Search status' })).toHaveFocus();
     expect(screen.getAllByRole('checkbox')).toHaveLength(4);
-    await user.click(screen.getByRole('checkbox', { name: 'On Hold' }));
+    await user.click(screen.getByRole('checkbox', { name: 'On hold' }));
 
     expect(names()).toEqual(['On Hold Co']);
-    expect(screen.getByRole('button', { name: 'Status: On Hold' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Status: On hold' })).toBeInTheDocument();
     expect(screen.getByText(/^1 of 3 initiatives/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
   });
@@ -262,7 +262,7 @@ describe('Initiatives table filters (§9.11)', () => {
     const user = userEvent.setup();
     await renderTable([overrun, ready, quiet, onHold, closed]);
     await pick(user, 'Status', 'Active');
-    await pick(user, 'Status', 'On Hold');
+    await pick(user, 'Status', 'On hold');
     expect(names().sort()).toEqual(['Alpha Quiet', 'On Hold Co', 'Overrun Co', 'Ready Co']);
     await pick(user, 'Team', 'Growth (inactive)');
     expect(names()).toEqual(['Alpha Quiet']);
@@ -272,13 +272,13 @@ describe('Initiatives table filters (§9.11)', () => {
   it('keeps filters across unmount and remount, and clears them on reset', async () => {
     const user = userEvent.setup();
     const view = await renderTable([overrun, onHold]);
-    await pick(user, 'Status', 'On Hold');
+    await pick(user, 'Status', 'On hold');
     view.unmount();
 
     render(tree());
     await screen.findByRole('heading', { name: 'Initiatives' });
     expect(names()).toEqual(['On Hold Co']);
-    expect(screen.getByRole('button', { name: 'Status: On Hold' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Status: On hold' })).toBeInTheDocument();
 
     act(() => resetSessionFilters());
     expect(names().sort()).toEqual(['On Hold Co', 'Overrun Co']);
@@ -287,7 +287,7 @@ describe('Initiatives table filters (§9.11)', () => {
   it('clears every chip with Clear filters', async () => {
     const user = userEvent.setup();
     await renderTable([overrun, quiet, onHold]);
-    await pick(user, 'Status', 'On Hold');
+    await pick(user, 'Status', 'On hold');
     await pick(user, 'Team', 'Platform');
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(names()).toHaveLength(3);

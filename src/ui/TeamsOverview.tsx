@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { FILE_PATHS } from '../data/types';
+import { PageHeader } from './PageHeader';
 
 /** Teams overview (§5.7): name, size, per-phase initiative counts, and New team. */
 export function TeamsOverview() {
@@ -104,9 +105,10 @@ export function TeamsOverview() {
 
   return (
     <div className="px-8 py-6">
-      <div className="mb-5 flex items-center justify-between">
-        <h1 className="m-0 text-xl">Teams</h1>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="Teams"
+        actions={
+          <>
         {teams.length > 0 && <CopyButton getData={copyData} noun={['team', 'teams']} />}
         {creating ? (
           <form
@@ -137,13 +139,14 @@ export function TeamsOverview() {
             New team
           </Button>
         )}
-        </div>
-      </div>
+          </>
+        }
+      />
       {creating && refusal && <Refusal className="mb-3 w-fit">{refusal}</Refusal>}
 
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full border-collapse text-body">
         <thead>
-          <tr className="text-left text-text-secondary">
+          <tr className="text-label font-medium text-left text-text-secondary">
             <SortableHeader label="Name" sortKey="name" sort={sort} />
             <SortableHeader label="Members" sortKey="members" sort={sort} align="right" />
             {brand.process.map((phase) => (

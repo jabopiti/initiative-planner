@@ -13,7 +13,7 @@ function MessageBox({ id, tone, className = '', children }: { id?: string; tone:
   // No gap/justify class here: Refusal and FailedEdit need different ones, and each supplies its own via
   // `className` below rather than fighting the base's over an already-present utility of the same kind.
   return (
-    <p id={id} role="alert" className={`m-0 flex items-center rounded-md px-2 py-1 text-xs ${toneClass} ${className}`}>
+    <p id={id} role="alert" className={`m-0 flex items-center rounded-md px-2 py-1 text-caption ${toneClass} ${className}`}>
       {children}
     </p>
   );
@@ -154,7 +154,7 @@ export function CommitInput({
       {suffix ? (
         <span className="relative inline-flex items-center">
           {input}
-          <span aria-hidden="true" className="pointer-events-none absolute right-3 text-sm text-text-secondary">
+          <span aria-hidden="true" className="pointer-events-none absolute right-3 text-caption text-text-secondary">
             {suffix}
           </span>
         </span>

@@ -64,7 +64,7 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
       <div className="flex items-center gap-3">
         <Input
           autoFocus
-          className={`h-auto min-w-0 flex-1 px-3 py-1.5 text-2xl font-semibold md:text-2xl ${nextStep === 'name' ? HIGHLIGHT : ''}`}
+          className={`h-auto min-w-0 flex-1 px-3 py-1.5 text-display font-medium ${nextStep === 'name' ? HIGHLIGHT : ''}`}
           aria-label="Initiative name"
           aria-describedby={GUIDANCE_ID}
           placeholder="Name this initiative"
@@ -85,7 +85,7 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
           aria-describedby={GUIDANCE_ID}
           className={nextStep === 'team' ? HIGHLIGHT : ''}
         />
-        <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary">Draft</span>
+        <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-caption text-text-secondary">Draft</span>
         <Button
           type="button"
           size="sm"
@@ -96,7 +96,7 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
           Create initiative
         </Button>
       </div>
-      <p id={GUIDANCE_ID} role="status" className="mt-3 mb-0 text-sm text-text-secondary">
+      <p id={GUIDANCE_ID} role="status" className="mt-3 mb-0 text-caption text-text-secondary">
         {guidance}
       </p>
     </div>

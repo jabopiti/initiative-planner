@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FILE_PATHS } from '../data/types';
+import { PageHeader } from './PageHeader';
 
 type StatusFilter = 'active' | 'inactive' | 'all';
 
@@ -107,9 +108,10 @@ export function PeopleOverview() {
 
   return (
     <div className="px-8 py-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="m-0 text-xl">People</h1>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        title="People"
+        actions={
+          <>
           <Select value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
             <SelectTrigger aria-label="Show people">
               <SelectValue />
@@ -121,8 +123,9 @@ export function PeopleOverview() {
             </SelectContent>
           </Select>
           {visible.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} />}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       <form
         className="mb-4 flex flex-wrap items-center gap-2 rounded-card border border-border-default bg-surface-card p-3"
@@ -175,7 +178,7 @@ export function PeopleOverview() {
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
           {people.length === 0 ? (
-            <p className="m-0 px-4 py-10 text-center text-body-lg text-text-secondary">
+            <p className="m-0 px-4 py-10 text-center text-body text-text-secondary">
               No people yet. Type a name above to add the first one.
             </p>
           ) : visible.length === 0 ? (
@@ -185,9 +188,9 @@ export function PeopleOverview() {
               onAction={() => setFilter('all')}
             />
           ) : (
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full border-collapse text-body">
               <thead>
-                <tr className="text-left text-text-secondary">
+                <tr className="text-label font-medium text-left text-text-secondary">
                   <SortableHeader label="Name" sortKey="name" sort={sort} />
                   <SortableHeader label="Role" sortKey="role" sort={sort} />
                   <SortableHeader label="Country" sortKey="country" sort={sort} />

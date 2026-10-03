@@ -44,7 +44,7 @@ export function ConnectionSection() {
   const card = 'rounded-xl border border-border-default bg-surface-card px-4';
   return (
     <section aria-labelledby="connection-heading" className="flex flex-col gap-4">
-      <h2 id="connection-heading" className="m-0 text-lg">
+      <h2 id="connection-heading" className="m-0 text-title font-medium">
         Connection
       </h2>
       <DefinitionList
@@ -56,13 +56,13 @@ export function ConnectionSection() {
       />
 
       <div className={`${card} flex flex-col gap-2 py-3`}>
-        <h3 className="m-0 text-base">Replace token</h3>
+        <h3 className="m-0 text-heading font-medium">Replace token</h3>
         <p className="m-0 text-text-secondary">Paste a new token to swap it in. Your unsaved changes are kept.</p>
         <ReplaceTokenField />
       </div>
 
       <div className={`${card} flex flex-col gap-2 py-3`}>
-        <h3 className="m-0 text-base">Disconnect</h3>
+        <h3 className="m-0 text-heading font-medium">Disconnect</h3>
         <p className="m-0 text-text-secondary">Removes the token from this browser and opens the Connect screen.</p>
         {confirming === null ? (
           <div>

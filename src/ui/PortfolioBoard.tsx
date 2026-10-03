@@ -12,7 +12,7 @@ import { CopyButton } from './CopyButton';
 import type { CopyTableData } from './copyTable';
 import { byLabel, FilterChip, type FilterOption } from './FilterChip';
 import { formatAmount, formatSignedAmount } from './formatAmount';
-import { StatusCancelledIcon, StatusClosedIcon, StatusOnHoldIcon } from './icons';
+import { STATUS_GLYPH, statusText } from './StatusLabel';
 import { TruncatedText } from './TruncatedText';
 import { NoInitiatives } from './NoInitiatives';
 import { GettingStartedStrip } from './GettingStartedStrip';
@@ -20,12 +20,11 @@ import { NeedsAttentionStrip } from './NeedsAttentionStrip';
 import { useSessionFilters } from './sessionFilters';
 import { YearChip } from './YearChip';
 
-const STATUS_ICON = { 'On Hold': StatusOnHoldIcon, Cancelled: StatusCancelledIcon, Closed: StatusClosedIcon };
 
 /** A non-Active status on a card (§5.2): a neutral icon named by the status, the same pattern as the attention marker. */
 function StatusMarker({ status }: { status: InitiativeStatus }) {
   if (status === 'Active') return null;
-  return <IconMarker label={status} tooltip={status} Icon={STATUS_ICON[status]} className="text-text-secondary" />;
+  return <IconMarker label={statusText(status)} tooltip={statusText(status)} Icon={STATUS_GLYPH[status]} className="text-text-secondary" />;
 }
 
 /** One initiative's card (§5.2): name, status and attention markers, team · owner, compact cost and approval track; the whole card is the link. */
@@ -39,17 +38,17 @@ function BoardCard({ row }: { row: PortfolioRow }) {
       className={`block rounded-lg border border-border-default px-3 py-2.5 text-inherit no-underline transition-colors duration-500 motion-reduce:transition-none ${changed(FILE_PATHS.initiative(initiative.id), []) ? 'bg-met-tint' : 'bg-surface-card'}`}
       href={`#/initiatives/${initiative.id}`}
     >
-      <div className="flex items-center justify-between gap-1.5 text-sm font-semibold">
+      <div className="flex items-center justify-between gap-1.5 text-body font-medium">
         <TruncatedText text={initiative.name} className="min-w-0" />
         <span className="flex shrink-0 items-center gap-1.5">
           <StatusMarker status={initiative.status} />
           {item && <AttentionMarker item={item} />}
         </span>
       </div>
-      <div className="mb-1.5 mt-0.5 truncate text-xs text-text-secondary">
+      <div className="mb-1.5 mt-0.5 truncate text-caption text-text-secondary">
         {row.teamName} · {initiative.ownerId ? row.ownerName : 'No owner'}
       </div>
-      <div className="flex items-center justify-between text-xs">
+      <div className="flex items-center justify-between text-caption">
         <CompactAmount value={row.cost} />
         <ApprovalTrackBadge initiative={initiative} />
       </div>
@@ -81,7 +80,7 @@ export function PortfolioBoard() {
       phase: process.map((p) => ({ value: p.id, label: p.label })),
       initiative: byLabel(initiatives.map((i) => ({ value: i.id, label: i.name }))),
       track: [...approvalTracks.map((t) => ({ value: t.id, label: t.name })), { value: NONE, label: 'No approval track' }],
-      status: INITIATIVE_STATUSES.map((s) => ({ value: s, label: s })),
+      status: INITIATIVE_STATUSES.map((s) => ({ value: s, label: statusText(s) })),
     }),
     [teams, process, initiatives, approvalTracks],
   );
@@ -145,7 +144,7 @@ export function PortfolioBoard() {
         {chip('track', 'Approval track')}
         {chip('status', 'Status')}
       </div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-body">
         <p className="m-0">
           Total cost <CompactAmount value={totalCost} className="font-medium" />
           <span className="mx-2 text-text-secondary">·</span>
@@ -164,9 +163,9 @@ export function PortfolioBoard() {
         </div>
       </div>
       {shown.length === 0 && (
-        <p className="m-0 mb-3 rounded-lg border border-dashed border-border-strong bg-surface-card p-3.5 text-center text-body-lg text-text-secondary">
+        <p className="m-0 mb-3 rounded-lg border border-dashed border-border-strong bg-surface-card p-3.5 text-center text-body text-text-secondary">
           No initiatives match these filters.
-          <button type="button" className="ml-2 cursor-pointer border-0 bg-transparent p-0 text-body-lg text-brand-accent-text underline" onClick={clear}>
+          <button type="button" className="ml-2 cursor-pointer border-0 bg-transparent p-0 text-body text-brand-accent-text underline" onClick={clear}>
             Clear filters
           </button>
         </p>
@@ -177,7 +176,7 @@ export function PortfolioBoard() {
           const columnSum = phaseRows.reduce((sum, r) => sum + r.cost, 0);
           return (
             <div key={phase.id} className="min-w-55 flex-[1_0_220px] rounded-card bg-surface-subtle p-3">
-              <div className="mb-2.5 flex items-center justify-between px-0.5 text-sm font-semibold">
+              <div className="mb-2.5 flex items-center justify-between px-0.5 text-body font-medium">
                 <span>{phase.label}</span>
                 <CompactAmount value={columnSum} prefix={`${phaseRows.length} · `} className="font-medium text-text-secondary" />
               </div>

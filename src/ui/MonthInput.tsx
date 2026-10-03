@@ -68,7 +68,7 @@ export function MonthInput({
             <Button type="button" variant="ghost" size="icon" aria-label="Previous year" disabled={year <= FIRST_YEAR} onClick={() => setYear(year - 1)}>
               <ChevronLeftIcon />
             </Button>
-            <span className="text-sm font-medium tabular-nums" aria-live="polite">
+            <span className="text-body font-medium tabular-nums" aria-live="polite">
               {year}
             </span>
             <Button type="button" variant="ghost" size="icon" aria-label="Next year" disabled={year >= LAST_YEAR} onClick={() => setYear(year + 1)}>
@@ -94,7 +94,7 @@ export function MonthInput({
               );
             })}
           </div>
-          <p className="m-0 mt-2 px-1 text-xs text-text-muted">Or type a month, e.g. Sep 2026</p>
+          <p className="m-0 mt-2 px-1 text-caption text-text-muted">Or type a month, e.g. Sep 2026</p>
         </>
       )}
     </PopoverTextField>

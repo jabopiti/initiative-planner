@@ -41,17 +41,17 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
   return (
     <section aria-labelledby="settings-roles-title" className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
-        <h2 id="settings-roles-title" className="m-0 text-lg font-semibold">
+        <h2 id="settings-roles-title" className="m-0 text-title font-medium">
           Roles
         </h2>
         <LockToggle lock={lock} />
       </div>
-      {lock.locked && <p className="m-0 text-sm text-text-secondary">Locked. Unlock to edit.</p>}
+      {lock.locked && <p className="m-0 text-caption text-text-secondary">Locked. Unlock to edit.</p>}
 
-      <table className="mt-3 w-full border-collapse text-sm">
+      <table className="mt-3 w-full border-collapse text-body">
         <caption className="sr-only">Roles</caption>
         <thead>
-          <tr className="text-left text-xs text-text-secondary">
+          <tr className="text-left text-label font-medium text-text-secondary">
             <th className="py-1 pr-2 font-medium">Name</th>
             <th className="py-1 pr-2 font-medium">Abbreviation</th>
             <th className="py-1 pr-2 text-right font-medium">Cost factor</th>
@@ -132,7 +132,7 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                     }}
                   />
                   {impact[role.id] !== undefined && (
-                    <p className="m-0 mt-1 text-xs text-text-secondary">Changes the estimate of {initiativeCount(impact[role.id])}.</p>
+                    <p className="m-0 mt-1 text-caption text-text-secondary">Changes the estimate of {initiativeCount(impact[role.id])}.</p>
                   )}
                 </td>
                 <td className="py-1.5 text-right">

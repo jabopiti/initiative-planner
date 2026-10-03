@@ -97,10 +97,10 @@ export function CostItemLabelInput({
               // Keeps focus in the field: a click on an option must not blur it first, which would close the list.
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => choose(suggestion)}
-              className={`flex cursor-default items-center justify-between gap-4 rounded-sm px-2 py-1.5 text-sm ${index === active ? 'bg-surface-subtle' : 'hover:bg-surface-subtle'}`}
+              className={`flex cursor-default items-center justify-between gap-4 rounded-sm px-2 py-1.5 text-body ${index === active ? 'bg-surface-subtle' : 'hover:bg-surface-subtle'}`}
             >
               <span>{suggestion.label}</span>
-              <span className="text-xs text-text-secondary">{`${suggestion.uses}× · ${formatAmount(suggestion.amount, currencySymbol)} · ${TIMING_SHORT[suggestion.timing]}`}</span>
+              <span className="text-caption text-text-secondary">{`${suggestion.uses}× · ${formatAmount(suggestion.amount, currencySymbol)} · ${TIMING_SHORT[suggestion.timing]}`}</span>
             </li>
           ))}
         </ul>

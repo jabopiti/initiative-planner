@@ -17,7 +17,7 @@ export function ApprovalTrackBadge({ initiative }: { initiative: Initiative }) {
   const total = grandEstimate(initiative, process, people, { roles, countries });
   const track = resolveApprovalTrack(approvalTracks, total);
 
-  const badge = <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs">{track ? track.name : 'No approval track'}</span>;
+  const badge = <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-caption">{track ? track.name : 'No approval track'}</span>;
   if (!track) return badge;
 
   return (

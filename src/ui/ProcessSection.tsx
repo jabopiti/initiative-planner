@@ -43,7 +43,7 @@ export function ProcessSection() {
   const brand = useBrand();
   return (
     <section aria-labelledby="process-heading">
-      <h2 id="process-heading" className="m-0 mb-4 text-lg">
+      <h2 id="process-heading" className="m-0 mb-4 text-title font-medium">
         Process
       </h2>
       <ol className="m-0 flex list-none flex-col p-0">
@@ -53,10 +53,10 @@ export function ProcessSection() {
             <span className="absolute top-0 left-0 flex size-8 items-center justify-center rounded-full bg-brand-accent-tint text-brand-accent-text">
               <PhaseIcon name={phase.icon} />
             </span>
-            <h3 className="m-0 flex items-center gap-1.5 text-body-lg">
+            <h3 className="m-0 flex items-center gap-1.5 text-heading font-medium">
               {phase.label}
               {phase.costed && phase.defaultDurationMonths !== undefined && (
-                <span className="rounded-full bg-surface-subtle px-2 py-px text-xs font-normal text-text-secondary">
+                <span className="rounded-full bg-surface-subtle px-2 py-px text-caption font-normal text-text-secondary">
                   {plural(phase.defaultDurationMonths, 'month', 'months')}
                 </span>
               )}
@@ -67,10 +67,10 @@ export function ProcessSection() {
         ))}
       </ol>
 
-      <h2 className="mt-6 mb-3 text-lg">Approval tracks</h2>
+      <h2 className="mt-6 mb-3 text-title font-medium">Approval tracks</h2>
       <table className="w-full border-collapse overflow-hidden rounded-lg border border-border-default bg-surface-card text-left">
         <thead>
-          <tr className="text-caption text-text-secondary">
+          <tr className="text-label font-medium text-text-secondary">
             <th className={`${cell} font-medium`}>Name</th>
             <th className={`${cell} font-medium`}>Bounds</th>
             <th className={`${cell} font-medium`}>Requirement</th>

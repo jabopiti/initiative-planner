@@ -89,7 +89,7 @@ export function FilterChip({ label, options, selected, onChange, selectedFirst }
         <div className="mb-1 flex items-center gap-1.5 border-b border-border-default px-2 pb-1.5">
           <SearchIcon width={14} height={14} className="shrink-0 text-text-muted" />
           <input
-            className="w-full border-0 bg-transparent py-1 text-sm outline-none placeholder:text-text-muted"
+            className="w-full border-0 bg-transparent py-1 text-caption outline-none placeholder:text-text-muted"
             placeholder={`Search ${label.toLowerCase()}`}
             aria-label={`Search ${label.toLowerCase()}`}
             value={query}
@@ -97,9 +97,9 @@ export function FilterChip({ label, options, selected, onChange, selectedFirst }
           />
         </div>
         <div role="group" aria-label={label} className="max-h-64 overflow-y-auto">
-          {shown.length === 0 && <p className="m-0 px-2 py-1.5 text-sm text-text-secondary">No matches</p>}
+          {shown.length === 0 && <p className="m-0 px-2 py-1.5 text-caption text-text-secondary">No matches</p>}
           {shown.map((option) => (
-            <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-surface-subtle">
+            <label key={option.value} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-body hover:bg-surface-subtle">
               <Checkbox
                 checked={selected.includes(option.value)}
                 onCheckedChange={() => toggle(option.value)}

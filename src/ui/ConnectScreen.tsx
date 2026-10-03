@@ -64,7 +64,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
   return (
     <main className="mx-auto flex w-full max-w-connect flex-col gap-4 px-4 py-12">
       <section className={`${cardClass} border-2 border-brand-accent`} aria-labelledby="connect-heading">
-        <h1 id="connect-heading" className="m-0 mb-1 text-display">
+        <h1 id="connect-heading" className="m-0 mb-1 text-display font-medium">
           Connect to {brand.productName}
         </h1>
         <p className="m-0 mb-5 text-text-secondary">Paste your GitHub token to continue.</p>
@@ -102,7 +102,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
 
         {result && (
           <div
-            className={`mt-4 rounded-lg px-3 py-2.5 text-sm ${MESSAGE_STYLES[result.outcome]}`}
+            className={`mt-4 rounded-lg px-3 py-2.5 text-body ${MESSAGE_STYLES[result.outcome]}`}
             role={isError ? 'alert' : 'status'}
           >
             {TOKEN_CHECK_MESSAGES[result.outcome]({ login: 'login' in result ? result.login : undefined, repo })}
@@ -119,14 +119,14 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
       </section>
 
       <section className={cardClass} aria-labelledby="guide-heading">
-        <h2 id="guide-heading" className="m-0 mb-3 text-base">
+        <h2 id="guide-heading" className="m-0 mb-3 text-title font-medium">
           No token yet? Create one in 4 steps
         </h2>
         <TokenSteps
           className="text-text-secondary"
           first={
             <a
-              className="inline-block rounded-lg bg-brand-accent-tint px-3 py-1.5 font-semibold text-brand-accent-text no-underline"
+              className="inline-block rounded-lg bg-brand-accent-tint px-3 py-1.5 font-medium text-brand-accent-text no-underline"
               href={tokenSettingsUrl}
               target="_blank"
               rel="noreferrer"
@@ -136,17 +136,17 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
           }
         />
         <p className="m-0 mt-3 text-text-secondary">Then select Generate token, copy it and paste it above.</p>
-        <p className="m-0 mt-4 flex items-start gap-2 rounded-lg bg-surface-subtle px-3 py-2.5 text-sm text-text-primary">
+        <p className="m-0 mt-4 flex items-start gap-2 rounded-lg bg-surface-subtle px-3 py-2.5 text-body text-text-primary">
           <KeyRound className="mt-0.5 size-4 shrink-0 text-text-secondary" aria-hidden="true" />
           <span>
-            <strong className="font-semibold">Tip:</strong> GitHub shows the token only once. Save it in your password
+            <strong className="font-medium">Tip:</strong> GitHub shows the token only once. Save it in your password
             manager so you can paste it again later.
           </span>
         </p>
       </section>
 
       <details className="group rounded-xl bg-met-tint">
-        <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl p-6 text-base focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent [&::-webkit-details-marker]:hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl p-6 text-body focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent [&::-webkit-details-marker]:hidden">
           <ShieldCheck className="size-5 shrink-0 text-met-text" aria-hidden="true" />
           <span className="flex-1">How we protect your token</span>
           <ChevronDown
@@ -154,22 +154,22 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
             aria-hidden="true"
           />
         </summary>
-        <ul className="m-0 flex list-disc flex-col gap-2 px-6 pb-6 pl-11 text-sm text-text-primary marker:text-text-secondary">
+        <ul className="m-0 flex list-disc flex-col gap-2 px-6 pb-6 pl-11 text-caption text-text-primary marker:text-text-secondary">
           <li>
-            <strong className="font-semibold">Stays in your browser.</strong> Kept in this tab only and cleared when you
+            <strong className="font-medium">Stays in your browser.</strong> Kept in this tab only and cleared when you
             close it, unless you tick &ldquo;Remember me&rdquo;. There is no server in between.
           </li>
           <li>
-            <strong className="font-semibold">Goes only to GitHub.</strong> Sent to {apiHost} and nowhere else. A strict
+            <strong className="font-medium">Goes only to GitHub.</strong> Sent to {apiHost} and nowhere else. A strict
             content security policy blocks other connections, inline scripts and <code>eval</code>, and the app refuses to
             load inside another page.
           </li>
           <li>
-            <strong className="font-semibold">Never stored with your data.</strong> It is not written to the repository,
+            <strong className="font-medium">Never stored with your data.</strong> It is not written to the repository,
             the dataset or any commit.
           </li>
           <li>
-            <strong className="font-semibold">Limited by design.</strong> A fine-grained token reaches {repo} only,
+            <strong className="font-medium">Limited by design.</strong> A fine-grained token reaches {repo} only,
             with Contents access, and expires after a year.{' '}
             <a href={tokenManagementLink} target="_blank" rel="noreferrer" className="underline">
               Revoke it in GitHub any time{newTab}
@@ -177,7 +177,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
             .
           </li>
           <li>
-            <strong className="font-semibold">One thing to know.</strong> The browser keeps it unencrypted, so tick
+            <strong className="font-medium">One thing to know.</strong> The browser keeps it unencrypted, so tick
             &ldquo;Remember me&rdquo; only on a device you trust.
           </li>
         </ul>

@@ -134,7 +134,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
           <button
             ref={startButton}
             type="button"
-            className="cursor-pointer border-0 bg-transparent p-0 text-sm text-text-secondary underline"
+            className="cursor-pointer border-0 bg-transparent p-0 text-caption text-text-secondary underline"
             onClick={() => setStarting({ phaseId: '', reason: '' })}
           >
             {hasStartingPhase(initiative) ? 'Change starting phase' : 'Start at a later phase'}
@@ -144,7 +144,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
       <div className="flex items-center justify-between gap-3">
         {onHold ? (
           <div className="flex items-center gap-3">
-            <p className="m-0 flex items-center gap-1.5 text-sm text-text-secondary">
+            <p className="m-0 flex items-center gap-1.5 text-caption text-text-secondary">
               <OnHoldIcon width={16} height={16} className="shrink-0" />
               {guidance}
             </p>
@@ -155,7 +155,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
           </div>
         ) : starting ? (
           <div className="flex flex-1 items-center gap-2">
-            <span id="start-at-label" className="text-sm whitespace-nowrap text-text-secondary">
+            <span id="start-at-label" className="text-caption whitespace-nowrap text-text-secondary">
               Start at
             </span>
             <Select value={starting.phaseId} onValueChange={(id) => setStarting({ ...starting, phaseId: id })}>
@@ -179,7 +179,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
             </Select>
             {startNeedsReason && (
               <>
-                <label htmlFor="start-reason" className="text-sm whitespace-nowrap text-text-secondary">
+                <label htmlFor="start-reason" className="text-caption whitespace-nowrap text-text-secondary">
                   {startGates ? `Reason for skipping ${startGates}` : 'Reason'}
                 </label>
                 <Input
@@ -199,7 +199,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
           </div>
         ) : skipping ? (
           <div className="flex flex-1 items-center gap-2">
-            <label htmlFor="skip-reason" className="text-sm whitespace-nowrap text-text-secondary">
+            <label htmlFor="skip-reason" className="text-caption whitespace-nowrap text-text-secondary">
               Reason for skipping {gateLabel}
             </label>
             <Input
@@ -215,7 +215,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            <p className={`m-0 flex items-center gap-1.5 text-sm ${overdue && !doneMessage ? 'font-medium text-alarm-text' : 'text-text-secondary'}`}>
+            <p className={`m-0 flex items-center gap-1.5 text-caption ${overdue && !doneMessage ? 'font-medium text-alarm-text' : 'text-text-secondary'}`}>
               {overdue && !doneMessage && <OverrunIcon width={16} height={16} className="shrink-0" />}
               {!ready && !doneMessage ? (
                 <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-left underline" onClick={jump}>
@@ -226,7 +226,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
               )}
             </p>
             {overdue && !doneMessage && (
-              <button type="button" className="w-fit cursor-pointer border-0 bg-transparent p-0 text-left text-sm text-text-secondary underline" onClick={extend}>
+              <button type="button" className="w-fit cursor-pointer border-0 bg-transparent p-0 text-left text-caption text-text-secondary underline" onClick={extend}>
                 Extend {phase.label} by one month
               </button>
             )}
@@ -260,7 +260,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
               <button
                 ref={skipButton}
                 type="button"
-                className={`cursor-pointer border-0 bg-transparent p-0 text-sm underline ${onHold ? 'text-text-muted' : 'text-text-secondary'}`}
+                className={`cursor-pointer border-0 bg-transparent p-0 text-caption underline ${onHold ? 'text-text-muted' : 'text-text-secondary'}`}
                 onClick={onHold ? () => setHoldAsked('skip') : () => setSkipping({ phaseId, reason: '' })}
               >
                 Skip {gateLabel}

@@ -18,6 +18,8 @@ import { SortableHeader } from './SortableHeader';
 import { TruncatedText } from './TruncatedText';
 import { useTableSort } from './tableSort';
 import { useSessionFilters } from './sessionFilters';
+import { PageHeader } from './PageHeader';
+import { StatusLabel, statusText } from './StatusLabel';
 
 const CHIPS: [keyof InitiativeFilters, string][] = [
   ['team', 'Team'],
@@ -67,7 +69,7 @@ export function InitiativesTable() {
     owner: [{ value: NONE, label: 'No owner' }, ...byLabel(people.map((p) => ({ value: p.id, label: inactiveLabel(p.name, p.active) })))],
     phase: process.map((p) => ({ value: p.id, label: p.label })),
     track: [...approvalTracks.map((t) => ({ value: t.id, label: t.name })), { value: NONE, label: 'No approval track' }],
-    status: INITIATIVE_STATUSES.map((s) => ({ value: s, label: s })),
+    status: INITIATIVE_STATUSES.map((s) => ({ value: s, label: statusText(s) })),
     }),
     [teams, people, process, approvalTracks],
   );
@@ -102,17 +104,14 @@ export function InitiativesTable() {
 
   return (
     <div className="px-8 py-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="m-0 text-xl">Initiatives</h1>
-        {visible.length > 0 && <CopyButton getData={copyData} noun={['initiative', 'initiatives']} />}
-      </div>
+      <PageHeader title="Initiatives" actions={visible.length > 0 && <CopyButton getData={copyData} noun={['initiative', 'initiatives']} />} />
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
           {CHIPS.map(([key, label]) => (
             <FilterChip key={key} selectedFirst={key === 'team' || key === 'owner'} label={label} options={options[key]} selected={filters[key]} onChange={(next) => setFilters({ ...filters, [key]: next })} />
           ))}
         </div>
-        <p className="m-0 text-sm text-text-secondary">
+        <p className="m-0 text-caption text-text-secondary">
           {filtering ? `${visible.length} of ${noun(rows.length)}` : noun(rows.length)}
           {filtering && (
             <button type="button" className="ml-3 cursor-pointer border-0 bg-transparent p-0 text-brand-accent-text underline" onClick={() => setFilters(NO_FILTERS)}>
@@ -124,9 +123,9 @@ export function InitiativesTable() {
       {visible.length === 0 ? (
         <EmptyState line="No initiatives match these filters." actionLabel="Clear filters" onAction={() => setFilters(NO_FILTERS)} />
       ) : (
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full border-collapse text-body">
           <thead>
-            <tr className="text-left text-text-secondary">
+            <tr className="text-label font-medium text-left text-text-secondary">
               <SortableHeader label="Name" sortKey="name" sort={sort} />
               <SortableHeader label="Team" sortKey="team" sort={sort} />
               <SortableHeader label="Owner" sortKey="owner" sort={sort} />
@@ -159,7 +158,9 @@ export function InitiativesTable() {
                   <td className="px-3 py-2">
                     <ApprovalTrackBadge initiative={r.initiative} />
                   </td>
-                  <td className="px-3 py-2">{r.initiative.status}</td>
+                  <td className="px-3 py-2">
+                    <StatusLabel status={r.initiative.status} />
+                  </td>
                   <td className="px-3 py-2">
                     {item && <AttentionMarker item={item} />}
                   </td>

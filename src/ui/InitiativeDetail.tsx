@@ -38,7 +38,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
         <p>This initiative couldn&apos;t be found.</p>
         {/* Deleted by someone else while an edit here waited to be saved (§3): the edit is not lost silently. */}
         {deletedWithLostEdit.has(id) && (
-          <p className="text-sm text-text-secondary">{deletedWithLostEdit.get(id)} was deleted, so your last change to it wasn&apos;t saved.</p>
+          <p className="text-caption text-text-secondary">{deletedWithLostEdit.get(id)} was deleted, so your last change to it wasn&apos;t saved.</p>
         )}
         <Button type="button" className="mt-3" onClick={() => navigate('/portfolio')}>
           Back to Portfolio
@@ -53,14 +53,14 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
         {isInitiativeFrozen(initiative) ? (
           // A Closed or Cancelled initiative is a record (§8.4): name and description read-only and muted, an empty description hidden.
           <>
-            <h1 className="m-0 mb-2 px-3 py-1.5 text-2xl font-semibold text-text-secondary">{initiative.name}</h1>
-            {initiative.description && <p className="m-0 mb-2 px-3 py-1.5 text-sm text-text-muted">{initiative.description}</p>}
+            <h1 className="m-0 mb-2 px-3 py-1.5 text-display font-medium text-text-secondary">{initiative.name}</h1>
+            {initiative.description && <p className="m-0 mb-2 px-3 py-1.5 text-caption text-text-muted">{initiative.description}</p>}
           </>
         ) : (
           <>
-            <h1 className="m-0 mb-2">
+            <h1 className="text-display font-medium m-0 mb-2">
               <CommitInput
-                className="h-auto border-transparent bg-transparent px-3 py-1.5 text-2xl font-semibold shadow-none hover:border-border-default md:text-2xl"
+                className="h-auto border-transparent bg-transparent px-3 py-1.5 text-display font-medium shadow-none hover:border-border-default "
                 aria-label="Initiative name"
                 changed={changed(FILE_PATHS.initiative(initiative.id), ['name'])}
                 failure={failure(FILE_PATHS.initiative(initiative.id), ['name'])}
@@ -70,7 +70,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
               />
             </h1>
             <CommitTextarea
-              className="mb-2 min-h-0 border-transparent bg-transparent px-3 py-1.5 text-sm text-text-secondary shadow-none hover:border-border-default"
+              className="mb-2 min-h-0 border-transparent bg-transparent px-3 py-1.5 text-caption text-text-secondary shadow-none hover:border-border-default"
               aria-label="Description"
               placeholder="Add a description"
               changed={changed(FILE_PATHS.initiative(initiative.id), ['description'])}

@@ -46,14 +46,14 @@ export function NeedsAttentionStrip() {
 
   return (
     <section aria-labelledby="needs-attention-heading" className="mb-6 overflow-hidden rounded-lg border border-border-default bg-surface-card">
-      <h2 id="needs-attention-heading" className="m-0 border-b border-border-default px-3.5 py-2 text-sm font-semibold">
+      <h2 id="needs-attention-heading" className="m-0 border-b border-border-default px-3.5 py-2 text-heading font-medium">
         Needs attention
       </h2>
       <ul className="m-0 flex list-none flex-col p-0">
         {shown.map((item) => {
           const { label, Icon, colorClass, tintClass } = KIND_CONFIG[item.kind];
           return (
-            <li key={item.initiativeId} className="flex items-center gap-2.5 border-t border-border-default px-3.5 py-2 text-sm first:border-t-0">
+            <li key={item.initiativeId} className="flex items-center gap-2.5 border-t border-border-default px-3.5 py-2 text-body first:border-t-0">
               <Icon width={16} height={16} className={`shrink-0 ${colorClass}`} />
               <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-label font-medium ${tintClass} ${colorClass}`}>{label}</span>
               <a href={hrefFor(item)} className="shrink-0 font-medium text-text-primary underline">
@@ -67,7 +67,7 @@ export function NeedsAttentionStrip() {
       {hidden > 0 && (
         <button
           type="button"
-          className="block w-full cursor-pointer border-t border-border-default bg-transparent px-3.5 py-1.5 text-right text-sm font-medium text-brand-accent-text"
+          className="block w-full cursor-pointer border-t border-border-default bg-transparent px-3.5 py-1.5 text-right text-body font-medium text-brand-accent-text"
           onClick={() => setExpanded(true)}
         >
           Show {hidden} more

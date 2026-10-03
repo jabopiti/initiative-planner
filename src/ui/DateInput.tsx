@@ -71,7 +71,7 @@ export function DateInput({
           month={month}
           onMonthChange={setMonth}
           onSelect={(date) => select(date ? localIso(date) : undefined)}
-          footer={<p className="m-0 px-1 pb-1 text-xs text-text-muted">Or type a date, e.g. 26.06.2026</p>}
+          footer={<p className="m-0 px-1 pb-1 text-caption text-text-muted">Or type a date, e.g. 26.06.2026</p>}
         />
       )}
     </PopoverTextField>

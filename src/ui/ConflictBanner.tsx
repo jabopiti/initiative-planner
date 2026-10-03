@@ -50,7 +50,7 @@ export function ConflictBanner() {
 
   return (
     <div
-      className="flex flex-col gap-1 border-b border-border-default bg-warning-tint px-4 py-2 text-sm text-warning-text"
+      className="flex flex-col gap-1 border-b border-border-default bg-warning-tint px-4 py-2 text-body text-warning-text"
       role="alert"
     >
       {[...pointers.values()].map(({ entity, route, conflicts: some }) => {

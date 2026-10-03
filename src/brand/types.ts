@@ -90,6 +90,20 @@ export interface BrandColours {
   focusRing: ColourRole;
 }
 
+/** One font file in the brand folder, with the characters it covers (served with the build, never fetched elsewhere, §2). */
+export interface FontFile {
+  /** Relative to the brand folder, e.g. `fonts/geist-latin-wght-normal.woff2`. */
+  path: string;
+  unicodeRange: string;
+}
+
+/** The brand pack's typeface (§2, §9.8): a variable font whose files live in the brand folder, and a fallback stack. */
+export interface Typeface {
+  family: string;
+  files: FontFile[];
+  fallback: string;
+}
+
 /**
  * Seed values for a baseline Role/Country — no `id` here: per §6, master
  * data ids are UUIDs assigned when the entity is created, which for the
@@ -144,6 +158,9 @@ export interface BrandPack {
   processIdentity: ProcessIdentity;
   github: GithubLocation;
   colours: BrandColours;
+  /** Six categorical team colours (§2, §9.8); a team takes the one at its position in the teams file, wrapping after six. */
+  teamColours: ColourRole[];
+  typeface: Typeface;
   freshInstallBaseline: {
     roles: RoleBaseline[];
     countries: CountryBaseline[];

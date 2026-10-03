@@ -34,7 +34,7 @@ export function OwnerSelect({ people, memberships, teamId, teamName, value, onVa
   // A Closed or Cancelled initiative keeps its owner, shown as text (§8.4).
   if (readOnly) {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 text-sm">
+      <span className="inline-flex items-center gap-1.5 px-3 text-body">
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-flex" role="img" aria-label="Owner" tabIndex={0}>

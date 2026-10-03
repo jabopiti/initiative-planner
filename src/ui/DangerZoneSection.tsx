@@ -56,17 +56,17 @@ export function DangerZoneSection({ lock }: { lock: SectionLock }) {
   return (
     <section aria-labelledby="settings-danger-zone-title" className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
-        <h2 id="settings-danger-zone-title" className="m-0 text-lg font-semibold">
+        <h2 id="settings-danger-zone-title" className="m-0 text-title font-medium">
           Danger zone
         </h2>
         <LockToggle lock={lock} />
       </div>
-      {lock.locked && <p className="m-0 text-sm text-text-secondary">Locked. Unlock to edit.</p>}
+      {lock.locked && <p className="m-0 text-caption text-text-secondary">Locked. Unlock to edit.</p>}
 
-      <div className="mt-3 rounded-lg border border-alarm bg-surface-card text-sm">
+      <div className="mt-3 rounded-lg border border-alarm bg-surface-card text-body">
         <div className="flex items-center gap-4 border-b border-border-default px-4 py-3">
           <div className="min-w-0 flex-1">
-            <h3 className="m-0 text-sm font-medium">Load example data</h3>
+            <h3 className="m-0 text-heading font-medium">Load example data</h3>
             <p className="m-0 text-text-secondary">Fills an empty dataset with example teams, people and initiatives.</p>
             {!load.busy && load.error && <ActionError text={`Not loaded: ${load.error}.`} />}
           </div>
@@ -74,14 +74,14 @@ export function DangerZoneSection({ lock }: { lock: SectionLock }) {
             <Button size="sm" variant="outline" disabled={unavailable || hasData} onClick={() => void loadExample()}>
               {load.busy ? 'Loading…' : 'Load example data'}
             </Button>
-            {hasData && <span className="text-xs text-text-secondary">Reset first</span>}
+            {hasData && <span className="text-caption text-text-secondary">Reset first</span>}
           </div>
         </div>
 
         <div className="px-4 py-3">
           <div className="flex items-center gap-4">
             <div className="min-w-0 flex-1">
-              <h3 className="m-0 text-sm font-medium">Reset</h3>
+              <h3 className="m-0 text-heading font-medium">Reset</h3>
               <p className="m-0 text-text-secondary">Returns the dataset to a fresh install.</p>
             </div>
             {!confirming && (

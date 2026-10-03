@@ -23,7 +23,7 @@ export function FrozenStrip({ initiative }: { initiative: Initiative }) {
       : [`Closed after ${finalGate}.`, reopenGate(process, initiative) && { label: `Reopen ${finalGate}`, ariaLabel: `Reopen ${finalGate} of ${initiative.name}`, run: () => repository.reopenGate(initiative.id) }];
 
   return (
-    <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-border-default bg-surface-subtle py-2 pr-2 pl-3 text-sm text-text-secondary">
+    <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-border-default bg-surface-subtle py-2 pr-2 pl-3 text-caption text-text-secondary">
       <FrozenIcon width={16} height={16} />
       <p className="m-0 flex-1">{what} Notes and actuals can still be recorded.</p>
       {action && (

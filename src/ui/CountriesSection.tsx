@@ -72,12 +72,12 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
   return (
     <section aria-labelledby="settings-countries-title" className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
-        <h2 id="settings-countries-title" className="m-0 text-lg font-semibold">
+        <h2 id="settings-countries-title" className="m-0 text-title font-medium">
           Countries &amp; rates
         </h2>
         <div className="flex items-center gap-2">
           {datasetFlags?.ratesReviewed ? (
-            <span className="inline-flex items-center gap-1 text-sm text-text-secondary">
+            <span className="inline-flex items-center gap-1 text-caption text-text-secondary">
               <CheckIcon width={16} height={16} />
               Rates reviewed
             </span>
@@ -91,12 +91,12 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
           <LockToggle lock={lock} />
         </div>
       </div>
-      {lock.locked && <p className="m-0 text-sm text-text-secondary">Locked. Unlock to edit.</p>}
+      {lock.locked && <p className="m-0 text-caption text-text-secondary">Locked. Unlock to edit.</p>}
 
-      <table className="mt-3 w-full border-collapse text-sm">
+      <table className="mt-3 w-full border-collapse text-body">
         <caption className="sr-only">Countries</caption>
         <thead>
-          <tr className="text-left text-xs text-text-secondary">
+          <tr className="text-left text-label font-medium text-text-secondary">
             <th className="py-1 pr-2 font-medium">Name</th>
             <th className="py-1 pr-2 text-right font-medium">Day rate</th>
             <th className="w-10 py-1">
@@ -174,7 +174,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                 {open && (
                   <tr>
                     <td id={tableId} colSpan={3} className="border-t border-border-default bg-surface-card px-4 pt-2 pb-3">
-                      {impact?.countryId === country.id && <p className="m-0 mb-2 text-xs text-text-secondary">{impact.text}</p>}
+                      {impact?.countryId === country.id && <p className="m-0 mb-2 text-caption text-text-secondary">{impact.text}</p>}
                       {ratesFailure && <FailedEdit className="mb-2" failure={ratesFailure} retryLabel={`Retry saving ${country.name}’s rates`} />}
                       {ratesConflict && <ConflictBlock className="mb-2" conflict={ratesConflict} label={`${country.name}’s rates`} />}
                       <YearTable
@@ -249,10 +249,10 @@ function YearTable({
   const earlier = byYear.filter((r) => r.year < tracked[0]);
 
   return (
-    <table className="w-full border-collapse text-sm">
+    <table className="w-full border-collapse text-body">
       <caption className="sr-only">{country.name} rates by year</caption>
       <thead>
-        <tr className="text-left text-xs text-text-secondary">
+        <tr className="text-left text-label font-medium text-text-secondary">
           <th className="py-1 pr-2 font-medium">Year</th>
           <th className="py-1 pr-3 text-right font-medium">Day rate</th>
           {MONTHS.map((m) => (
@@ -516,7 +516,7 @@ function DraftCountryRow({
           />
         </div>
       </div>
-      <p id={hintId} className="m-0 text-xs text-text-secondary">
+      <p id={hintId} className="m-0 text-caption text-text-secondary">
         Used for {joinList(years.map(String))}. Working days start as the weekdays of each month.
       </p>
       <div className="flex gap-2">

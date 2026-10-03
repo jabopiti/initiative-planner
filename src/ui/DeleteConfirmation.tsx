@@ -45,7 +45,7 @@ export function DeleteConfirmation({
       onKeyDown={(event) => {
         if (event.key === 'Escape' && !deleting) onClose();
       }}
-      className="mt-3 rounded-lg border border-border-strong bg-surface-card p-3 text-sm text-text-primary"
+      className="mt-3 rounded-lg border border-border-strong bg-surface-card p-3 text-body text-text-primary"
     >
       {refused ? (
         <>

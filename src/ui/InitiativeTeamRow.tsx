@@ -6,19 +6,17 @@ import { isInitiativeFrozen } from '../data/frozen';
 import { allocationCount, describeTeamChange } from '../data/teamChange';
 import { causeText } from '../github/errors';
 import { navigate, normalizeHash } from '../router/useHashRoute';
-import type { Initiative, InitiativeStatus, Team } from '../data/types';
+import type { Initiative, Team } from '../data/types';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
 import { DeleteConfirmation, type DeleteStep } from './DeleteConfirmation';
 import { formatAmount } from './formatAmount';
 import { InitiativeActionsMenu } from './InitiativeActionsMenu';
 import { FrozenStrip } from './FrozenStrip';
-import { CancelledIcon, FrozenIcon, OnHoldIcon } from './icons';
 import { OwnerSelect } from './OwnerSelect';
 import { TeamSelect } from './TeamSelect';
 import { Button } from '@/components/ui/button';
+import { StatusLabel } from './StatusLabel';
 
-/** The status chip's icon (§9.10); Active has none. */
-const STATUS_ICON: Partial<Record<InitiativeStatus, typeof OnHoldIcon>> = { 'On Hold': OnHoldIcon, Cancelled: CancelledIcon, Closed: FrozenIcon };
 
 /**
  * The initiative header's meta row (§5.4): team, owner, status badge and approval track badge. The team is a
@@ -43,7 +41,6 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
   const deleteFocusRef = useRef<HTMLButtonElement>(null);
 
   const currentTeam = teams.find((t) => t.id === initiative.teamId);
-  const StatusIcon = STATUS_ICON[initiative.status];
 
   // Worked out on every render, so the names and figures shown are the ones that would be removed now.
   const pendingTeam = teams.find((t) => t.id === pendingTeamId);
@@ -123,10 +120,7 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
           readOnly={frozen}
           className="border-transparent bg-transparent text-text-secondary shadow-none hover:border-border-default"
         />
-        <span className="inline-flex items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-xs">
-          {StatusIcon && <StatusIcon width={12} height={12} />}
-          {initiative.status}
-        </span>
+        <StatusLabel status={initiative.status} className="text-caption" />
         <ApprovalTrackBadge initiative={initiative} />
         <InitiativeActionsMenu
           initiative={initiative}
@@ -155,7 +149,7 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
           onKeyDown={(event) => {
             if (event.key === 'Escape') cancel();
           }}
-          className="mt-3 rounded-lg border border-border-strong bg-surface-card p-3 text-sm text-text-primary"
+          className="mt-3 rounded-lg border border-border-strong bg-surface-card p-3 text-body text-text-primary"
         >
           <p id={titleId} className="m-0 mb-1 font-medium">
             Change team to {confirming.team.name}?

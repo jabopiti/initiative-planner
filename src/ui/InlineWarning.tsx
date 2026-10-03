@@ -5,7 +5,7 @@ import { WarningIcon } from './icons';
 export function InlineWarning({ icon: Icon = WarningIcon, className = '', children }: { icon?: ComponentType<SVGProps<SVGSVGElement>>; className?: string; children: ReactNode }) {
   return (
     <p
-      className={`m-0 flex items-center gap-1 rounded-md bg-warning-tint px-2 py-1 text-xs text-warning-text ${className}`}
+      className={`m-0 flex items-center gap-1 rounded-md bg-warning-tint px-2 py-1 text-caption text-warning-text ${className}`}
       role="status"
     >
       <Icon width={14} height={14} />

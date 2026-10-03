@@ -22,7 +22,7 @@ export function TokenSteps({ first, className = '' }: { first: ReactNode; classN
   }
 
   return (
-    <ol className={`m-0 flex list-decimal flex-col gap-3 pl-5 marker:font-semibold marker:text-text-primary ${className}`}>
+    <ol className={`m-0 flex list-decimal flex-col gap-3 pl-5 marker:font-medium marker:text-text-primary ${className}`}>
       <li>{first}</li>
       <li>Set the expiry to 1 year.</li>
       <li>

@@ -52,7 +52,7 @@ function buildVersion(): string {
 
 export default defineConfig({
   define: { __BUILD_VERSION__: JSON.stringify(buildVersion()) },
-  plugins: [react(), tailwindcss(), brandColoursPlugin(defaultBrandPack.colours), cspMetaTag()],
+  plugins: [react(), tailwindcss(), brandColoursPlugin(defaultBrandPack, fileURLToPath(new URL('./src/brand', import.meta.url))), cspMetaTag()],
   base: './',
   // Parallel sessions each run their own dev server: the preview launcher hands out a free port via PORT.
   server: { port: Number(process.env.PORT) || 5173 },

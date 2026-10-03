@@ -22,7 +22,7 @@ export function TopBar({ route }: { route: string }) {
   const attentionLabel = `${needsAttentionCount} ${needsAttentionCount === 1 ? 'needs' : 'need'} attention`;
   return (
     <header className="sticky top-0 z-10 flex items-center gap-6 border-b border-border-default bg-surface-card px-5 py-2.5">
-      <a href="#/portfolio" className="flex shrink-0 items-center gap-2 font-bold text-text-primary no-underline">
+      <a href="#/portfolio" className="flex shrink-0 items-center gap-2 font-medium text-text-primary no-underline">
         <LogoMark />
         {brand.productName}
       </a>

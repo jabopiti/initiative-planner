@@ -10,7 +10,7 @@ import { jumpTo } from './jumpTo';
 export function ConflictBlock({ conflict, label, className = '' }: { conflict: FieldConflict; label: string; className?: string }) {
   useShowConflict(conflict.key, conflict.id, jumpTo);
   return (
-    <div id={conflict.id} role="alert" className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-warning-tint px-2 py-1 text-xs text-warning-text ${className}`}>
+    <div id={conflict.id} role="alert" className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-warning-tint px-2 py-1 text-caption text-warning-text ${className}`}>
       <span>
         Changed by someone else while you were editing. Theirs: <strong className="font-medium">{conflict.theirs}</strong> · Yours:{' '}
         <strong className="font-medium">{conflict.mine}</strong>

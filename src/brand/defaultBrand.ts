@@ -6,9 +6,10 @@ import type { BrandPack, CountryYearRates } from './types';
  * are taken from backlog/example-data.md, the reference data confirmed for
  * building and demoing slices 002-011.
  *
- * The colour roles are the single source for the app's CSS (§2, §9.1):
- * brandColoursPlugin generates the stylesheet from them and fails the build
- * when a pair misses the contrast rule (§9.5, src/brand/contrast.ts).
+ * The colour roles, team colours and typeface are the single source for the
+ * app's CSS (§2, §9.1): brandColoursPlugin generates the stylesheet from them
+ * and fails the build when a pair misses the contrast rule (§9.5,
+ * src/brand/contrast.ts) or a font file is missing.
  */
 
 const germanyRates: CountryYearRates[] = [
@@ -164,18 +165,19 @@ export const defaultBrandPack: BrandPack = {
   exampleDataset,
 
   colours: {
-    surfacePage: { light: 'oklch(0.983 0.003 174.5)', dark: 'oklch(0.187 0.012 167.0)' },
-    surfaceCard: { light: 'oklch(1 0 89.9)', dark: 'oklch(0.235 0.018 165.2)' },
-    surfaceSubtle: { light: 'oklch(0.962 0.007 164.9)', dark: 'oklch(0.254 0.022 166.2)' },
+    // Neutral roles: zinc greys in light, graphite in dark (slice 057), so the accent is the only colour that isn't a state.
+    surfacePage: { light: 'oklch(0.975 0.002 286)', dark: 'oklch(0.17 0.004 286)' },
+    surfaceCard: { light: 'oklch(1 0 0)', dark: 'oklch(0.212 0.005 286)' },
+    surfaceSubtle: { light: 'oklch(0.955 0.003 286)', dark: 'oklch(0.245 0.006 286)' },
 
-    textPrimary: { light: 'oklch(0.23 0.02 167.0)', dark: 'oklch(0.956 0.012 162.0)' },
-    textSecondary: { light: 'oklch(0.512 0.022 167.2)', dark: 'oklch(0.742 0.022 165.9)' },
-    textMuted: { light: 'oklch(0.534 0.021 162.6)', dark: 'oklch(0.635 0.024 170.1)' },
-    textOnAccent: { light: 'oklch(1 0 89.9)', dark: 'oklch(0.187 0.012 167.0)' },
+    textPrimary: { light: 'oklch(0.21 0.006 286)', dark: 'oklch(0.965 0.002 286)' },
+    textSecondary: { light: 'oklch(0.442 0.017 286)', dark: 'oklch(0.765 0.008 286)' },
+    textMuted: { light: 'oklch(0.535 0.016 286)', dark: 'oklch(0.68 0.012 286)' },
+    textOnAccent: { light: 'oklch(1 0 0)', dark: 'oklch(0.17 0.004 286)' },
 
-    borderDefault: { light: 'oklch(0.916 0.013 164.8)', dark: 'oklch(0.302 0.023 163.0)' },
-    borderStrong: { light: 'oklch(0.817 0.018 164.5)', dark: 'oklch(0.395 0.027 159.1)' },
-    borderInput: { light: 'oklch(0.60 0.018 164.5)', dark: 'oklch(0.54 0.027 159.1)' },
+    borderDefault: { light: 'oklch(0.92 0.004 286)', dark: 'oklch(0.29 0.006 286)' },
+    borderStrong: { light: 'oklch(0.871 0.006 286)', dark: 'oklch(0.37 0.008 286)' },
+    borderInput: { light: 'oklch(0.6 0.014 286)', dark: 'oklch(0.54 0.012 286)' },
 
     accent: { light: 'oklch(0.429 0.085 167.5)', dark: 'oklch(0.79 0.152 167.0)' },
     accentTint: { light: 'oklch(0.98 0.029 161.1)', dark: 'oklch(0.258 0.035 163.9)' },
@@ -194,5 +196,33 @@ export const defaultBrandPack: BrandPack = {
     metText: { light: 'oklch(0.513 0.17 149.2)', dark: 'oklch(0.8 0.182 151.7)' },
 
     focusRing: { light: 'oklch(0.429 0.085 167.5)', dark: 'oklch(0.79 0.152 167.0)' },
+  },
+
+  // Violet, blue, teal, magenta, sand, slate: muted, and clear of the Alarm, Warning and Met hues (§9.8).
+  teamColours: [
+    { light: 'oklch(0.52 0.13 293)', dark: 'oklch(0.72 0.12 293)' },
+    { light: 'oklch(0.52 0.12 255)', dark: 'oklch(0.72 0.11 255)' },
+    { light: 'oklch(0.53 0.08 205)', dark: 'oklch(0.72 0.08 205)' },
+    { light: 'oklch(0.52 0.15 340)', dark: 'oklch(0.72 0.13 340)' },
+    { light: 'oklch(0.55 0.07 65)', dark: 'oklch(0.74 0.07 70)' },
+    { light: 'oklch(0.5 0.03 265)', dark: 'oklch(0.72 0.03 265)' },
+  ],
+
+  // Geist (SIL Open Font License, fonts/OFL.txt), taken from @fontsource-variable/geist 5.3.0.
+  typeface: {
+    family: 'Geist',
+    files: [
+      {
+        path: 'fonts/geist-latin-ext-wght-normal.woff2',
+        unicodeRange:
+          'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF',
+      },
+      {
+        path: 'fonts/geist-latin-wght-normal.woff2',
+        unicodeRange:
+          'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD',
+      },
+    ],
+    fallback: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
   },
 };

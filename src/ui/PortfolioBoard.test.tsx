@@ -231,17 +231,17 @@ describe('Portfolio filters (§5.2, §9.11)', () => {
   it('shows On Hold initiatives with their status icon once Status is widened', async () => {
     const user = userEvent.setup();
     await renderBoard([big, held]);
-    await pick(user, /^Status/, 'On Hold');
+    await pick(user, /^Status/, 'On hold');
     expect(chipButton('Status: 2')).toBeInTheDocument();
-    expect(within(card(/Held One/)).getByRole('img', { name: 'On Hold' })).toBeInTheDocument();
-    expect(within(card(/Big One/)).queryByRole('img', { name: 'On Hold' })).toBeNull();
+    expect(within(card(/Held One/)).getByRole('img', { name: 'On hold' })).toBeInTheDocument();
+    expect(within(card(/Big One/)).queryByRole('img', { name: 'On hold' })).toBeNull();
   });
 
   it('clears every chip but Status, which returns to Active', async () => {
     const user = userEvent.setup();
     await renderBoard([big, held, later]);
     await pick(user, /^Team/, 'Growth');
-    await pick(user, /^Status/, 'On Hold');
+    await pick(user, /^Status/, 'On hold');
     expect(chipButton('Team: Growth')).toBeInTheDocument();
     expect(cardNames()).toHaveLength(1);
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
