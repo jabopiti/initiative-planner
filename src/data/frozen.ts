@@ -27,7 +27,7 @@ export function isStartingPhaseSkip(record: GateRecord | undefined): boolean {
 export const isInitiativeFrozen = (initiative: Initiative): boolean => initiative.status === 'Closed' || initiative.status === 'Cancelled';
 
 /** What passing a gate freezes in its phase (§8.1). Actuals stay recordable on a frozen phase (§6, §8.4), so they are not here. */
-const FROZEN_PHASE_FIELDS = ['startDate', 'endDate', 'allocations', 'costItems'];
+export const FROZEN_PHASE_FIELDS = ['startDate', 'endDate', 'allocations', 'costItems'] as const;
 
 /**
  * The paths of an initiative a merge must leave as frozen (§10.5, §8.1), each with the gate record that froze it:

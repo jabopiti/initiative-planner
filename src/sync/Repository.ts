@@ -24,7 +24,7 @@ import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysB
 import { localToday } from '../data/dates';
 import { duplicateInitiative, type DuplicateResult } from '../data/duplicate';
 import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
-import { frozenPaths, hasPassedGate, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
+import { FROZEN_PHASE_FIELDS, frozenPaths, hasPassedGate, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
 import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
 import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
@@ -73,6 +73,26 @@ export interface RepositoryState {
   /** Initiatives someone else deleted while an edit to them waited to be saved, by id, with their names (§3): their
    * page says the change wasn't saved. */
   deletedWithLostEdit: ReadonlyMap<string, string>;
+  /** Phases, as {@link lostEditKey}s, that a gate pass froze over an edit of this user's (§8.1): the edit was not
+   * saved, and the phase says so until dismissed. Kept in memory only. */
+  frozenWithLostEdit: ReadonlySet<string>;
+}
+
+/** The key by which {@link RepositoryState.frozenWithLostEdit} names one phase of one initiative. */
+export const lostEditKey = (initiativeId: string, phaseId: string): string => `${initiativeId}:${phaseId}`;
+
+/**
+ * The phases a freeze in `theirs` overtook an edit of `mine` to (§8.1): frozen there but in neither base nor mine,
+ * with mine having changed what the freeze holds. The merge keeps the frozen version, so that edit is lost.
+ */
+function phasesFrozenOverEdit(base: Initiative, mine: Initiative, theirs: Initiative): string[] {
+  return Object.keys(theirs.gates ?? {}).filter(
+    (phaseId) =>
+      isPhaseFrozen(theirs, phaseId) &&
+      !isPhaseFrozen(base, phaseId) &&
+      !isPhaseFrozen(mine, phaseId) &&
+      FROZEN_PHASE_FIELDS.some((field) => !sameValue(base.phases?.[phaseId]?.[field], mine.phases?.[phaseId]?.[field])),
+  );
 }
 
 /** The key by which a value at `path` of a data-branch file is reported as changed by others. */
@@ -210,6 +230,7 @@ export class Repository {
     changed: new Set(),
     updatedByOthers: false,
     deletedWithLostEdit: new Map(),
+    frozenWithLostEdit: new Set(),
   };
 
   private readonly listeners = new Set<Listener>();
@@ -814,7 +835,11 @@ export class Repository {
       queue: this.queue,
       cache: this.cache,
       gate: () => this.firstPullDone,
-      merge: (base, mine, theirs) => mergeDocument(base, mine, theirs, { frozen: frozenPaths }),
+      merge: (base, mine, theirs) => {
+        const lost = phasesFrozenOverEdit(base, mine, theirs);
+        if (lost.length > 0) this.noteLostEdits(initiative.id, lost);
+        return mergeDocument(base, mine, theirs, { frozen: frozenPaths });
+      },
       whenMissing: null,
       whenGone: {
         message: deletedMessage,
@@ -832,6 +857,22 @@ export class Repository {
     });
     this.initiativeWriters.set(initiative.id, writer);
     return writer;
+  }
+
+  /** Edits of this user's to these phases were overtaken by a gate pass (§8.1): the phases say so until dismissed. */
+  private noteLostEdits(initiativeId: string, phaseIds: string[]): void {
+    const next = new Set(this.state.frozenWithLostEdit);
+    for (const phaseId of phaseIds) next.add(lostEditKey(initiativeId, phaseId));
+    if (next.size !== this.state.frozenWithLostEdit.size) this.setState({ frozenWithLostEdit: next });
+  }
+
+  /** Dismiss a phase's "your last change wasn't saved" message (§8.1, §9.9). */
+  dismissLostEdit(initiativeId: string, phaseId: string): void {
+    const key = lostEditKey(initiativeId, phaseId);
+    if (!this.state.frozenWithLostEdit.has(key)) return;
+    const next = new Set(this.state.frozenWithLostEdit);
+    next.delete(key);
+    this.setState({ frozenWithLostEdit: next });
   }
 
   private replaceInitiative(next: Initiative): void {
@@ -1284,11 +1325,13 @@ export class Repository {
     phaseId: string,
     change: (plan: PhasePlan) => PhasePlan,
     note: { field: string; from: T | undefined; to: T | undefined; words: (from: T | undefined, to: T | undefined, initiativeName: string, phase: string) => string },
-    /** Only a recorded actual is still accepted on a frozen initiative (§8.4). */
-    { allowFrozen = false }: { allowFrozen?: boolean } = {},
+    /** Only a recorded actual is still accepted on a frozen initiative or phase (§8.4). An Undo is refused
+     * silently on a frozen phase, as its offer is withdrawn once the phase freezes (§5.11). */
+    { allowFrozen = false, undo = false }: { allowFrozen?: boolean; undo?: boolean } = {},
   ): boolean {
     const initiative = allowFrozen ? this.state.initiatives.find((i) => i.id === initiativeId) : this.editableInitiative(initiativeId);
     if (!initiative) return false;
+    if (!allowFrozen && this.refuseFrozenPhase(initiative, phaseId, undo)) return false;
     const plan = initiative.phases?.[phaseId] ?? { allocations: [] };
     // The first edit to the plan ends the suggestion: from here on the dates are the user's (§8.2).
     const next: Initiative = { ...initiative, phases: { ...initiative.phases, [phaseId]: change(plan) } };
@@ -1298,6 +1341,17 @@ export class Repository {
     this.initiativeWriters
       .get(initiativeId)
       ?.schedule(next, this.note('initiative', initiativeId, `${phaseId}:${note.field}`, note.from, note.to, (f, t) => note.words(f, t, name, this.phaseLabel(phaseId))));
+    return true;
+  }
+
+  /**
+   * Whether an edit to `phaseId` is refused because its gate was passed (§8.1): no edit reaches a frozen phase from
+   * any path — an Undo, a field committed after a pull froze it. Anything but an Undo is a change of the user's that
+   * the freeze overtook, and the phase says so.
+   */
+  private refuseFrozenPhase(initiative: Initiative, phaseId: string, undo: boolean): boolean {
+    if (!isPhaseFrozen(initiative, phaseId)) return false;
+    if (!undo) this.noteLostEdits(initiative.id, [phaseId]);
     return true;
   }
 
@@ -1346,6 +1400,8 @@ export class Repository {
     const person = this.state.people.find((p) => p.id === personId);
     const team = initiative && this.state.teams.find((t) => t.id === initiative.teamId);
     if (!initiative || !person || !team) return { ok: false, reason: 'That person or initiative could not be found.' };
+    // Refused by a freeze, which the phase itself reports (§8.1).
+    if (this.refuseFrozenPhase(initiative, phaseId, false)) return { ok: false, reason: '' };
 
     const reason = allocationRefusal(person, team, this.state.memberships);
     if (reason) return { ok: false, reason };
@@ -1431,6 +1487,7 @@ export class Repository {
       phaseId,
       (plan) => ({ ...plan, [list]: insertAt(itemsOf<T>(plan, list), item, index) }),
       { field: `${list}:${item.id}`, from: undefined, to: item, words: this.describeItem(list) },
+      { undo: true },
     );
   }
 

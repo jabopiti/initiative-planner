@@ -1,10 +1,11 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, GateRecord, Initiative, Membership, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
-import { RepositoryProvider } from '../state/DataContext';
+import { RepositoryProvider, useRepository } from '../state/DataContext';
+import type { Repository } from '../sync/Repository';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
@@ -70,11 +71,19 @@ beforeEach(() => {
   puts = [];
 });
 
+/** The page's repository, for a test to act as another client or a race would. */
+let repository: Repository;
+function GrabRepository() {
+  repository = useRepository();
+  return null;
+}
+
 function renderPage() {
   return render(
     <BrandProvider brand={defaultBrandPack}>
       <TooltipProvider>
         <RepositoryProvider token="token">
+          <GrabRepository />
           <InitiativeDetail id="i1" />
           <Toaster />
         </RepositoryProvider>
@@ -242,5 +251,44 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     const last = puts[puts.length - 1];
     expect(last.content.status).toBe('On Hold');
     expect(last.content.gates ?? {}).toEqual({});
+  });
+});
+
+describe('a frozen phase refuses what the page no longer offers (§5.11, §8.1)', () => {
+  const g2Complete = { [validationId]: Object.fromEntries(g2.checklistItems.map((i) => [i.id, { status: 'complete' as const, note: '' }])) };
+
+  it('passing the gate withdraws the Undo of an allocation just removed from the phase', async () => {
+    const user = userEvent.setup();
+    const validation = { ...bothPlanned[validationId], costItems: [{ id: 'c1', label: 'Licences', amount: 1000, timing: 'spread' as const }] };
+    initiative = { id: 'i1', name: 'Checkout Redesign', teamId: 't1', status: 'Active', gates: { [discoveryId]: discoveryPassed }, phases: { ...bothPlanned, [validationId]: validation }, checklist: g2Complete };
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Remove Ana Ruiz from Validation' }));
+    expect(await screen.findByRole('button', { name: 'Undo' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Pass gate' }));
+
+    expect(await screen.findByText(/^Passed G2/)).toBeInTheDocument();
+    await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument());
+  });
+
+  it('says a change the freeze overtook was not saved, until dismissed', async () => {
+    const user = userEvent.setup();
+    const frozenSnapshot = { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [], costItems: [], estimateByMonth: {} };
+    initiative = {
+      id: 'i1',
+      name: 'Checkout Redesign',
+      teamId: 't1',
+      status: 'Active',
+      gates: { [discoveryId]: discoveryPassed, [validationId]: { outcome: 'passed', passedOn: '2026-11-30', frozenSnapshot, checklist: [] } },
+      phases: { [validationId]: bothPlanned[validationId] },
+    };
+    renderPage();
+    await screen.findByRole('button', { name: /^Validation/ });
+
+    act(() => repository.setPhaseDate('i1', validationId, 'endDate', '2026-12-31'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("G2 was passed while you were editing, so your last change to Validation wasn't saved.");
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText(/your last change to Validation/)).not.toBeInTheDocument();
   });
 });

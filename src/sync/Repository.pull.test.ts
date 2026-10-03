@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { cacheScope, FileCache } from '../cache/db';
-import { CHANGE_TINT_MS, changeCovers, changeKey, FOCUS_PULL_MIN_GAP_MS, PULL_INTERVAL_MS, PULL_RETRY_MS, Repository } from './Repository';
+import { CHANGE_TINT_MS, changeCovers, changeKey, FOCUS_PULL_MIN_GAP_MS, lostEditKey, PULL_INTERVAL_MS, PULL_RETRY_MS, Repository } from './Repository';
 import { fakeGithub, holdNetwork, initiative, open, type Fake } from './testing/fakeGithub';
 
 const setVisibility = (state: 'visible' | 'hidden') =>
@@ -282,6 +282,49 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
       await repo.flushPending();
 
       expect(fake.read('initiatives/i1.json')).toMatchObject({ name: 'Mine', ownerId: 'someone' });
+    });
+  });
+
+  describe('a gate pass from elsewhere overtakes an edit (§8.1)', () => {
+    const plan = { startDate: '2026-01-01', endDate: '2026-03-31', allocations: [] };
+    const frozenSnapshot = { startDate: plan.startDate, endDate: plan.endDate, allocations: [], costItems: [], estimateByMonth: {} };
+    const gates = { validation: { outcome: 'passed' as const, passedOn: '2026-04-01', checklist: [], frozenSnapshot } };
+
+    it('drops an edit still waiting to save, and the phase says so', async () => {
+      fake.seed('initiatives/i1.json', initiative({ phases: { validation: plan } }));
+      const repo = await reopen();
+      repo.setPhaseDate('i1', 'validation', 'endDate', '2026-04-30');
+      fake.seed('initiatives/i1.json', initiative({ phases: { validation: plan }, gates }));
+      await repo.flushPending();
+
+      expect(fake.read('initiatives/i1.json')).toMatchObject({ phases: { validation: { endDate: '2026-03-31' } } });
+      expect(repo.getState().initiatives[0].phases?.validation.endDate).toBe('2026-03-31');
+      expect(repo.getState().frozenWithLostEdit).toEqual(new Set([lostEditKey('i1', 'validation')]));
+    });
+
+    it('keeps an edit to another phase, and says nothing', async () => {
+      fake.seed('initiatives/i1.json', initiative({ phases: { validation: plan, development: plan } }));
+      const repo = await reopen();
+      repo.setPhaseDate('i1', 'development', 'endDate', '2026-04-30');
+      fake.seed('initiatives/i1.json', initiative({ phases: { validation: plan, development: plan }, gates }));
+      await repo.flushPending();
+
+      expect(fake.read('initiatives/i1.json')).toMatchObject({ phases: { development: { endDate: '2026-04-30' } }, gates });
+      expect(repo.getState().frozenWithLostEdit.size).toBe(0);
+    });
+
+    it('refuses an edit made after the pull froze the phase, and says so', async () => {
+      fake.seed('initiatives/i1.json', initiative({ phases: { validation: plan } }));
+      const repo = await reopen();
+      fake.seed('initiatives/i1.json', initiative({ phases: { validation: plan }, gates }));
+      await repo.pull();
+      const writes = fake.requests().filter((r) => r.startsWith('PUT')).length;
+
+      repo.setPhaseDate('i1', 'validation', 'endDate', '2026-04-30');
+      await repo.flushPending();
+
+      expect(fake.requests().filter((r) => r.startsWith('PUT'))).toHaveLength(writes);
+      expect(repo.getState().frozenWithLostEdit).toEqual(new Set([lostEditKey('i1', 'validation')]));
     });
   });
 

@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { useFieldConflict, useRevealTarget, type FieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState, type FieldFailure } from '../state/DataContext';
+import { lostEditKey } from '../sync/Repository';
 import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, raiseFix, reduceFix, type Load } from '../data/capacity';
 import { actualOrEstimate, allocationFigures } from '../data/cost';
@@ -21,7 +22,7 @@ import { TIMING_LABELS } from './costItemTiming';
 import { DateInput } from './DateInput';
 import { formatAmount } from './formatAmount';
 import { GateChecklistPanel } from './GateChecklistPanel';
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, FrozenIcon, InfoIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DismissIcon, FrozenIcon, InfoIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
 import { PercentInput } from './PercentInput';
 import { TruncatedText } from './TruncatedText';
@@ -148,7 +149,7 @@ function CostedPhase({
   const conflict = useFieldConflict();
   const file = FILE_PATHS.initiative(initiative.id);
   const { currencySymbol, process } = useBrand();
-  const { people, roles, countries, memberships, initiatives, teams } = useRepositoryState();
+  const { people, roles, countries, memberships, initiatives, teams, frozenWithLostEdit } = useRepositoryState();
   const [refusal, setRefusal] = useState<string | null>(null);
   // Who the last Copy skipped (§5.11): shown until this phase's plan next changes, never stored.
   const [notCopied, setNotCopied] = useState<{ text: string; plan: PhasePlan } | null>(null);
@@ -263,6 +264,10 @@ function CostedPhase({
         <span className="ml-auto font-medium tabular-nums">{costed && hasCost ? formatAmount(total, currencySymbol) : '—'}</span>
         <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary">{coverageLabel}</span>
       </button>
+
+      {frozen && frozenWithLostEdit.has(lostEditKey(initiative.id, phase.id)) && (
+        <LostEditMessage gateLabel={phase.exitGate.label} phaseLabel={phase.label} onDismiss={() => repository.dismissLostEdit(initiative.id, phase.id)} />
+      )}
 
       {expanded && (
         <div id={bodyId} className="flex flex-col gap-4 border-t border-border-default px-3 py-3">
@@ -433,7 +438,7 @@ function CostedPhase({
                               onClick={() => {
                                 const removed = repository.removeAllocation(initiative.id, phase.id, allocation.id);
                                 if (!removed) return;
-                                undoToast(() => repository.restoreAllocation(initiative.id, phase.id, removed.allocation, removed.index));
+                                undoToast(() => repository.restoreAllocation(initiative.id, phase.id, removed.allocation, removed.index), { repository, initiativeId: initiative.id, phaseId: phase.id });
                               }}
                             >
                               <RemoveIcon />
@@ -511,6 +516,21 @@ function CostedPhase({
         </div>
       )}
     </>
+  );
+}
+
+/** A change of this user's that a gate pass overtook, and so wasn't saved (§8.1); an error, so it stays until dismissed (§9.9). */
+function LostEditMessage({ gateLabel, phaseLabel, onDismiss }: { gateLabel: string; phaseLabel: string; onDismiss: () => void }) {
+  return (
+    <div role="alert" className="mx-3 mb-2 flex items-start gap-2 rounded-md bg-warning-tint px-2.5 py-2 text-sm text-warning-text">
+      <WarningIcon width={16} height={16} className="mt-0.5 shrink-0" />
+      <span className="flex-1">
+        {gateLabel} was passed while you were editing, so your last change to {phaseLabel} wasn&apos;t saved.
+      </span>
+      <Button type="button" variant="ghost" size="icon" className="size-6 shrink-0 text-warning-text" aria-label="Dismiss" onClick={onDismiss}>
+        <DismissIcon width={16} height={16} />
+      </Button>
+    </div>
   );
 }
 

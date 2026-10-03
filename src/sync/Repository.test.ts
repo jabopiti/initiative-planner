@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Initiative } from '../data/types';
-import { Repository } from './Repository';
+import { lostEditKey, Repository } from './Repository';
 import { splitMessage, subjectOf } from './testing/commitMessage';
 import { rootListing } from './testing/rootListing';
 
@@ -1020,6 +1020,80 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       expect(repo.setChecklistNote(id, 'discovery', 'g1-problem-statement', '  ')).toBe(false);
       await repo.flushPending();
       expect(commits).toEqual([]);
+    });
+  });
+
+  describe('a phase behind a passed gate refuses every edit but actuals (§8.1)', () => {
+    /** Pass Validation's gate as a pulled change would: the gate record arrives, with no commit of this client's. */
+    function freezeValidation(repo: Repository, initiative: Initiative) {
+      const plan = initiative.phases!.validation;
+      const frozenSnapshot = { startDate: plan.startDate!, endDate: plan.endDate!, allocations: [], costItems: plan.costItems ?? [], estimateByMonth: {} };
+      const gates = { ...initiative.gates, validation: { outcome: 'passed' as const, passedOn: '2026-04-01', checklist: [], frozenSnapshot } };
+      (repo as unknown as { replaceInitiative(next: Initiative): void }).replaceInitiative({ ...initiative, gates });
+    }
+
+    const refusals: [string, (r: Awaited<ReturnType<typeof repoWithPlannedInitiative>>) => void][] = [
+      ['setPhaseDate', ({ repo, id }) => repo.setPhaseDate(id, 'validation', 'endDate', '2026-04-30')],
+      ['extendPhase', ({ repo, id }) => repo.extendPhase(id, 'validation')],
+      ['addAllocation', ({ repo, id, member }) => repo.addAllocation(id, 'validation', member.id)],
+      ['updateAllocation', ({ repo, id, allocationId }) => repo.updateAllocation(id, 'validation', allocationId, 10)],
+      ['removeAllocation', ({ repo, id, allocationId }) => repo.removeAllocation(id, 'validation', allocationId)],
+      ['addCostItem', ({ repo, id }) => repo.addCostItem(id, 'validation', { label: 'Travel', amount: 5, timing: 'spread' })],
+      ['updateCostItem', ({ repo, id, itemId }) => repo.updateCostItem(id, 'validation', itemId, { amount: 2000 })],
+      ['removeCostItem', ({ repo, id, itemId }) => repo.removeCostItem(id, 'validation', itemId)],
+    ];
+
+    it.each(refusals)('%s is refused, commits nothing, and the phase says the change was not saved', async (_name, attempt) => {
+      const setup = await repoWithPlannedInitiative();
+      freezeValidation(setup.repo, setup.current());
+      const before = setup.current();
+      attempt(setup);
+      await setup.repo.flushPending();
+      expect(setup.current()).toEqual(before);
+      expect(commits).toEqual([]);
+      expect(setup.repo.getState().frozenWithLostEdit).toEqual(new Set([lostEditKey(setup.id, 'validation')]));
+    });
+
+    it.each([
+      ['restoreAllocation', ({ repo, id, member }: Awaited<ReturnType<typeof repoWithPlannedInitiative>>) => repo.restoreAllocation(id, 'validation', { id: 'gone', personId: member.id, allocationPct: 5 }, 0)],
+      ['restoreCostItem', ({ repo, id }: Awaited<ReturnType<typeof repoWithPlannedInitiative>>) => repo.restoreCostItem(id, 'validation', { id: 'gone', label: 'Old', amount: 1, timing: 'spread' }, 0)],
+    ])('a late Undo (%s) is refused silently', async (_name, attempt) => {
+      const setup = await repoWithPlannedInitiative();
+      freezeValidation(setup.repo, setup.current());
+      const before = setup.current();
+      attempt(setup);
+      await setup.repo.flushPending();
+      expect(setup.current()).toEqual(before);
+      expect(commits).toEqual([]);
+      expect(setup.repo.getState().frozenWithLostEdit.size).toBe(0);
+    });
+
+    it('an Undo clicked after the phase froze leaves the removed allocation out', async () => {
+      const { repo, id, allocationId, current } = await repoWithPlannedInitiative();
+      const removed = repo.removeAllocation(id, 'validation', allocationId)!;
+      freezeValidation(repo, current());
+      repo.restoreAllocation(id, 'validation', removed.allocation, removed.index);
+      expect(current().phases?.validation.allocations).toEqual([]);
+    });
+
+    it('records a month’s actual', async () => {
+      const { repo, id, current } = await repoWithPlannedInitiative();
+      freezeValidation(repo, current());
+      repo.setActual(id, 'validation', '2026-01', 900);
+      await repo.flushPending();
+      expect(current().phases?.validation.actualMonths).toEqual({ '2026-01': 900 });
+      expect(commits).toHaveLength(1);
+    });
+
+    it('leaves the other phases editable, and the message is dismissed by the user', async () => {
+      const { repo, id, current } = await repoWithPlannedInitiative();
+      freezeValidation(repo, current());
+      repo.setPhaseDate(id, 'development', 'endDate', '2027-06-30');
+      repo.setPhaseDate(id, 'validation', 'endDate', '2026-04-30');
+      await repo.flushPending();
+      expect(current().phases?.development.endDate).toBe('2027-06-30');
+      repo.dismissLostEdit(id, 'validation');
+      expect(repo.getState().frozenWithLostEdit.size).toBe(0);
     });
   });
 
