@@ -9,7 +9,7 @@ export const cssVar = (role: string) => `--${role.replace(/[A-Z]/g, (c) => `-${c
  * brandColoursPlugin as a static stylesheet — no inline styles, so the CSP
  * holds (§10.1).
  */
-export function coloursCss(colours: BrandColours, teamColours: ColourRole[] = []): string {
+export function coloursCss(colours: BrandColours, teamColours: ColourRole[]): string {
   const block = (theme: 'light' | 'dark') =>
     [
       ...Object.entries(colours).map(([role, value]) => `  ${cssVar(role)}: ${value[theme]};`),

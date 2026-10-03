@@ -24,8 +24,9 @@ export function ApprovalTrackBadge({ initiative }: { initiative: Initiative }) {
         No approval track
       </Badge>
     );
+  // Focusable, so the requirement in its tooltip reaches keyboard users too (§9.10's marker pattern).
   const badge = (
-    <Badge variant="outline">
+    <Badge variant="outline" tabIndex={0}>
       {track.abbreviation} <span className="font-normal">{track.name}</span>
     </Badge>
   );

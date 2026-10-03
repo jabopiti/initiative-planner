@@ -28,7 +28,7 @@ describe('coloursCss (§9.1, §10.1)', () => {
 
   it('follows a colour changed in the brand pack only', () => {
     const colours = { ...defaultBrandPack.colours, accent: { light: 'oklch(0.4 0.1 250)', dark: 'oklch(0.8 0.1 250)' } };
-    const css = coloursCss(colours);
+    const css = coloursCss(colours, defaultBrandPack.teamColours);
     expect(css).toContain('--accent: oklch(0.4 0.1 250);');
     expect(css).toContain('--accent: oklch(0.8 0.1 250);');
   });

@@ -121,7 +121,7 @@ export function PortfolioBoard() {
     const ordered = process.flatMap((phase) => byPhase.get(phase.id) ?? []);
     return {
       headers: ['Name', 'Team', 'Owner', 'Phase', filters.year === null ? 'Grand estimate' : `Cost in ${filters.year}`, 'Approval track', 'Status'],
-      rows: ordered.map((r) => [r.initiative.name, r.teamName, r.ownerName, r.phaseLabel, formatAmount(r.cost, currencySymbol), r.trackName, r.initiative.status]),
+      rows: ordered.map((r) => [r.initiative.name, r.teamName, r.ownerName, r.phaseLabel, formatAmount(r.cost, currencySymbol), r.trackName, statusText(r.initiative.status)]),
       footerRows: [
         ['Total cost', '', '', '', formatAmount(totalCost, currencySymbol), '', ''],
         ['Deviation', '', '', '', formatSignedAmount(deviation, currencySymbol), '', ''],

@@ -95,7 +95,7 @@ export function InitiativesTable() {
         r.phaseLabel,
         formatAmount(r.total, currencySymbol),
         r.trackName,
-        r.initiative.status,
+        statusText(r.initiative.status),
         r.attention ? KIND_CONFIG[r.attention.kind].label : '',
       ]),
       numericColumns: [4],

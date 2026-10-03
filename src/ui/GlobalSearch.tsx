@@ -142,7 +142,7 @@ function SearchOverlay({ open, onOpenChange, restoreFocus }: { open: boolean; on
           <CommandInput value={query} onValueChange={setQuery} placeholder="Search…" />
           <CommandList>
             {(!typed || none) && (
-              <p role={none ? 'status' : undefined} className="m-0 px-3 py-6 text-center text-caption text-text-secondary">
+              <p role={none ? 'status' : undefined} className="m-0 px-3 py-6 text-center text-body text-text-secondary">
                 {none ? `No matches for ‘${query.trim()}’` : 'Search initiatives, people and teams'}
               </p>
             )}

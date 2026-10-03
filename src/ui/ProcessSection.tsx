@@ -21,7 +21,7 @@ function GateCard({ gate }: { gate: GateDef }) {
     <details className={`${cardClass} group px-3 py-2`}>
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2.5 gap-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent [&::-webkit-details-marker]:hidden">
         <ChevronRightIcon width={16} height={16} className="transition-transform group-open:rotate-90" />
-        <strong>{gate.label}</strong>
+        <strong className="font-medium">{gate.label}</strong>
         <span>{gate.requiresEstimates ? 'Requires estimates' : 'No estimates required'}</span>
         <span aria-hidden="true">·</span>
         <span>{gate.skippable ? 'Can be skipped' : 'Cannot be skipped'}</span>

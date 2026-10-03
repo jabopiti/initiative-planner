@@ -79,9 +79,9 @@ export function ConflictBanner() {
               <div key={key} className="border-t border-border-default pt-1">
                 <div className="flex items-center justify-between gap-3">
                   <span>
-                    <strong>{entity}</strong> · {field}
-                    {!labelled && <span className="text-text-secondary"> (unlabelled field)</span>} — yours <strong>{mine}</strong>, theirs{' '}
-                    <strong>{theirs}</strong>
+                    <strong className="font-medium">{entity}</strong> · {field}
+                    {!labelled && <span className="text-text-secondary"> (unlabelled field)</span>} — yours <strong className="font-medium">{mine}</strong>, theirs{' '}
+                    <strong className="font-medium">{theirs}</strong>
                   </span>
                   <div className="flex shrink-0 gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => choose('theirs')}>

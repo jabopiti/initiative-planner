@@ -328,4 +328,12 @@ describe('Initiatives table copy (§9.2)', () => {
     expect(lines[2][4]).not.toMatch(/[kM]$/);
     expect(written['text/html']).toContain('<table');
   });
+
+  it('writes the status as the table shows it', async () => {
+    const user = setupUser();
+    await renderTable([onHold]);
+    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await screen.findByText('Copied 1 initiative');
+    expect(written['text/plain'].split('\n')[1].split('\t')[6]).toBe('On hold');
+  });
 });
