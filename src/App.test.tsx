@@ -97,12 +97,15 @@ describe('App — Connect outcomes (§5.10)', () => {
     expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Create a fine-grained one/ })).toBeInTheDocument();
 
+    // The flag is written to storage in the background: wait for it before "reloading".
+    await waitFor(async () => expect(await tokenStore.loadClassicWarning()).toBe(true));
     cleanup();
     render(<App />);
     expect(await screen.findByText(/a classic token reaches all your repositories/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText(/a classic token reaches all your repositories/)).toBeNull();
+    await waitFor(async () => expect(await tokenStore.loadClassicWarning()).toBe(false));
 
     cleanup();
     render(<App />);
