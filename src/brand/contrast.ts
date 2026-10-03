@@ -25,7 +25,7 @@ const PAIRS: Pair[] = [
   // Tooltips: page-coloured text on a primary-text fill.
   ['surfacePage', ['textPrimary'], TEXT],
   // Non-text contrast (WCAG 1.4.11): focus indicator, status fills and form-control outlines.
-  ...(['focusRing', 'accent', 'met', 'warning', 'alarm', 'borderStrong'] as const).map((fg): Pair => [fg, PAGE_CARD, UI]),
+  ...(['focusRing', 'accent', 'met', 'warning', 'alarm', 'borderInput'] as const).map((fg): Pair => [fg, PAGE_CARD, UI]),
 ];
 
 const OKLCH = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/;

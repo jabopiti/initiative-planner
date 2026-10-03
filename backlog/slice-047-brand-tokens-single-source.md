@@ -8,7 +8,7 @@ depends_on: ["046"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Added from the post-build review of the implementation against the spec (slices 001 to 041). Review findings: src/index.css is hand-copied and differs from defaultBrand.ts (text-muted, warning, alarm, met); nothing checks contrast. Pre-implementation review (2026-10-03): build-time Vite plugin chosen; form-control borders checked at 3:1 on a darkened border-strong; destructive button moved onto brand tokens."
+change_summary: "Added from the post-build review of the implementation against the spec (slices 001 to 041). Review findings: src/index.css is hand-copied and differs from defaultBrand.ts (text-muted, warning, alarm, met); nothing checks contrast. Pre-implementation review (2026-10-03): build-time Vite plugin chosen; form-control borders checked at 3:1 on a new border-input role (border-strong unchanged); destructive button moved onto brand tokens."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Cross-cutting: runtime or build-time token injection, a contrast algorithm, and a decision on which values are authoritative; hard to verify by tests alone."
 spec_sections: ["§2 Hosting & technology, Brand pack", "§9.1 Theming", "§9.5 Accessibility", "§9.8 Visual design", "§10.1 Framework and UI foundations", "§10.8 Testing"]
@@ -57,13 +57,17 @@ unreadable text/background pair, naming the token.
     card, subtle and their own tint; text on accent on accent and on alarm;
     surface page on text primary (tooltips).
   - 3:1 — focus ring, accent, met, warning and alarm fills, and border
-    strong, each on surface page and card. No large-text exemption is used.
-  - Border default is decorative (dividers, card outlines) and not checked.
-- **Form-control borders on border-strong:** inputs, selects, checkboxes
-  and the other controls reading shadcn's `input` colour, the dashed
-  "add" boxes and the stepper's upcoming dots use border-strong, darkened
-  to oklch(0.60 0.018 164.5) light and oklch(0.54 0.027 159.1) dark
-  (3.33:1 and 3.32:1 on a card) — WCAG 1.4.11. Mockup option B.
+    input, each on surface page and card. No large-text exemption is used.
+  - Border default and border strong are decorative (dividers, card
+    outlines, grouping panels, dashed boxes, stepper dots) and not checked.
+- **Form-control borders on a new border-input role:** inputs, selects,
+  checkboxes and the other controls reading shadcn's `input` colour use
+  border-input, oklch(0.60 0.018 164.5) light and oklch(0.54 0.027 159.1)
+  dark (3.33:1 and 3.32:1 on a card) — WCAG 1.4.11. Mockup option B.
+  Border-strong keeps its values, so grouping panels, chips, dashed boxes
+  and stepper dots look as before (post-implementation review, border
+  option B). shadcn's own `dark:bg-input/30` fills are kept, so dark
+  fields are a little lighter than before.
 - **Destructive button:** `bg-destructive text-primary-foreground`
   (text on accent on alarm), no dark-mode opacity — light unchanged, dark a
   solid lighter red with dark text (6.70:1). Mockup option B.
@@ -84,7 +88,7 @@ unreadable text/background pair, naming the token.
 - [x] Given the strict CSP in the production build, then the e2e CSP test
       still passes.
 - [x] Given a text field, select or checkbox on a card, then its border is
-      border-strong at 3:1 or more in both themes.
+      border-input at 3:1 or more in both themes.
 - [x] Given the destructive button, then its colours are brand tokens
       (alarm and text on accent) with no opacity in dark.
 

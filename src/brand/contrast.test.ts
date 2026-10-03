@@ -31,9 +31,9 @@ describe('checkBrandColours (§9.5, §10.7)', () => {
     expect(failures.every((f) => f.startsWith('textMuted (light)'))).toBe(true);
   });
 
-  it('holds the strong border to 3:1, not 4.5:1', () => {
-    expect(checkBrandColours(withRole('borderStrong', 'dark', 'oklch(0.395 0.027 159.1)'))).toContain(
-      'borderStrong (dark) on surfaceCard is 1.79:1, needs 3:1',
+  it('holds the input border to 3:1, not 4.5:1', () => {
+    expect(checkBrandColours(withRole('borderInput', 'dark', 'oklch(0.395 0.027 159.1)'))).toContain(
+      'borderInput (dark) on surfaceCard is 1.79:1, needs 3:1',
     );
   });
 

@@ -73,6 +73,8 @@ export interface BrandColours {
   textOnAccent: ColourRole;
   borderDefault: ColourRole;
   borderStrong: ColourRole;
+  /** Form-control outlines (fields, selects, checkboxes); held to 3:1 on page and card (§9.5). */
+  borderInput: ColourRole;
   accent: ColourRole;
   accentTint: ColourRole;
   accentText: ColourRole;

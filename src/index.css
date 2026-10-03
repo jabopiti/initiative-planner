@@ -84,8 +84,8 @@
   --color-destructive: var(--alarm);
   --color-destructive-foreground: var(--text-on-accent);
   --color-border: var(--border-default);
-  /* Form-control outlines need 3:1 (WCAG 1.4.11), which the strong border is checked for (§9.5). */
-  --color-input: var(--border-strong);
+  /* Form-control outlines need 3:1 (WCAG 1.4.11), which the input border is checked for (§9.5). */
+  --color-input: var(--border-input);
   --color-ring: var(--focus-ring);
 }
 

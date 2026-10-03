@@ -252,7 +252,7 @@ fixes:
   (initiative, team, person, gate) is fixed.
   - Surfaces: page, card, and a subtle fill for chips and columns.
   - Text: primary, secondary and muted, and text on accent.
-  - Borders: default and strong.
+  - Borders: default, strong, and input (form-control outlines).
   - Accent: fill, tint and text.
   - Alarm, Warning and Met: each with fill, tint and text (§9.8 says where
     each is used).
@@ -1658,11 +1658,11 @@ The built-in UI targets **WCAG 2.2 Level AA**.
   meet AA contrast against its intended background in both the light and the
   dark theme (§9.1). A pack that fails does not build, and the failure says
   which token. Text needs 4.5:1 on every surface and tint it sits on; the
-  focus ring, the Accent, Alarm, Warning and Met fills, and the strong
+  focus ring, the Accent, Alarm, Warning and Met fills, and the input
   border need 3:1 on page and card. Form controls (fields, selects,
-  checkboxes) are outlined with the strong border so they are identifiable
-  (WCAG 1.4.11); the default border is decorative (dividers, card outlines)
-  and is not checked.
+  checkboxes) are outlined with the input border so they are identifiable
+  (WCAG 1.4.11); the default and strong borders are decorative (dividers,
+  card outlines, grouping panels, dashed boxes) and are not checked.
 - **State is never colour alone.** Blocker, warning, met, over-capacity,
   Provisional/Confirmed and similar states carry a second cue, an icon or a
   text label, in addition to colour.

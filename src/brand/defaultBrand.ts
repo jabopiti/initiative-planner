@@ -174,7 +174,8 @@ export const defaultBrandPack: BrandPack = {
     textOnAccent: { light: 'oklch(1 0 89.9)', dark: 'oklch(0.187 0.012 167.0)' },
 
     borderDefault: { light: 'oklch(0.916 0.013 164.8)', dark: 'oklch(0.302 0.023 163.0)' },
-    borderStrong: { light: 'oklch(0.60 0.018 164.5)', dark: 'oklch(0.54 0.027 159.1)' },
+    borderStrong: { light: 'oklch(0.817 0.018 164.5)', dark: 'oklch(0.395 0.027 159.1)' },
+    borderInput: { light: 'oklch(0.60 0.018 164.5)', dark: 'oklch(0.54 0.027 159.1)' },
 
     accent: { light: 'oklch(0.429 0.085 167.5)', dark: 'oklch(0.79 0.152 167.0)' },
     accentTint: { light: 'oklch(0.98 0.029 161.1)', dark: 'oklch(0.258 0.035 163.9)' },
