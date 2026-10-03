@@ -143,7 +143,7 @@ export function TeamsOverview() {
           {sorted.map(({ team, members, counts, capacityWarning }) => (
             <tr
               key={team.id}
-              className={`cursor-pointer border-b border-border-default transition-colors duration-500 ${changed(FILE_PATHS.teams, [{ id: team.id }]) ? 'bg-met-tint' : ''} ${team.active ? '' : 'text-text-secondary'}`}
+              className={`cursor-pointer border-b border-border-default transition-colors duration-500 motion-reduce:transition-none ${changed(FILE_PATHS.teams, [{ id: team.id }]) ? 'bg-met-tint' : ''} ${team.active ? '' : 'text-text-secondary'}`}
               onClick={(e) => {
                 // A click on the name link is the link's own (Cmd-click opens a new tab, without also leaving this one); the warning marker only shows its tooltip.
                 if (!(e.target as HTMLElement).closest('a, [data-row-action]')) navigate(`/teams/${team.id}`);

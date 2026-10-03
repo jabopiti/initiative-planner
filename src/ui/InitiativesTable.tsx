@@ -138,7 +138,7 @@ export function InitiativesTable() {
               return (
                 <tr
                   key={r.initiative.id}
-                  className={`cursor-pointer border-b border-border-default transition-colors duration-500 ${changed(FILE_PATHS.initiative(r.initiative.id), []) ? 'bg-met-tint' : ''}`}
+                  className={`cursor-pointer border-b border-border-default transition-colors duration-500 motion-reduce:transition-none ${changed(FILE_PATHS.initiative(r.initiative.id), []) ? 'bg-met-tint' : ''}`}
                   onClick={() => navigate(`/initiatives/${r.initiative.id}`)}
                 >
                   <td className="px-3 py-2">
