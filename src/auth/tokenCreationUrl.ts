@@ -32,6 +32,11 @@ export function tokenManagementUrl(location: GithubLocation): string {
   return `${githubWebHost(location)}/settings/personal-access-tokens`;
 }
 
+/** The data branch's commit history, where the owner restores an earlier version of a damaged dataset (§3). */
+export function commitHistoryUrl(location: GithubLocation): string {
+  return `${githubWebHost(location)}/${location.owner}/${location.repo}/commits/${encodeURIComponent(location.dataBranch)}`;
+}
+
 function githubWebHost(location: GithubLocation): string {
   try {
     const parsed = new URL(location.apiBaseUrl);

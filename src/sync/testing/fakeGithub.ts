@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import { defaultBrandPack } from '../../brand/defaultBrand';
-import type { Initiative, Person, Team } from '../../data/types';
+import type { Country, Initiative, Person, Role, Team } from '../../data/types';
 import { decodeBase64Utf8, encodeBase64Utf8 } from '../../github/base64';
 import { Repository, type RepositoryState } from '../Repository';
 
@@ -233,12 +233,19 @@ export function holdNetwork(fake: Fake, only: (url: string, init?: RequestInit) 
   return release;
 }
 
+/** The role and country every `person()` refers to. */
+export const FIXTURE_ROLE: Role = { id: 'r1', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true };
+export const FIXTURE_COUNTRY: Country = { id: 'c1', name: 'Germany', active: true, ratesByYear: [] };
+
 /** A dataset with these teams, people and initiatives, served to `fetch`. */
 export function seedDataset(fake: Fake, seeded: { teams?: Team[]; people?: Person[]; initiatives?: Initiative[]; ratesReviewed?: boolean } = {}) {
   fake.seed('dataset.json', { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: seeded.ratesReviewed ?? false });
-  fake.seed('roles.json', []);
-  fake.seed('countries.json', []);
-  fake.seed('teams.json', seeded.teams ?? []);
+  // Every reference resolves (§3 Damaged data): the role and country `person()` uses, and each initiative's team.
+  fake.seed('roles.json', [FIXTURE_ROLE]);
+  fake.seed('countries.json', [FIXTURE_COUNTRY]);
+  const teams = [...(seeded.teams ?? [])];
+  for (const { teamId } of seeded.initiatives ?? []) if (!teams.some((t) => t.id === teamId)) teams.push({ id: teamId, name: teamId, active: true });
+  fake.seed('teams.json', teams);
   fake.seed('people.json', seeded.people ?? []);
   fake.seed('memberships.json', []);
   for (const initiative of seeded.initiatives ?? []) fake.seed(`initiatives/${initiative.id}.json`, initiative);

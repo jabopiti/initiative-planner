@@ -6,6 +6,8 @@ export type GithubFailureCause =
   | 'conflict'
   | 'dataset-newer'
   | 'process-mismatch'
+  | 'dataset-older'
+  | 'damaged'
   | 'unknown';
 
 export class GithubApiError extends Error {
@@ -17,6 +19,20 @@ export class GithubApiError extends Error {
     this.name = 'GithubApiError';
     this.cause_ = cause;
     this.status = status;
+  }
+}
+
+/**
+ * A dataset file that cannot be parsed or fails validation (§3 Damaged data): `file` and `what` make the message,
+ * "Dataset damaged: <file>: <what>. Ask the repository owner to restore …".
+ */
+export class DamagedDataError extends Error {
+  constructor(
+    readonly file: string,
+    readonly what: string,
+  ) {
+    super(`Dataset damaged: ${file}: ${what}. Ask the repository owner to restore an earlier version from the commit history.`);
+    this.name = 'DamagedDataError';
   }
 }
 
@@ -44,6 +60,7 @@ const CAUSE_MESSAGES: Partial<Record<GithubFailureCause, string>> = {
  * has one, otherwise the API's own message, or a fallback for a non-API failure.
  */
 export function toReadOnlyState(error: unknown, fallbackMessage: string): ReadOnlyState {
+  if (error instanceof DamagedDataError) return { cause: 'damaged', message: error.message };
   if (error instanceof GithubApiError) return { cause: error.cause_, message: CAUSE_MESSAGES[error.cause_] ?? error.message };
   return { cause: 'unknown', message: fallbackMessage };
 }
@@ -53,8 +70,14 @@ export function toReadOnlyState(error: unknown, fallbackMessage: string): ReadOn
  * (a new token; a reload), so a shared background retry loop (§9.9) only ever fires for these two. */
 export const AUTOMATIC_RETRY_CAUSES: readonly GithubFailureCause[] = ['unreachable', 'rate-limited'];
 
-/** `state.message` without trailing punctuation, for splicing into a sentence (e.g. "Not saved: `<this>`."). */
+/** The causes under which the dataset may not be written at all (§3 Data integrity, Damaged data): every write is
+ * refused before anything is sent, until a pull finds a dataset this build can use. */
+export const REFUSED_DATASET_CAUSES: readonly GithubFailureCause[] = ['process-mismatch', 'dataset-newer', 'dataset-older', 'damaged'];
+
+/** `state.message` without trailing punctuation, for splicing into a sentence (e.g. "Not saved: `<this>`."). A refused
+ * dataset is named by its short cause: the banner carries the full message (§3). */
 export function causeText(state: ReadOnlyState): string {
+  if (REFUSED_DATASET_CAUSES.includes(state.cause)) return shortCause(state);
   return state.message.replace(/[.\s]+$/, '');
 }
 
@@ -64,6 +87,8 @@ const SHORT_CAUSES: Partial<Record<GithubFailureCause, string>> = {
   'access-denied': 'Access denied',
   'dataset-newer': 'Dataset newer than this build',
   'process-mismatch': 'Different process build',
+  'dataset-older': 'Dataset older than this build',
+  damaged: 'Dataset damaged',
 };
 
 /** The few words the sync indicator shows beside "Read-only" (§5.1); the banner carries the full message. */

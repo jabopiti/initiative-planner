@@ -22,6 +22,12 @@ describe('Sync indicator (§5.1)', () => {
     expect(label).not.toHaveClass('text-alarm-text');
   });
 
+  it('says "Dataset damaged" for a damaged dataset (§3)', () => {
+    state.current = { readOnly: { cause: 'damaged', message: 'Dataset damaged: people.json: should be a list. Ask …' }, syncing: false, updatedByOthers: false };
+    render(<SyncIndicator />);
+    expect(screen.getByText('Read-only · Dataset damaged')).toBeInTheDocument();
+  });
+
   it('names the synced icon, and says when others updated', () => {
     state.current = { readOnly: null, syncing: false, updatedByOthers: false };
     const { rerender } = renderIndicator();

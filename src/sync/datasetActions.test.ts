@@ -3,7 +3,7 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import type { DatasetFlags, Initiative, Person, Role, Team } from '../data/types';
 import { Repository } from './Repository';
-import { fakeGithub, initiative, person, seedDataset, type Fake } from './testing/fakeGithub';
+import { FIXTURE_COUNTRY, FIXTURE_ROLE, fakeGithub, initiative, person, seedDataset, type Fake } from './testing/fakeGithub';
 
 /** Slice 032: Load example data and Reset (§5.9), each one commit through the Git data API (§10.3), races included. */
 
@@ -18,8 +18,9 @@ async function openWith(fake: Fake, seeded: Parameters<typeof seedDataset>[1] = 
   seedDataset(fake, seeded);
   if (baselineMaster) {
     const baseline = buildBaselineDataset(defaultBrandPack);
-    fake.seed('roles.json', baseline.roles);
-    fake.seed('countries.json', baseline.countries);
+    // Kept beside the baseline's own, so the people `person()` makes still refer to a role and country (§3 Damaged data).
+    fake.seed('roles.json', [...baseline.roles, FIXTURE_ROLE]);
+    fake.seed('countries.json', [...baseline.countries, FIXTURE_COUNTRY]);
   }
   const repo = new Repository(defaultBrandPack, 'token');
   await repo.initialize();

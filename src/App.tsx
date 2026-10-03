@@ -23,16 +23,10 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 function Screen({ route }: { route: string }) {
-  const { status, readOnly } = useRepositoryState();
-  // Until the dataset has loaded every list would read as empty and every id as missing. If it cannot
-  // load, the screens stay away and the reason is shown instead of "No teams yet".
-  if (status === 'loading') {
-    return readOnly ? (
-      <div className="max-w-[720px] p-8">
-        <p role="alert">{readOnly.message}</p>
-      </div>
-    ) : null;
-  }
+  const { status } = useRepositoryState();
+  // Until the dataset has loaded every list would read as empty and every id as missing, so no screen shows. If it
+  // cannot load, the read-only banner above carries the reason (§3, §9.9), once.
+  if (status === 'loading') return null;
   if (route === '/portfolio') return <PortfolioBoard />;
   if (route === '/teams') return <TeamsOverview />;
   if (route.startsWith('/teams/')) return <TeamDetail key={route} id={route.slice('/teams/'.length)} />;
