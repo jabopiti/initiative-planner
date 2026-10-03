@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { cacheScope, FileCache } from '../cache/db';
 import { CHANGE_TINT_MS, changeCovers, changeKey, FOCUS_PULL_MIN_GAP_MS, lostEditKey, PULL_INTERVAL_MS, PULL_RETRY_MS, Repository } from './Repository';
-import { fakeGithub, holdNetwork, initiative, open, type Fake } from './testing/fakeGithub';
+import { fakeGithub, holdNetwork, initiative, open, person, type Fake } from './testing/fakeGithub';
 
 const setVisibility = (state: 'visible' | 'hidden') =>
   Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
@@ -21,7 +21,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
   beforeEach(async () => {
     fake = fakeGithub();
     setVisibility('visible');
-    await open(fake, { initiatives: [initiative()] }).then(({ repo }) => repo.whenPulled());
+    await open(fake, { initiatives: [initiative()], people: [person('someone', 'Someone')] }).then(({ repo }) => repo.whenPulled());
   });
 
   afterEach(() => {
@@ -149,7 +149,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
     it('keeps an initiative created here whose file the last listing did not have yet', async () => {
       const repo = await reopen();
       const created = repo.createInitiative('New one', 'team-1');
-      fake.seed('teams.json', []); // the other writer commits something else meanwhile
+      fake.seed('teams.json', fake.read('teams.json')); // the other writer commits something else meanwhile
       await created;
 
       await repo.pull();

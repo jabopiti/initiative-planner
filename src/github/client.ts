@@ -50,11 +50,6 @@ export interface BranchHead {
   etag: string | null;
 }
 
-/** Parse a fetched file's JSON content, or `fallback` when the file doesn't exist (§10.2: a missing master file means "empty"). */
-export function parseJsonFile<T>(file: GetFileResult | null, fallback: T): T {
-  return file ? (JSON.parse(file.content) as T) : fallback;
-}
-
 /** Encode each path segment, but keep `/` separators — encodeURIComponent alone would mangle e.g. `initiatives/<id>.json`. */
 function encodePath(path: string): string {
   return path.split('/').map(encodeURIComponent).join('/');

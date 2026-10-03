@@ -29,13 +29,13 @@ describe('duplicating an initiative (slice 025)', () => {
   });
 
   it('numbers the name when "<name> copy" exists', async () => {
-    const { repo } = await open(fakeGithub(), { initiatives: [planned, initiative({ id: 'i2', name: 'Payments API copy' })] });
+    const { repo } = await open(fakeGithub(), { initiatives: [planned, initiative({ id: 'i2', name: 'Payments API copy' })], people: [person('p1', 'Lucía Ramos')] });
     expect((await repo.duplicateInitiative('i1'))!.initiative.name).toBe('Payments API copy 2');
   });
 
   it('throws and leaves no copy when the save fails', async () => {
     const fake = fakeGithub();
-    const { repo } = await open(fake, { initiatives: [planned] });
+    const { repo } = await open(fake, { initiatives: [planned], people: [person('p1', 'Lucía Ramos')] });
     fake.fail('initiatives/', 500);
 
     await expect(repo.duplicateInitiative('i1')).rejects.toThrow();

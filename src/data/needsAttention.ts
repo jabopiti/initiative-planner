@@ -20,7 +20,7 @@ export type NeedsAttentionItem =
   | (NeedsAttentionBase & { kind: 'escalated' })
   | (NeedsAttentionBase & { kind: 'overrun'; phaseId: string })
   | (NeedsAttentionBase & { kind: 'overdue'; phaseId: string; month: string })
-  | (NeedsAttentionBase & { kind: 'due'; phaseId: string; blocker: GateRequirement })
+  | (NeedsAttentionBase & { kind: 'due'; phaseId: string; openItem: GateRequirement })
   | (NeedsAttentionBase & { kind: 'ready' });
 
 /**
@@ -64,20 +64,21 @@ function overdueTarget(initiative: Initiative, process: PhaseDef[], today: strin
 }
 
 /**
- * Due (§8.1, §8.5): the current phase's own end date has been reached and its gate still has a blocker (a
- * warning-only, e.g. Tentative, gate reads Ready instead — §8.1: only Incomplete ever blocks). The blocker itself
- * is kept, not just its text, so the strip can jump straight to it (§5.2) without re-deriving it.
+ * Due (§8.5): the current phase's own end date has been reached and its gate still has an open requirement — a
+ * blocker, or an item still Tentative (§8.1: it passes with a warning, but is not yet settled). Past the end date the
+ * phase is Overrun instead, so in practice this is the end date itself. The first open requirement (a blocker before
+ * a Tentative item) is kept, not just its text, so the strip can jump straight to it (§5.2) without re-deriving it.
  */
-function dueReason(initiative: Initiative, process: PhaseDef[], phaseId: string, today: string, requirements: GateRequirement[]): { text: string; blocker: GateRequirement } | null {
+function dueReason(initiative: Initiative, process: PhaseDef[], phaseId: string, today: string, requirements: GateRequirement[]): { text: string; openItem: GateRequirement } | null {
   const phase = process.find((p) => p.id === phaseId)!;
   const plan = initiative.phases?.[phaseId];
   if (!phase.costed || !plan?.endDate || plan.endDate > today) return null;
-  const blocker = requirements.find((r) => r.state === 'blocker');
-  if (!blocker) return null;
-  return { text: gateProgressText(gateProgress(requirements)), blocker };
+  const openItem = requirements.find((r) => r.state === 'blocker') ?? requirements.find((r) => r.state === 'warning');
+  if (!openItem) return null;
+  return { text: gateProgressText(gateProgress(requirements)), openItem };
 }
 
-/** Ready (§8.5): nothing left blocking the current gate — a warning-only gate (Tentative items) reads as Ready too, matching the magic bar (§5.4). */
+/** Ready (§8.5): nothing left blocking the current gate — a warning-only gate (Tentative items) reads as Ready too before its end date, matching the magic bar (§5.4). */
 function readyReason(requirements: GateRequirement[]): string | null {
   return requirements.every((r) => r.state !== 'blocker') ? READY_MESSAGE : null;
 }
@@ -102,7 +103,7 @@ function needsAttentionItem(initiative: Initiative, process: PhaseDef[], people:
   const requirements = gateRequirements(process, initiative, phaseId);
 
   const due = dueReason(initiative, process, phaseId, today, requirements);
-  if (due) return { ...base, kind: 'due', reason: due.text, phaseId, blocker: due.blocker };
+  if (due) return { ...base, kind: 'due', reason: due.text, phaseId, openItem: due.openItem };
 
   const ready = readyReason(requirements);
   if (ready) return { ...base, kind: 'ready', reason: ready };

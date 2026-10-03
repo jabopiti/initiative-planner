@@ -3,7 +3,8 @@ import type { NeedsAttentionItem, NeedsAttentionKind } from '../data/needsAttent
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { actualCellAnchor } from './PhasesSection';
 import { DueIcon, EscalatedIcon, OverdueIcon, OverrunIcon, ReadyIcon } from './icons';
-import { jumpTargetId } from './jumpTo';
+import { requirementAnchor } from './jumpTo';
+import { PASS_GATE_ANCHOR } from './MagicBar';
 
 /** Shown at most three at a time (§5.2); "Show n more" reveals the rest in place. */
 const COLLAPSED_COUNT = 3;
@@ -28,10 +29,9 @@ function hrefFor(item: NeedsAttentionItem): string {
     case 'overdue':
       return `${base}?focus=${actualCellAnchor(item.phaseId, item.month)}&openPhase=${item.phaseId}`;
     case 'due':
-      // A one-element array is enough: jumpTargetId just needs to find item.blocker again, already known to be one.
-      return `${base}?focus=${jumpTargetId([item.blocker], item.phaseId) ?? 'magic-bar'}`;
+      return `${base}?focus=${requirementAnchor(item.openItem, item.phaseId)}`;
     case 'ready':
-      return `${base}?focus=magic-bar`;
+      return `${base}?focus=${PASS_GATE_ANCHOR}`;
   }
 }
 

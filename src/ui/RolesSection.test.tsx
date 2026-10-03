@@ -31,8 +31,8 @@ beforeAll(() => {
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
       if (url.includes('/contents/roles.json')) return file(roles, 'r');
-      if (url.includes('/contents/countries.json')) return file([], 'c');
-      if (url.includes('/contents/teams.json')) return file([], 't');
+      if (url.includes('/contents/countries.json')) return file([{ id: 'de', name: 'Germany', active: true, ratesByYear: [] }], 'c');
+      if (url.includes('/contents/teams.json')) return file([{ id: 't1', name: 'Platform', active: true }], 't');
       if (url.includes('/contents/people.json')) return file(people, 'p');
       if (url.includes('/contents/memberships.json')) return file([], 'm');
       const hit = initiatives.find((i) => url.includes(`/contents/initiatives/${i.id}.json`));

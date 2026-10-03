@@ -69,7 +69,19 @@ describe('needsAttentionItems (§8.5)', () => {
     expect(item).toMatchObject({ kind: 'due', phaseId: 'alpha', reason: '0 of 2 complete' });
   });
 
-  it('reports Ready once nothing blocks the current gate, even before its end date — a Tentative-only item still reads as Ready', () => {
+  it('reports Due on the end date when only a Tentative item is open, pointing at that item (§8.5: "Incomplete or still Tentative")', () => {
+    const initiative = base({
+      phases: {
+        alpha: { startDate: '2026-03-01', endDate: '2026-03-15', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 100 }] },
+        beta: { startDate: '2026-04-01', endDate: '2026-04-30', allocations: [{ id: 'b1', personId: 'ana', allocationPct: 50 }] },
+      },
+      checklist: { alpha: { a1: { status: 'tentative', note: 'Follow up later' } } },
+    });
+    const [item] = items([initiative]);
+    expect(item).toMatchObject({ kind: 'due', phaseId: 'alpha', reason: '1 of 2 complete', openItem: { kind: 'checklist', itemId: 'a1', state: 'warning' } });
+  });
+
+  it('reports Ready before the end date when nothing blocks the current gate — a Tentative-only item still reads as Ready', () => {
     const initiative = base({
       phases: {
         alpha: { startDate: '2026-03-01', endDate: '2026-06-30', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 100 }] },
