@@ -1,9 +1,8 @@
 // Fails when the build in dist/ breaks a §10.8 build-output rule. Run after `npm run build`.
-import { readFileSync } from 'node:fs';
+import { brandValue } from './brandValue.mjs';
 import { checkBuildOutput } from './buildOutput.mjs';
 
-const brand = readFileSync(new URL('../src/brand/defaultBrand.ts', import.meta.url), 'utf8');
-const apiBaseUrl = brand.match(/apiBaseUrl:\s*'([^']+)'/)?.[1];
+const apiBaseUrl = brandValue('apiBaseUrl');
 if (!apiBaseUrl) {
   console.error('Could not read apiBaseUrl from src/brand/defaultBrand.ts.');
   process.exit(1);

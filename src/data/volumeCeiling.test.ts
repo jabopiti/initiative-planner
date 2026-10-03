@@ -16,7 +16,7 @@ const PEOPLE = 200;
 const TEAMS = 25;
 const INITIATIVES = 200;
 const brand = defaultBrandPack;
-const process = brand.process;
+const stages = brand.process;
 
 const baseline = buildBaselineDataset(brand);
 const rateData = { roles: baseline.roles, countries: baseline.countries };
@@ -39,7 +39,7 @@ const memberships: Membership[] = people.flatMap((person, i) =>
 function fullInitiative(index: number): Initiative {
   const phases: Record<string, PhasePlan> = {};
   let start = '2026-01-01';
-  for (const phase of process.filter((p) => p.costed)) {
+  for (const phase of stages.filter((p) => p.costed)) {
     const end = addMonths(start, 12).replace(/-\d\d$/, '-01');
     const allocations: Allocation[] = Array.from({ length: 8 }, (_, n) => ({
       id: `allocation-${index}-${phase.id}-${n}-${'a'.repeat(12)}`,
@@ -53,7 +53,7 @@ function fullInitiative(index: number): Initiative {
     start = end;
   }
   const checklist = Object.fromEntries(
-    process.map((phase) => [phase.id, Object.fromEntries(phase.exitGate.checklistItems.map((item) => [item.id, { status: 'complete' as const, note: 'n'.repeat(200) }]))]),
+    stages.map((phase) => [phase.id, Object.fromEntries(phase.exitGate.checklistItems.map((item) => [item.id, { status: 'complete' as const, note: 'n'.repeat(200) }]))]),
   );
   return {
     id: `initiative-${index}-${'i'.repeat(24)}`,
@@ -70,8 +70,8 @@ function fullInitiative(index: number): Initiative {
 /** Passes every gate but the last, so the frozen snapshots (the bulkiest part of a file) are the app's own. */
 function withPassedGates(initiative: Initiative): Initiative {
   let current = initiative;
-  for (let n = 0; n < process.length - 1; n += 1) {
-    const result = passGate(process, current, people, rateData, brand.approvalTracks, '2026-10-01');
+  for (let n = 0; n < stages.length - 1; n += 1) {
+    const result = passGate(stages, current, people, rateData, brand.approvalTracks, '2026-10-01');
     if (!result.ok) throw new Error(`Could not pass a gate while building the test dataset: ${result.blockers.join(' ')}`);
     current = result.initiative;
   }
@@ -96,7 +96,7 @@ describe('the dataset at the volume ceiling (§1, §3 Storage limits)', () => {
     expect(initiatives).toHaveLength(200);
     expect(people).toHaveLength(200);
     expect(teams).toHaveLength(25);
-    expect(Object.keys(initiatives[0].gates ?? {})).toHaveLength(process.length - 1);
+    expect(Object.keys(initiatives[0].gates ?? {})).toHaveLength(stages.length - 1);
     expect(initiatives[0].gates!.development.frozenSnapshot!.allocations).toHaveLength(8);
   });
 

@@ -48,10 +48,15 @@ export async function createInitiative(page: Page, name: string, team: string) {
   await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible();
 }
 
+/** Unlocks the Settings section that is open (Settings sections with destructive or rarely-changed fields start locked). */
+export async function unlockSettings(page: Page) {
+  await page.getByRole('button', { name: 'Locked' }).click();
+}
+
 /** Fills the empty dataset with the brand pack's example teams, people and initiatives (Settings → Danger zone). */
 export async function loadExampleData(page: Page) {
   await page.goto('/#/settings/danger-zone');
-  await page.getByRole('button', { name: 'Locked' }).click();
+  await unlockSettings(page);
   await page.getByRole('button', { name: 'Load example data' }).click();
   await expect(page.getByRole('link', { name: 'Checkout Redesign' }).first()).toBeVisible();
 }

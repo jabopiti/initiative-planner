@@ -61,18 +61,8 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-      # `npm audit` reads the lockfile; no install needed.
+      # `npm audit` and the licence check (§10.8, against the allowed list) read the lockfile; no install needed.
       - run: npm audit --audit-level=high
-
-  # Licences of what ships, against the allowed list (§10.8). The lockfile is the source: `npm ci` has already
-  # verified it matches package.json, so this needs no install.
-  licenses:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
       - run: npm run check:licenses
 
   # Static analysis for security issues (§10.8 Code).
@@ -161,7 +151,7 @@ jobs:
   # The one check branch protection requires: it passes only when every job above did, so jobs can be
   # added, renamed or split without touching the repository's required checks.
   ci:
-    needs: [typecheck, lint, test, audit, licenses, codeql, secrets, build, e2e]
+    needs: [typecheck, lint, test, audit, codeql, secrets, build, e2e]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fakeGithub } from './support/fakeGithub';
-import { addPerson, connect, createInitiative, createTeam, enterToken, FAKE_TOKEN, loadExampleData, watchCspViolations } from './support/session';
+import { addPerson, connect, createInitiative, createTeam, enterToken, FAKE_TOKEN, loadExampleData, unlockSettings, watchCspViolations } from './support/session';
 
 // WCAG 2.1 A and AA rules, the level the app aims for. Each screen is scanned in the state a user meets it.
 // A scan that lands mid-transition (a button fading back from disabled) measures a blended colour, so it is
@@ -175,7 +175,7 @@ test('the populated screens and open panels have no accessibility violations', a
   await page.keyboard.press('Escape');
 
   await page.goto('/#/settings/countries');
-  await page.getByRole('button', { name: 'Locked' }).click();
+  await unlockSettings(page);
   await expect(page.getByRole('button', { name: 'Unlocked' })).toBeVisible();
   await expectNoViolations(page); // the unlocked Countries section
   expect(csp).toEqual([]);
