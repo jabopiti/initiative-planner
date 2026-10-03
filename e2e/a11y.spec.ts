@@ -237,6 +237,6 @@ test('the read-only banner and a same-field conflict have no accessibility viola
   await page.getByRole('button', { name: 'New team' }).click();
   await page.getByPlaceholder('Team name').fill('Growth');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(page.getByRole('link', { name: 'Create a token' })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Create a new token/ })).toBeVisible();
   await expectNoViolations(page);
 });
