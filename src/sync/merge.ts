@@ -1,3 +1,5 @@
+import { FORBIDDEN_KEYS, isRecord, type Plain } from './validateDataset';
+
 /**
  * Three-way merge by path (§10.5). No merge library: the shape is narrow
  * enough (records, plus lists identified by id) that a small, purpose-built
@@ -38,10 +40,6 @@ export interface MergeOptions<D> {
   /** Paths frozen in a version of the document (§8.1): they keep their snapshot and never merge. */
   frozen?: (doc: D) => FrozenPath[];
 }
-
-type Plain = Record<string, unknown>;
-
-const isRecord = (value: unknown): value is Plain => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /** A list whose every item carries a distinct string id: merged per item (§10.5 step 4). Any other list is one value. */
 function isIdList(value: unknown): value is Plain[] {
@@ -162,6 +160,9 @@ export function mergeDocument<D>(base: D, mine: D, theirs: D, options: MergeOpti
     const merged: Plain = {};
     // Every key from any side: a field present on only one side is kept.
     for (const key of new Set([...Object.keys(m), ...Object.keys(t), ...Object.keys(b)])) {
+      // Never assigned: `merged.__proto__ = …` would replace the prototype (§10.8). The parser refuses these keys
+      // already; this keeps a merge safe whatever it is given.
+      if (FORBIDDEN_KEYS.has(key)) throw new Error(`Refused to merge the key "${key}".`);
       const value = merge([...path, key], b[key], m[key], t[key]);
       if (value !== undefined) merged[key] = value;
     }

@@ -6,7 +6,7 @@ import { buildBaselineDataset } from '../data/baseline';
 import type { DatasetFlags, Initiative, Team } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
-import { fakeGithub, initiative, person, seedDataset, type Fake } from '../sync/testing/fakeGithub';
+import { FIXTURE_COUNTRY, FIXTURE_ROLE, fakeGithub, initiative, person, seedDataset, type Fake } from '../sync/testing/fakeGithub';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { resetLine } from './resetLine';
 import { SettingsPage } from './SettingsPage';
@@ -23,8 +23,8 @@ function renderDangerZone(seeded: Parameters<typeof seedDataset>[1] = {}) {
   fake = fakeGithub();
   seedDataset(fake, seeded);
   const baseline = buildBaselineDataset(defaultBrandPack);
-  fake.seed('roles.json', baseline.roles);
-  fake.seed('countries.json', baseline.countries);
+  fake.seed('roles.json', [...baseline.roles, FIXTURE_ROLE]);
+  fake.seed('countries.json', [...baseline.countries, FIXTURE_COUNTRY]);
   render(
     <BrandProvider brand={defaultBrandPack}>
       <TooltipProvider>
@@ -77,7 +77,7 @@ describe('Danger zone (§5.9)', () => {
   });
 
   it('asks inline before a Reset, counting what it removes, and Cancel closes it', async () => {
-    const initiatives: Initiative[] = [initiative(), initiative({ id: 'i2' }), initiative({ id: 'i3' })];
+    const initiatives: Initiative[] = [initiative({ teamId: 't1' }), initiative({ id: 'i2', teamId: 't1' }), initiative({ id: 'i3', teamId: 't1' })];
     const user = renderDangerZone({ teams: [team, { ...team, id: 't2', active: false }], people: [person('p1', 'Ana')], initiatives });
     await unlock(user);
     await screen.findByText('Reset first');

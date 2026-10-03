@@ -123,7 +123,7 @@ describe('deleting an initiative (slice 017)', () => {
 
     // A pull that succeeds clears it; deleting again then works.
     vi.stubGlobal('fetch', fake.fetchMock);
-    fake.seed('teams.json', []);
+    fake.seed('teams.json', fake.read('teams.json'));
     await repo.pull();
     expect(repo.getState().readOnly).toBeNull();
     await expect(repo.deleteInitiative('i1')).resolves.toBe('deleted');

@@ -42,7 +42,7 @@ beforeAll(() => {
       if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed }, 'd');
       if (url.includes('/contents/roles.json')) return file([{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }], 'r');
       if (url.includes('/contents/countries.json')) return file(countries, 'c');
-      if (url.includes('/contents/teams.json')) return file([], 't');
+      if (url.includes('/contents/teams.json')) return file([{ id: 't', name: 'Platform', active: true }], 't');
       if (url.includes('/contents/people.json')) return file(people, 'p');
       if (url.includes('/contents/memberships.json')) return file([], 'm');
       const hit = initiatives.find((i) => url.includes(`/contents/initiatives/${i.id}.json`));

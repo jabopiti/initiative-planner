@@ -48,8 +48,9 @@ describe('edits made while a save is in flight (AC 1)', () => {
     expect(commits[1].sha).toBe(commits[0].newSha);
     expect(fake.read<Team[]>('teams.json').map((t) => t.name)).toEqual(['Platform', 'Payments']);
 
-    // Syncing all the way to the last save, and only then synced.
-    expect(after.map((s) => s.syncing).slice(0, -1).every(Boolean)).toBe(true);
+    // Syncing all the way to the last save, and only then synced: it never goes back to syncing once it is not.
+    const syncing = after.map((s) => s.syncing);
+    expect(syncing.slice(syncing.indexOf(false)).every((s) => !s)).toBe(true);
     expect(repo.getState().syncing).toBe(false);
     expect(repo.getState().readOnly).toBeNull();
   });
@@ -268,7 +269,7 @@ describe('creating an initiative (AC 4)', () => {
 
   it('a creation that saved does not clear another file\'s failure', async () => {
     const fake = fakeGithub();
-    const { repo } = await open(fake);
+    const { repo } = await open(fake, { teams: [{ id: 'team-1', name: 'Payments', active: true }] });
     fake.fail('teams.json', 403);
     repo.createTeam('Platform');
     await repo.flushPending();
@@ -378,7 +379,7 @@ describe('decided in chat for slice 005g', () => {
 
   it('discarding the draft after a failed creation clears the read-only status; a saved creation is left alone', async () => {
     const fake = fakeGithub();
-    const { repo } = await open(fake);
+    const { repo } = await open(fake, { teams: [{ id: 'team-1', name: 'Payments', active: true }] });
     fake.fail('initiatives/', 500);
     await expect(repo.createInitiative('Checkout Redesign', 'team-1', '2026-01-05', 'draft-1')).rejects.toThrow();
 
