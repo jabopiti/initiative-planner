@@ -43,7 +43,7 @@ test('a same-field conflict is never overwritten silently: both values show and 
 
   // Someone else renames the initiative while this user is still on the old name, then this user renames it too.
   github.edit<StoredInitiative>(path, (initiative) => ({ ...initiative, name: 'Checkout Rebuild' }));
-  const name = page.getByLabel('Initiative name');
+  const name = page.getByRole('textbox', { name: 'Initiative name' });
   await name.fill('Checkout Revamp');
   await name.blur();
 
