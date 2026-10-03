@@ -507,8 +507,8 @@ damaged but foreign, and is handled under Data integrity above.
   initiative → team and owner, allocation → person), an initiative file
   whose id differs from its file name, and the keys `__proto__`,
   `constructor` and `prototype`. A broken reference is refused, never
-  repaired. A cold client shows the same message and link in place of the
-  screens.
+  repaired. A client with no local copy shows no screen, only the banner:
+  the message appears once (Sync failures).
 - **No fallback over existing data.** The fresh-install baseline (§2) is
   loaded only when no dataset exists anywhere. A dataset exists when the
   data branch lists any master file or initiative file; one without

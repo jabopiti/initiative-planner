@@ -65,8 +65,9 @@ Settled with the user on 3 Oct 2026, from mockups:
   repository owner to restore an earlier version from the commit history."
   then an **Open commit history** link (the data branch's commits on
   GitHub, new tab) and Retry. The sync indicator reads "Read-only ·
-  Dataset damaged". A cold client shows the same text and link in place of
-  the screens.
+  Dataset damaged". A cold client shows no screen and only the banner, so
+  the message appears once (agreed after the smoke pass, 3 Oct 2026; applies
+  to every read-only cause).
 - **Writes refused per field (option A):** while the cause is `damaged`,
   `dataset-newer`, `dataset-older` or `process-mismatch`, a write is refused
   before anything is sent; the field keeps the typed value and shows
