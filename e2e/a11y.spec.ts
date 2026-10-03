@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fakeGithub } from './support/fakeGithub';
-import { addPerson, connect, createInitiative, createTeam, enterToken, FAKE_TOKEN, watchCspViolations } from './support/session';
+import { addPerson, connect, createInitiative, createTeam, enterToken, FAKE_TOKEN, loadExampleData, unlockSettings, watchCspViolations } from './support/session';
 
 // WCAG 2.1 A and AA rules, the level the app aims for. Each screen is scanned in the state a user meets it.
 // A scan that lands mid-transition (a button fading back from disabled) measures a blended colour, so it is
@@ -114,4 +114,115 @@ test('a saved theme is on the page before first paint, under the strict CSP (§9
   await expect(page.locator('html')).not.toHaveClass(/dark/);
   await page.reload();
   await expect(page.getByRole('button', { name: 'Theme: Light' })).toBeVisible();
+});
+
+test('the populated screens and open panels have no accessibility violations', async ({ page }) => {
+  const csp = watchCspViolations(page);
+  await fakeGithub(page).install();
+  await connect(page);
+  await loadExampleData(page);
+  await expectNoViolations(page); // the populated portfolio
+
+  await page.goto('/#/initiatives');
+  await expect(page.getByRole('link', { name: 'Checkout Redesign' })).toBeVisible();
+  await expectNoViolations(page); // the populated initiatives table
+
+  await page.getByRole('link', { name: 'Checkout Redesign' }).click();
+  await expect(page.getByRole('heading', { name: 'Checkout Redesign', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Gate \/ Checklist/ })).toBeVisible();
+  await expectNoViolations(page); // an initiative with phases, allocations and a frozen earlier gate
+
+  await page.goto('/#/initiatives/new');
+  await expect(page.getByLabel('Initiative name')).toBeVisible();
+  await expectNoViolations(page); // the new-initiative draft
+
+  await page.goto('/#/teams');
+  await page.getByRole('link', { name: 'Platform' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Platform', level: 1 })).toBeVisible();
+  const capacity = page.getByRole('region', { name: 'Capacity', exact: true });
+  await expect(capacity.getByRole('table')).toBeVisible();
+  await expectNoViolations(page); // team detail with its capacity grid
+  await capacity.getByRole('button', { name: /^All months for / }).first().click();
+  await expect(page.getByRole('region', { name: 'Capacity detail' })).toBeVisible();
+  await expectNoViolations(page); // the capacity detail under the grid
+
+  await page.goto('/#/people');
+  await page.getByRole('button', { name: 'Mara Voss', exact: true }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expectNoViolations(page); // the person panel
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toBeHidden();
+
+  await page.getByRole('button', { name: 'Search' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('combobox').fill('Mara');
+  await expect(page.getByRole('option').first()).toBeVisible();
+  await expectNoViolations(page); // the search overlay with results
+  await page.keyboard.press('Escape');
+
+  await page.goto('/#/settings/countries');
+  await unlockSettings(page);
+  await expect(page.getByRole('button', { name: 'Unlocked' })).toBeVisible();
+  await expectNoViolations(page); // the unlocked Countries section
+  expect(csp).toEqual([]);
+});
+
+test('Cancelled and Closed initiatives and their frozen strip have no accessibility violations', async ({ page }) => {
+  await fakeGithub(page).install();
+  await connect(page);
+  await loadExampleData(page);
+
+  // Cancelled: the Actions menu, then the strip under the header.
+  await page.goto('/#/initiatives');
+  await page.getByRole('link', { name: 'Fraud Detection Upgrade' }).click();
+  await expect(page.getByRole('heading', { name: 'Fraud Detection Upgrade', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Cancel initiative' }).click();
+  await expect(page.getByText('Cancelled.')).toBeVisible();
+  await expectNoViolations(page);
+
+  // Closed: Checkout Redesign is in Development; passing G3 and then G4 closes it.
+  await page.goto('/#/initiatives');
+  await page.getByRole('link', { name: 'Checkout Redesign' }).click();
+  for (const gate of [
+    ['Acceptance testing passed', 'Security review completed', 'Rollout plan approved'],
+    ['Hypercare period completed', 'Lessons learned documented'],
+  ]) {
+    for (const item of gate) {
+      await page.getByRole('radiogroup', { name: `Status of "${item}"` }).getByRole('radio', { name: 'Complete', exact: true }).click();
+    }
+    await page.getByRole('button', { name: 'Pass gate' }).click();
+  }
+  await expect(page.getByText(/Closed after G4\./)).toBeVisible();
+  await expectNoViolations(page);
+
+});
+
+test('the read-only banner and a same-field conflict have no accessibility violations', async ({ page }) => {
+  const github = fakeGithub(page);
+  await github.install();
+  await connect(page);
+  await createTeam(page, 'Platform');
+  await createInitiative(page, 'Checkout Redesign', 'Platform');
+  await expect.poll(() => github.paths('initiatives/').length).toBe(1);
+  const [path] = github.paths('initiatives/');
+
+  // The conflict block under the field, with Keep theirs and Use mine.
+  github.edit<{ name: string }>(path, (initiative) => ({ ...initiative, name: 'Checkout Rebuild' }));
+  await page.getByLabel('Initiative name').fill('Checkout Revamp');
+  await page.getByLabel('Initiative name').blur();
+  await expect(page.getByRole('button', { name: 'Use mine' })).toBeVisible();
+  await expectNoViolations(page);
+  await page.getByRole('button', { name: 'Keep theirs' }).click();
+  await expect(page.getByRole('button', { name: 'Use mine' })).toBeHidden();
+
+  // The read-only banner once GitHub stops accepting the token, after its own check has finished.
+  await expect.poll(() => github.read<{ name: string }>(path)?.name).toBe('Checkout Rebuild');
+  github.rejectToken(FAKE_TOKEN);
+  await page.goto('/#/teams');
+  await page.getByRole('button', { name: 'New team' }).click();
+  await page.getByPlaceholder('Team name').fill('Growth');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByRole('link', { name: /Create a new token/ })).toBeVisible();
+  await expectNoViolations(page);
 });

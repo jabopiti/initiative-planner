@@ -25,7 +25,12 @@ export function RepositoryProvider({ token, keepTrackedYears = false, children }
   useEffect(() => (keepTrackedYears ? repository.keepTrackedYears() : undefined), [repository, keepTrackedYears]);
 
   useEffect(() => {
-    const onUnload = () => {
+    // §10.3: closing the tab with a write pending warns; the browser shows its own text. The flush still starts.
+    const onUnload = (event: BeforeUnloadEvent) => {
+      if (repository.hasUnsavedWork()) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
       void repository.flushPending();
     };
     window.addEventListener('beforeunload', onUnload);

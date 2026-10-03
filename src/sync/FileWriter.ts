@@ -1,4 +1,4 @@
-import type { FileCache } from '../cache/db';
+import { isQuotaError, type FileCache } from '../cache/db';
 import type { GithubClient } from '../github/client';
 import { GithubApiError, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { changedPaths, getAtPath, pathKey, sameValue, setAtPath, type DocumentMerge, type MergeConflict, type Path } from './merge';
@@ -111,6 +111,8 @@ export interface FileWriterOptions<D> {
   /** Uniform in [0, 1), for the retry jitter; `Math.random` by default. */
   random?: () => number;
   onStatus: (status: WriteStatus) => void;
+  /** The local cache refused a write because storage is full (§3 Storage limits); the save itself had succeeded. */
+  onCacheFull?: () => void;
   onConflict: (conflict: FileConflict) => void;
   /** A conflict closed without a choice (§3): a pull settled it or replaced its "theirs", or a new edit replaced it. */
   onConflictClosed?: (conflict: FileConflict) => void;
@@ -227,7 +229,7 @@ export class FileWriter<D> {
   }
 
   /** An edit is waiting to be saved or a save is running. */
-  private get busy(): boolean {
+  get busy(): boolean {
     return this.pending !== null || this.timer !== null || this.waiting > 0 || this.saving;
   }
 
@@ -718,8 +720,9 @@ export class FileWriter<D> {
   private async cache(sent: D, sha: string): Promise<void> {
     try {
       await this.options.cache.set(this.options.path, { content: JSON.stringify(sent), sha });
-    } catch {
-      // Survivable, unlike misreporting a write that succeeded.
+    } catch (error) {
+      // Survivable, unlike misreporting a write that succeeded; a full store is told (§3 Storage limits).
+      if (isQuotaError(error)) this.options.onCacheFull?.();
     }
   }
 }
