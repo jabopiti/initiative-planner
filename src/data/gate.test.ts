@@ -9,6 +9,7 @@ import {
   gateRequirements,
   lastCostedPassedGate,
   onHoldMessage,
+  overrunMessage,
   passGate,
   reopenGate,
   skipGate,
@@ -66,6 +67,34 @@ describe('currentPhaseId (§4, §6)', () => {
   it('is the last phase once every gate is recorded', () => {
     const gates = Object.fromEntries(process.map((p) => [p.id, { outcome: 'passed' as const, passedOn: '2026-01-01', checklist: [] }]));
     expect(currentPhaseId(planned({ gates }), process)).toBe('gamma');
+  });
+});
+
+describe('the estimates requirement as the gate panel states it (§5.4, §8.1)', () => {
+  it('names every costed phase it checks, the same open or met', () => {
+    const open = gateRequirements(process, planned(), 'alpha')[0];
+    expect(open).toMatchObject({ kind: 'estimates', state: 'blocker', label: 'Alpha and Beta have a period and at least one allocation or cost item' });
+    const beta = { startDate: '2026-02-01', endDate: '2026-02-28', allocations: [{ id: 'b1', personId: 'ana', allocationPct: 10 }] };
+    const met = gateRequirements(process, planned({ phases: { ...planned().phases, beta } }), 'alpha')[0];
+    expect(met).toMatchObject({ state: 'met', label: open.kind === 'estimates' ? open.label : '' });
+  });
+
+  it('reads "has" for one phase, and "need" when two are missing', () => {
+    const atBeta = planned({ gates: { discovery: { outcome: 'passed', passedOn: '2025-12-31', checklist: [] }, alpha: { outcome: 'skipped', passedOn: '2026-01-01', checklist: [], skipReason: 'x' } } });
+    expect(gateRequirements(process, atBeta, 'beta')[0]).toMatchObject({ label: 'Beta has a period and at least one allocation or cost item' });
+    expect(gateBlockers(gateRequirements(process, planned({ phases: undefined }), 'alpha'))[0]).toBe('Alpha and Beta need a complete period and at least one allocation or cost item');
+  });
+
+  it('counts blockers only as open, never a Tentative item (§5.4 "Pass gate · 3 open")', () => {
+    expect(gateBlockers(gateRequirements(process, planned(), 'alpha'))).toHaveLength(2);
+    expect(gateBlockers(gateRequirements(process, withChecklistItem(planned(), 'alpha', 'a1', 'tentative', 'why'), 'alpha'))).toHaveLength(1);
+  });
+});
+
+describe('overrunMessage (§8.1)', () => {
+  it('reads "1 day" for one day and "days" otherwise', () => {
+    expect(overrunMessage(process[1], '2026-01-31', '2026-02-01')).toBe('Alpha is 1 day overrun');
+    expect(overrunMessage(process[1], '2026-01-31', '2026-02-03')).toBe('Alpha is 3 days overrun');
   });
 });
 

@@ -23,7 +23,12 @@ import { YearChip } from './YearChip';
 /** A non-Active status on a card (§5.2): a neutral icon named by the status, the same pattern as the attention marker. */
 function StatusMarker({ status }: { status: InitiativeStatus }) {
   if (status === 'Active') return null;
-  return <IconMarker label={statusText(status)} tooltip={statusText(status)} Icon={STATUS_GLYPH[status]} className="text-text-secondary" />;
+  const Icon = STATUS_GLYPH[status];
+  return (
+    <IconMarker label={statusText(status)} tooltip={statusText(status)} className="text-text-secondary">
+      <Icon width={16} height={16} />
+    </IconMarker>
+  );
 }
 
 /** One initiative's card (§5.2): name, status and attention markers, team · owner, compact cost and approval track; the whole card is the link. */

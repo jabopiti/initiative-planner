@@ -1,11 +1,12 @@
 import { useId, useState } from 'react';
 import type { PhaseDef } from '../brand/types';
-import { gateProgress, gateProgressText, gateRequirements, type ChecklistItemView, type ChecklistRequirement } from '../data/gate';
+import { gateProgress, gateProgressText, gateRequirements, type ChecklistItemView, type ChecklistRequirement, type EstimatesRequirement } from '../data/gate';
 import { useBrand } from '../state/BrandContext';
 import { useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { isInitiativeFrozen } from '../data/frozen';
 import { FILE_PATHS, type ChecklistStatus, type Initiative } from '../data/types';
 import { Refusal } from './CommitInput';
+import { requirementJump, useJump } from './jumpTo';
 import { CompleteIcon, IncompleteIcon, InfoIcon, TentativeIcon } from './icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,18 +26,19 @@ function toItemView(requirement: ChecklistRequirement): ChecklistItemView {
   return { id: requirement.itemId, name: requirement.name, description: requirement.description, status: requirement.status, note: requirement.note };
 }
 
-/** The current gate's checklist panel (§5.4, §8.1): the exit gate's requirements, read as "X of Y complete". */
+/** The current gate's checklist panel (§5.4, §8.1): one row per requirement of the exit gate, read as "X of Y complete" — the estimates requirement first, then the checklist. */
 export function GateChecklistPanel({ initiative, phase }: { initiative: Initiative; phase: PhaseDef }) {
   const { process } = useBrand();
   const requirements = gateRequirements(process, initiative, phase.id);
   const { complete, total } = gateProgress(requirements);
+  const estimates = requirements.find((r): r is EstimatesRequirement => r.kind === 'estimates');
   const checklistRequirements = requirements.filter((r): r is ChecklistRequirement => r.kind === 'checklist');
   const items = checklistRequirements.filter((r) => !r.carried);
   const carried = checklistRequirements.filter((r) => r.carried);
   // Statuses freeze with a Closed or Cancelled initiative; notes don't (§8.4).
   const frozen = isInitiativeFrozen(initiative);
 
-  if (items.length === 0 && carried.length === 0) return null;
+  if (requirements.length === 0) return null;
 
   return (
     <section aria-labelledby="gate-checklist-heading" className={`${cardClass} flex flex-col gap-3 p-3`}>
@@ -47,6 +49,7 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
         <span className="text-caption text-text-secondary">{gateProgressText({ complete, total })}</span>
       </div>
       <ol className="m-0 flex list-none flex-col p-0">
+        {estimates && <EstimatesRow requirement={estimates} phaseId={phase.id} />}
         {items.map((item) => (
           <ChecklistItemRow key={item.itemId} item={toItemView(item)} initiativeId={initiative.id} writePhaseId={phase.id} frozen={frozen} />
         ))}
@@ -69,6 +72,31 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
         </div>
       )}
     </section>
+  );
+}
+
+/** The estimates requirement as a row (§5.4, §8.1): a statement whose icon and Open / Met carry the state, with Go to <phase> while open. */
+function EstimatesRow({ requirement, phaseId }: { requirement: EstimatesRequirement; phaseId: string }) {
+  const { process } = useBrand();
+  const jump = useJump();
+  const met = requirement.state === 'met';
+  const Icon = met ? CompleteIcon : IncompleteIcon;
+  const target = process.find((p) => p.id === requirement.missingPhaseIds[0]);
+  return (
+    <li className="flex items-start justify-between gap-3 border-t border-border-default py-2 first:border-t-0">
+      <div className="flex items-start gap-2">
+        <Icon width={16} height={16} className={`mt-0.5 shrink-0 ${met ? 'text-met-text' : 'text-text-secondary'}`} />
+        <span className="text-body">{requirement.label}</span>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        {target && (
+          <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => jump(requirementJump(requirement, phaseId))}>
+            Go to {target.label}
+          </Button>
+        )}
+        <span className="text-caption text-text-secondary">{met ? 'Met' : 'Open'}</span>
+      </div>
+    </li>
   );
 }
 

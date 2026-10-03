@@ -51,16 +51,20 @@ function overrunReason(initiative: Initiative, process: PhaseDef[], phaseId: str
  */
 function overdueTarget(initiative: Initiative, process: PhaseDef[], today: string): { phaseId: string; month: string } | null {
   for (const phase of process) {
-    if (!phase.costed) continue;
-    const plan = initiative.phases?.[phase.id];
-    if (!plan) continue;
-    for (const month of phaseMonths(plan)) {
-      if (plan.actualMonths?.[month] !== undefined) continue;
-      const closed = month < monthOf(today);
-      if (closed && monthOf(today) > nextMonth(month)) return { phaseId: phase.id, month };
-    }
+    const [month] = overdueActualMonths(initiative, phase, today);
+    if (month) return { phaseId: phase.id, month };
   }
   return null;
+}
+
+/**
+ * A costed phase's months whose actual is overdue (§7.3, §8.5): closed, unrecorded, and a further calendar month has
+ * passed since. In order; the phase row's Warning chip names them (§5.4).
+ */
+export function overdueActualMonths(initiative: Initiative, phase: PhaseDef, today: string): string[] {
+  const plan = initiative.phases?.[phase.id];
+  if (!phase.costed || !plan) return [];
+  return phaseMonths(plan).filter((month) => plan.actualMonths?.[month] === undefined && monthOf(today) > nextMonth(month));
 }
 
 /**

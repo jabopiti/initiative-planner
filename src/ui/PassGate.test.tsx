@@ -108,7 +108,7 @@ describe('Pass a gate with its checklist (§8.1)', () => {
 
     expect(await screen.findByRole('heading', { name: /Gate \/ Checklist — G2/ })).toBeInTheDocument();
     expect(screen.getByText('3 of 4 complete')).toBeInTheDocument(); // estimates met + 2 complete + 1 incomplete, of 4 requirements
-    const passButton = screen.getByRole('button', { name: 'Pass gate' });
+    const passButton = screen.getByRole('button', { name: /^Pass gate/ });
     await user.click(passButton);
 
     expect(puts.some((p) => p.message.includes('G2 passed'))).toBe(false);
@@ -129,7 +129,7 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     renderPage();
 
     await screen.findByRole('heading', { name: /Gate \/ Checklist — G2/ });
-    await user.click(screen.getByRole('button', { name: 'Pass gate' }));
+    await user.click(screen.getByRole('button', { name: /^Pass gate/ }));
 
     expect(puts.some((p) => p.message.includes('G2 passed'))).toBe(false);
     expect(screen.getByText('Development needs a complete period and at least one allocation or cost item')).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     expect(screen.getByText('€16,000')).toBeInTheDocument();
     expect(screen.queryByText(/Approved at/)).not.toBeInTheDocument();
 
-    const passButton = screen.getByRole('button', { name: 'Pass gate' });
+    const passButton = screen.getByRole('button', { name: /^Pass gate/ });
     await user.click(passButton); // one click, no confirmation dialog appears anywhere
 
     expect(await screen.findByText(/^Passed G2/)).toBeInTheDocument();
@@ -265,7 +265,7 @@ describe('a frozen phase refuses what the page no longer offers (§5.11, §8.1)'
 
     await user.click(await screen.findByRole('button', { name: 'Remove Ana Ruiz from Validation' }));
     expect(await screen.findByRole('button', { name: 'Undo' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Pass gate' }));
+    await user.click(screen.getByRole('button', { name: /^Pass gate/ }));
 
     expect(await screen.findByText(/^Passed G2/)).toBeInTheDocument();
     await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument());
