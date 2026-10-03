@@ -1,4 +1,4 @@
-import type { BrandColours } from './types';
+import type { BrandColours, ColourRole } from './types';
 
 /**
  * The brand-pack contrast rule (§9.5): every text and UI colour role, in both
@@ -8,7 +8,8 @@ import type { BrandColours } from './types';
 
 type Role = keyof BrandColours;
 type Oklch = [l: number, c: number, h: number];
-type Pair = [fg: Role, bgs: Role[], min: number];
+/** A foreground (a role, or a team colour as `teamColours[i]`), the roles it sits on, and the ratio it needs. */
+type Pair = [fg: string, bgs: Role[], min: number];
 
 const TEXT = 4.5;
 const UI = 3;
@@ -58,18 +59,30 @@ export function contrastRatio(a: Oklch, b: Oklch): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-/** Every problem with the pack's colours, one line each; empty when it passes. */
-export function checkBrandColours(colours: BrandColours): string[] {
+/** The number of team colours the pack defines (§2); index.css's --color-team-1..6 and src/ui/teamColors.ts match it. */
+const TEAM_COLOUR_COUNT = 6;
+
+/**
+ * Every problem with the pack's colours, one line each; empty when it passes. Team colours are swatches, so like the
+ * other fills they need 3:1 on page and card (§9.5).
+ */
+export function checkBrandColours(colours: BrandColours, teamColours: ColourRole[]): string[] {
   const failures: string[] = [];
+  if (teamColours.length !== TEAM_COLOUR_COUNT) failures.push(`teamColours has ${teamColours.length} colours, needs ${TEAM_COLOUR_COUNT}`);
+  const teamNames = teamColours.map((_, i) => `teamColours[${i}]`);
+  const pairs: Pair[] = [...PAIRS, ...teamNames.map((name): Pair => [name, PAGE_CARD, UI])];
   for (const theme of ['light', 'dark'] as const) {
-    const parsed = new Map<Role, Oklch>();
-    for (const role of Object.keys(colours) as Role[]) {
-      const value = colours[role][theme];
+    const values = [
+      ...(Object.keys(colours) as Role[]).map((role): [string, string] => [role, colours[role][theme]]),
+      ...teamColours.map((colour, i): [string, string] => [teamNames[i], colour[theme]]),
+    ];
+    const parsed = new Map<string, Oklch>();
+    for (const [name, value] of values) {
       const p = parseOklch(value);
-      if (p) parsed.set(role, p);
-      else failures.push(`${role} (${theme}) is not an oklch(L C H) colour: "${value}"`);
+      if (p) parsed.set(name, p);
+      else failures.push(`${name} (${theme}) is not an oklch(L C H) colour: "${value}"`);
     }
-    for (const [fg, bgs, min] of PAIRS) {
+    for (const [fg, bgs, min] of pairs) {
       const f = parsed.get(fg);
       if (!f) continue;
       for (const bg of bgs) {

@@ -246,8 +246,12 @@ fixes:
 - **A process identity** — an id and a **structure version**, so a dataset
   is never read by a build whose process structure disagrees with it (§3,
   Versioning and migration).
-- **Branding**: product name, logo, favicon and page title, the typeface,
-  and the **colour roles** below, each defined as OKLCH triplets (§10.1)
+- **Branding**: product name, logo, favicon and page title, the
+  **typeface** (a family name, its font files kept in the brand-pack folder
+  and served with the build, never fetched from a third party, and a
+  fallback stack), the **team colours** (six categorical colours, each for
+  the light and the dark theme; a team takes the colour at its position in
+  the teams file, wrapping after six), and the **colour roles** below, each defined as OKLCH triplets (§10.1)
   for both the light and the dark theme (§9.1). The UI vocabulary
   (initiative, team, person, gate) is fixed.
   - Surfaces: page, card, and a subtle fill for chips and columns.
@@ -258,8 +262,8 @@ fixes:
     each is used).
   - Focus ring.
 
-  Every text and background pairing of these roles must meet the contrast
-  rule in §9.5.
+  Every text and background pairing of these roles, and every team colour,
+  must meet the contrast rule in §9.5.
 - The **fresh-install baseline**: placeholder roles, countries and rates.
   People, teams and initiatives start empty. It is loaded only when no
   dataset exists anywhere (§3), never in place of a damaged or foreign one.
@@ -1716,8 +1720,8 @@ The built-in UI targets **WCAG 2.2 Level AA**.
   meet AA contrast against its intended background in both the light and the
   dark theme (§9.1). A pack that fails does not build, and the failure says
   which token. Text needs 4.5:1 on every surface and tint it sits on; the
-  focus ring, the Accent, Alarm, Warning and Met fills, and the input
-  border need 3:1 on page and card. Form controls (fields, selects,
+  focus ring, the Accent, Alarm, Warning and Met fills, the input
+  border and every team colour need 3:1 on page and card. Form controls (fields, selects,
   checkboxes) are outlined with the input border so they are identifiable
   (WCAG 1.4.11); the default and strong borders are decorative (dividers,
   card outlines, grouping panels, dashed boxes) and are not checked.
@@ -1775,8 +1779,20 @@ start and end date (§7.1), and do not depend on display format.
 ### 9.8 Visual design
 
 **Density.** The UI is comfortable: 15 px base text and 40 px table rows,
-with two text weights, regular and medium, in a fixed scale. This is the
-same in every build; the typeface comes from the brand pack (§2).
+with two text weights, regular and medium, in a fixed scale of six sizes:
+label 12 px (column headers, field labels), caption 13 px (secondary lines,
+badges), body 15 px (text and table cells), heading 16 px (card and
+subsection titles), title 18 px (section headings) and display 24 px (page
+titles and the initiative name). No other size is used. Figures that line
+up (amounts, percentages) use tabular figures. This is the same in every
+build; the typeface comes from the brand pack (§2).
+
+**Surfaces.** Cards are used only for objects (an initiative on the board,
+a phase); page sections are separated by a heading and spacing, not a box.
+Cards stand apart from the page by a faint shadow in the light theme and by
+surface lightness in the dark theme; only floating layers (popovers, menus,
+sheets, toasts) carry a stronger shadow. Strips (Needs attention, Getting
+started) are neutral tinted bands.
 
 **Colour roles.** Colour carries meaning and is never used for decoration.
 
@@ -1787,7 +1803,11 @@ same in every build; the typeface comes from the brand pack (§2).
 - **Met** — Complete checklist items, met gate requirements, done phases in
   the magic bar's stepper (§5.4) and Ready.
 - **Accent** — the current phase, selection and links.
-- Everything else is neutral.
+- **Team colours** — identify a team, shown only as a small square swatch
+  beside the team's name where the team is the subject: the Teams overview,
+  the team page title and the person panel's memberships and split bar.
+- Everything else is neutral, including initiative status (§9.10) and the
+  approval track badge.
 
 State is always carried by an icon or text as well (§9.5).
 
@@ -1884,6 +1904,15 @@ tooltip and an accessible name, and state is never carried by an icon alone
   headers (§5.2) and in the process view (§5.9).
 - **State markers** are icon-only with a tooltip on cards and in tables, and
   icon plus a short label in the Needs attention strip and in panels.
+- **Initiative status** is a neutral glyph plus its name in sentence case
+  ("Active", "On hold", "Cancelled", "Closed"): a filled dot for Active, a
+  circle with a pause for On hold, a struck-through circle (the Cancel
+  action's glyph) for Cancelled and a circle with a check for Closed. The
+  same glyph is used everywhere; on board cards it is icon-only and
+  Active shows none (§5.2).
+- **The approval track badge** is an outline badge with the track's
+  abbreviation and name ("E Elevated") everywhere, board cards included;
+  "No approval track" is a dashed outline badge with no letter.
 - **Labels stay** on navigation, table column headers, buttons (for example
   Pass gate), the approval track badge and anything used only once.
 
@@ -2109,7 +2138,8 @@ continuing. Dataset migrations run automatically on first use of a new version
 **Build and deploy.** A GitHub Actions workflow on the app branch builds the
 SPA from the brand pack folder and deploys it to GitHub Pages (§3, Setup). The
 build fails, and nothing is deployed, when the brand pack has a problem: a
-colour role that is missing or fails the contrast rule (§9.5), overlapping
+colour role or team colour that is missing or fails the contrast rule
+(§9.5), a typeface whose font files are missing, overlapping
 approval bands (§7.4), an incomplete process definition (ids, labels,
 descriptions, durations and icons; §2), or an example dataset that does not
 match the process identity (§2).

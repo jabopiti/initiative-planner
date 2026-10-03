@@ -141,7 +141,8 @@ describe('Portfolio board cards (§5.2)', () => {
     const c = card(/Big One/);
     expect(within(c).getByText('Platform · Ana Ruiz')).toBeTruthy();
     expect(within(c).getByText('€412k')).toBeTruthy();
-    expect(within(c).getByText('Elevated')).toBeTruthy();
+    // The full track badge, letter and name, on the card too (§9.10).
+    expect(within(c).getByText((_, el) => el?.textContent === 'E Elevated')).toBeTruthy();
   });
 
   it('names a missing owner and marks a deactivated one', async () => {
@@ -159,7 +160,7 @@ describe('Portfolio board cards (§5.2)', () => {
   it('reads "No approval track" when no band covers the total', async () => {
     const gapped = { ...defaultBrandPack, approvalTracks: defaultBrandPack.approvalTracks.filter((t) => t.id !== 'elevated') };
     await renderBoard([gap], gapped);
-    expect(within(card(/Gap One/)).getByText('No approval track')).toBeTruthy();
+    expect(within(card(/Gap One/)).getByText('No approval track')).toHaveClass('border-dashed');
     expect(within(card(/Gap One/)).getByText('€4.2M')).toBeTruthy();
   });
 
@@ -231,17 +232,17 @@ describe('Portfolio filters (§5.2, §9.11)', () => {
   it('shows On Hold initiatives with their status icon once Status is widened', async () => {
     const user = userEvent.setup();
     await renderBoard([big, held]);
-    await pick(user, /^Status/, 'On Hold');
+    await pick(user, /^Status/, 'On hold');
     expect(chipButton('Status: 2')).toBeInTheDocument();
-    expect(within(card(/Held One/)).getByRole('img', { name: 'On Hold' })).toBeInTheDocument();
-    expect(within(card(/Big One/)).queryByRole('img', { name: 'On Hold' })).toBeNull();
+    expect(within(card(/Held One/)).getByRole('img', { name: 'On hold' })).toBeInTheDocument();
+    expect(within(card(/Big One/)).queryByRole('img', { name: 'On hold' })).toBeNull();
   });
 
   it('clears every chip but Status, which returns to Active', async () => {
     const user = userEvent.setup();
     await renderBoard([big, held, later]);
     await pick(user, /^Team/, 'Growth');
-    await pick(user, /^Status/, 'On Hold');
+    await pick(user, /^Status/, 'On hold');
     expect(chipButton('Team: Growth')).toBeInTheDocument();
     expect(cardNames()).toHaveLength(1);
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));

@@ -35,7 +35,7 @@ export function PhaseStepper({ process, initiative, currentId }: { process: Phas
         const name = `${phase.label}, ${state}`;
         return (
           <li key={phase.id}>
-            <IconMarker label={name} tooltip={name} className={`items-center gap-1 rounded-md px-1.5 py-0.5 text-sm ${STATE_CLASS[state]}`}>
+            <IconMarker label={name} tooltip={name} className={`items-center gap-1 rounded-md px-1.5 py-0.5 text-caption ${STATE_CLASS[state]}`}>
               {state === 'done' && <CheckIcon width={16} height={16} />}
               {state === 'skipped' && <SkippedIcon width={16} height={16} />}
               <PhaseIcon name={phase.icon} width={16} height={16} />

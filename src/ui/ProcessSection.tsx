@@ -3,6 +3,8 @@ import { formatAmount } from './formatAmount';
 import { plural } from '../data/plural';
 import { ChevronRightIcon, PhaseIcon } from './icons';
 import type { ApprovalTrackDef, GateDef } from '../brand/types';
+import { Badge } from '@/components/ui/badge';
+import { cardClass } from './cardClass';
 
 const cell = 'border-b border-border-default px-3 py-2';
 
@@ -16,10 +18,10 @@ function trackBounds(track: ApprovalTrackDef, symbol: string): string {
 /** One exit gate: its flags and checklist count, and the items with their descriptions behind a disclosure (§5.9). */
 function GateCard({ gate }: { gate: GateDef }) {
   return (
-    <details className="group rounded-lg border border-border-default bg-surface-card px-3 py-2">
+    <details className={`${cardClass} group px-3 py-2`}>
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2.5 gap-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent [&::-webkit-details-marker]:hidden">
         <ChevronRightIcon width={16} height={16} className="transition-transform group-open:rotate-90" />
-        <strong>{gate.label}</strong>
+        <strong className="font-medium">{gate.label}</strong>
         <span>{gate.requiresEstimates ? 'Requires estimates' : 'No estimates required'}</span>
         <span aria-hidden="true">·</span>
         <span>{gate.skippable ? 'Can be skipped' : 'Cannot be skipped'}</span>
@@ -43,7 +45,7 @@ export function ProcessSection() {
   const brand = useBrand();
   return (
     <section aria-labelledby="process-heading">
-      <h2 id="process-heading" className="m-0 mb-4 text-lg">
+      <h2 id="process-heading" className="m-0 mb-4 text-title">
         Process
       </h2>
       <ol className="m-0 flex list-none flex-col p-0">
@@ -53,12 +55,12 @@ export function ProcessSection() {
             <span className="absolute top-0 left-0 flex size-8 items-center justify-center rounded-full bg-brand-accent-tint text-brand-accent-text">
               <PhaseIcon name={phase.icon} />
             </span>
-            <h3 className="m-0 flex items-center gap-1.5 text-body-lg">
+            <h3 className="m-0 flex items-center gap-1.5 text-heading">
               {phase.label}
               {phase.costed && phase.defaultDurationMonths !== undefined && (
-                <span className="rounded-full bg-surface-subtle px-2 py-px text-xs font-normal text-text-secondary">
+                <Badge variant="subtle">
                   {plural(phase.defaultDurationMonths, 'month', 'months')}
-                </span>
+                </Badge>
               )}
             </h3>
             <p className="m-0 mt-0.5 mb-2 text-text-secondary">{phase.description}</p>
@@ -67,10 +69,10 @@ export function ProcessSection() {
         ))}
       </ol>
 
-      <h2 className="mt-6 mb-3 text-lg">Approval tracks</h2>
-      <table className="w-full border-collapse overflow-hidden rounded-lg border border-border-default bg-surface-card text-left">
+      <h2 className="mt-6 mb-3 text-title">Approval tracks</h2>
+      <table className={`${cardClass} tabular-nums w-full border-collapse overflow-hidden text-left`}>
         <thead>
-          <tr className="text-caption text-text-secondary">
+          <tr className="text-label text-text-secondary">
             <th className={`${cell} font-medium`}>Name</th>
             <th className={`${cell} font-medium`}>Bounds</th>
             <th className={`${cell} font-medium`}>Requirement</th>

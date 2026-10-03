@@ -16,7 +16,8 @@ import { RowActionsMenu } from './RowActionsMenu';
 import { CommitInput } from './CommitInput';
 import { CustomRoleFields } from './CustomRoleFields';
 import { PercentInput } from './PercentInput';
-import { teamColorClass } from './teamColors';
+import { useTeamColors } from './teamColors';
+import { TeamSwatch } from './TeamSwatch';
 
 /** Person detail drawer (§5.6), shared by every view that opens a person. Carries no warnings and no allocation list. */
 export function PersonPanel({ person, onClose }: { person: Person | null; onClose: () => void }) {
@@ -53,6 +54,7 @@ function PersonDetails({ person }: { person: Person }) {
   // An inactive person's fields are disabled, the choices with them: the banner resolves their conflicts (§9.9).
   const conflict = person.active ? fieldConflict : () => null;
   const { roles, countries, teams, memberships } = useRepositoryState();
+  const teamColor = useTeamColors();
   const [rejoinCap, setRejoinCap] = useState<{ id: string; pct: number } | null>(null);
   const customRole = person.customRole;
   const customActive = customRole?.active === true;
@@ -65,7 +67,6 @@ function PersonDetails({ person }: { person: Person }) {
   };
 
   const mine = memberships.filter((m) => m.personId === person.id && m.active);
-  const teamIds = teams.map((t) => t.id);
   const claimed = claimedFtePct(person.id, memberships);
   const unclaimed = unclaimedCapacityPct(person, memberships);
   const joinable = joinableTeams(person.id, teams, memberships);
@@ -80,7 +81,7 @@ function PersonDetails({ person }: { person: Person }) {
   return (
     <>
       <SheetHeader className="p-0 pr-6">
-        <SheetTitle tabIndex={-1} className="truncate text-base outline-none">{person.name}</SheetTitle>
+        <SheetTitle tabIndex={-1} className="truncate text-body outline-none">{person.name}</SheetTitle>
         <SheetDescription className="sr-only">Person details</SheetDescription>
       </SheetHeader>
 
@@ -170,7 +171,7 @@ function PersonDetails({ person }: { person: Person }) {
       </div>
 
       <section className="mt-4 border-t border-border-default pt-3" aria-label="Teams">
-        <h3 className="m-0 mb-2 flex items-center gap-1.5 text-sm font-medium">
+        <h3 className="m-0 mb-2 flex items-center gap-1.5 text-heading">
           <TeamsIcon width={16} height={16} />
           Teams
         </h3>
@@ -180,10 +181,10 @@ function PersonDetails({ person }: { person: Person }) {
           aria-label={`${claimed}% of ${person.capacityPct}% claimed`}
         >
           {mine.map((m) => (
-            <div key={m.id} className={teamColorClass(teamIds, m.teamId)} style={{ width: barPct(m.teamFtePct) }} />
+            <div key={m.id} className={teamColor(m.teamId)} style={{ width: barPct(m.teamFtePct) }} />
           ))}
         </div>
-        <p className="m-0 mt-1 mb-2 text-xs text-text-secondary">
+        <p className="m-0 mt-1 mb-2 text-caption text-text-secondary">
           {claimed}% of {person.capacityPct}% claimed
         </p>
 
@@ -192,8 +193,8 @@ function PersonDetails({ person }: { person: Person }) {
           const max = unclaimedCapacityPct(person, memberships, m.id);
           return (
             <div key={m.id} className="flex flex-wrap items-center gap-x-2 gap-y-0 py-1">
-              <span className={`size-2.5 shrink-0 rounded-full ${teamColorClass(teamIds, m.teamId)}`} aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate text-sm">{team?.name ?? 'Unknown team'}</span>
+              <TeamSwatch teamId={m.teamId} />
+              <span className="min-w-0 flex-1 truncate text-body">{team?.name ?? 'Unknown team'}</span>
               <PercentInput
                 flat
                 changed={changed(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
@@ -214,7 +215,7 @@ function PersonDetails({ person }: { person: Person }) {
         })}
 
         {unclaimed === 0 && mine.length > 0 && (
-          <p className="m-0 mt-1 text-xs text-text-secondary">No capacity left to add to another team.</p>
+          <p className="m-0 mt-1 text-caption text-text-secondary">No capacity left to add to another team.</p>
         )}
         {joinable.length > 0 && unclaimed > 0 && (
           <div className="mt-2 flex items-center gap-2">

@@ -85,6 +85,12 @@ starting number in the product (§6, §7.2).
 
 ## Branding
 
+> **Slice 057 (3 Oct 2026):** the neutral roles (surfaces, text, borders)
+> are now zinc greys in light and graphite in dark (hue 286), so the
+> green-tinted neutral values below are superseded; Accent, Warning, Alarm
+> and Met are unchanged. `src/brand/defaultBrand.ts` holds the live values,
+> plus six team colours and the Geist typeface.
+
 - Product name: **Initiative Planner**
 - Currency symbol: **€**
 

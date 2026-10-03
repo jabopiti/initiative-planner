@@ -31,6 +31,8 @@ import type { Jump } from './jumpTo';
 import { undoToast } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { cardClass } from './cardClass';
 
 /** The phase that opens with the page (§5.4): the current one, or without cost of its own the next costed phase ahead. */
 function phaseToOpen(process: PhaseDef[], currentId: string): string | undefined {
@@ -88,12 +90,12 @@ export function PhasesSection({ initiative, team, reveal = null }: { initiative:
 
   return (
     <section aria-labelledby="phases-heading">
-      <h2 id="phases-heading" className="m-0 mb-3 text-lg">
+      <h2 id="phases-heading" className="m-0 mb-3 text-title">
         Phases
       </h2>
       {initiative.defaultPlan && !initiativeFrozen && (
         <p
-          className="m-0 mb-3 flex items-start gap-2 rounded-md border border-brand-accent bg-brand-accent-tint p-3 text-sm text-brand-accent-text"
+          className="m-0 mb-3 flex items-start gap-2 rounded-md border border-brand-accent bg-brand-accent-tint p-3 text-body text-brand-accent-text"
           data-testid="suggested-dates-note"
         >
           <InfoIcon width={16} height={16} className="mt-0.5 shrink-0" />
@@ -103,7 +105,7 @@ export function PhasesSection({ initiative, team, reveal = null }: { initiative:
       <ol className="m-0 flex list-none flex-col gap-2 p-0">
         {process.map((phase) => (
           <li key={phase.id} id={`phase-row-${phase.id}`} className="flex flex-col gap-2">
-            <div className="rounded-lg border border-border-default bg-surface-card">
+            <div className={cardClass}>
               {phase.costed ? (
                 <CostedPhase
                   phase={phase}
@@ -117,7 +119,7 @@ export function PhasesSection({ initiative, team, reveal = null }: { initiative:
                   onToggle={() => toggle(phase.id)}
                 />
               ) : (
-                <div className="flex items-center gap-2 px-3 py-2.5 text-sm">
+                <div className="flex items-center gap-2 px-3 py-2.5 text-body">
                   <GateMarker frozen={isPhaseFrozen(initiative, phase.id)} skipped={skipReason(initiative, phase.id) !== undefined} />
                   <span className="font-medium">{phase.label}</span>
                   <span className="text-text-muted">· not costed</span>
@@ -214,7 +216,7 @@ function CostedPhase({
 
   const picker =
     team && teamMembers.length === 0 ? (
-      <p className="m-0 text-sm text-text-secondary">
+      <p className="m-0 text-caption text-text-secondary">
         {team.name} has no active members yet. Add people on <a href={`#/teams/${team.id}`} className="underline">the team&apos;s page</a>.
       </p>
     ) : addable.length > 0 ? (
@@ -260,7 +262,7 @@ function CostedPhase({
     <>
       <button
         type="button"
-        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-sm text-text-primary"
+        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-body text-text-primary"
         aria-expanded={expanded}
         aria-controls={bodyId}
         onClick={onToggle}
@@ -275,7 +277,7 @@ function CostedPhase({
         )}
         <SkippedLabel gateLabel={phase.exitGate.label} reason={skipped} />
         {overdueMonths.length > 0 && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning-tint px-2 py-0.5 text-xs text-warning-text">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning-tint px-2 py-0.5 text-caption text-warning-text">
             <OverdueIcon width={14} height={14} className="shrink-0" />
             {overdueChipText(overdueMonths)}
           </span>
@@ -285,7 +287,7 @@ function CostedPhase({
           <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>· Add people</span>
         )}
         <span className="ml-auto font-medium tabular-nums">{costed && hasCost ? formatAmount(total, currencySymbol) : '—'}</span>
-        <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs text-text-secondary">{coverageLabel}</span>
+        <Badge variant="subtle">{coverageLabel}</Badge>
       </button>
 
       {frozen && frozenWithLostEdit.has(lostEditKey(initiative.id, phase.id)) && (
@@ -295,7 +297,7 @@ function CostedPhase({
       {expanded && (
         <div id={bodyId} className="flex flex-col gap-4 border-t border-border-default px-3 py-3">
           {skipped !== undefined && (
-            <p className="m-0 flex items-start gap-2 rounded-md bg-surface-subtle px-2.5 py-2 text-sm text-text-secondary">
+            <p className="m-0 flex items-start gap-2 rounded-md bg-surface-subtle px-2.5 py-2 text-caption text-text-secondary">
               <SkippedIcon width={16} height={16} className="mt-0.5 shrink-0" />
               <span>
                 <span className="font-medium">Skipped {phase.exitGate.label}:</span> {skipped}
@@ -317,10 +319,10 @@ function CostedPhase({
                 className={`flex flex-col gap-2 rounded-md ${needsPeriod ? 'border border-brand-accent bg-brand-accent-tint p-3' : ''}`}
                 data-highlight={needsPeriod || undefined}
               >
-                {needsPeriod && <p className="m-0 text-sm font-medium text-brand-accent-text">Set the period to calculate cost.</p>}
+                {needsPeriod && <p className="m-0 text-body font-medium text-brand-accent-text">Set the period to calculate cost.</p>}
                 <div className="flex flex-wrap items-start gap-4">
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs text-text-secondary">Start date</span>
+                    <span className="text-caption text-text-secondary">Start date</span>
                     <DateInput
                       label={`${phase.label} start date`}
                       value={plan.startDate}
@@ -332,7 +334,7 @@ function CostedPhase({
                     />
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs text-text-secondary">End date</span>
+                    <span className="text-caption text-text-secondary">End date</span>
                     <DateInput
                       label={`${phase.label} end date`}
                       value={plan.endDate}
@@ -358,7 +360,7 @@ function CostedPhase({
                   className={`flex flex-col items-start gap-2 rounded-md border border-dashed p-3 ${needsPeople ? 'border-brand-accent bg-brand-accent-tint' : 'border-border-strong'}`}
                   data-highlight={needsPeople || undefined}
                 >
-                  <p className={`m-0 text-sm ${needsPeople ? 'font-medium text-brand-accent-text' : 'text-text-secondary'}`}>
+                  <p className={`m-0 text-caption ${needsPeople ? 'font-medium text-brand-accent-text' : 'text-text-secondary'}`}>
                     Who works on {phase.label}? Add a team member to see this phase&apos;s cost.
                   </p>
                   {(picker || copyButton) && (
@@ -369,10 +371,10 @@ function CostedPhase({
                   )}
                 </div>
               ) : (
-                <table className="w-full border-collapse text-sm">
+                <table className="tabular-nums w-full border-collapse text-body">
                   <caption className="sr-only">{phase.label} allocations</caption>
                   <thead>
-                    <tr className="text-left text-xs text-text-secondary">
+                    <tr className="text-left text-label text-text-secondary">
                       <th className="py-1 pr-2 font-medium">Person</th>
                       <th className="py-1 pr-2 font-medium">Allocation %</th>
                       <th className="py-1 pr-2 text-right font-medium">Days</th>
@@ -399,7 +401,7 @@ function CostedPhase({
                         <tr className="border-t border-border-default">
                           <td className="py-1.5 pr-2">
                             <div>{name}</div>
-                            {person && <div className="text-xs text-text-muted">{roleLabel(person, roles)}</div>}
+                            {person && <div className="text-caption text-text-muted">{roleLabel(person, roles)}</div>}
                             {warnings.notMember && <InlineWarning className="mt-1">No longer a member of {team?.name ?? 'the team'}</InlineWarning>}
                             {warnings.overTeamFteMonths.length > 0 && (
                               <InlineWarning icon={OverTeamFteIcon} className="mt-1">
@@ -448,8 +450,8 @@ function CostedPhase({
                               onChange={(pct) => repository.updateAllocation(initiative.id, phase.id, allocation.id, pct)}
                             />
                           </td>
-                          <td className="py-1.5 pr-2 text-right tabular-nums">{costed && figures ? figures.personDays.toFixed(1) : '—'}</td>
-                          <td className="py-1.5 pr-2 text-right tabular-nums">
+                          <td className="py-1.5 pr-2 text-right">{costed && figures ? figures.personDays.toFixed(1) : '—'}</td>
+                          <td className="py-1.5 pr-2 text-right">
                             {costed && figures ? formatAmount(figures.cost, currencySymbol) : '—'}
                           </td>
                           <td className="py-1.5 text-right">
@@ -477,14 +479,14 @@ function CostedPhase({
               )}
 
               {plan.allocations.length > 0 && picker}
-              {team && teamMembers.length > 0 && <p className="m-0 text-xs text-text-muted">Only members of {team.name} can be allocated.</p>}
+              {team && teamMembers.length > 0 && <p className="m-0 text-caption text-text-muted">Only members of {team.name} can be allocated.</p>}
               {refusal && (
-                <p className="m-0 text-sm text-warning-text" role="alert">
+                <p className="m-0 text-body text-warning-text" role="alert">
                   {refusal}
                 </p>
               )}
               {notCopied && notCopied.plan === plan && (
-                <p className="m-0 flex items-start gap-2 rounded-md bg-surface-subtle px-2.5 py-2 text-sm text-text-secondary">
+                <p className="m-0 flex items-start gap-2 rounded-md bg-surface-subtle px-2.5 py-2 text-caption text-text-secondary">
                   <InfoIcon width={16} height={16} className="mt-0.5 shrink-0" />
                   <span>{notCopied.text}</span>
                 </p>
@@ -496,11 +498,11 @@ function CostedPhase({
 
           {costed && months.length > 0 && (
             <div className="flex flex-col gap-2">
-              <h3 className="m-0 text-sm font-medium text-text-primary">Actuals</h3>
-              <table className="w-full border-collapse text-sm">
+              <h3 className="m-0 text-heading text-text-primary">Actuals</h3>
+              <table className="tabular-nums w-full border-collapse text-body">
                 <caption className="sr-only">{phase.label} actuals</caption>
                 <thead>
-                  <tr className="text-left text-xs text-text-secondary">
+                  <tr className="text-left text-label text-text-secondary">
                     <th className="py-1 pr-2 font-medium">Month</th>
                     <th className="py-1 pr-2 text-right font-medium">Estimate</th>
                     <th className="py-1 pr-2 text-right font-medium">Actual</th>
@@ -513,7 +515,7 @@ function CostedPhase({
                     <Fragment key={month}>
                     <tr id={actualCellAnchor(phase.id, month)} className="border-t border-border-default">
                       <td className="py-1.5 pr-2">{formatMonth(month)}</td>
-                      <td className="py-1.5 pr-2 text-right tabular-nums">{formatAmount(estimateByMonth[month] ?? 0, currencySymbol)}</td>
+                      <td className="py-1.5 pr-2 text-right">{formatAmount(estimateByMonth[month] ?? 0, currencySymbol)}</td>
                       <td className="py-1.5 pr-2">
                         <ActualCell
                           phase={phase}
@@ -545,7 +547,7 @@ function CostedPhase({
 /** A change of this user's that a gate pass overtook, and so wasn't saved (§8.1); an error, so it stays until dismissed (§9.9). */
 function LostEditMessage({ gateLabel, phaseLabel, onDismiss }: { gateLabel: string; phaseLabel: string; onDismiss: () => void }) {
   return (
-    <div role="alert" className="mx-3 mb-2 flex items-start gap-2 rounded-md bg-warning-tint px-2.5 py-2 text-sm text-warning-text">
+    <div role="alert" className="mx-3 mb-2 flex items-start gap-2 rounded-md bg-warning-tint px-2.5 py-2 text-body text-warning-text">
       <WarningIcon width={16} height={16} className="mt-0.5 shrink-0" />
       <span className="flex-1">
         {gateLabel} was passed while you were editing, so your last change to {phaseLabel} wasn&apos;t saved.
@@ -574,19 +576,19 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-xs text-text-secondary">Start date</span>
+          <span className="text-caption text-text-secondary">Start date</span>
           <span className="text-text-muted">{phase.startDate ? formatDate(phase.startDate) : '—'}</span>
         </div>
         <div className="flex flex-col gap-1">
-          <span className="text-xs text-text-secondary">End date</span>
+          <span className="text-caption text-text-secondary">End date</span>
           <span className="text-text-muted">{phase.endDate ? formatDate(phase.endDate) : '—'}</span>
         </div>
       </div>
       {phase.allocations.length > 0 && (
-        <table className="w-full border-collapse text-sm">
+        <table className="tabular-nums w-full border-collapse text-body">
           <caption className="sr-only">Frozen allocations</caption>
           <thead>
-            <tr className="text-left text-xs text-text-secondary">
+            <tr className="text-left text-label text-text-secondary">
               <th className="py-1 pr-2 font-medium">Person</th>
               <th className="py-1 pr-2 font-medium">Allocation %</th>
               <th className="py-1 pr-2 text-right font-medium">Cost</th>
@@ -602,10 +604,10 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
                 <tr key={allocation.id} className="border-t border-border-default">
                   <td className="py-1.5 pr-2 text-text-muted">
                     <div>{allocation.personName ?? person?.name ?? 'Unknown person'}</div>
-                    {role && <div className="text-xs text-text-muted">{role}</div>}
+                    {role && <div className="text-caption text-text-muted">{role}</div>}
                   </td>
-                  <td className="py-1.5 pr-2 tabular-nums text-text-muted">{allocation.allocationPct}%</td>
-                  <td className="py-1.5 pr-2 text-right tabular-nums text-text-muted">{allocation.cost === undefined ? '—' : formatAmount(allocation.cost, currencySymbol)}</td>
+                  <td className="py-1.5 pr-2 text-text-muted">{allocation.allocationPct}%</td>
+                  <td className="py-1.5 pr-2 text-right text-text-muted">{allocation.cost === undefined ? '—' : formatAmount(allocation.cost, currencySymbol)}</td>
                 </tr>
               );
             })}
@@ -613,10 +615,10 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
         </table>
       )}
       {phase.costItems.length > 0 && (
-        <table className="w-full border-collapse text-sm">
+        <table className="tabular-nums w-full border-collapse text-body">
           <caption className="sr-only">Frozen cost items</caption>
           <thead>
-            <tr className="text-left text-xs text-text-secondary">
+            <tr className="text-left text-label text-text-secondary">
               <th className="py-1 pr-2 font-medium">Label</th>
               <th className="py-1 pr-2 font-medium">Amount</th>
               <th className="py-1 pr-2 font-medium">When</th>
@@ -626,7 +628,7 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
             {phase.costItems.map((item) => (
               <tr key={item.id} className="border-t border-border-default">
                 <td className="py-1.5 pr-2 text-text-muted">{item.label}</td>
-                <td className="py-1.5 pr-2 tabular-nums text-text-muted">{formatAmount(item.amount, currencySymbol)}</td>
+                <td className="py-1.5 pr-2 text-text-muted">{formatAmount(item.amount, currencySymbol)}</td>
                 <td className="py-1.5 pr-2 text-text-muted">{item.timing === 'month' && item.month ? `${TIMING_LABELS.month} (${formatMonth(item.month)})` : TIMING_LABELS[item.timing]}</td>
               </tr>
             ))}

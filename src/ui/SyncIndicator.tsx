@@ -9,7 +9,7 @@ export function SyncIndicator() {
 
   if (state.readOnly) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm text-warning-text" title={state.readOnly.message}>
+      <span className="inline-flex items-center gap-1.5 text-body text-warning-text" title={state.readOnly.message}>
         <WarningIcon />
         Read-only · {shortCause(state.readOnly)}
       </span>
@@ -18,7 +18,7 @@ export function SyncIndicator() {
 
   if (state.syncing) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm text-text-secondary">
+      <span className="inline-flex items-center gap-1.5 text-caption text-text-secondary">
         <SyncingIcon className="animate-spin" />
         Saving…
       </span>
@@ -32,7 +32,7 @@ export function SyncIndicator() {
           role="img"
           tabIndex={0}
           aria-label={state.updatedByOthers ? 'Synced, updated by others' : 'Synced'}
-          className="inline-flex items-center gap-1.5 rounded-sm text-sm text-met-text"
+          className="inline-flex items-center gap-1.5 rounded-sm text-body text-met-text"
         >
           <CheckIcon />
         </span>

@@ -54,7 +54,7 @@ export function ReadOnlyBanner() {
 
   if (!readOnly) return null;
 
-  const wrap = 'border-b border-border-default bg-warning-tint px-4 py-2 text-sm text-warning-text';
+  const wrap = 'border-b border-border-default bg-warning-tint px-4 py-2 text-body text-warning-text';
 
   if (denied) {
     const creationUrl = tokenCreationUrl(brand.github, brand.productName);

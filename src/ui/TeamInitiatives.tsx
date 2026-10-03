@@ -11,6 +11,8 @@ import { TruncatedText } from './TruncatedText';
 import { useTableSort } from './tableSort';
 import { PlusIcon } from './icons';
 import { Button } from '@/components/ui/button';
+import { StatusLabel } from './StatusLabel';
+import { SectionHeader } from './PageHeader';
 
 /** The team page's Initiatives list (§5.8): every status, phase in process order then name, and a New initiative that presets the team (§5.1). */
 export function TeamInitiatives({ team }: { team: Team }) {
@@ -43,17 +45,20 @@ export function TeamInitiatives({ team }: { team: Team }) {
 
   return (
     <section aria-label="Initiatives" className="mt-8 max-w-3xl">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="m-0 text-base">Initiatives</h2>
-        {team.active && rows.length > 0 && (
-          <Button type="button" variant="outline" size="sm" onClick={start}>
-            <PlusIcon />
-            New initiative
-          </Button>
-        )}
-      </div>
+      <SectionHeader
+        title="Initiatives"
+        actions={
+          team.active &&
+          rows.length > 0 && (
+            <Button type="button" variant="outline" size="sm" onClick={start}>
+              <PlusIcon />
+              New initiative
+            </Button>
+          )
+        }
+      />
       {rows.length === 0 ? (
-        <p className="m-0 py-3 text-body-lg text-text-secondary">
+        <p className="m-0 py-3 text-body text-text-secondary">
           {team.active ? (
             <>
               No initiatives yet —{' '}
@@ -66,9 +71,9 @@ export function TeamInitiatives({ team }: { team: Team }) {
           )}
         </p>
       ) : (
-        <table className="w-full border-collapse text-sm">
+        <table className="tabular-nums w-full border-collapse text-body">
           <thead>
-            <tr className="text-left text-text-secondary">
+            <tr className="text-label text-left text-text-secondary">
               <SortableHeader label="Name" sortKey="name" sort={sort} />
               <SortableHeader label="Phase" sortKey="phase" sort={sort} />
               <SortableHeader label="Status" sortKey="status" sort={sort} />
@@ -83,7 +88,9 @@ export function TeamInitiatives({ team }: { team: Team }) {
                   </a>
                 </td>
                 <td className="px-3 py-2">{r.phaseLabel}</td>
-                <td className="px-3 py-2">{r.initiative.status}</td>
+                <td className="px-3 py-2">
+                  <StatusLabel status={r.initiative.status} />
+                </td>
               </tr>
             ))}
           </tbody>

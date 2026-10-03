@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cardClass } from './cardClass';
 
 const STATUS_LABEL: Record<ChecklistStatus, string> = { incomplete: 'Incomplete', tentative: 'Tentative', complete: 'Complete' };
 const STATUS_ICON: Record<ChecklistStatus, typeof IncompleteIcon> = { incomplete: IncompleteIcon, tentative: TentativeIcon, complete: CompleteIcon };
@@ -40,12 +41,12 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
   if (requirements.length === 0) return null;
 
   return (
-    <section aria-labelledby="gate-checklist-heading" className="flex flex-col gap-3 rounded-lg border border-border-default bg-surface-card p-3">
+    <section aria-labelledby="gate-checklist-heading" className={`${cardClass} flex flex-col gap-3 p-3`}>
       <div className="flex items-baseline justify-between gap-3">
-        <h2 id="gate-checklist-heading" className="m-0 text-lg">
+        <h2 id="gate-checklist-heading" className="m-0 text-title">
           Gate / Checklist — {phase.exitGate.label}
         </h2>
-        <span className="text-sm text-text-secondary">{gateProgressText({ complete, total })}</span>
+        <span className="text-caption text-text-secondary">{gateProgressText({ complete, total })}</span>
       </div>
       <ol className="m-0 flex list-none flex-col p-0">
         {estimates && <EstimatesRow requirement={estimates} phaseId={phase.id} />}
@@ -55,7 +56,7 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
       </ol>
       {carried.length > 0 && (
         <div className="flex flex-col gap-1 border-t border-border-default pt-3">
-          <h3 className="m-0 text-sm font-medium text-text-secondary">Carried forward</h3>
+          <h3 className="m-0 text-label font-medium text-text-secondary">Carried forward</h3>
           <ol className="m-0 flex list-none flex-col p-0">
             {carried.map((item) => (
               <ChecklistItemRow
@@ -85,7 +86,7 @@ function EstimatesRow({ requirement, phaseId }: { requirement: EstimatesRequirem
     <li className="flex items-start justify-between gap-3 border-t border-border-default py-2 first:border-t-0">
       <div className="flex items-start gap-2">
         <Icon width={16} height={16} className={`mt-0.5 shrink-0 ${met ? 'text-met-text' : 'text-text-secondary'}`} />
-        <span className="text-sm">{requirement.label}</span>
+        <span className="text-body">{requirement.label}</span>
       </div>
       <div className="flex shrink-0 items-center gap-3">
         {target && (
@@ -93,7 +94,7 @@ function EstimatesRow({ requirement, phaseId }: { requirement: EstimatesRequirem
             Go to {target.label}
           </Button>
         )}
-        <span className="text-xs text-text-secondary">{met ? 'Met' : 'Open'}</span>
+        <span className="text-caption text-text-secondary">{met ? 'Met' : 'Open'}</span>
       </div>
     </li>
   );
@@ -155,8 +156,8 @@ function ChecklistItemRow({
     <li id={checklistItemAnchor(writePhaseId, item.id)} className="flex flex-col gap-1 border-t border-border-default py-2 first:border-t-0">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-1">
-          <span className="text-sm">{item.name}</span>
-          {originGateLabel && <span className="text-xs text-warning-text">carried from {originGateLabel}</span>}
+          <span className="text-body">{item.name}</span>
+          {originGateLabel && <span className="text-caption text-warning-text">carried from {originGateLabel}</span>}
           {item.description && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -172,11 +173,11 @@ function ChecklistItemRow({
           {frozen ? (
             <>
               <FrozenStatusIcon width={16} height={16} className="text-text-muted" />
-              <span className="text-xs text-text-muted">{STATUS_LABEL[item.status]}</span>
-              <span className="text-xs text-text-muted" aria-hidden="true">
+              <span className="text-caption text-text-muted">{STATUS_LABEL[item.status]}</span>
+              <span className="text-caption text-text-muted" aria-hidden="true">
                 ·
               </span>
-              <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" aria-label={`${item.note ? 'Edit' : 'Add'} note for "${item.name}"`} onClick={startNote}>
+              <Button type="button" variant="link" size="sm" className="h-auto p-0 text-caption" aria-label={`${item.note ? 'Edit' : 'Add'} note for "${item.name}"`} onClick={startNote}>
                 {item.note ? 'Edit note' : 'Add note'}
               </Button>
             </>
@@ -208,12 +209,12 @@ function ChecklistItemRow({
                   </Tooltip>
                 ))}
               </ToggleGroup>
-              <span className="text-xs text-text-secondary">{STATUS_LABEL[item.status]}</span>
+              <span className="text-caption text-text-secondary">{STATUS_LABEL[item.status]}</span>
             </>
           )}
         </div>
       </div>
-      {descriptionOpen && item.description && <p className="m-0 text-xs text-text-secondary">{item.description}</p>}
+      {descriptionOpen && item.description && <p className="m-0 text-caption text-text-secondary">{item.description}</p>}
       {noteEditor ? (
         <div className="flex flex-wrap items-start gap-2">
           <div className="flex flex-col gap-1">
@@ -244,7 +245,7 @@ function ChecklistItemRow({
           </Button>
         </div>
       ) : (
-        item.note && <p className="m-0 text-xs text-text-muted">{item.note}</p>
+        item.note && <p className="m-0 text-caption text-text-muted">{item.note}</p>
       )}
     </li>
   );

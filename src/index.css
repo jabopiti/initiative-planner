@@ -12,8 +12,42 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --radius: 0.5rem;
+  /* Cards stand apart from the page by a faint shadow in light and by surface lightness alone in dark (§9.8). */
+  --elevation-card: 0 1px 2px color-mix(in oklab, var(--text-primary) 6%, transparent),
+    0 1px 3px color-mix(in oklab, var(--text-primary) 4%, transparent);
+}
+
+.dark {
+  --elevation-card: none;
+}
+
+/*
+ * The fixed type scale (§9.8): six sizes and two weights, and nothing else — Tailwind's own size and weight scales
+ * are reset so a stray text-sm or font-semibold generates no CSS (src/test/typeScale.test.ts fails on one). The three
+ * heading sizes carry the medium weight themselves, so a heading never needs font-medium beside its size.
+ */
+@theme {
+  --text-*: initial;
+  --text-label: 12px;
+  --text-label--line-height: 16px;
+  --text-caption: 13px;
+  --text-caption--line-height: 18px;
+  --text-body: 15px;
+  --text-body--line-height: 22px;
+  --text-heading: 16px;
+  --text-heading--font-weight: 500;
+  --text-heading--line-height: 24px;
+  --text-title: 18px;
+  --text-title--font-weight: 500;
+  --text-title--line-height: 26px;
+  --text-display: 24px;
+  --text-display--font-weight: 500;
+  --text-display--line-height: 32px;
+
+  --font-weight-*: initial;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
 }
 
 @theme inline {
@@ -47,17 +81,23 @@
 
   --color-focus-ring: var(--focus-ring);
 
-  --font-sans: var(--font-sans);
+  /* Team colours (§9.8), shown only as a swatch: bg-team-1 … bg-team-6. */
+  --color-team-1: var(--team-1);
+  --color-team-2: var(--team-2);
+  --color-team-3: var(--team-3);
+  --color-team-4: var(--team-4);
+  --color-team-5: var(--team-5);
+  --color-team-6: var(--team-6);
+
+  --shadow-card: var(--elevation-card);
+
+  --font-sans: var(--font-brand);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-card: 10px;
 
-  --text-label: 11px;
-  --text-caption: 13px;
-  --text-body-lg: 15px;
-  --text-display: 22px;
   --container-page: 720px;
   --container-connect: 560px;
   --spacing-check: 18px;
@@ -104,8 +144,8 @@
     margin: 0;
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
   }
 
   button,

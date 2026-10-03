@@ -88,15 +88,15 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
       </div>
 
       <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0">
-        <legend className="mb-1 p-0 text-sm font-medium">Day rate per year</legend>
+        <legend className="mb-1 p-0 text-body font-medium">Day rate per year</legend>
         {ratesConflict && <ConflictBlock className="mb-1" conflict={ratesConflict} label="Day rate per year" />}
         {rows.map((year) => {
           const entered = customRole.dayRatesByYear.find((r) => r.year === year);
           const inherited = entered ? undefined : yearRecord(customRole.dayRatesByYear, year);
           return (
             <div key={year} className="flex items-center gap-2">
-              <span className="w-10 text-sm tabular-nums">{year}</span>
-              <span className="text-sm text-text-secondary">{currencySymbol}</span>
+              <span className="w-10 text-body tabular-nums">{year}</span>
+              <span className="text-caption text-text-secondary">{currencySymbol}</span>
               <CommitInput
                 type="number"
                 step="any"
@@ -110,8 +110,8 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
                 value={entered ? String(entered.dayRate) : ''}
                 onCommit={(text) => setRate(year, text)}
               />
-              <span className="text-sm text-text-secondary">per day</span>
-              {inherited && <span className="text-xs text-text-muted">uses {inherited.year}</span>}
+              <span className="text-caption text-text-secondary">per day</span>
+              {inherited && <span className="text-caption text-text-muted">uses {inherited.year}</span>}
             </div>
           );
         })}
@@ -120,7 +120,7 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
       {customRole.dayRatesByYear.length === 0 && (
         <InlineWarning>No rate yet. Costed at 0.</InlineWarning>
       )}
-      <p className="m-0 text-xs text-text-secondary">Replaces the country rate. Cost is day rate × cost factor.</p>
+      <p className="m-0 text-caption text-text-secondary">Replaces the country rate. Cost is day rate × cost factor.</p>
     </div>
   );
 }

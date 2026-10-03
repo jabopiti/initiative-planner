@@ -191,7 +191,7 @@ describe('results', () => {
     expect(rows[0]).toHaveTextContent('Fraud Detection Upgrade');
     expect(rows[0]).toHaveTextContent(defaultBrandPack.process[0].label);
     expect(rows[1]).toHaveTextContent('Checkout Redesign');
-    expect(rows[1]).toHaveTextContent('On Hold');
+    expect(rows[1]).toHaveTextContent('On hold');
     expect(rows[1]).toHaveTextContent('Adds fraud checks to the payment step');
   });
 

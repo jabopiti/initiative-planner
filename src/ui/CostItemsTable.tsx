@@ -61,14 +61,14 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
 
   return (
     <section aria-labelledby={`cost-items-${phase.id}`} className="flex flex-col gap-2">
-      <h3 id={`cost-items-${phase.id}`} className="m-0 text-sm font-medium">
+      <h3 id={`cost-items-${phase.id}`} className="m-0 text-heading">
         Cost items
       </h3>
       {items.length > 0 && (
-        <table className="w-full border-collapse text-sm">
+        <table className="tabular-nums w-full border-collapse text-body">
           <caption className="sr-only">{phase.label} cost items</caption>
           <thead>
-            <tr className="text-left text-xs text-text-secondary">
+            <tr className="text-left text-label text-text-secondary">
               <th className="py-1 pr-2 font-medium">Label</th>
               <th className="py-1 pr-2 font-medium">Amount</th>
               <th className="py-1 pr-2 font-medium">When</th>
@@ -114,7 +114,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                   </td>
                   <td className="min-w-40 py-1.5 pr-2">
                     <div className="flex flex-wrap items-center gap-x-1">
-                      <span className="text-sm text-text-secondary">{currencySymbol}</span>
+                      <span className="text-caption text-text-secondary">{currencySymbol}</span>
                       <CommitInput
                         type="number"
                         inputMode="decimal"
@@ -197,7 +197,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
           }}
         />
       ) : (
-        <div className="flex items-center gap-2 text-sm text-text-secondary">
+        <div className="flex items-center gap-2 text-caption text-text-secondary">
           {items.length === 0 && 'No cost items yet —'}
           <AddButton phase={phase} onClick={() => setDrafting(true)} />
         </div>
@@ -283,7 +283,7 @@ function DraftRow({
         </div>
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-1">
-            <span className="text-sm text-text-secondary">{currencySymbol}</span>
+            <span className="text-caption text-text-secondary">{currencySymbol}</span>
             <Input
               type="number"
               inputMode="decimal"

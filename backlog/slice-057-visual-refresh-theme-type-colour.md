@@ -8,7 +8,7 @@ depends_on: ["046", "047", "055"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Theme and tokens' plus the review's visual-design lens (type, fewer boxes, shadcn components, motion, test both themes): F04, F12, F14, F19, F20. Look-and-feel decisions settled with the user from mockups: Geist typeface, soft layers, neutral dot status with outline track badge, theme icon button with a menu (§9.1 updated), brand-pack team swatches, subtle motion; then zinc greys with forest accent, graphite dark theme, top bar kept, no extra themes. Component decisions moved to slice 059. Backlog reshuffle (3 Oct 2026): F14 moved to 052 with the locale formats decision; the motion item moved into 059's motion list; now after 047, so the palette and team colours land in the brand pack once it is the single colour source. On 3 Oct 2026 the user moved F04 (the theme control, as decided here) to 046, which builds it once."
+change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Theme and tokens' plus the review's visual-design lens (type, fewer boxes, shadcn components, motion, test both themes): F04, F12, F14, F19, F20. Look-and-feel decisions settled with the user from mockups: Geist typeface, soft layers, neutral dot status with outline track badge, theme icon button with a menu (§9.1 updated), brand-pack team swatches, subtle motion; then zinc greys with forest accent, graphite dark theme, top bar kept, no extra themes. Component decisions moved to slice 059. Backlog reshuffle (3 Oct 2026): F14 moved to 052 with the locale formats decision; the motion item moved into 059's motion list; now after 047, so the palette and team colours land in the brand pack once it is the single colour source. On 3 Oct 2026 the user moved F04 (the theme control, as decided here) to 046, which builds it once. Pre-implementation review (3 Oct 2026): six-step type scale with Tailwind's default sizes removed, typeface files kept in the brand folder, status glyphs (dot, CirclePause, Ban, CircleCheck) used everywhere, full track badge on cards, team swatch only where a team is the subject; spec §2, §9.5, §9.8, §9.10 and §10.7 updated."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Changes tokens every screen reads and adds a brand-pack field (typeface, team palette); hard to reverse once screens are built on it."
 spec_sections: ["§2 What the build fixes (brand pack)", "§9.1 Theming", "§9.5 Accessibility", "§9.8 Visual design", "§9.10 Icons", "§10.1 Framework and UI foundations", "§10.7 Distribution, build and deploy", "§10.9 Security"]
@@ -55,16 +55,23 @@ one type scale and one surface system are used everywhere in both themes
 
 ## Acceptance criteria
 
-- [ ] Given body text, then it is 15 px in the brand-pack typeface, and
-      every heading uses one of the type tokens.
-- [ ] Given figures in tables and the cost summary, then they use tabular
+- [x] Given body text, then it is 15 px in the brand-pack typeface, and
+      every font size in `src/` is one of the six type tokens (a unit test
+      fails on any Tailwind default size such as `text-sm`).
+- [x] Given the brand pack, then its typeface's font files live in the
+      brand folder and the build fails when one is missing.
+- [x] Given figures in tables and the cost summary, then they use tabular
       figures.
-- [ ] Given status and approval track side by side, then they use
-      different badge variants.
-- [ ] Given team colours, then they come from brand-pack tokens that pass
-      the contrast check in both themes, shown as a swatch beside the name.
-- [ ] Given the e2e axe scan, then every screen passes in light and dark.
-- [ ] Given the production build, then no request leaves for any host but
+- [x] Given status and approval track side by side, then status is a
+      neutral glyph plus sentence-case text ("On hold") and the track an
+      outline badge ("E Elevated"; "No approval track" dashed, no letter),
+      on board cards too.
+- [x] Given team colours, then they come from brand-pack tokens that pass
+      the contrast check (3:1 on page and card) in both themes, shown as a
+      square swatch on the Teams overview, the team page title and the
+      person panel (memberships and split bar) only.
+- [x] Given the e2e axe scan, then every screen passes in light and dark.
+- [x] Given the production build, then no request leaves for any host but
       the GitHub API (fonts are bundled).
 
 ## Flags and compromises
@@ -123,3 +130,39 @@ surfaces, badges, theme control, team colours).
   "€395k" (no space); date fields display "1 Oct 2026" (both now carried
   by 052's formats decision); the §9.10 icon vocabulary table from 055 is
   reused.
+
+Settled with the user on 3 Oct 2026 in the pre-implementation review, from
+rendered mockups:
+
+- **Type scale (D1):** six `@theme` tokens: label 12, caption 13, body 15,
+  heading 16, title 18, display 24 (px); tables at body 15 with 40 px rows.
+  Tailwind's default font-size scale is reset so only these exist, and a
+  unit test fails on any leftover `text-xs`/`text-sm`/… class. Semibold
+  and bold become medium.
+- **Typeface (D2):** the brand pack gets `typeface: { family, files,
+  fallback }`; the Geist variable woff2 files (latin, latin-ext; taken once
+  from `@fontsource-variable/geist`) and the OFL licence live in
+  `src/brand/fonts/`; the brand plugin emits `@font-face` and `--font-sans`.
+  No npm font dependency, so a fork changes fonts in its brand folder only.
+- **Status glyphs (D3):** one set everywhere, neutral grey: filled dot
+  (Active), `CirclePause` (On hold), `Ban` (Cancelled, the Cancel action's
+  glyph), `CircleCheck` (Closed). Board cards stay icon-only and show
+  nothing for Active (§5.2); header, tables and search show glyph plus
+  sentence-case text. The stored value stays `On Hold`.
+- **Track badge (D4):** shadcn Badge, outline, "E Elevated" everywhere
+  including board cards; "No approval track" dashed outline with no letter;
+  tooltip stays the requirement text.
+- **Team swatch (D5):** only where a team is the subject: Teams overview
+  rows, team page title, person panel memberships and split bar. Not in the
+  Initiatives or People tables, board cards or the detail header. Six
+  muted colours that avoid the Alarm, Warning and Met hues: violet, blue,
+  teal, magenta, sand, slate.
+- **Assumptions (not asked):** neutral roles move to zinc (light) and
+  graphite (dark) in `defaultBrand.ts`, accent and state roles unchanged;
+  two core shadow tokens (card, floating), none on dark cards; strips on
+  the neutral subtle band; team colour = position in the teams file,
+  inactive teams included, so it never shifts; `PageHeader` (title,
+  optional description, actions) and `SectionHeader` (h2, actions);
+  both themes' axe scans cover the same full screen list; an e2e test
+  checks the production build requests nothing beyond its origin and the
+  GitHub API.

@@ -15,9 +15,9 @@ export function GettingStartedStrip() {
   if (dismissed || steps.every((s) => s.done)) return null;
 
   return (
-    <section aria-labelledby="getting-started-heading" className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border border-border-default bg-surface-card px-3.5 py-2 text-sm">
+    <section aria-labelledby="getting-started-heading" className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-card bg-surface-subtle px-3.5 py-2 text-body">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <h2 id="getting-started-heading" className="m-0 text-sm font-semibold">
+        <h2 id="getting-started-heading" className="m-0 text-heading">
           Getting started
         </h2>
         <ol className="m-0 flex list-none flex-wrap items-center gap-x-4 gap-y-2 p-0">

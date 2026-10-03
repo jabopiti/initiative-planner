@@ -126,7 +126,7 @@ describe('Actions menu (§5.4)', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
     expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Duplicate', 'Reopen G1', 'Cancel initiative']);
-    expect(screen.getAllByText('On Hold').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('On hold').length).toBeGreaterThan(0);
   });
 
   it('resumes from the menu with its own commit (AC6)', async () => {

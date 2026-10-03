@@ -50,7 +50,7 @@ export function ConflictBanner() {
 
   return (
     <div
-      className="flex flex-col gap-1 border-b border-border-default bg-warning-tint px-4 py-2 text-sm text-warning-text"
+      className="flex flex-col gap-1 border-b border-border-default bg-warning-tint px-4 py-2 text-body text-warning-text"
       role="alert"
     >
       {[...pointers.values()].map(({ entity, route, conflicts: some }) => {
@@ -79,9 +79,9 @@ export function ConflictBanner() {
               <div key={key} className="border-t border-border-default pt-1">
                 <div className="flex items-center justify-between gap-3">
                   <span>
-                    <strong>{entity}</strong> · {field}
-                    {!labelled && <span className="text-text-secondary"> (unlabelled field)</span>} — yours <strong>{mine}</strong>, theirs{' '}
-                    <strong>{theirs}</strong>
+                    <strong className="font-medium">{entity}</strong> · {field}
+                    {!labelled && <span className="text-text-secondary"> (unlabelled field)</span>} — yours <strong className="font-medium">{mine}</strong>, theirs{' '}
+                    <strong className="font-medium">{theirs}</strong>
                   </span>
                   <div className="flex shrink-0 gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => choose('theirs')}>

@@ -3,7 +3,7 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { Archive, ArchiveRestore, Ban, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, Copy, CirclePause, CircleX, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Play, Plus, RefreshCw, Rocket, RotateCcw, Search, SkipForward, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserMinus, Users, X, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, Ban, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, Copy, CirclePause, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Play, Plus, RefreshCw, Rocket, RotateCcw, Search, SkipForward, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserMinus, Users, X, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
 import type { PhaseIconName } from '../brand/types';
 
@@ -53,9 +53,19 @@ export const ResumeIcon = iconWrapper(Play);
 /** Cancelled (§8.4, §9.10): the status chip and the Cancel action; Reopen is its way back (also a gate's reopen, §8.3). */
 export const CancelledIcon = iconWrapper(Ban);
 export const ReopenIcon = iconWrapper(RotateCcw);
-/** A non-Active status on a Portfolio card (§5.2, §9.10): one circled icon per status. */
+/**
+ * Initiative status (§9.10): one neutral glyph per status, the same wherever status shows — a filled dot for Active,
+ * CirclePause for On hold, Ban (the Cancel action's glyph) for Cancelled and CircleCheck for Closed.
+ */
+export function StatusActiveIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+      <circle cx="12" cy="12" r="4.5" />
+    </svg>
+  );
+}
 export const StatusOnHoldIcon = iconWrapper(CirclePause);
-export const StatusCancelledIcon = iconWrapper(CircleX);
+export const StatusCancelledIcon = CancelledIcon;
 export const StatusClosedIcon = iconWrapper(CircleCheck);
 /** The header's Actions menu button (§5.4). */
 export const ActionsIcon = iconWrapper(Ellipsis);

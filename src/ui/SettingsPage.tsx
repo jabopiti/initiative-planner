@@ -45,7 +45,7 @@ export function SettingsPage({ section }: { section: string }) {
   return (
     <div className="flex gap-6 px-8 py-6">
       <nav aria-label="Settings sections" className="w-44 shrink-0 border-r border-border-default pr-4">
-        <h1 className="m-0 mb-4 text-xl">Settings</h1>
+        <h1 className="m-0 mb-4 text-display">Settings</h1>
         <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
           {SETTINGS_SECTIONS.map((s) => (
             <li key={s.id}>

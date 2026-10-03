@@ -43,7 +43,7 @@ export function AmountInput({
 }) {
   return (
     <div className="flex items-center gap-1">
-      <span className="text-sm text-text-secondary">{currencySymbol}</span>
+      <span className="text-caption text-text-secondary">{currencySymbol}</span>
       <CommitInput
         changed={changed}
         failure={failure}

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { numberFormat } from './formatAmount';
 import { DefinitionList } from './DefinitionList';
 import { ReplaceTokenField } from './ReplaceTokenField';
+import { cardClass } from './cardClass';
 
 /** "4,812 of 5,000 API requests left this hour, resets at 14:20" from the latest response, or "Not known yet" (§5.9). */
 function requestsText(limit: ReturnType<typeof useRateLimit>): string {
@@ -40,10 +41,10 @@ export function ConnectionSection() {
     else setConfirming(unsaved);
   }
 
-  const card = 'rounded-xl border border-border-default bg-surface-card px-4';
+  const card = `${cardClass} px-4`;
   return (
     <section aria-labelledby="connection-heading" className="flex flex-col gap-4">
-      <h2 id="connection-heading" className="m-0 text-lg">
+      <h2 id="connection-heading" className="m-0 text-title">
         Connection
       </h2>
       <DefinitionList
@@ -55,13 +56,13 @@ export function ConnectionSection() {
       />
 
       <div className={`${card} flex flex-col gap-2 py-3`}>
-        <h3 className="m-0 text-base">Replace token</h3>
+        <h3 className="m-0 text-heading">Replace token</h3>
         <p className="m-0 text-text-secondary">Paste a new token to swap it in. Your unsaved changes are kept.</p>
         <ReplaceTokenField />
       </div>
 
       <div className={`${card} flex flex-col gap-2 py-3`}>
-        <h3 className="m-0 text-base">Disconnect</h3>
+        <h3 className="m-0 text-heading">Disconnect</h3>
         <p className="m-0 text-text-secondary">Removes the token from this browser and opens the Connect screen.</p>
         {confirming === null ? (
           <div>

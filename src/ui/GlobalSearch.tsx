@@ -1,17 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { currentPhaseId } from '../data/processState';
 import { searchAll, type Group, type InitiativeHit, type NamedHit } from '../data/search';
-import type { InitiativeStatus } from '../data/types';
 import { navigate } from '../router/useHashRoute';
 import { useBrand } from '../state/BrandContext';
 import { useRepositoryState } from '../state/DataContext';
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { StatusCancelledIcon, StatusClosedIcon, StatusOnHoldIcon, SearchIcon } from './icons';
+import { SearchIcon } from './icons';
+import { StatusLabel } from './StatusLabel';
 import { requestPerson } from './personRequest';
 
-const STATUS_ICON = { 'On Hold': StatusOnHoldIcon, Cancelled: StatusCancelledIcon, Closed: StatusClosedIcon };
 /** Characters of a description shown before the match, so a match far into the text is still in view. */
 const EXCERPT_LEAD = 30;
 
@@ -143,7 +142,7 @@ function SearchOverlay({ open, onOpenChange, restoreFocus }: { open: boolean; on
           <CommandInput value={query} onValueChange={setQuery} placeholder="Search…" />
           <CommandList>
             {(!typed || none) && (
-              <p role={none ? 'status' : undefined} className="m-0 px-3 py-6 text-center text-sm text-text-secondary">
+              <p role={none ? 'status' : undefined} className="m-0 px-3 py-6 text-center text-body text-text-secondary">
                 {none ? `No matches for ‘${query.trim()}’` : 'Search initiatives, people and teams'}
               </p>
             )}
@@ -190,7 +189,6 @@ function NamedItem({ prefix, hit, onChoose }: { prefix: string; hit: NamedHit<{ 
 function InitiativeItem({ hit, onChoose }: { hit: InitiativeHit; onChoose: () => void }) {
   const { process } = useBrand();
   const { initiative } = hit;
-  const StatusIcon = initiative.status === 'Active' ? null : STATUS_ICON[initiative.status as Exclude<InitiativeStatus, 'Active'>];
   const phaseId = currentPhaseId(initiative, process);
   return (
     <CommandItem value={`initiative:${initiative.id}`} onSelect={onChoose}>
@@ -199,15 +197,10 @@ function InitiativeItem({ hit, onChoose }: { hit: InitiativeHit; onChoose: () =>
           <span className="truncate" title={initiative.name}>
             {hit.field === 'name' ? <Highlighted text={initiative.name} range={hit.range} /> : initiative.name}
           </span>
-          {StatusIcon && (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-label text-text-secondary">
-              <StatusIcon width={12} height={12} aria-hidden />
-              {initiative.status}
-            </span>
-          )}
-          <span className="ml-auto shrink-0 text-xs text-text-secondary">{process.find((p) => p.id === phaseId)?.label ?? phaseId}</span>
+          {initiative.status !== 'Active' && <StatusLabel status={initiative.status} className="text-caption" />}
+          <span className="ml-auto shrink-0 text-caption text-text-secondary">{process.find((p) => p.id === phaseId)?.label ?? phaseId}</span>
         </div>
-        {hit.field === 'description' && <div className="truncate text-xs text-text-secondary">{excerpt(initiative.description ?? '', hit.range)}</div>}
+        {hit.field === 'description' && <div className="truncate text-caption text-text-secondary">{excerpt(initiative.description ?? '', hit.range)}</div>}
       </div>
     </CommandItem>
   );

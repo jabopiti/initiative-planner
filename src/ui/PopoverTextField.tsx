@@ -181,7 +181,7 @@ export function PopoverTextField({
         </PopoverContent>
       </Popover>
       {unreadable && (
-        <p id={errorId} role="alert" className="m-0 text-xs text-warning-text">
+        <p id={errorId} role="alert" className="m-0 text-caption text-warning-text">
           {refusal}
         </p>
       )}

@@ -36,7 +36,7 @@ export function CopyButton({ getData, noun, label = 'Copy' }: Props) {
   return (
     <>
       {message && (
-        <span role={message.error ? 'alert' : 'status'} className={`text-sm ${message.error ? 'text-alarm-text' : 'text-text-secondary'}`}>
+        <span role={message.error ? 'alert' : 'status'} className={`text-body ${message.error ? 'text-alarm-text' : 'text-text-secondary'}`}>
           {message.text}
         </span>
       )}

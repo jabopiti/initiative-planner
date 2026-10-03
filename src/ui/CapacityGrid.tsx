@@ -9,6 +9,8 @@ import { CopyButton } from './CopyButton';
 import { InlineWarning } from './InlineWarning';
 import { OverCapacityIcon, OverTeamFteIcon, WarningIcon } from './icons';
 import { Button } from '@/components/ui/button';
+import { SectionHeader } from './PageHeader';
+import { cardClass } from './cardClass';
 
 /** Allocation % are unrounded, so a figure shows at most one decimal. */
 const pct = (value: number) => `${Math.round(value * 10) / 10}%`;
@@ -86,18 +88,18 @@ export function CapacityGrid({ team }: { team: Team }) {
 
   return (
     <section aria-label="Capacity" className="mt-8">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="m-0 text-base">Capacity</h2>
-        {team.active && capacity.months.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} label="Copy capacity" />}
-      </div>
+      <SectionHeader
+        title="Capacity"
+        actions={team.active && capacity.months.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} label="Copy capacity" />}
+      />
 
       {!team.active ? (
-        <p className="m-0 py-6 text-body-lg text-text-secondary">This team is inactive, so its initiatives are not counted toward anyone&apos;s capacity. Reactivate the team to see its capacity.</p>
+        <p className="m-0 py-6 text-body text-text-secondary">This team is inactive, so its initiatives are not counted toward anyone&apos;s capacity. Reactivate the team to see its capacity.</p>
       ) : capacity.rows.length === 0 ? (
-        <p className="m-0 py-6 text-body-lg text-text-secondary">No members yet. Add members to see their capacity.</p>
+        <p className="m-0 py-6 text-body text-text-secondary">No members yet. Add members to see their capacity.</p>
       ) : capacity.months.length === 0 ? (
         <>
-          <p className="m-0 py-6 text-body-lg text-text-secondary">Nothing allocated yet. Allocate members to an initiative&apos;s phase and their months appear here.</p>
+          <p className="m-0 py-6 text-body text-text-secondary">Nothing allocated yet. Allocate members to an initiative&apos;s phase and their months appear here.</p>
           <div className="flex flex-col items-start gap-1">
             {capacity.rows.flatMap((row) => otherWarnings(row, team)).map(({ Icon, text }) => (
               <InlineWarning key={text} icon={Icon}>
@@ -108,10 +110,10 @@ export function CapacityGrid({ team }: { team: Team }) {
         </>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-border-default bg-surface-card">
-            <table className="w-max min-w-full border-collapse text-sm">
+          <div className={`${cardClass} overflow-x-auto`}>
+            <table className="tabular-nums w-max min-w-full border-collapse text-body">
               <thead>
-                <tr className="text-left text-text-secondary">
+                <tr className="text-label text-left text-text-secondary">
                   <th scope="col" className="sticky left-0 z-10 min-w-44 border-b border-border-default bg-surface-card px-3 py-2 font-medium">
                     Name
                   </th>
@@ -135,7 +137,7 @@ export function CapacityGrid({ team }: { team: Team }) {
                       >
                         {row.person.name}
                       </button>
-                      <div className="text-xs text-text-secondary">{row.teamFtePct === null ? 'No longer a member' : `Team FTE ${pct(row.teamFtePct)}`}</div>
+                      <div className="text-caption text-text-secondary">{row.teamFtePct === null ? 'No longer a member' : `Team FTE ${pct(row.teamFtePct)}`}</div>
                     </th>
                     {row.cells.map((cell) => (
                       <td key={cell.month} className="p-0">
@@ -152,7 +154,7 @@ export function CapacityGrid({ team }: { team: Team }) {
               </tbody>
             </table>
           </div>
-          <p className="m-0 mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-secondary">
+          <p className="m-0 mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-text-secondary">
             <span className="inline-flex items-center gap-1">
               <OverTeamFteIcon width={14} height={14} className="text-warning-text" /> Over Team FTE %
             </span>
@@ -192,7 +194,7 @@ function CellButton({ name, cell, selected, onSelect }: { name: string; cell: Ca
       {cell.overTeamFte && <OverTeamFteIcon width={14} height={14} data-testid="over-team-fte" />}
       {cell.overCapacity && <OverCapacityIcon width={14} height={14} data-testid="over-capacity" />}
       {cell.provisionalPct > 0 && (
-        <span className="text-xs font-normal text-text-muted" title="Provisional, not counted">
+        <span className="text-caption font-normal text-text-muted" title="Provisional, not counted">
           +{pct(cell.provisionalPct)}
         </span>
       )}
@@ -253,9 +255,9 @@ function Detail({ row, month, team, capacity, data, onClose }: { row: CapacityRo
   };
 
   return (
-    <section aria-label="Capacity detail" className="mt-4 rounded-lg border border-border-default bg-surface-card p-4">
+    <section aria-label="Capacity detail" className={`${cardClass} mt-4 p-4`}>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 ref={heading} tabIndex={-1} className="m-0 text-base font-medium">
+        <h3 ref={heading} tabIndex={-1} className="m-0 text-heading">
           {person.name} · {month ? formatMonth(month) : 'all months'}
         </h3>
         <Button type="button" variant="ghost" size="sm" onClick={onClose}>
@@ -264,9 +266,9 @@ function Detail({ row, month, team, capacity, data, onClose }: { row: CapacityRo
       </div>
 
       {warnings.length === 0 ? (
-        <p className="m-0 mb-3 text-sm text-text-secondary">{month ? 'No warnings this month.' : 'No warnings in these months.'}</p>
+        <p className="m-0 mb-3 text-caption text-text-secondary">{month ? 'No warnings this month.' : 'No warnings in these months.'}</p>
       ) : (
-        <ul className="m-0 mb-3 flex list-none flex-col gap-1 p-0 text-sm text-warning-text">
+        <ul className="m-0 mb-3 flex list-none flex-col gap-1 p-0 text-body text-warning-text">
           {warnings.map(({ Icon, text }) => (
             <li key={text} className="flex items-start gap-1.5">
               <Icon width={16} height={16} className="mt-0.5 shrink-0" />
@@ -299,8 +301,8 @@ function LoadList({ heading, loads, showPeriod, teamName, fix }: { heading: stri
   if (loads.length === 0) return null;
   return (
     <div className="mb-2">
-      <h4 className="m-0 mb-1 text-xs font-medium text-text-secondary">{heading}</h4>
-      <ul className="m-0 flex list-none flex-col gap-0.5 p-0 text-sm">
+      <h4 className="m-0 mb-1 text-label font-medium text-text-secondary">{heading}</h4>
+      <ul className="m-0 flex list-none flex-col gap-0.5 p-0 text-body">
         {loads.map((l, i) => (
           <li key={`${l.initiativeId}-${l.phaseId}-${i}`}>
             <a href={`#/initiatives/${l.initiativeId}`} className="underline">
