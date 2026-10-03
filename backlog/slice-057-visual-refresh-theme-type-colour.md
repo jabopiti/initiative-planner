@@ -55,23 +55,23 @@ one type scale and one surface system are used everywhere in both themes
 
 ## Acceptance criteria
 
-- [ ] Given body text, then it is 15 px in the brand-pack typeface, and
+- [x] Given body text, then it is 15 px in the brand-pack typeface, and
       every font size in `src/` is one of the six type tokens (a unit test
       fails on any Tailwind default size such as `text-sm`).
-- [ ] Given the brand pack, then its typeface's font files live in the
+- [x] Given the brand pack, then its typeface's font files live in the
       brand folder and the build fails when one is missing.
-- [ ] Given figures in tables and the cost summary, then they use tabular
+- [x] Given figures in tables and the cost summary, then they use tabular
       figures.
-- [ ] Given status and approval track side by side, then status is a
+- [x] Given status and approval track side by side, then status is a
       neutral glyph plus sentence-case text ("On hold") and the track an
       outline badge ("E Elevated"; "No approval track" dashed, no letter),
       on board cards too.
-- [ ] Given team colours, then they come from brand-pack tokens that pass
+- [x] Given team colours, then they come from brand-pack tokens that pass
       the contrast check (3:1 on page and card) in both themes, shown as a
       square swatch on the Teams overview, the team page title and the
       person panel (memberships and split bar) only.
-- [ ] Given the e2e axe scan, then every screen passes in light and dark.
-- [ ] Given the production build, then no request leaves for any host but
+- [x] Given the e2e axe scan, then every screen passes in light and dark.
+- [x] Given the production build, then no request leaves for any host but
       the GitHub API (fonts are bundled).
 
 ## Flags and compromises
