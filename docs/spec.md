@@ -252,7 +252,7 @@ fixes:
   (initiative, team, person, gate) is fixed.
   - Surfaces: page, card, and a subtle fill for chips and columns.
   - Text: primary, secondary and muted, and text on accent.
-  - Borders: default and strong.
+  - Borders: default, strong, and input (form-control outlines).
   - Accent: fill, tint and text.
   - Alarm, Warning and Met: each with fill, tint and text (§9.8 says where
     each is used).
@@ -1687,7 +1687,12 @@ The built-in UI targets **WCAG 2.2 Level AA**.
 - **Contrast, enforced at build.** Every colour token in a brand pack must
   meet AA contrast against its intended background in both the light and the
   dark theme (§9.1). A pack that fails does not build, and the failure says
-  which token.
+  which token. Text needs 4.5:1 on every surface and tint it sits on; the
+  focus ring, the Accent, Alarm, Warning and Met fills, and the input
+  border need 3:1 on page and card. Form controls (fields, selects,
+  checkboxes) are outlined with the input border so they are identifiable
+  (WCAG 1.4.11); the default and strong borders are decorative (dividers,
+  card outlines, grouping panels, dashed boxes) and are not checked.
 - **State is never colour alone.** Blocker, warning, met, over-capacity,
   Provisional/Confirmed and similar states carry a second cue, an icon or a
   text label, in addition to colour.
@@ -1914,7 +1919,8 @@ official `@tailwindcss/vite` plugin drives the CSS build). Styling is
 **Tailwind CSS v4**, CSS-first configured (no `tailwind.config.js`;
 tokens are declared in CSS via `@theme`), reading the brand pack's
 colour roles as CSS variables (§9.8) — this is a static, build-time
-stylesheet, never runtime CSS-in-JS, since that would need inline
+stylesheet generated from the brand pack by a Vite plugin (which also runs
+the contrast check, §9.5), never runtime CSS-in-JS, since that would need inline
 styles the content security policy below forbids.
 
 UI components — button, combobox, popover, menu, dialog, tooltip and

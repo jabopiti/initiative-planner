@@ -1,10 +1,9 @@
 @import 'tailwindcss';
 
 /**
- * Brand pack colour tokens (§2, §9.8), stored as OKLCH triplets (§10.1).
- * Hand-kept in sync with src/brand/defaultBrand.ts's `colours` object —
- * this deployment has exactly one brand pack, so generating this file at
- * build time from that TS module is deferred, not a functional gap.
+ * The colour tokens (--surface-page, --text-muted, …) are generated from the
+ * brand pack by brandColoursPlugin (§2, §10.1) and imported in main.tsx; this
+ * file only maps them onto Tailwind and shadcn and holds no colour literals.
  *
  * The resolved theme (§9.1) is applied as a single `.dark` class on the
  * document root, so dark-mode tokens live under `.dark` rather than an
@@ -13,72 +12,8 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --surface-page: oklch(0.983 0.003 174.5);
-  --surface-card: oklch(1 0 89.9);
-  --surface-subtle: oklch(0.962 0.007 164.9);
-
-  --text-primary: oklch(0.23 0.02 167.0);
-  --text-secondary: oklch(0.512 0.022 167.2);
-  --text-muted: oklch(0.534 0.021 162.6);
-  --text-on-accent: oklch(1 0 89.9);
-
-  --border-default: oklch(0.916 0.013 164.8);
-  --border-strong: oklch(0.817 0.018 164.5);
-
-  --accent: oklch(0.429 0.085 167.5);
-  --accent-tint: oklch(0.98 0.029 161.1);
-  --accent-text: oklch(0.429 0.085 167.5);
-
-  --warning: oklch(0.555 0.146 49.0);
-  --warning-tint: oklch(0.960 0.030 78.8);
-  --warning-text: oklch(0.547 0.146 49.0);
-
-  --alarm: oklch(0.577 0.215 27.3);
-  --alarm-tint: oklch(0.938 0.026 17.6);
-  --alarm-text: oklch(0.543 0.215 27.3);
-
-  --met: oklch(0.627 0.17 149.2);
-  --met-tint: oklch(0.962 0.021 158.6);
-  --met-text: oklch(0.513 0.17 149.2);
-
-  --focus-ring: oklch(0.429 0.085 167.5);
-
   --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --radius: 0.5rem;
-}
-
-.dark {
-  color-scheme: dark;
-
-  --surface-page: oklch(0.187 0.012 167.0);
-  --surface-card: oklch(0.235 0.018 165.2);
-  --surface-subtle: oklch(0.254 0.022 166.2);
-
-  --text-primary: oklch(0.956 0.012 162.0);
-  --text-secondary: oklch(0.742 0.022 165.9);
-  --text-muted: oklch(0.635 0.024 170.1);
-  --text-on-accent: oklch(0.187 0.012 167.0);
-
-  --border-default: oklch(0.302 0.023 163.0);
-  --border-strong: oklch(0.395 0.027 159.1);
-
-  --accent: oklch(0.79 0.152 167.0);
-  --accent-tint: oklch(0.258 0.035 163.9);
-  --accent-text: oklch(0.79 0.152 167.0);
-
-  --warning: oklch(0.837 0.164 84.4);
-  --warning-tint: oklch(0.267 0.036 83.4);
-  --warning-text: oklch(0.837 0.164 84.4);
-
-  --alarm: oklch(0.711 0.166 22.2);
-  --alarm-tint: oklch(0.234 0.039 20.5);
-  --alarm-text: oklch(0.711 0.166 22.2);
-
-  --met: oklch(0.8 0.182 151.7);
-  --met-tint: oklch(0.260 0.034 155.5);
-  --met-text: oklch(0.8 0.182 151.7);
-
-  --focus-ring: oklch(0.79 0.152 167.0);
 }
 
 @theme inline {
@@ -149,7 +84,8 @@
   --color-destructive: var(--alarm);
   --color-destructive-foreground: var(--text-on-accent);
   --color-border: var(--border-default);
-  --color-input: var(--border-default);
+  /* Form-control outlines need 3:1 (WCAG 1.4.11), which the input border is checked for (§9.5). */
+  --color-input: var(--border-input);
   --color-ring: var(--focus-ring);
 }
 

@@ -6,11 +6,9 @@ import type { BrandPack, CountryYearRates } from './types';
  * are taken from backlog/example-data.md, the reference data confirmed for
  * building and demoing slices 002-011.
  *
- * Colour roles beyond what example-data.md specified (muted text, borders,
- * tints/text variants for Warning/Alarm/Met, focus ring, text-on-accent)
- * are derived here, not independently confirmed — the automated contrast
- * check called for in §9.5/§10.7 is deferred (not in slice 003's scope) and
- * is the real gate before these ship.
+ * The colour roles are the single source for the app's CSS (§2, §9.1):
+ * brandColoursPlugin generates the stylesheet from them and fails the build
+ * when a pair misses the contrast rule (§9.5, src/brand/contrast.ts).
  */
 
 const germanyRates: CountryYearRates[] = [
@@ -172,11 +170,12 @@ export const defaultBrandPack: BrandPack = {
 
     textPrimary: { light: 'oklch(0.23 0.02 167.0)', dark: 'oklch(0.956 0.012 162.0)' },
     textSecondary: { light: 'oklch(0.512 0.022 167.2)', dark: 'oklch(0.742 0.022 165.9)' },
-    textMuted: { light: 'oklch(0.622 0.021 162.6)', dark: 'oklch(0.583 0.024 170.1)' },
+    textMuted: { light: 'oklch(0.534 0.021 162.6)', dark: 'oklch(0.635 0.024 170.1)' },
     textOnAccent: { light: 'oklch(1 0 89.9)', dark: 'oklch(0.187 0.012 167.0)' },
 
     borderDefault: { light: 'oklch(0.916 0.013 164.8)', dark: 'oklch(0.302 0.023 163.0)' },
     borderStrong: { light: 'oklch(0.817 0.018 164.5)', dark: 'oklch(0.395 0.027 159.1)' },
+    borderInput: { light: 'oklch(0.60 0.018 164.5)', dark: 'oklch(0.54 0.027 159.1)' },
 
     accent: { light: 'oklch(0.429 0.085 167.5)', dark: 'oklch(0.79 0.152 167.0)' },
     accentTint: { light: 'oklch(0.98 0.029 161.1)', dark: 'oklch(0.258 0.035 163.9)' },
@@ -184,15 +183,15 @@ export const defaultBrandPack: BrandPack = {
 
     warning: { light: 'oklch(0.555 0.146 49.0)', dark: 'oklch(0.837 0.164 84.4)' },
     warningTint: { light: 'oklch(0.960 0.030 78.8)', dark: 'oklch(0.267 0.036 83.4)' },
-    warningText: { light: 'oklch(0.555 0.146 49.0)', dark: 'oklch(0.837 0.164 84.4)' },
+    warningText: { light: 'oklch(0.547 0.146 49.0)', dark: 'oklch(0.837 0.164 84.4)' },
 
     alarm: { light: 'oklch(0.577 0.215 27.3)', dark: 'oklch(0.711 0.166 22.2)' },
     alarmTint: { light: 'oklch(0.938 0.026 17.6)', dark: 'oklch(0.234 0.039 20.5)' },
-    alarmText: { light: 'oklch(0.577 0.215 27.3)', dark: 'oklch(0.711 0.166 22.2)' },
+    alarmText: { light: 'oklch(0.543 0.215 27.3)', dark: 'oklch(0.711 0.166 22.2)' },
 
     met: { light: 'oklch(0.627 0.17 149.2)', dark: 'oklch(0.8 0.182 151.7)' },
     metTint: { light: 'oklch(0.962 0.021 158.6)', dark: 'oklch(0.260 0.034 155.5)' },
-    metText: { light: 'oklch(0.627 0.17 149.2)', dark: 'oklch(0.8 0.182 151.7)' },
+    metText: { light: 'oklch(0.513 0.17 149.2)', dark: 'oklch(0.8 0.182 151.7)' },
 
     focusRing: { light: 'oklch(0.429 0.085 167.5)', dark: 'oklch(0.79 0.152 167.0)' },
   },

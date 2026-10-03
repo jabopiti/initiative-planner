@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { brandColoursPlugin } from './src/brand/brandColoursPlugin';
+import { defaultBrandPack } from './src/brand/defaultBrand';
 
 const CSP =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; " +
@@ -50,7 +52,7 @@ function buildVersion(): string {
 
 export default defineConfig({
   define: { __BUILD_VERSION__: JSON.stringify(buildVersion()) },
-  plugins: [react(), tailwindcss(), cspMetaTag()],
+  plugins: [react(), tailwindcss(), brandColoursPlugin(defaultBrandPack.colours), cspMetaTag()],
   base: './',
   // Parallel sessions each run their own dev server: the preview launcher hands out a free port via PORT.
   server: { port: Number(process.env.PORT) || 5173 },
