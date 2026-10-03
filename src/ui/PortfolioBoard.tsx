@@ -36,7 +36,7 @@ function BoardCard({ row }: { row: PortfolioRow }) {
   const item = attention.find((i) => i.initiativeId === initiative.id);
   return (
     <a
-      className={`block rounded-lg border border-border-default px-3 py-2.5 text-inherit no-underline transition-colors duration-500 ${changed(FILE_PATHS.initiative(initiative.id), []) ? 'bg-met-tint' : 'bg-surface-card'}`}
+      className={`block rounded-lg border border-border-default px-3 py-2.5 text-inherit no-underline transition-colors duration-500 motion-reduce:transition-none ${changed(FILE_PATHS.initiative(initiative.id), []) ? 'bg-met-tint' : 'bg-surface-card'}`}
       href={`#/initiatives/${initiative.id}`}
     >
       <div className="flex items-center justify-between gap-1.5 text-sm font-semibold">

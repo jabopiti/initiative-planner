@@ -113,7 +113,7 @@ export function PopoverTextField({
             <Input
               ref={inputRef}
               type="text"
-              className={`w-full pr-9 transition-colors duration-500 ${highlight ? 'border-brand-accent bg-brand-accent-tint' : changed ? 'bg-met-tint' : ''}`}
+              className={`w-full pr-9 transition-colors duration-500 motion-reduce:transition-none ${highlight ? 'border-brand-accent bg-brand-accent-tint' : changed ? 'bg-met-tint' : ''}`}
               aria-label={label}
               aria-invalid={unreadable || undefined}
               aria-describedby={unreadable ? errorId : showFailure !== null ? failureId : conflict?.id}

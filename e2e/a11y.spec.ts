@@ -77,3 +77,51 @@ test('the app screens have no accessibility violations', async ({ page }) => {
   }
   expect(csp).toEqual([]);
 });
+
+test('the main screens have no accessibility violations in dark (§9.1)', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await fakeGithub(page).install();
+  await connect(page);
+  await expect(page.locator('html')).toHaveClass(/dark/);
+
+  await createTeam(page, 'Platform');
+  await createInitiative(page, 'Checkout Redesign', 'Platform');
+  await expectNoViolations(page); // initiative detail
+
+  const screens: [route: string, ready: () => Locator][] = [
+    ['/#/initiatives', () => page.getByRole('heading', { level: 1, name: 'Initiatives' })],
+    ['/#/portfolio', () => page.getByRole('navigation', { name: 'Primary' }).locator('a:not([aria-current])', { hasText: 'Initiatives' })],
+    ['/#/settings/roles', () => page.getByRole('navigation', { name: 'Settings sections' }).locator('[aria-current="page"]', { hasText: 'Roles' })],
+  ];
+  for (const [route, ready] of screens) {
+    await page.goto(route);
+    await expect(ready()).toBeVisible();
+    await expectNoViolations(page);
+  }
+
+  // The open theme menu: Radix hides the page behind a modal menu, which axe's aria-hidden-focus flags on every
+  // such menu, so only its state is asserted here.
+  await page.getByRole('button', { name: 'Theme: System' }).click();
+  await expect(page.getByRole('menuitemradio', { name: 'System' })).toHaveAttribute('aria-checked', 'true');
+});
+
+test('a saved theme is on the page before first paint, under the strict CSP (§9.1)', async ({ page }) => {
+  const csp = watchCspViolations(page);
+  await fakeGithub(page).install();
+  // Records the root's class at the first animation frame, which comes before the first paint and before the app mounts.
+  await page.addInitScript(`
+    if (!localStorage.getItem('theme')) localStorage.setItem('theme', 'dark');
+    requestAnimationFrame(() => { window.darkAtFirstFrame = document.documentElement.classList.contains('dark'); });
+  `);
+  await page.goto('/');
+  await expect(page.getByLabel('GitHub token')).toBeVisible();
+  expect(await page.evaluate('window.darkAtFirstFrame')).toBe(true);
+  expect(csp).toEqual([]);
+
+  await connect(page);
+  await page.getByRole('button', { name: 'Theme: Dark' }).click();
+  await page.getByRole('menuitemradio', { name: 'Light' }).click();
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Theme: Light' })).toBeVisible();
+});

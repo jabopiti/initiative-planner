@@ -32,11 +32,13 @@ survives a reload, and users who ask for less motion get none.
 
 - One icon button at the right end of the top bar (after search and the
   sync indicator) opens a menu: System, Light, Dark, with a check on the
-  current one. The button shows the current theme's icon (Lucide Monitor,
+  current one, each row with its Lucide icon (Monitor, Sun, Moon). The button shows the current theme's icon (Lucide Monitor,
   Sun, Moon), has the accessible name "Theme: <current>" and a tooltip.
 - Stored in `localStorage` (never synced, §9.1), applied before first paint
-  by the app's own module script (no inline script, §10.9) to avoid a
-  flash; storage errors fall back to System.
+  by the app's own blocking classic script (`public/theme-init.js`, loaded in
+  `<head>`, no inline script, §10.9; a module script is deferred and could
+  flash) to avoid a flash; storage errors and unknown stored values fall
+  back to System.
 - System resolves via `matchMedia('(prefers-color-scheme: dark)')` and follows
   OS changes live.
 - The resolved theme toggles `.dark` on the document root.
@@ -53,10 +55,21 @@ survives a reload, and users who ask for less motion get none.
       offers System, Light and Dark with a check on the current one, and it
       works by keyboard.
 - [ ] Given the production build under the strict CSP, then a reload in
-      Dark shows no flash of Light.
+      Dark shows no flash of Light (`.dark` is on the root before first paint).
 - [ ] Given reduced motion, then the tint changes instantly.
 - [ ] Given axe in dark mode on Portfolio, Initiatives, an initiative page
       and Settings, then there are no violations.
+
+## Decided in review (pre-implementation)
+
+- 3 Oct 2026, from mockups: menu rows carry their icon (Monitor, Sun, Moon)
+  as well as the check; accessible name and tooltip both read "Theme:
+  <current>".
+- The saved theme is applied by a blocking classic `theme-init.js` in
+  `<head>`, not a module script.
+- Assumptions: `color-scheme: dark` is set under `.dark`; other tabs are
+  not followed live; the OS-change listener acts only while System is
+  chosen; the sheet's slide animation is not a tint fade and stays.
 
 ## Flags and compromises
 
