@@ -426,9 +426,12 @@ export class Repository {
   /** What changed in the repository since what is on screen: null when nothing did, else the files that did. */
   private async fetchPull(): Promise<Pulled | null> {
     const branch = this.brand.github.dataBranch;
-    const head = await this.github.getBranchHead({ branch, etag: this.state.status === 'ready' ? (this.meta?.etag ?? null) : null });
+    // While the dataset is refused, the head on screen is no proof the repository is fine: the owner may restore it by
+    // moving the branch back to exactly that commit, so the pull reads and validates it again rather than stop here.
+    const unchangedEndsPull = this.state.status === 'ready' && this.datasetRefusal === null;
+    const head = await this.github.getBranchHead({ branch, etag: unchangedEndsPull ? (this.meta?.etag ?? null) : null });
     if (head === 'not-modified') return null;
-    if (head && this.meta && this.state.status === 'ready' && head.sha === this.meta.head) return null;
+    if (head && this.meta && unchangedEndsPull && head.sha === this.meta.head) return null;
 
     // Listing and files are read at the head just checked, so they are one commit's snapshot: validation across
     // files (§3 Damaged data) never sees half of another user's change, such as a membership without its person.

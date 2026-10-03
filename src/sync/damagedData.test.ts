@@ -186,4 +186,30 @@ describe('a refused dataset is never written (§3 Data integrity)', () => {
     expect(repo.getState().readOnly).toBeNull();
     expect(fake.read('initiatives/i1.json')).toMatchObject({ name: 'Payments API v2' });
   });
+
+  it('a restore that moves the branch back to the head on screen recovers too', async () => {
+    const { repo } = await open(fake, { initiatives: [initiative()] });
+    await repo.whenPulled();
+    // The head this client last applied, answered again once the owner force-pushes the branch back to it.
+    const headPath = `/git/ref/heads/${defaultBrandPack.github.dataBranch}`;
+    const goodHead = await fake.fetchMock(`https://api.github.com/repos/o/r${headPath}`);
+    const pinned = { body: await goodHead.text(), etag: goodHead.headers.get('etag')! };
+    const good = fake.read('people.json');
+    fake.seed('people.json', {});
+    await repo.pull();
+    expect(repo.getState().readOnly?.cause).toBe('damaged');
+
+    fake.seed('people.json', good);
+    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+      if (!new URL(url).pathname.endsWith(headPath)) return fake.fetchMock(url, init);
+      if (new Headers(init.headers).get('If-None-Match') === pinned.etag) return Promise.resolve(new Response(null, { status: 304 }));
+      return Promise.resolve(new Response(pinned.body, { status: 200, headers: { etag: pinned.etag } }));
+    });
+    await repo.pull();
+    repo.renameInitiative('i1', 'Payments API v2');
+    await repo.flushPending();
+
+    expect(repo.getState().readOnly).toBeNull();
+    expect(fake.read('initiatives/i1.json')).toMatchObject({ name: 'Payments API v2' });
+  });
 });
