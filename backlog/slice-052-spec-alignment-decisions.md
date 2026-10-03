@@ -8,10 +8,10 @@ depends_on: []
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Added from the post-build review of the implementation against the spec (slices 001 to 041). Review: places where the spec contradicts itself or the build deviates without a recorded decision."
+change_summary: "Added from the post-build review of the implementation against the spec (slices 001 to 041). Review: places where the spec contradicts itself or the build deviates without a recorded decision. Backlog reshuffle (3 Oct 2026): took over the UX review's F14 (one way of writing compact amounts and dates) from 057, so formats are decided and changed once; 060 waits on this item for the decimal separator."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "Mostly decisions and spec edits; code follows from what the user picks."
-spec_sections: ["§9.7 Language and formats", "§9.9 Interface states", "§5.7 Teams overview", "§9.10 Icons", "§10.6 Identifiers and links", "§5.11 Suggestions and shortcuts"]
+spec_sections: ["§9.7 Language and formats", "§9.11 Lists, filters, inputs and amounts", "§9.9 Interface states", "§5.7 Teams overview", "§9.10 Icons", "§10.6 Identifiers and links", "§5.11 Suggestions and shortcuts"]
 ---
 
 # Align the spec and the build: locale formats, toasts, Teams cards, deep links
@@ -29,6 +29,10 @@ in `docs/spec.md`, and the code matches.
 1. **Formats (§9.7).** Spec: format "according to the user's browser locale".
    Build: fixed `en` / `en-GB` in `formatAmount.ts`, `ConnectionSection.tsx`,
    `Repository.ts`, `dates.ts` (English month names, `DD.MM.YYYY`).
+   Also F14 from the October 2026 UX review (moved from 057): compact
+   amounts are written several ways and date fields show an OS-dependent
+   format; 057 assumed "€395k" (no space) and "1 Oct 2026". Decide all
+   display formats here in one pass, then change them once in code.
 2. **Toasts (§9.9).** Spec: "there is no toast stack", yet §3 (line ~393) and
    §5.11 (line ~1128) call for toasts, and the build uses sonner for copy,
    team change and the token check.

@@ -8,10 +8,10 @@ depends_on: ["056", "057"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Layout update' plus the lens items page shell and process visuals: F11, F16, F17, F25, F26, F27, F30. Layout options are shown as mockups before implementation (AGENTS.md Order of work, step 2); may be split in two when picked up."
+change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Layout update' plus the lens items page shell and process visuals: F11, F16, F17, F25, F26, F27, F30. Layout options are shown as mockups before implementation (AGENTS.md Order of work, step 2); may be split in two when picked up. Backlog reshuffle (3 Oct 2026): F26 (Connect) moved to 049, which changes the same screen and message table; F13 (Copy button placement) joined from 055 and the board column header icons from 050, since the shared toolbar row here is where the button ends up."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Layout across every screen, a time strip on the busiest page, and first-run and settings states."
-spec_sections: ["§5.1 Navigation", "§5.2 Portfolio overview", "§5.4 Initiative detail view", "§5.9 Settings", "§5.10 Connect screen", "§9.4 Empty states", "§9.8 Visual design", "§9.9 Interface states"]
+spec_sections: ["§5.1 Navigation", "§5.2 Portfolio overview", "§5.4 Initiative detail view", "§5.9 Settings", "§9.4 Empty states", "§9.8 Visual design", "§9.9 Interface states", "§9.10 Icons"]
 ---
 
 # Page shell and layout: shared container, phase time strip, first-run and empty states
@@ -21,8 +21,8 @@ spec_sections: ["§5.1 Navigation", "§5.2 Portfolio overview", "§5.4 Initiativ
 **Problem statement:** On a laptop half the window is unused on the main
 working page; each screen sets its own width and header. First run shows
 three "Create a team" buttons, Getting started never goes away, empty
-board columns show nothing, locked settings look disabled, and the Connect
-error gives no next step.
+board columns show nothing, locked settings look disabled, and the Copy
+button sits in a different place on each screen.
 
 **Outcome statement:** Every screen sits in one shell with the same header
 and toolbar; the detail page is one deliberate 960 px column with a phase
@@ -39,7 +39,8 @@ time strip; first-run and empty states each have one clear action.
    phase sized by its period, labelled with name and cost, past and current
    filled, no period hatched, month labels and a Today marker; selecting a
    segment scrolls to the phase. Tailwind HTML only (§10.1). Board column
-   headers keep count and sum only, restyled (count as a small pill).
+   headers keep count and sum only, restyled (count as a small pill), with
+   the phase icon beside the label (§9.10; moved here from 050).
 3. **F16** Getting started (§5.2): cleared items ticked and struck through,
    "2 of 4 done" with a progress bar; at three of four done it collapses to
    a chip in the filter row that opens the remaining step in a popover;
@@ -49,8 +50,9 @@ time strip; first-run and empty states each have one clear action.
    top-bar create button is hidden.
 5. **F25** New initiative: muted placeholder; greyed previews of the cost
    summary and phases.
-6. **F26** Connect: shadcn Checkbox and Label; the 401 message names the
-   likely cause and links "Create a new token" (§5.10).
+6. **F13** (from 055) Copy button: on every screen at the right end of
+   the shared toolbar row, after the count, a ghost button labelled "Copy
+   table".
 7. **F27** Empty board column: dashed placeholder "No initiatives in
    <phase>".
 8. **F30** Locked settings (§5.9): values as plain text, "Unlock to edit"
@@ -84,13 +86,15 @@ time strip; first-run and empty states each have one clear action.
 - [ ] Given two of four Getting started steps done, then the strip shows
       them ticked and "2 of 4 done"; given three, it collapses to a chip
       reading "Getting started · 3 of 4 done".
+- [ ] Given a board column header, then it shows the phase icon beside
+      the label, the count as a pill and the sum.
 - [ ] Given an empty board column, then it shows "No initiatives in
       <phase>".
 - [ ] Given locked Settings, then values render as text, not disabled
       fields, with "Unlock to edit" in the section header; unlocked, the
       button reads "Lock".
-- [ ] Given a rejected token on Connect, then the error names the cause and
-      links to creating a new token.
+- [ ] Given each screen with a table, then "Copy table" is a ghost button
+      at the right end of the toolbar row, after the count.
 - [ ] Given the e2e axe scan in both themes, then every changed screen passes.
 
 ## Flags and compromises
@@ -111,4 +115,5 @@ Mockups 045-1 to 045-7 (2 October 2026, when this slice was numbered 045):
 - **Board column headers: count and sum only (B).** No share bar.
 - **First run: welcome card (A).** Recorded in §9.4 and §5.1.
 - **Locked settings: button in section header (A).** Recorded in §5.9.
-- **Connect 401: cause and one link (A).** Recorded in §5.10.
+- **Connect 401: cause and one link (A).** Recorded in §5.10; built in
+  049 since the 3 Oct 2026 reshuffle.

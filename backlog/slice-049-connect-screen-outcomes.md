@@ -8,7 +8,7 @@ depends_on: ["040"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Added from the post-build review of the implementation against the spec (slices 001 to 041). Review findings: the Connect screen unmounts before showing the classic-token warning, does not check a pasted token, and the 'cannot see' message omits the repository."
+change_summary: "Added from the post-build review of the implementation against the spec (slices 001 to 041). Review findings: the Connect screen unmounts before showing the classic-token warning, does not check a pasted token, and the 'cannot see' message omits the repository. Backlog reshuffle (3 Oct 2026): took over the UX review's F26 from 058 (same screen, same message table), as decided with the user from mockups on 2 Oct 2026 (cause and one link, recorded in §5.10)."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "Contained UI changes to one screen and one message table; mirror ReplaceTokenField."
 spec_sections: ["§5.10 Connect screen", "§3 Storage & sync (Authentication)", "§9.9 Interface states"]
@@ -32,6 +32,9 @@ the real app, and agrees with the Replace-token field.
 ## Scope
 
 - `onPaste` checks at once, as `ReplaceTokenField` does.
+- F26 (from 058): the remember option is a shadcn Checkbox with its Label;
+  the 401 message names the likely cause and links "Create a new token"
+  (§5.10).
 - A classic token connects, then the warning stays visible until dismissed
   (inline, with the link), not a toast.
 - `TOKEN_CHECK_MESSAGES` take `owner/repo`; used by the Connect screen, the
@@ -45,6 +48,8 @@ the real app, and agrees with the Replace-token field.
       fine-grained link until dismissed.
 - [ ] Given a token that cannot see the repository, then the message reads
       "This token can't see owner/repo." (copy per §5.10).
+- [ ] Given a rejected token (401), then the error names the likely cause
+      and links "Create a new token".
 - [ ] Given each outcome of the §5.10 table, then an App-level test asserts
       its message and whether the app opens.
 

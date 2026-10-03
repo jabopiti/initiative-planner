@@ -8,7 +8,7 @@ depends_on: ["036"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Quick fixes'. Thirteen small, independent findings: F01, F03, F09, F10, F13, F18, F21, F22, F23, F24, F28, F29, F31. F18 was missing from the review's roadmap and is added here. F02 (allocation table errors) moved to 061, which rebuilds that table."
+change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Quick fixes'. Small, independent findings: F01, F03, F10, F18, F21, F22, F23, F24, F28, F29, F31. F18 was missing from the review's roadmap and is added here. F02 (allocation table errors) moved to 061, which rebuilds that table. Backlog reshuffle (3 Oct 2026): F09 (long names) moved to 056 with the other header fields, F13 (Copy button) to 058's shared toolbar row; eleven findings remain."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "Many small, local fixes, each with a cheap test to write first; no new shared pattern beyond one focus token and one row-actions menu."
 spec_sections: ["§9.5 Accessibility", "§9.8 Visual design", "§9.10 Icons", "§9.2 Copy", "§5.1 Navigation (sync indicator)", "§5.4 Initiative detail view", "§5.6 Person detail view", "§5.8 Team detail view"]
@@ -19,14 +19,13 @@ spec_sections: ["§9.5 Accessibility", "§9.8 Visual design", "§9.10 Icons", "�
 ## Intent
 
 **Problem statement:** The October 2026 UX review found small defects that
-people hit every day: percent fields cut off "100", an inline error pushes
-the allocation table out of shape, focus on buttons is hard to see, long
-initiative names are clipped mid-word, and row actions are unlabelled icons
-whose meaning changes from screen to screen.
+people hit every day: percent fields cut off "100", focus on buttons is
+hard to see, and row actions are unlabelled icons whose meaning changes
+from screen to screen.
 
-**Outcome statement:** Every field shows its whole value, errors don't move
-the layout, one clearly visible focus ring is used everywhere, and every
-row action says what it does.
+**Outcome statement:** Every field shows its whole value, one clearly
+visible focus ring is used everywhere, and every row action says what it
+does.
 
 ## Scope
 
@@ -39,33 +38,29 @@ screenshots.
 2. **F03 One focus ring.** Button, input, select, checkbox and toggle
    variants use the same `--focus-ring` outline (2 px, 2 px offset) as the
    base `:focus-visible` rule; `ring/50` is removed.
-3. **F09 Long initiative names.** The header title wraps to two lines (an
-   auto-growing textarea, as the description already does).
-4. **F10 Row actions.** Row actions on People, Team detail and Settings
+3. **F10 Row actions.** Row actions on People, Team detail and Settings
    lists move into a "⋯" DropdownMenu with text labels ("Remove from team",
    "Deactivate person", "Delete"). §9.10 gains an icon vocabulary table:
    one meaning per Lucide icon.
-5. **F13 Copy button.** Same place on every screen (right end of the
-   toolbar row, after the count), a ghost button labelled "Copy table".
-6. **F18 Sync status and nav badge.** The synced check shows "Saved" on
+4. **F18 Sync status and nav badge.** The synced check shows "Saved" on
    hover and focus; while writes are pending it reads "Saving…". The nav
    badge gets a tooltip ("1 needs attention").
-7. **F21 Person panel focus.** Opening the panel moves focus to its heading
+5. **F21 Person panel focus.** Opening the panel moves focus to its heading
    without selecting text.
-8. **F22 Tentative note.** The field is labelled "Why tentative?"; the
-   checklist toggles' tooltips open below them so they don't cover the
-   count.
-9. **F23 Landmarks.** Routed content sits in `<main>`; the magic bar is a
-    labelled region; each screen has one h1 (visually hidden where the
-    design has none). The e2e axe scan turns on `region` and
-    `landmark-one-main`.
-10. **F24 Table alignment.** Cells are vertically centred; numeric headers
-    are right-aligned with their columns. The allocation table and the
-    capacity grid are rebuilt in 061 and 062, so they are left out here.
-11. **F28 Filter options** sorted alphabetically, selected ones first.
-12. **F29 Actions menu.** "Cancel" reads "Cancel initiative…"; a separator
+6. **F22 Tentative note.** The field is labelled "Why tentative?". (The
+   checklist toggles' tooltips are left alone: 059 replaces the toggles
+   with a labelled control.)
+7. **F23 Landmarks.** Routed content sits in `<main>`; the magic bar is a
+   labelled region; each screen has one h1 (visually hidden where the
+   design has none). The e2e axe scan turns on `region` and
+   `landmark-one-main`.
+8. **F24 Table alignment.** Cells are vertically centred; numeric headers
+   are right-aligned with their columns. The allocation table and the
+   capacity grid are rebuilt in 061 and 062, so they are left out here.
+9. **F28 Filter options** sorted alphabetically, selected ones first.
+10. **F29 Actions menu.** "Cancel" reads "Cancel initiative…"; a separator
     sits before the destructive items.
-13. **F31 Actions tooltip** doesn't reopen when the menu returns focus to
+11. **F31 Actions tooltip** doesn't reopen when the menu returns focus to
     its button.
 
 ## Execution path
@@ -86,12 +81,8 @@ screenshots.
       % are visible in every percent field.
 - [ ] Given keyboard focus on a primary button, an input and a select, then
       each shows the same 2 px `--focus-ring` outline.
-- [ ] Given a 90-character initiative name, then the header shows it in full
-      over at most two lines.
 - [ ] Given People, Team detail and Settings rows, then every row action has
       a text label in a ⋯ menu; no icon-only row action remains.
-- [ ] Given each table screen, then Copy table sits at the right end of the
-      toolbar row.
 - [ ] Given synced, hovering or focusing the indicator shows "Saved"; given
       a pending write, it reads "Saving…".
 - [ ] Given the person panel opens, then no text is selected and focus is on

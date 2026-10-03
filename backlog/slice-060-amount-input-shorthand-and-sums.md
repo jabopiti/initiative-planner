@@ -8,7 +8,7 @@ depends_on: ["052"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Chosen by the user on 2 Oct 2026 from the research page 'Patterns worth borrowing' (pattern 2, finance-app currency inputs). One shared AmountInput used by cost items, actuals and day rates, built before 061 so that slice's tables use it from the start. Also takes the '€ inside the field' half of the review's F15. §9.11 updated."
+change_summary: "Chosen by the user on 2 Oct 2026 from the research page 'Patterns worth borrowing' (pattern 2, finance-app currency inputs). One shared AmountInput used by cost items, actuals and day rates, built before 061b (061 until the 3 Oct 2026 reshuffle) so that slice's tables use it from the start. Also takes the '€ inside the field' half of the review's F15. §9.11 updated."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "One component and one pure parser with exact decimals; a table of parser cases is cheap to write first."
 spec_sections: ["§9.11 Lists, filters, inputs and amounts", "§9.7 Language and formats", "§5.4 Initiative detail view", "§5.9 Settings"]
@@ -53,7 +53,7 @@ field.
 
 - **Desirable:** Typing amounts the way people say them.
 - **Usable:** The saved amount is visible before it's saved.
-- **Valuable:** One shared field that 061's three tables use from day one.
+- **Valuable:** One shared field that 061b's cost items and actuals use from day one.
 
 ## Acceptance criteria
 

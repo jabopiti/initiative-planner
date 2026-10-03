@@ -2,13 +2,13 @@
 slice_id: "001"
 title: "Audit prototype engine code for reuse"
 type: "spike"
-status: "valid"
+status: "retired"
 criteria_failures: []
 depends_on: []
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: null
+change_summary: "Retired in the backlog reshuffle of 3 Oct 2026: an enabling spike from before the build; slices 003 to 041 built the engine and the GitHub round trip without it, so it no longer informs any decision."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "Reading and judging existing code against a detailed written spec is a bounded reasoning task with a clear rubric (§7); escalate to Claude Opus 5 only if the prototype is large or its logic diverges substantially from the spec's formulas."
 spec_sections: ["§7.1 Time granularity and cost of an allocation", "§7.2 Capacity, rates, and the three percentages", "§7.3 Actuals", "§7.4 Approval tracks", "§6 Data model (Phase data, Cost item, Country, Role)"]

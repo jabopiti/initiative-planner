@@ -4,11 +4,11 @@ title: "Visual refresh: theme control, type scale, surfaces and status badges"
 type: "feature"
 status: "valid"
 criteria_failures: []
-depends_on: ["055"]
+depends_on: ["047", "055"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Theme and tokens' plus the review's visual-design lens (type, fewer boxes, shadcn components, motion, test both themes): F04, F12, F14, F19, F20. Look-and-feel decisions settled with the user from mockups: Geist typeface, soft layers, neutral dot status with outline track badge, theme icon button with a menu (§9.1 updated), brand-pack team swatches, subtle motion; then zinc greys with forest accent, graphite dark theme, top bar kept, no extra themes. Component decisions moved to slice 059."
+change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Theme and tokens' plus the review's visual-design lens (type, fewer boxes, shadcn components, motion, test both themes): F04, F12, F14, F19, F20. Look-and-feel decisions settled with the user from mockups: Geist typeface, soft layers, neutral dot status with outline track badge, theme icon button with a menu (§9.1 updated), brand-pack team swatches, subtle motion; then zinc greys with forest accent, graphite dark theme, top bar kept, no extra themes. Component decisions moved to slice 059. Backlog reshuffle (3 Oct 2026): F14 moved to 052 with the locale formats decision; the motion item moved into 059's motion list; now after 047, so the palette and team colours land in the brand pack once it is the single colour source."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Changes tokens every screen reads and adds a brand-pack field (typeface, team palette); hard to reverse once screens are built on it."
 spec_sections: ["§2 What the build fixes (brand pack)", "§9.1 Theming", "§9.5 Accessibility", "§9.8 Visual design", "§9.10 Icons", "§10.1 Framework and UI foundations", "§10.7 Distribution, build and deploy", "§10.9 Security"]
@@ -45,11 +45,7 @@ used everywhere, and colour still only carries meaning (§9.8).
    variants, sentence case.
 5. **F20 Team colours.** Brand-pack categorical tokens for light and dark,
    checked by the existing contrast check, shown as a small swatch.
-6. **F14 Formats.** Compact amounts written one way; date fields displayed
-   "1 Oct 2026".
-7. **Motion.** 120–180 ms transitions on accordion, toast and the gate pass
-   moment; all off under `prefers-reduced-motion` (§9.5).
-8. **Both themes tested.** The e2e axe pass runs in light and dark.
+6. **Both themes tested.** The e2e axe pass runs in light and dark.
 
 ## Execution path
 
@@ -79,9 +75,6 @@ used everywhere, and colour still only carries meaning (§9.8).
       different badge variants.
 - [ ] Given team colours, then they come from brand-pack tokens that pass
       the contrast check in both themes, shown as a swatch beside the name.
-- [ ] Given dates and compact amounts, then each appears in one format
-      across all screens.
-- [ ] Given `prefers-reduced-motion: reduce`, then no transition runs.
 - [ ] Given the e2e axe scan, then every screen passes in light and dark.
 - [ ] Given the production build, then no request leaves for any host but
       the GitHub API (fonts are bundled).
@@ -125,7 +118,8 @@ surfaces, badges, theme control, team colours).
   tokens in creation order, wrapping after six.
 - **Motion: subtle.** 120–180 ms on the phase accordion, toasts, the gate
   pass moment and a brief tint when a figure recalculates; none under
-  `prefers-reduced-motion: reduce`.
+  `prefers-reduced-motion: reduce`. Built in 059 since the 3 Oct 2026
+  reshuffle.
 - **Colour (round 2):** neutral zinc greys (no green tint) with the
   current forest-green accent, so the accent is the only colour that is not
   a state. Warning, Alarm and Met roles unchanged.
@@ -138,5 +132,6 @@ surfaces, badges, theme control, team colours).
   period range picker and the extra motion (hover lift, figure roll, page
   fade, gate pass celebration).
 - **Assumptions (cheap to change, not asked):** radius stays 8 px (cards 10 px); compact amounts read
-  "€395k" (no space); date fields display "1 Oct 2026"; the §9.10 icon
-  vocabulary table from 055 is reused.
+  "€395k" (no space); date fields display "1 Oct 2026" (both now carried
+  by 052's formats decision); the §9.10 icon vocabulary table from 055 is
+  reused.

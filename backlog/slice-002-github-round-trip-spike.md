@@ -2,13 +2,13 @@
 slice_id: "002"
 title: "GitHub round-trip technical spike"
 type: "spike"
-status: "valid"
+status: "retired"
 criteria_failures: []
 depends_on: []
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: null
+change_summary: "Retired in the backlog reshuffle of 3 Oct 2026: an enabling spike from before the build; slices 003 to 041 built the engine and the GitHub round trip without it, so it no longer informs any decision."
 recommended_model: "Claude Opus 5"
 model_rationale: "The highest-uncertainty item in the whole backlog: real external API behaviour, auth edge cases, and a security control (CSP) that is hard to verify by simple tests. Worth the strongest available reasoning; do not downgrade even for token cost."
 spec_sections: ["§2 Hosting & technology, Brand pack (GitHub location)", "§3 Storage & sync (Authentication, Sync failures, Damaged data, Versioning and migration)", "§10.1 Framework and UI foundations (CSP)", "§10.2 Data layout", "§10.3 Writing", "§10.5 Merging", "§10.7 Distribution, build and deploy"]

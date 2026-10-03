@@ -1,7 +1,7 @@
 ---
 generated_from: "Initiative Planner (white-label core) spec, v1 — 22 September 2026"
-total_slices: 68
-valid_slices: 68
+total_slices: 70
+valid_slices: 67
 flagged_slices: 0
 ---
 
@@ -60,8 +60,8 @@ for the AI-agent-driven build the team asked for:
 
 | ID | Title | Status | Depends on |
 |---|---|---|---|
-| 001 | Audit prototype engine code for reuse | ✅ valid | — |
-| 002 | GitHub round-trip technical spike | ✅ valid | — |
+| 001 | Audit prototype engine code for reuse | 🗄 retired | — |
+| 002 | GitHub round-trip technical spike | 🗄 retired | — |
 | 003 | Connect, create a team, and create a named initiative | ✅ valid | 002 |
 | 003b | Migrate to Vite, Tailwind CSS v4, shadcn/ui and Lucide | ✅ valid | 003 |
 | 003c | Portfolio empty state names active and inactive teams | ✅ valid | 003 |
@@ -115,7 +115,7 @@ for the AI-agent-driven build the team asked for:
 | 039 | Commit messages describe the net effect of grouped edits | ✅ valid | 005g |
 | 040 | GitHub client edge cases: slashed branch names, large files, token check failures | ✅ valid | 003 |
 | 041 | Copied cells that look like formulas stay text | ✅ valid | 004c |
-| 042 | A frozen phase refuses every edit in the data layer | ✅ valid | 008, 015 |
+| 042 | Frozen phases: the data layer refuses every edit, and the snapshot keeps what its figures came from | ✅ valid | 008, 015 |
 | 043 | Classify GitHub failures correctly: rate-limit 403, 5xx, timeouts | ✅ valid | 005j, 037 |
 | 044 | Detect damaged data, never bootstrap over it, and refuse writes in read-only | ✅ valid | 005j, 040 |
 | 045 | Warn before closing with unsaved changes, and handle a full local cache | ✅ valid | 005i |
@@ -124,17 +124,19 @@ for the AI-agent-driven build the team asked for:
 | 048 | Rename a team, and Undo removing a membership | ✅ valid | — |
 | 049 | Connect screen: check on paste, show the classic-token warning, name the repository | ✅ valid | 040 |
 | 050 | Initiative page and Needs attention fixes from the review | ✅ valid | 011, 019, 026 |
-| 051 | Frozen snapshot keeps the rates, roles, countries and person data | ✅ valid | 008 |
+| 051 | Frozen snapshot keeps the rates, roles, countries and person data | ↪ merged into 042 | 008 |
 | 052 | Align the spec and the build: locale formats, toasts, Teams cards, deep links | ✅ valid | — |
 | 053 | Close the §10.8 test and CI gaps | ✅ valid | 037, 044 |
 | 054 | Small fixes from the review | ✅ valid | — |
 | 055 | UX review quick fixes: fields, focus, row actions and small copy | ✅ valid | 036 |
-| 056 | Initiative detail: current phase first, complete gate panel, clearer magic bar | ✅ valid | 015, 026 |
-| 057 | Visual refresh: theme control, type scale, surfaces and status badges | ✅ valid | 055 |
+| 056 | Initiative detail: current phase first, complete gate panel, clearer magic bar | ✅ valid | 015, 026, 050 |
+| 057 | Visual refresh: theme control, type scale, surfaces and status badges | ✅ valid | 047, 055 |
 | 058 | Page shell and layout: shared container, phase time strip, first-run and empty states | ✅ valid | 056, 057 |
-| 059 | Detail components: key figures, labelled checklist, period range picker, motion | ✅ valid | 056, 057 |
+| 059 | Detail components: key figures with bullet bar, labelled checklist, motion | ✅ valid | 056, 057 |
+| 059b | Period range picker: Start and End in one control, saved on Done | ✅ valid | 056, 057 |
 | 060 | Amount input: shorthand, simple sums and the currency inside the field | ✅ valid | 052 |
-| 061 | Phase editing: allocation load bar, team roster, cost item month strip, actuals that record in one click | ✅ valid | 056, 057, 059, 060 |
+| 061 | Phase editing: allocation load bar and team roster | ✅ valid | 056, 057 |
+| 061b | Phase editing: cost item month strip, actuals that record in one click | ✅ valid | 056, 057, 059b, 060 |
 | 062 | Team capacity: split bar in the person panel, heatmap with fixes on the team page | ✅ valid | 048, 057 |
 | 063 | Changed since you last looked: dots on cards and rows, previous figures on the page | ✅ valid | 058, 059 |
 
@@ -236,6 +238,23 @@ for the AI-agent-driven build the team asked for:
   062 waits for 048's membership Undo and 057's team colours; 063 adds
   its markers last, onto 058's cards and 059's key figures. The bullet bar
   went into 059 itself, where the Grand estimate tile is built.
+- **Backlog reshuffle, 3 Oct 2026.** With the review-fix slices (042 to
+  054) and the UX slices (055 to 063) both open, the user had every open
+  slice checked for work done twice, slices too big for one session and
+  stale entries. Applied: 001 and 002 retired (spikes the build no longer
+  needs); 051 merged into 042 (same freeze code); 057's F14 formats moved
+  to 052 (one formats decision), its motion item to 059 (one motion list),
+  and 057 now waits on 047 (palette edited in the brand pack once);
+  058's F26 moved to 049 (same Connect screen); 050's Overrun blocker line
+  and phase overview moved to 056 and its board column icons to 058, and
+  056 now waits on 050; 055's F09 moved to 056 and F13 to 058's toolbar;
+  059 split into 059 and 059b (range picker); 061 split into 061
+  (allocations) and 061b (cost items and actuals). Suggested order:
+  (1) any time, no UI overlap: 042, 044, 045, 048, 049, 052, 053;
+  (2) foundations: 046 → 047 → 055 → 057; (3) initiative page: 050 → 056
+  → 058, 059, 059b; (4) editing: 060 → 061, 061b; 062; 063. Not applied:
+  moving 057's decided theme control (icon button with a menu) into 046,
+  so as written 046 builds a cycle button that 057 then replaces.
 
 ## Build plan (slices 012 to 041, parallel sessions)
 
