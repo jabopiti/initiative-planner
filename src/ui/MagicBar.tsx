@@ -16,6 +16,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 /** How long "Passed <gate> — Reopen" (or "Skipped <gate> — Reopen") shows before the bar moves on (§5.4, §9.9: a few seconds). */
 const PASSED_MESSAGE_MS = 5000;
 
+/** Pass gate's own id: where a Ready link from Needs attention lands (§5.2, §8.5), whatever text actions sit beside it. */
+export const PASS_GATE_ANCHOR = 'pass-gate';
+
 /** The current phase's own row for the stepper (§5.4): a compact dot, current one accented. */
 function StepperDot({ state }: { state: 'done' | 'current' | 'ahead' }) {
   const cls = state === 'done' ? 'bg-met' : state === 'current' ? 'bg-brand-accent' : 'bg-border-strong';
@@ -263,7 +266,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
                 Skip {gateLabel}
               </button>
             )}
-            <Button ref={passButton} type="button" variant={ready && !onHold ? 'default' : 'ghost'} onClick={onHold ? () => setHoldAsked('pass') : ready ? pass : jump}>
+            <Button ref={passButton} id={PASS_GATE_ANCHOR} type="button" variant={ready && !onHold ? 'default' : 'ghost'} onClick={onHold ? () => setHoldAsked('pass') : ready ? pass : jump}>
               Pass gate
             </Button>
           </div>

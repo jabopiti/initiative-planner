@@ -58,14 +58,14 @@ the spec's wording and states, and no state is carried between initiatives.
 
 ## Acceptance criteria
 
-- [ ] Given an Active initiative on its current phase's end date with only a
+- [x] Given an Active initiative on its current phase's end date with only a
       Tentative item open, then it reads Due ("N of M complete"), not Ready;
       before that date it reads Ready.
-- [ ] Given a Ready item opened from Needs attention, then focus is on Pass
+- [x] Given a Ready item opened from Needs attention, then focus is on Pass
       gate, also when Skip or Start-at is shown.
-- [ ] Given Delete open on initiative A and a jump to B, then B shows no
+- [x] Given Delete open on initiative A and a jump to B, then B shows no
       confirmation.
-- [ ] Given Needs attention deep links to Escalated, Overdue, Due and Ready,
+- [x] Given Needs attention deep links to Escalated, Overdue, Due and Ready,
       then each lands on its target (tests cover all, not only Overrun).
 
 ## Flags and compromises

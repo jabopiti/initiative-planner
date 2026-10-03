@@ -22,7 +22,7 @@ import { useHashRoute } from './router/useHashRoute';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-function Screen({ route }: { route: string }) {
+export function Screen({ route }: { route: string }) {
   const { status, readOnly } = useRepositoryState();
   // Until the dataset has loaded every list would read as empty and every id as missing. If it cannot
   // load, the screens stay away and the reason is shown instead of "No teams yet".
@@ -45,7 +45,7 @@ function Screen({ route }: { route: string }) {
     const rest = route.slice('/initiatives/'.length);
     const [id, query = ''] = rest.split('?');
     const params = new URLSearchParams(query);
-    return <InitiativeDetail id={id} focus={params.get('focus')} openPhaseId={params.get('openPhase')} />;
+    return <InitiativeDetail key={id} id={id} focus={params.get('focus')} openPhaseId={params.get('openPhase')} />;
   }
   if (route === '/initiatives') return <InitiativesTable />;
   if (route === '/people') return <PeopleOverview />;
