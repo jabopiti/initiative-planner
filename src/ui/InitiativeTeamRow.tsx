@@ -13,6 +13,7 @@ import { formatAmount } from './formatAmount';
 import { InitiativeActionsMenu } from './InitiativeActionsMenu';
 import { FrozenStrip } from './FrozenStrip';
 import { CancelledIcon, FrozenIcon, OnHoldIcon } from './icons';
+import { headerFieldClass } from './headerFieldClass';
 import { OwnerSelect } from './OwnerSelect';
 import { TeamSelect } from './TeamSelect';
 import { Button } from '@/components/ui/button';
@@ -94,7 +95,8 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
 
   return (
     <div className="mb-6">
-      <div className="flex items-center gap-3 text-text-secondary">
+      {/* Pulled back by the fields' own padding, so their text lines up with the cards below (§5.4). */}
+      <div className="-ml-3 flex items-center gap-3 text-text-secondary">
         {!frozen ? (
           <TeamSelect
             ref={triggerRef}
@@ -108,7 +110,7 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
               event.preventDefault();
               applyRef.current?.focus();
             }}
-            className="border-transparent bg-transparent text-text-secondary shadow-none hover:border-border-default"
+            className={`text-text-secondary ${headerFieldClass}`}
           />
         ) : (
           <span className="px-3">{currentTeam?.name ?? 'Unknown team'}</span>
@@ -121,7 +123,7 @@ export function InitiativeTeamRow({ initiative }: { initiative: Initiative }) {
           value={initiative.ownerId}
           onValueChange={(ownerId) => repository.setOwner(initiative.id, ownerId)}
           readOnly={frozen}
-          className="border-transparent bg-transparent text-text-secondary shadow-none hover:border-border-default"
+          className={`text-text-secondary ${headerFieldClass}`}
         />
         <span className="inline-flex items-center gap-1 rounded-full bg-surface-subtle px-2 py-0.5 text-xs">
           {StatusIcon && <StatusIcon width={12} height={12} />}

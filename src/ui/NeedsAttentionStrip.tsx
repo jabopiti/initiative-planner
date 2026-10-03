@@ -3,7 +3,7 @@ import type { NeedsAttentionItem, NeedsAttentionKind } from '../data/needsAttent
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { actualCellAnchor } from './PhasesSection';
 import { DueIcon, EscalatedIcon, OverdueIcon, OverrunIcon, ReadyIcon } from './icons';
-import { requirementAnchor } from './jumpTo';
+import { requirementJump, type Jump } from './jumpTo';
 import { PASS_GATE_ANCHOR } from './MagicBar';
 
 /** Shown at most three at a time (§5.2); "Show n more" reveals the rest in place. */
@@ -18,6 +18,9 @@ export const KIND_CONFIG: Record<NeedsAttentionKind, { label: string; Icon: type
   ready: { label: 'Ready', Icon: ReadyIcon, colorClass: 'text-met-text', tintClass: 'bg-met-tint' },
 };
 
+/** A jump as the initiative page's route takes it: the place to focus, and the phase to open first. */
+const jumpQuery = ({ id, phaseId }: Jump) => `?focus=${id}${phaseId ? `&openPhase=${phaseId}` : ''}`;
+
 /** Where a strip item's initiative name opens to (§5.2): the initiative page, scrolled and focused at the place matching its kind. */
 function hrefFor(item: NeedsAttentionItem): string {
   const base = `#/initiatives/${item.initiativeId}`;
@@ -27,9 +30,9 @@ function hrefFor(item: NeedsAttentionItem): string {
     case 'overrun':
       return `${base}?focus=phase-row-${item.phaseId}`;
     case 'overdue':
-      return `${base}?focus=${actualCellAnchor(item.phaseId, item.month)}&openPhase=${item.phaseId}`;
+      return `${base}${jumpQuery({ id: actualCellAnchor(item.phaseId, item.month), phaseId: item.phaseId })}`;
     case 'due':
-      return `${base}?focus=${requirementAnchor(item.openItem, item.phaseId)}`;
+      return `${base}${jumpQuery(requirementJump(item.openItem, item.phaseId))}`;
     case 'ready':
       return `${base}?focus=${PASS_GATE_ANCHOR}`;
   }

@@ -1,6 +1,7 @@
 import type { PhaseDef } from '../brand/types';
 import { allocationFigures, type RateData } from './cost';
 import { joinList } from './joinList';
+import { plural } from './plural';
 import { isActiveMember } from './teamMembers';
 import type { Allocation, Initiative, Membership, Person } from './types';
 
@@ -69,7 +70,7 @@ export function planTeamChange(input: {
 }
 
 /** "N allocation(s)": the one spelling of the count, for the confirmation, the Undo message and the commit. */
-export const allocationCount = (n: number): string => `${n} allocation${n === 1 ? '' : 's'}`;
+export const allocationCount = (n: number): string => plural(n, 'allocation', 'allocations');
 
 /**
  * What the confirmation says (§5.4): who is not an active member of the new team, how many allocations in which

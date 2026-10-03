@@ -800,13 +800,21 @@ Always visible while the initiative is open, serving three purposes:
 
 1. **Phase overview** — a compact visual summary of all phases, showing
    which are complete, which is current, and which are ahead. Functions as a
-   progress indicator / stepper.
+   progress indicator / stepper. Each phase shows its icon (§9.10); the
+   current phase and the next one also show their name, the current one as
+   an Accent pill. A done phase shows a tick beside its icon, both in Met; a
+   phase behind a skipped gate shows the skip icon beside its icon instead;
+   phases further ahead are muted. Every step has a tooltip and an
+   accessible name with its state ("Discovery, done", "Validation,
+   current").
 2. **Guidance** — contextual calls to action based on the current state. For
    example: "Allocate capacities for Development" (scrolls/focuses the
    relevant section on the page), "2 checklist items incomplete," or "All
    requirements met — pass gate."
 3. **Gate action** — Pass gate is always visible. While a requirement blocks
-   the gate it is muted, and selecting it (or the count of open items) jumps
+   the gate it is an outline button with the count of blocking requirements
+   ("Pass gate · 3 open"), announced as disabled with the reason, and
+   selecting it (or the count of open items) jumps
    to the first open requirement and names it. When nothing blocks, it
    becomes the prominent action, the natural payoff of completing the work
    above, not a separate bureaucratic step. One click passes the gate, with
@@ -816,7 +824,9 @@ Always visible while the initiative is open, serving three purposes:
    beside Pass gate; its reason is entered inline in the bar.
 
 The bar's states are: requirements open, ready, skipping, overrun (in the
-Alarm colour, naming the phase and how late the gate is), passed, on hold
+Alarm colour, naming the phase and how late the gate is, and on the same
+line the first blocking requirement while one is open: "Validation is 12
+days overrun · "Business case approved" is not resolved (+2 more)"), passed, on hold
 (§8.4) and, for an untouched initiative, a choice of starting phase (§8.2).
 Its layout follows the design rules in §9.8.
 
@@ -866,8 +876,12 @@ Its layout follows the design rules in §9.8.
 - **Phases**: the process's phases in order, as a vertical sequence. The
   current phase is expanded with full editing controls (allocations, period,
   actuals), and the **Gate / Checklist panel** for the gate leaving it sits
-  directly beneath it. Every other phase is collapsed to one line showing
-  its period, cost and state (frozen, or estimate); a click expands it in
+  directly beneath it. When the current phase is not costed, its one-line
+  row is followed by the panel, and the next costed phase ahead opens
+  instead. Every other phase opens collapsed to one line showing
+  its period, cost and state (frozen, or estimate); a phase with an overdue
+  actual (§8.5) carries a Warning chip naming it ("No actual for Aug
+  2026", or "3 actuals overdue"); a click expands it in
   place, and a future phase shows editable estimates. A phase whose gate was
   passed shows its frozen snapshot, visually distinct and locked (period and
   allocations; actuals stay recordable, also after the initiative is Closed
@@ -917,7 +931,12 @@ The current phase shows its **period** as one
   with their estimated total). Actuals are recorded one month at a time
   (§1, Non-goals).
 - **Gate / Checklist panel** (beneath the current phase): the current gate's
-  requirements, read as "X of Y complete" (§8.1), and its checklist items.
+  requirements, read as "X of Y complete" (§8.1), one row per requirement.
+  A gate requiring estimates lists that requirement first, as a statement
+  naming the phases it checks ("Validation and Development have a period
+  and at least one allocation or cost item"), with its status icon, Open or
+  Met, and while open **Go to <phase>**, which opens the first phase
+  missing one and moves focus to it. Its checklist items follow.
   Each item has a status icon at its left, a name, a description that opens
   on demand, and a status set with a labelled segmented control —
   Incomplete, Tentative, Complete — the selected one in its colour role
@@ -1765,7 +1784,8 @@ same in every build; the typeface comes from the brand pack (§2).
 - **Warning** — escalation, overdue actuals, capacity warnings (over Team
   FTE % and over Capacity %, told apart by icon and text), the overspend in
   a deviation (§9.11) and Tentative checklist items.
-- **Met** — Complete checklist items and Ready.
+- **Met** — Complete checklist items, met gate requirements, done phases in
+  the magic bar's stepper (§5.4) and Ready.
 - **Accent** — the current phase, selection and links.
 - Everything else is neutral.
 
@@ -1859,7 +1879,8 @@ tooltip and an accessible name, and state is never carried by an icon alone
   rows and header lines, because an icon cannot tell two teams or two people
   apart; the detail pages keep their labels.
 - **Phases** each have an icon defined in the brand pack (§2). It is shown
-  icon-only in the stepper (§5.4), and beside the label in board column
+  in the stepper (§5.4) beside the label for the current and the next
+  phase and icon-only with a tooltip for the others, and beside the label in board column
   headers (§5.2) and in the process view (§5.9).
 - **State markers** are icon-only with a tooltip on cards and in tables, and
   icon plus a short label in the Needs attention strip and in panels.

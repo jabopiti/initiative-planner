@@ -25,7 +25,12 @@ const STATUS_ICON = { 'On Hold': StatusOnHoldIcon, Cancelled: StatusCancelledIco
 /** A non-Active status on a card (§5.2): a neutral icon named by the status, the same pattern as the attention marker. */
 function StatusMarker({ status }: { status: InitiativeStatus }) {
   if (status === 'Active') return null;
-  return <IconMarker label={status} tooltip={status} Icon={STATUS_ICON[status]} className="text-text-secondary" />;
+  const Icon = STATUS_ICON[status];
+  return (
+    <IconMarker label={status} tooltip={status} className="text-text-secondary">
+      <Icon width={16} height={16} />
+    </IconMarker>
+  );
 }
 
 /** One initiative's card (§5.2): name, status and attention markers, team · owner, compact cost and approval track; the whole card is the link. */

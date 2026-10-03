@@ -1,6 +1,6 @@
 import { useBrand } from '../state/BrandContext';
 import { formatAmount } from './formatAmount';
-import { plural } from './plural';
+import { plural } from '../data/plural';
 import { ChevronRightIcon, PhaseIcon } from './icons';
 import type { ApprovalTrackDef, GateDef } from '../brand/types';
 

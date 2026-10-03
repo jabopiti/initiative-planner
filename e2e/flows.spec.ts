@@ -43,11 +43,12 @@ test('a same-field conflict is never overwritten silently: both values show and 
 
   // Someone else renames the initiative while this user is still on the old name, then this user renames it too.
   github.edit<StoredInitiative>(path, (initiative) => ({ ...initiative, name: 'Checkout Rebuild' }));
-  const name = page.getByLabel('Initiative name');
+  const name = page.getByRole('textbox', { name: 'Initiative name' });
   await name.fill('Checkout Revamp');
   await name.blur();
 
-  await expect(page.getByText('Checkout Rebuild')).toBeVisible();
+  // Their value shows in the conflict message the field is described by.
+  await expect(name).toHaveAccessibleDescription(/Checkout Rebuild/);
   await expect(page.getByRole('button', { name: 'Keep theirs' })).toBeVisible();
   expect(github.read<StoredInitiative>(path)?.name).toBe('Checkout Rebuild');
 
