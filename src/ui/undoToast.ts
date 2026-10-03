@@ -8,7 +8,19 @@ import type { Repository } from '../sync/Repository';
  * (§5.11, §8.1, §8.4): the data layer would refuse it then.
  */
 export function undoToast(undo: () => void, { repository, initiativeId, phaseId }: { repository: Repository; initiativeId: string; phaseId: string }): void {
-  const id = toast('Removed.', { duration: 10_000, action: { label: 'Undo', onClick: undo }, onDismiss: () => unsubscribe(), onAutoClose: () => unsubscribe() });
+  // Sonner closes the toast on its action without calling onDismiss, so Undo unsubscribes itself.
+  const id = toast('Removed.', {
+    duration: 10_000,
+    action: {
+      label: 'Undo',
+      onClick: () => {
+        unsubscribe();
+        undo();
+      },
+    },
+    onDismiss: () => unsubscribe(),
+    onAutoClose: () => unsubscribe(),
+  });
   const unsubscribe = repository.subscribe(() => {
     const initiative = repository.getState().initiatives.find((i) => i.id === initiativeId);
     if (!initiative || isPhaseLocked(initiative, phaseId)) toast.dismiss(id);

@@ -1095,6 +1095,20 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       repo.dismissLostEdit(id, 'validation');
       expect(repo.getState().frozenWithLostEdit.size).toBe(0);
     });
+
+    it('drops the message when the gate is reopened, so passing it again does not bring it back', async () => {
+      const { repo, id, current } = await repoWithPlannedInitiative();
+      freezeValidation(repo, current());
+      repo.setPhaseDate(id, 'validation', 'endDate', '2026-04-30');
+      expect(repo.getState().frozenWithLostEdit.size).toBe(1);
+      // Reopened elsewhere, as a pull brings it: the gate record is gone.
+      const gates = { ...current().gates };
+      delete gates.validation;
+      (repo as unknown as { replaceInitiative(next: Initiative): void }).replaceInitiative({ ...current(), gates });
+      expect(repo.getState().frozenWithLostEdit.size).toBe(0);
+      freezeValidation(repo, current());
+      expect(repo.getState().frozenWithLostEdit.size).toBe(0);
+    });
   });
 
   it('starts an untouched initiative at Development in one commit, and refuses a touched one (§8.2)', async () => {

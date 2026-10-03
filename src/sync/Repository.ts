@@ -283,7 +283,9 @@ export class Repository {
   };
 
   private setState(patch: Partial<RepositoryState>): void {
+    const before = this.state.initiatives;
     this.state = { ...this.state, ...patch };
+    if (patch.initiatives) this.pruneLostEdits(before);
     for (const listener of this.listeners) listener();
   }
 
@@ -863,6 +865,27 @@ export class Repository {
   private noteLostEdits(initiativeId: string, phaseIds: string[]): void {
     const keys = phaseIds.map((phaseId) => lostEditKey(initiativeId, phaseId)).filter((key) => !this.state.frozenWithLostEdit.has(key));
     if (keys.length > 0) this.setState({ frozenWithLostEdit: new Set([...this.state.frozenWithLostEdit, ...keys]) });
+  }
+
+  /**
+   * A lost-edit message ends with its freeze: a phase frozen in `before` and not now (its gate reopened, §8.3, or
+   * its initiative deleted) drops it, so a later pass can't revive it. Only that transition counts: a message is
+   * noted while the merge that freezes the phase here is still being saved.
+   */
+  private pruneLostEdits(before: Initiative[]): void {
+    const lost = this.state.frozenWithLostEdit;
+    if (lost.size === 0) return;
+    const frozenNow = (initiativeId: string, phaseId: string) => {
+      const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
+      return initiative !== undefined && isPhaseFrozen(initiative, phaseId);
+    };
+    const ended = before.flatMap((initiative) =>
+      Object.keys(initiative.gates ?? {})
+        .filter((phaseId) => lost.has(lostEditKey(initiative.id, phaseId)) && isPhaseFrozen(initiative, phaseId) && !frozenNow(initiative.id, phaseId))
+        .map((phaseId) => lostEditKey(initiative.id, phaseId)),
+    );
+    if (ended.length === 0) return;
+    this.state = { ...this.state, frozenWithLostEdit: new Set([...lost].filter((key) => !ended.includes(key))) };
   }
 
   /** Dismiss a phase's "your last change wasn't saved" message (§8.1, §9.9). */
