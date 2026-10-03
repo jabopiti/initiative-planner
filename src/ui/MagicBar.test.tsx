@@ -169,12 +169,12 @@ describe('Skip a skippable gate with a reason (§8.2)', () => {
     initiative = atValidation();
     renderPage();
     expect(await screen.findByRole('button', { name: 'Skip G2' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pass gate' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Pass gate/ })).toBeInTheDocument();
     cleanup();
 
     initiative = atValidation({ gates: { [discoveryId]: discoveryPassed, [validationId]: g2Passed } });
     renderPage();
-    await screen.findByRole('button', { name: 'Pass gate' });
+    await screen.findByRole('button', { name: /^Pass gate/ });
     expect(screen.queryByRole('button', { name: /^Skip G/ })).not.toBeInTheDocument();
   });
 
@@ -196,7 +196,7 @@ describe('Skip a skippable gate with a reason (§8.2)', () => {
 
     const field = screen.getByLabelText('Reason for skipping G2');
     expect(field).toHaveFocus();
-    expect(screen.queryByRole('button', { name: 'Pass gate' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Pass gate/ })).not.toBeInTheDocument();
     const confirm = screen.getByRole('button', { name: 'Skip G2' });
     expect(confirm).toBeDisabled();
     await user.type(field, '   ');
@@ -211,7 +211,7 @@ describe('Skip a skippable gate with a reason (§8.2)', () => {
     await user.click(screen.getByRole('button', { name: 'Skip G2' }));
     await user.type(screen.getByLabelText('Reason for skipping G2'), 'Not needed');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
-    expect(screen.getByRole('button', { name: 'Pass gate' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Pass gate/ })).toBeInTheDocument();
     expect(puts).toEqual([]);
   });
 
@@ -300,7 +300,7 @@ describe('Choose a starting phase for an untouched initiative (§8.2)', () => {
     expect(screen.getByRole('combobox', { name: 'Start at' })).toHaveTextContent('Choose a phase');
     expect(screen.getByLabelText('Reason')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
-    expect(screen.queryByRole('button', { name: 'Pass gate' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Pass gate/ })).not.toBeInTheDocument();
   });
 
   it('names the skipped gates and records them in one commit, then reads Change starting phase (AC5)', async () => {
@@ -344,7 +344,7 @@ describe('Choose a starting phase for an untouched initiative (§8.2)', () => {
   it('is not offered once touched, nor on hold (AC3, AC11)', async () => {
     initiative = { ...untouched(), checklist: { [discoveryId]: { [g1.checklistItems[0].id]: { status: 'complete', note: '' } } } };
     renderPage();
-    await screen.findByRole('button', { name: 'Pass gate' });
+    await screen.findByRole('button', { name: /^Pass gate/ });
     expect(screen.queryByRole('button', { name: /starting phase|later phase/ })).not.toBeInTheDocument();
     cleanup();
 

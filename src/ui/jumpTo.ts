@@ -16,11 +16,15 @@ export function requirementAnchor(requirement: GateRequirement, phaseId: string)
   return checklistItemAnchor(requirement.carried?.originPhaseId ?? phaseId, requirement.itemId);
 }
 
-/** Scrolls an id into view and moves focus to it (or its first focusable control), for keyboard operability (§9.5). */
+/**
+ * Scrolls an id into view and moves focus to it (or its first focusable control), for keyboard operability (§9.5).
+ * A collapsed phase at the target opens first (§5.4: Go to <phase>), so what it lacks is in view.
+ */
 export function jumpTo(id: string | null | undefined): void {
   if (!id) return;
   const el = document.getElementById(id);
   if (!el) return;
+  el.querySelector<HTMLButtonElement>('[data-phase-toggle][aria-expanded="false"]')?.click();
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   (el.matches('input,button,[tabindex]') ? el : el.querySelector<HTMLElement>('input,button,[tabindex]'))?.focus();
 }

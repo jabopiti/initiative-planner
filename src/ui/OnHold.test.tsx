@@ -189,7 +189,7 @@ describe('Magic bar while On Hold (§5.4, §8.4)', () => {
     renderPage();
 
     await screen.findByLabelText('Initiative name');
-    await user.click(within(bar()).getByRole('button', { name: 'Pass gate' }));
+    await user.click(within(bar()).getByRole('button', { name: /^Pass gate/ }));
 
     expect(within(bar()).getByText(`Checkout Redesign is on hold. Resume it to pass ${g2.label}.`)).toBeInTheDocument();
     expect(within(bar()).getByRole('button', { name: 'Resume' })).toBeInTheDocument();
@@ -208,7 +208,7 @@ describe('Magic bar while On Hold (§5.4, §8.4)', () => {
     await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
     expect(puts[0].message).toBe('Checkout Redesign: resumed');
     expect(within(bar()).queryByText('On hold')).not.toBeInTheDocument();
-    expect(within(bar()).getByRole('button', { name: 'Pass gate' })).toHaveFocus();
+    expect(within(bar()).getByRole('button', { name: /^Pass gate/ })).toHaveFocus();
   });
 
   it('keeps every header field editable while On Hold (AC7)', async () => {
@@ -225,7 +225,7 @@ describe('Magic bar while On Hold (§5.4, §8.4)', () => {
     const { rerender } = renderPage();
 
     await screen.findByLabelText('Initiative name');
-    await user.click(within(bar()).getByRole('button', { name: 'Pass gate' }));
+    await user.click(within(bar()).getByRole('button', { name: /^Pass gate/ }));
     expect(within(bar()).getByText(/Checkout Redesign is on hold/)).toBeInTheDocument();
 
     rerender(page('i2'));

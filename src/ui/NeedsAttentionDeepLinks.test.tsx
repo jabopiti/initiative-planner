@@ -130,14 +130,14 @@ describe('Needs attention deep links (§5.2, §8.5, slice 050)', () => {
     const initiative = base('rd', { checklist: { [discovery.id]: allComplete(discovery.exitGate.checklistItems) } });
     const focused = await followStripLink(initiative, 'Ready');
     expect(screen.getByRole('button', { name: `Skip ${discovery.exitGate.label}` })).toBeInTheDocument();
-    expect(focused).toBe(screen.getByRole('button', { name: 'Pass gate' }));
+    expect(focused).toBe(screen.getByRole('button', { name: /^Pass gate/ }));
   });
 
   it('the Ready target is Pass gate also while "Start at a later phase" is offered', async () => {
     seed([base('fresh', {})]);
     renderWith(<Screen route={`/initiatives/fresh?focus=${PASS_GATE_ANCHOR}`} />);
     await screen.findByRole('button', { name: 'Start at a later phase' });
-    await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Pass gate' })));
+    await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Pass gate/ })));
   });
 });
 

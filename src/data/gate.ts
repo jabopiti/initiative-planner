@@ -69,7 +69,14 @@ export interface EstimatesRequirement {
   kind: 'estimates';
   state: RequirementState;
   text: string;
+  /** The requirement as the gate panel states it, open or met (§5.4): "Validation and Development have a period and …". */
+  label: string;
   missingPhaseIds: string[];
+}
+
+/** "Validation", "Validation and Development", "Alpha, Beta and Gamma". */
+function nameList(names: string[]): string {
+  return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
 export interface ChecklistRequirement {
@@ -94,13 +101,17 @@ export function gateRequirements(process: PhaseDef[], initiative: Initiative, ph
 
   if (phase.exitGate.requiresEstimates) {
     const missing = unestimatedPhases(process, initiative, phaseId);
+    // The phases the requirement checks (§8.1): this one, if costed, and every costed phase still ahead.
+    const checked = process.slice(process.indexOf(phase)).filter((p) => p.costed);
+    const allOk = 'a period and at least one allocation or cost item';
     out.push({
       kind: 'estimates',
       state: missing.length > 0 ? 'blocker' : 'met',
       text:
         missing.length > 0
-          ? `${missing.map((p) => p.label).join(' and ')} needs a complete period and at least one allocation or cost item`
-          : 'Every costed phase has a period and at least one allocation or cost item',
+          ? `${nameList(missing.map((p) => p.label))} ${missing.length === 1 ? 'needs' : 'need'} a complete period and at least one allocation or cost item`
+          : `Every costed phase has ${allOk}`,
+      label: `${nameList(checked.map((p) => p.label))} ${checked.length === 1 ? 'has' : 'have'} ${allOk}`,
       missingPhaseIds: missing.map((p) => p.id),
     });
   }
@@ -140,6 +151,11 @@ export function gateRequirements(process: PhaseDef[], initiative: Initiative, ph
   return out;
 }
 
+/** How many requirements block the gate (§5.4 "Pass gate · 3 open"): Incomplete items and missing estimates, never a Tentative item. */
+export function gateOpenCount(requirements: GateRequirement[]): number {
+  return requirements.filter((r) => r.state === 'blocker').length;
+}
+
 /** Requirement texts that block the gate, in the order they were found. */
 export function gateBlockers(requirements: GateRequirement[]): string[] {
   return requirements.filter((r) => r.state === 'blocker').map((r) => r.text);
@@ -164,9 +180,10 @@ export function gateOverdue(initiative: Initiative, phase: PhaseDef, today: stri
   return Boolean(phase.costed && plan?.endDate && plan.endDate < today);
 }
 
-/** "<phase> is N days overrun" (§8.1, §8.5), the one phrase this reads as everywhere a phase's own overdue state is shown (the magic bar, the Needs attention strip). */
+/** "<phase> is N days overrun", "1 day" for one (§8.1, §8.5), the one phrase this reads as everywhere a phase's own overdue state is shown (the magic bar, the Needs attention strip). */
 export function overrunMessage(phase: PhaseDef, endDate: string, today: string): string {
-  return `${phase.label} is ${daysBetween(endDate, today)} days overrun`;
+  const days = daysBetween(endDate, today);
+  return `${phase.label} is ${days} ${days === 1 ? 'day' : 'days'} overrun`;
 }
 
 /** Each of a phase plan's allocations with its cost at today's rates; undefined for a person who no longer exists. */

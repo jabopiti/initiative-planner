@@ -5,9 +5,9 @@ import { isInitiativeFrozen } from '../data/frozen';
 import { FILE_PATHS } from '../data/types';
 import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
-import { CommitInput } from './CommitInput';
 import { CommitTextarea } from './CommitTextarea';
 import { CostSummary } from './CostSummary';
+import { headerFieldClass } from './headerFieldClass';
 import { InitiativeTeamRow } from './InitiativeTeamRow';
 import { jumpTo } from './jumpTo';
 import { MagicBar } from './MagicBar';
@@ -53,14 +53,17 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
         {isInitiativeFrozen(initiative) ? (
           // A Closed or Cancelled initiative is a record (§8.4): name and description read-only and muted, an empty description hidden.
           <>
-            <h1 className="m-0 mb-2 px-3 py-1.5 text-2xl font-semibold text-text-secondary">{initiative.name}</h1>
-            {initiative.description && <p className="m-0 mb-2 px-3 py-1.5 text-sm text-text-muted">{initiative.description}</p>}
+            <h1 className="m-0 mb-2 text-2xl font-semibold break-words text-text-secondary">{initiative.name}</h1>
+            {initiative.description && <p className="m-0 mb-2 text-sm text-text-muted">{initiative.description}</p>}
           </>
         ) : (
+          // Pulled back by the fields' own padding, so their text lines up with the cards below (§5.4).
           <>
-            <h1 className="m-0 mb-2">
-              <CommitInput
-                className="h-auto border-transparent bg-transparent px-3 py-1.5 text-2xl font-semibold shadow-none hover:border-border-default md:text-2xl"
+            <h1 className="m-0 mb-2 -mx-3">
+              {/* Wraps to a second line rather than clipping a long name (F09), growing to fit it. */}
+              <CommitTextarea
+                autoGrow
+                className={`min-h-0 px-3 py-1.5 text-2xl font-semibold md:text-2xl ${headerFieldClass}`}
                 aria-label="Initiative name"
                 changed={changed(FILE_PATHS.initiative(initiative.id), ['name'])}
                 failure={failure(FILE_PATHS.initiative(initiative.id), ['name'])}
@@ -70,7 +73,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
               />
             </h1>
             <CommitTextarea
-              className="mb-2 min-h-0 border-transparent bg-transparent px-3 py-1.5 text-sm text-text-secondary shadow-none hover:border-border-default"
+              className={`mb-2 -mx-3 w-[calc(100%+1.5rem)] min-h-0 px-3 py-1.5 text-sm text-text-secondary ${headerFieldClass}`}
               aria-label="Description"
               placeholder="Add a description"
               changed={changed(FILE_PATHS.initiative(initiative.id), ['description'])}
