@@ -1,6 +1,6 @@
 import type { BrandColours } from './types';
 
-const cssVar = (role: string) => `--${role.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
+export const cssVar = (role: string) => `--${role.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
 
 /**
  * The brand pack's colour roles as CSS custom properties (§2, §9.1): light on

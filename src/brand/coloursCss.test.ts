@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { coloursCss } from './coloursCss';
+import { coloursCss, cssVar } from './coloursCss';
 import { defaultBrandPack } from './defaultBrand';
 
 describe('coloursCss (§9.1, §10.1)', () => {
@@ -14,7 +14,7 @@ describe('coloursCss (§9.1, §10.1)', () => {
     expect(dark).toContain('--text-muted: oklch(0.635 0.024 170.1);');
     expect(dark).toContain('--text-on-accent: oklch(0.187 0.012 167.0);');
     for (const role of Object.keys(defaultBrandPack.colours)) {
-      const prop = `--${role.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}:`;
+      const prop = `${cssVar(role)}:`;
       expect(light).toContain(prop);
       expect(dark).toContain(prop);
     }
