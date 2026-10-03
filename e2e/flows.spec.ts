@@ -47,7 +47,8 @@ test('a same-field conflict is never overwritten silently: both values show and 
   await name.fill('Checkout Revamp');
   await name.blur();
 
-  await expect(page.getByText('Checkout Rebuild')).toBeVisible();
+  // Within the conflict message: the name field is a textarea now, whose own text a page-wide getByText also finds.
+  await expect(page.locator('[id^="conflict-"]').getByText('Checkout Rebuild')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Keep theirs' })).toBeVisible();
   expect(github.read<StoredInitiative>(path)?.name).toBe('Checkout Rebuild');
 
