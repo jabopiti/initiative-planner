@@ -10,7 +10,7 @@ const KEY = 'theme';
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
 /** The stored mode; anything unreadable or unknown is System. */
-export function readThemeMode(): ThemeMode {
+function readThemeMode(): ThemeMode {
   try {
     const saved = localStorage.getItem(KEY);
     return saved === 'light' || saved === 'dark' ? saved : 'system';
@@ -29,7 +29,7 @@ function saveThemeMode(mode: ThemeMode) {
 }
 
 /** Puts the resolved theme on the document root as the single `.dark` class. */
-export function applyTheme(mode: ThemeMode) {
+function applyTheme(mode: ThemeMode) {
   const dark = mode === 'dark' || (mode === 'system' && window.matchMedia(DARK_QUERY).matches);
   document.documentElement.classList.toggle('dark', dark);
 }
