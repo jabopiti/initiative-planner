@@ -5,6 +5,7 @@ import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
 import { joinableTeams } from '../data/teamMembers';
 import type { Person } from '../data/types';
 import { FILE_PATHS } from '../data/types';
+import { removeMembershipWithUndo } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Label } from '@/components/ui/label';
@@ -206,7 +207,7 @@ function PersonDetails({ person }: { person: Person }) {
               />
               <RowActionsMenu
                 label={`Actions for ${team?.name ?? 'team'}`}
-                actions={[{ label: 'Remove from team', icon: RemoveFromTeamIcon, onSelect: () => repository.removeMembership(m.id) }]}
+                actions={[{ label: 'Remove from team', icon: RemoveFromTeamIcon, onSelect: () => removeMembershipWithUndo(repository, m.id) }]}
               />
             </div>
           );

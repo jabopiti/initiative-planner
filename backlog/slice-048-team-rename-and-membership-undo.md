@@ -35,18 +35,32 @@ membership can be undone for the usual 10 seconds.
 - `removeMembership` returns the removed record and index; new
   `restoreMembership`; both remove buttons call `undoToast` ("Removed. Undo").
 - Restoring refuses (with the message) if the person has since been given an
-  overlapping membership of that team, or the team/person is gone.
+  membership of that team (same person and team), or the team/person is gone.
+
+### Decided in review (pre-implementation)
+
+- The team name is an inline `CommitInput` in the h1, borderless until hover or focus (as the person panel); Enter or
+  leaving the field saves, Esc reverts. An inactive team can be renamed; its Inactive chip stays beside the name.
+- Refusals use the standard inline alarm box (§9.9) and keep the typed text until fixed or Esc: "Enter a name." and
+  "A team named Payments already exists." (case-insensitive, the team itself excluded so a case-only rename works).
+  Creating a team gets the same duplicate check and message.
+- Undo toast stays "Removed. Undo" (§9.9). A refused Undo shows "Can't undo: Mara Voss is on Platform again." (a
+  record for the same person and team exists again, active or not); a missing person or team uses the same shape.
+- `undoToast` is generalised: the phase-freeze watch is optional (a membership has no phase).
+- Undo restores the exact record (id, Team FTE %, active flag) at its list index, with the "added to" commit note.
+- Commit note for a rename: "Platform: team renamed to Platform Core" (old name first).
 
 ## Acceptance criteria
 
 - [ ] Given a team, when its name is changed and committed, then every screen
       shows it and the commit message names old and new.
-- [ ] Given an empty or duplicate name, then it is refused inline and reverts.
+- [ ] Given an empty or duplicate name, then it is refused inline with the typed text kept, and Esc reverts; creating
+      a team with a duplicate name is refused the same way.
 - [ ] Given a membership removed from the person panel or the team detail,
       then "Removed. Undo" appears for 10 s and Undo restores the same Team
       FTE % and position.
-- [ ] Given Undo after the person was re-added to the team, then nothing is
-      duplicated.
+- [ ] Given Undo after the person was re-added to the team (or the person or team is gone), then nothing is
+      duplicated and "Can't undo: <person> is on <team> again." is shown.
 
 ## Flags and compromises
 
@@ -54,5 +68,4 @@ None.
 
 ## Open decisions
 
-- Whether an inactive team can be renamed (recommended: yes).
-- Copy of the refusal messages, drafted in place against §9.2.
+None.

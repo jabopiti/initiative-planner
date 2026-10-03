@@ -955,7 +955,8 @@ greyed out.
 
 A full page showing all detail information for a team:
 
-- Team name (editable).
+- Team name, edited in place (Enter or leaving the field saves, Esc reverts), also on an inactive team. An empty name or one another team
+  already has (case-insensitive) is refused inline, as when creating a team (§5.7).
 - **Members list**: add a member by picking an existing person or creating
   one inline (name, country and role, with the defaults of §5.5); deactivate
   or remove members (§9.3). Each member shows the Team FTE %, which defaults
