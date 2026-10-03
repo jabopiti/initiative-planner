@@ -49,8 +49,7 @@ the spec's wording and states, and no state is carried between initiatives.
 - The magic bar is unchanged: on the end date it still reads "All
   requirements met" with Pass gate primary, since Tentative passes with a
   warning (§8.1). The strip is the nudge. No new copy.
-- Pass gate carries the id `pass-gate`; the Ready link (and the Due
-  link's fallback) focus it. The `#magic-bar` region keeps its id.
+- Pass gate carries the id `pass-gate`; the Ready link focuses it. The `#magic-bar` region keeps its id.
 - The Due link goes to the first Incomplete item, else the first
   Tentative one.
 - `key={id}` goes on the `/initiatives/<id>` route in `App.tsx`.
