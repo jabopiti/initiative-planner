@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FIRST_YEAR, formatMonth, LAST_YEAR, MONTHS, monthKey, parseMonthText } from '../data/dates';
+import { FIRST_YEAR, formatMonth, LAST_YEAR, shortMonths, monthKey, parseMonthText } from '../data/dates';
 import type { FieldConflict } from '../state/ConflictUi';
 import type { FieldFailure } from '../state/DataContext';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,7 @@ export function MonthInput({
       value={value}
       label={label}
       placeholder="Sep 2026"
-      refusal="Enter a month such as Sep 2026."
+      refusal={`Enter a month such as ${formatMonth('2026-09')}.`}
       required={required}
       changed={changed}
       failure={failure}
@@ -76,7 +76,7 @@ export function MonthInput({
             </Button>
           </div>
           <div className="grid grid-cols-4 gap-1">
-            {MONTHS.map((name, index) => {
+            {shortMonths().map((name, index) => {
               const key = monthKey(year, index);
               return (
                 <Button

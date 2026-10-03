@@ -19,7 +19,7 @@ import {
   type Team,
 } from '../data/types';
 import { allocationRefusal, trackedYears } from '../data/cost';
-import { formatDate, formatMonth, monthKey } from '../data/dates';
+import { formatDateEn as formatDate, formatMonthEn as formatMonth, monthKey } from '../data/dates';
 import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysByMonth } from '../data/rates';
 import { localToday } from '../data/dates';
 import { duplicateInitiative, type DuplicateResult } from '../data/duplicate';

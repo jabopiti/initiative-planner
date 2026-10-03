@@ -85,8 +85,8 @@ describe('conflict rows name every field in words (§3, §9.9)', () => {
     expect(row('initiatives/i1.json', ['phases', 'validation', 'endDate'], '2026-11-30', '2026-12-15')).toEqual({
       entity: 'Payments API',
       field: 'Validation end date',
-      mine: '30.11.2026',
-      theirs: '15.12.2026',
+      mine: '30/11/2026',
+      theirs: '15/12/2026',
       labelled: true,
     });
   });

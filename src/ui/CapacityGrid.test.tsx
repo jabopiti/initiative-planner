@@ -9,7 +9,7 @@ describe('the capacity grid on the team detail (§5.8)', () => {
   it('shows a column per month from the current month to the last allocation, and each member with their Team FTE %', async () => {
     renderView(<TeamDetail id="t1" />);
     const g = await grid();
-    expect(g.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Name', 'Sep 26', 'Oct 26', 'Nov 26', 'Dec 26', 'Jan 27', 'Feb 27', 'Mar 27']);
+    expect(g.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Name', 'Sept 26', 'Oct 26', 'Nov 26', 'Dec 26', 'Jan 27', 'Feb 27', 'Mar 27']);
     const ana = g.getByRole('rowheader', { name: /Ana Ruiz/ });
     expect(ana).toHaveTextContent('Team FTE 60%');
     expect(g.getByRole('rowheader', { name: /Bo Lind/ })).toHaveTextContent('Team FTE 50%');
@@ -18,7 +18,7 @@ describe('the capacity grid on the team detail (§5.8)', () => {
   it('tints a cell above the Team FTE %, with the ceiling named in its label', async () => {
     renderView(<TeamDetail id="t1" />);
     const g = await grid();
-    const sep = cell(g, 'Ana Ruiz', 'Sep 2026');
+    const sep = cell(g, 'Ana Ruiz', 'Sept 2026');
     expect(sep).toHaveTextContent('70%');
     expect(tinted(sep)).toBe(true);
     expect(sep).toHaveAccessibleName(/over Team FTE %/);
@@ -40,7 +40,7 @@ describe('the capacity grid on the team detail (§5.8)', () => {
   it('tints nothing that is within both ceilings, and reads an empty month as a dash', async () => {
     renderView(<TeamDetail id="t1" />);
     const g = await grid();
-    for (const month of ['Sep 2026', 'Oct 2026', 'Nov 2026']) expect(tinted(cell(g, 'Bo Lind', month))).toBe(false);
+    for (const month of ['Sept 2026', 'Oct 2026', 'Nov 2026']) expect(tinted(cell(g, 'Bo Lind', month))).toBe(false);
     const dec = cell(g, 'Ana Ruiz', 'Dec 2026');
     expect(dec).toHaveTextContent('–');
     expect(tinted(dec)).toBe(false);
@@ -94,7 +94,7 @@ describe('the capacity grid on the team detail (§5.8)', () => {
     const user = setupUser();
     renderView(<TeamDetail id="t1" />);
     const g = await grid();
-    await user.click(cell(g, 'Bo Lind', 'Sep 2026'));
+    await user.click(cell(g, 'Bo Lind', 'Sept 2026'));
     expect(within(screen.getByRole('region', { name: 'Capacity detail' })).getByText('No warnings this month.')).toBeInTheDocument();
   });
 
@@ -104,7 +104,7 @@ describe('the capacity grid on the team detail (§5.8)', () => {
     const g = await grid();
     await user.click(g.getByRole('button', { name: 'All months for Ana Ruiz' }));
     const detail = within(screen.getByRole('region', { name: 'Capacity detail' }));
-    expect(detail.getByText('Over Team FTE % in Sep – Nov 2026.')).toBeInTheDocument();
+    expect(detail.getByText('Over Team FTE % in Sept – Nov 2026.')).toBeInTheDocument();
     expect(detail.getByText('Over Capacity % in Oct 2026.')).toBeInTheDocument();
     expect(detail.getByRole('link', { name: 'Data lake' })).toBeInTheDocument();
   });
@@ -158,10 +158,10 @@ describe('the capacity grid on the team detail (§5.8)', () => {
     const name = g.getByRole('button', { name: 'All months for Ana Ruiz' });
     await user.click(name);
     expect(screen.getByRole('heading', { name: 'Ana Ruiz · all months' })).toHaveFocus();
-    await user.click(cell(g, 'Bo Lind', 'Sep 2026'));
-    expect(screen.getByRole('heading', { name: 'Bo Lind · Sep 2026' })).toHaveFocus();
+    await user.click(cell(g, 'Bo Lind', 'Sept 2026'));
+    expect(screen.getByRole('heading', { name: 'Bo Lind · Sept 2026' })).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'Close details' }));
-    expect(cell(g, 'Bo Lind', 'Sep 2026')).toHaveFocus();
+    expect(cell(g, 'Bo Lind', 'Sept 2026')).toHaveFocus();
   });
 
   it('leaves an inactive team\'s initiatives out of the Capacity %, and out of the detail', async () => {
@@ -190,7 +190,7 @@ describe('the capacity grid on the team detail (§5.8)', () => {
     const user = setupUser();
     renderView(<TeamDetail id="t1" />);
     const g = await grid();
-    await user.click(cell(g, 'Bo Lind', 'Sep 2026'));
+    await user.click(cell(g, 'Bo Lind', 'Sept 2026'));
     await user.click(screen.getByRole('button', { name: 'Close details' }));
     expect(screen.queryByRole('region', { name: 'Capacity detail' })).not.toBeInTheDocument();
   });
@@ -216,7 +216,7 @@ describe('the capacity grid on the team detail (§5.8)', () => {
     await user.click(screen.getByRole('button', { name: 'Copy capacity' }));
     expect(await screen.findByText('Copied 3 people')).toBeInTheDocument();
     const lines = written['text/plain'].split('\n');
-    expect(lines[0]).toBe('Name\tTeam FTE %\tSep 26\tOct 26\tNov 26\tDec 26\tJan 27\tFeb 27\tMar 27');
+    expect(lines[0]).toBe('Name\tTeam FTE %\tSept 26\tOct 26\tNov 26\tDec 26\tJan 27\tFeb 27\tMar 27');
     expect(lines[1]).toBe('Ana Ruiz\t60%\t70% (over Team FTE %)\t70% (over Team FTE %, over Capacity %)\t70% (over Team FTE %)\t–\t–\t–\t– +30% provisional');
     expect(lines[2]).toBe('Bo Lind\t50%\t40%\t40%\t40%\t–\t–\t–\t–');
     expect(lines[3]).toBe('Cy Ode\tNo longer a member\t20%\t20%\t20%\t–\t–\t–\t–');

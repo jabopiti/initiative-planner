@@ -3,7 +3,7 @@ import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryStat
 import { useBrand } from '../state/BrandContext';
 import { useFieldConflict, useRevealTarget } from '../state/ConflictUi';
 import { daysInMonth, parseAmount, trackedYears, yearRecord } from '../data/cost';
-import { MONTHS, formatMonth, monthKey } from '../data/dates';
+import { shortMonths, formatMonth, monthKey } from '../data/dates';
 import { joinList } from '../data/joinList';
 import { initiativesAffectedByRate, weekdaysByMonth, type RateEdit } from '../data/rates';
 import { FILE_PATHS, type Country, type CountryYearRateRecord } from '../data/types';
@@ -255,7 +255,7 @@ function YearTable({
         <tr className="text-left text-xs text-text-secondary">
           <th className="py-1 pr-2 font-medium">Year</th>
           <th className="py-1 pr-3 text-right font-medium">Day rate</th>
-          {MONTHS.map((m) => (
+          {shortMonths().map((m) => (
             <th key={m} className="w-11 py-1 text-center font-medium">
               {m}
             </th>

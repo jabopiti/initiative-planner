@@ -142,7 +142,7 @@ describe('Record actuals for a closed month (§7.3, §5.4)', () => {
   });
 
   it('moves the phase header from Estimate to Forecast to Actual as closed months are recorded', async () => {
-    // Sep–Nov 2026, "today" mid-December: every month of the period has closed.
+    // Sept–Nov 2026, "today" mid-December: every month of the period has closed.
     initiative = {
       ...initiative,
       phases: { [validationId]: { startDate: '2026-09-01', endDate: '2026-11-30', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50 }] } },
@@ -156,7 +156,7 @@ describe('Record actuals for a closed month (§7.3, §5.4)', () => {
 
     const table = await actualsTable();
     const recordButton = (month: string) => within(monthRow(table, month)).getByRole('button', { name: `Record the estimate as the actual for Validation ${month}` });
-    await user.click(recordButton('Sep 2026'));
+    await user.click(recordButton('Sept 2026'));
     expect(validationRow()).toHaveTextContent('Forecast');
     expect(validationRow()).toHaveTextContent('€12,000'); // the recorded month matched its estimate
 

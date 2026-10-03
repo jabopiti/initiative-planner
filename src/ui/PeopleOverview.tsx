@@ -1,3 +1,4 @@
+import { openRowProps } from './openRowProps';
 import { useMemo, useRef, useState } from 'react';
 import { useRevealTarget } from '../state/ConflictUi';
 import { useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
@@ -206,6 +207,7 @@ export function PeopleOverview() {
                       key={p.id}
                       className={`cursor-pointer border-b border-border-default transition-colors duration-500 motion-reduce:transition-none ${p.id === selectedId ? 'bg-brand-accent-tint' : changed(FILE_PATHS.people, [{ id: p.id }]) ? 'bg-met-tint' : ''} ${p.active ? '' : 'text-text-secondary'}`}
                       onClick={() => setSelectedId(p.id)}
+                      {...openRowProps(() => setSelectedId(p.id))}
                     >
                       <td className="px-3 py-2">
                         <button

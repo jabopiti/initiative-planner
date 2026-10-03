@@ -72,7 +72,7 @@ describe('fix suggestions in the capacity grid\'s detail (§5.11, §5.8)', () =>
     const user = setupUser();
     renderView(<TeamDetail id="t1" />);
     const g = await grid();
-    await user.click(cell(g, 'Ana Ruiz', 'Sep 2026'));
+    await user.click(cell(g, 'Ana Ruiz', 'Sept 2026'));
     const detail = () => within(screen.getByRole('region', { name: 'Capacity detail' }));
     expect(detail().getAllByRole('button', { name: /Raise/ })).toHaveLength(1);
     await user.click(g.getByRole('button', { name: 'All months for Ana Ruiz' }));

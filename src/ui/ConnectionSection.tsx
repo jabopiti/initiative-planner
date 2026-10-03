@@ -1,3 +1,4 @@
+import { displayLocale } from '../data/dates';
 import { useEffect, useState } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { useRateLimit, useRepository } from '../state/DataContext';
@@ -6,8 +7,9 @@ import { Button } from '@/components/ui/button';
 import { DefinitionList } from './DefinitionList';
 import { ReplaceTokenField } from './ReplaceTokenField';
 
-const number = new Intl.NumberFormat('en');
-const clock = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
+// Made on use, not at load, so they follow the browser's locale (§9.7).
+const number = { format: (n: number) => new Intl.NumberFormat(displayLocale()).format(n) };
+const clock = { format: (d: Date | number) => new Intl.DateTimeFormat(displayLocale(), { hour: '2-digit', minute: '2-digit' }).format(d) };
 
 /** "4,812 of 5,000 API requests left this hour, resets at 14:20" from the latest response, or "Not known yet" (§5.9). */
 function requestsText(limit: ReturnType<typeof useRateLimit>): string {
