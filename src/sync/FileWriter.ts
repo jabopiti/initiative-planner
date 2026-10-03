@@ -102,9 +102,10 @@ export interface FileWriterOptions<D> {
   cache: FileCache;
   /** Settles when the first pull of the dataset has (§3): a save waits for it, so it is built on what the pull brought in. */
   gate?: () => Promise<unknown>;
-  /** Why the dataset may not be written at all just now (§3 Data integrity, Damaged data), or null: a save is then
-   * refused before anything is sent, failing like a push would, with the typed value kept. */
-  refused?: () => ReadOnlyState | null;
+  /** Why `content` may not be written just now, or null: the dataset is refused (§3 Data integrity, Damaged data), or
+   * the content refers to a record another file has not saved yet. Asked of this client's edit before every attempt,
+   * a retry's too; the save is then refused before anything is sent, failing like a push would, with the typed value kept. */
+  refused?: (content: D) => ReadOnlyState | null;
   /** Waits before a retry (§10.3); real timers by default. */
   delay?: (ms: number) => Promise<void>;
   /** Uniform in [0, 1), for the retry jitter; `Math.random` by default. */
@@ -192,6 +193,11 @@ export class FileWriter<D> {
       this.timer = null;
     }
     return this.enqueue(() => this.saveNext());
+  }
+
+  /** Settles once the edits made so far are saved or have failed: one waiting out the debounce is saved now. */
+  settled(): Promise<unknown> {
+    return this.timer ? this.flush() : this.tail;
   }
 
   /** Runs `step` once every save before it has finished. */
@@ -377,7 +383,7 @@ export class FileWriter<D> {
     }
     const mine = this.pending;
     this.pending = null;
-    const refusal = this.options.refused?.();
+    const refusal = this.options.refused?.(mine);
     // Refused before anything is sent: the edit fails with the typed value kept, and its notes stay for the save
     // that follows once the dataset can be written again.
     if (refusal) return this.failWith(refusal, mine);
@@ -415,6 +421,10 @@ export class FileWriter<D> {
           };
           this.clearEdits();
         }
+        // The dataset may have been refused since the save started. Asked of this client's own edit, not the merge:
+        // what the merge brought in is already on GitHub, records it refers to included.
+        const refusal = this.options.refused?.(mine);
+        if (refusal) return this.failWith(refusal, sent);
       }
       try {
         const { sha, created } = await this.options.queue.run(() =>

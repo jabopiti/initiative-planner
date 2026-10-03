@@ -26,6 +26,7 @@ function routingFetchMock(
   datasetExists = true,
 ) {
   let blobCount = 0;
+  let puts = 0;
   let exists = datasetExists;
   return vi.fn(async (url: string, init: RequestInit = {}) => {
     const method = init.method ?? 'GET';
@@ -61,6 +62,11 @@ function routingFetchMock(
     if (method === 'GET' && url.includes('/contents/people.json')) return contentsResponse([], 'people-sha');
     if (method === 'GET' && url.includes('/contents/memberships.json')) return contentsResponse([], 'memberships-sha');
     if (method === 'GET' && url.includes('/contents/initiatives')) return jsonResponse({ message: 'Not Found' }, 404);
+    // A master file's save lands: an initiative's save waits on them, since it may name their records (§3).
+    if (method === 'PUT') {
+      puts += 1;
+      return jsonResponse({ content: { sha: `put-${puts}` } });
+    }
 
     throw new Error(`Unhandled request in test: ${key}`);
   });

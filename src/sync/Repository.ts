@@ -37,7 +37,7 @@ import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
 import { FileWriter, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
-import { MASTER_FILES, parseDataFile, validateDataset } from './validateDataset';
+import { MASTER_FILES, parseDataFile, validateDataset, validateRecords } from './validateDataset';
 import { WriteQueue } from './WriteQueue';
 
 export type { ReadOnlyState } from '../github/errors';
@@ -251,6 +251,8 @@ export class Repository {
   /** Why the dataset may not be written (§3 Data integrity, Damaged data): set by a pull that refused it, kept
    * through pulls that fail for another reason (GitHub unreachable), and cleared only by one that applies. */
   private datasetRefusal: ReadOnlyState | null = null;
+  /** Files whose save was held back by another file's failed save it refers to, by that file: sent again once it lands. */
+  private readonly waitingOn = new Map<string, string>();
   /** Fields with unsaved typing: a pull that arrives meanwhile is held until they are left (§3). */
   private editing = 0;
   private held: Pulled | null = null;
@@ -797,6 +799,13 @@ export class Repository {
   private statusOf(file: string): (status: WriteStatus) => void {
     return (status) => {
       this.writerStatus.set(file, status);
+      if (status === 'synced') {
+        for (const [waiting, on] of this.waitingOn) {
+          if (on !== file) continue;
+          this.waitingOn.delete(waiting);
+          this.retryFile(waiting);
+        }
+      }
       // A write can fail independently of any pull, so the shared retry loop must arm here too.
       this.armRetry(false, this.publishStatus());
     };
@@ -829,8 +838,45 @@ export class Repository {
     return recoverable;
   }
 
-  /** Why no write may be sent now (§3): the dataset was refused, or null. */
-  private readonly refused = (): ReadOnlyState | null => this.datasetRefusal;
+  /**
+   * The files `path` may refer to (§3 Damaged data): a master file those before it in {@link MASTER_FILES} (a
+   * membership its person and team), an initiative every master file.
+   */
+  private referenced(path: string): [string, FileWriter<unknown>][] {
+    const index = MASTER_FILES.indexOf(path);
+    const master = this.masterWriters().filter((entry) => entry[1] !== null) as unknown as [string, FileWriter<unknown>][];
+    return index === -1 ? master : master.filter(([other]) => MASTER_FILES.indexOf(other) < index);
+  }
+
+  /** A save of `path` waits for the first pull, then for the saves of the files it refers to: a new person lands
+   * before the membership that names them, so no pull ever sees one without the other (§3 Damaged data). */
+  private gate(path: string): () => Promise<unknown> {
+    return () => this.firstPullDone.then(() => Promise.all(this.referenced(path).map(([, writer]) => writer.settled())));
+  }
+
+  /**
+   * Why `content` may not be written to `path` now (§3), or null: the dataset was refused, or `content` refers to a
+   * record whose own save failed, so it is not on GitHub. This save then fails the same way and is sent again once
+   * that one lands: sent now, it would leave the dataset damaged for every client that pulls meanwhile.
+   */
+  private refused(path: string): (content: unknown) => ReadOnlyState | null {
+    return (content) => {
+      if (this.datasetRefusal) return this.datasetRefusal;
+      const failed = this.referenced(path).find(([, writer]) => writer.failure !== null);
+      if (!failed) return null;
+      const files = new Map<string, unknown>();
+      for (const [file, writer] of this.referenced(path)) if (writer.syncedContent !== null) files.set(file, writer.syncedContent);
+      files.set(path, content);
+      try {
+        validateRecords(files);
+        return null;
+      } catch (error) {
+        if (!(error instanceof DamagedDataError)) throw error;
+        this.waitingOn.set(path, failed[0]);
+        return failed[1].failure;
+      }
+    };
+  }
 
   /** Any conflict a file's writer finds, to resolve in the banner. */
   private readonly onConflict = (conflict: FileConflict): void =>
@@ -854,8 +900,8 @@ export class Repository {
       github: this.github,
       queue: this.queue,
       cache: this.cache,
-      gate: () => this.firstPullDone,
-      refused: this.refused,
+      gate: this.gate(path),
+      refused: this.refused(path),
       merge: mergeDocument,
       whenMissing,
       initial,
@@ -875,8 +921,8 @@ export class Repository {
       github: this.github,
       queue: this.queue,
       cache: this.cache,
-      gate: () => this.firstPullDone,
-      refused: this.refused,
+      gate: this.gate(path),
+      refused: this.refused(path),
       merge: (base, mine, theirs) => {
         const lost = phasesFrozenOverEdit(base, mine, theirs);
         if (lost.length > 0) this.noteLostEdits(initiative.id, lost);

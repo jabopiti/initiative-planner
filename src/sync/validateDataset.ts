@@ -43,7 +43,15 @@ export function validateDataset(files: ReadonlyMap<string, unknown>): void {
   if (!isRecord(flags) || typeof flags.schemaVersion !== 'number' || !isRecord(identity) || typeof identity.id !== 'string' || typeof identity.structureVersion !== 'number') {
     throw new DamagedDataError(FILE_PATHS.datasetFlags, 'should hold the schema version and process identity');
   }
+  validateRecords(files);
+}
 
+/**
+ * {@link validateDataset} without dataset.json: the records in `files`, their ids and the references between them.
+ * A write checks the dataset it would leave with this (§3 Damaged data), so it never sends a reference to a record
+ * that is not on GitHub yet.
+ */
+export function validateRecords(files: ReadonlyMap<string, unknown>): void {
   const ids = new Map<string, Set<string>>();
   for (const [path, kind] of [
     [FILE_PATHS.roles, 'role'],

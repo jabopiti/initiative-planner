@@ -429,7 +429,10 @@ References never dangle: people, teams, roles and countries are never
 deleted, only deactivated (§9.3), so an allocation, membership or owner
 always points at an entity that still exists. An allocation whose
 membership was removed at the same moment stays and shows the warning of
-§7.2.
+§7.2. A new record is saved before anything that refers to it: a new
+person's membership waits for the person's commit, so no pull ever sees one
+without the other. If that save fails, the membership fails the same way
+("Not saved: <short cause>.") and is sent once the person's save lands.
 
 An initiative deleted by one user (§9.3) while another has an unsaved edit
 to it stays deleted: the edit is dropped, and that user's page shows "This
@@ -450,7 +453,8 @@ refused too in v1, with "Dataset is older than this version and can't be
 opened by it." (see Versioning and migration below).
 
 While the dataset is refused (process mismatch, older or newer, or damaged),
-every write is refused before anything is sent: an edited field keeps the
+every write is refused before anything is sent, a save already retrying
+after a conflict included: an edited field keeps the
 typed value and shows "Not saved: <short cause>." with Retry, as for a
 failed push (Sync failures).
 

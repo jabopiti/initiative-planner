@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { encodeBase64Utf8 } from '../github/base64';
 import { causeText } from '../github/errors';
+import type { Membership } from '../data/types';
+import { defaultTiming } from './FileWriter';
 import { mergeDocument } from './merge';
 import { Repository } from './Repository';
 import { fakeGithub, initiative, open, person, seedDataset, type Fake } from './testing/fakeGithub';
@@ -211,5 +213,61 @@ describe('a refused dataset is never written (§3 Data integrity)', () => {
 
     expect(repo.getState().readOnly).toBeNull();
     expect(fake.read('initiatives/i1.json')).toMatchObject({ name: 'Payments API v2' });
+  });
+
+  it('a save retrying after a conflict is not sent once a pull has refused the dataset meanwhile', async () => {
+    const { repo } = await open(fake, { teams: [{ id: 't1', name: 'Payments', active: true }] });
+    fake.seed('teams.json', [{ id: 't1', name: 'Payments EU', active: true }]); // so the save meets a conflict
+    const delay = vi.spyOn(defaultTiming, 'delay').mockImplementation(async () => {
+      fake.seed('dataset.json', flags({ schemaVersion: 2 }));
+      await repo.pull();
+    });
+    const sent = fake.commits('teams.json').length;
+
+    repo.createTeam('Platform');
+    await repo.flushPending();
+    delay.mockRestore();
+
+    expect(fake.commits('teams.json')).toHaveLength(sent);
+    expect(repo.getState().fileFailures.get('teams.json')?.cause).toBe('dataset-newer');
+  });
+});
+
+describe('a record is written before what refers to it (§3 Damaged data)', () => {
+  const team = { id: 't1', name: 'Payments', active: true };
+  const joined = (personId: string) => fake.read<Membership[]>('memberships.json').some((m) => m.personId === personId);
+
+  it('a new member is sent only once their person has landed, also when that save meets a conflict first', async () => {
+    const { repo } = await open(fake, { teams: [team] });
+    fake.seed('people.json', [person('p9', 'Lena Park')]); // so the person's save is retried after a conflict
+    const delay = vi.spyOn(defaultTiming, 'delay').mockResolvedValue(undefined);
+
+    const ana = repo.createPerson({ name: 'Ana Ruiz', countryId: 'c1', roleId: 'r1' });
+    repo.addMembership(ana.id, 't1');
+    await repo.flushPending();
+    delay.mockRestore();
+
+    const landed = fake.puts.filter((p) => p.status === 200).map((p) => p.path);
+    expect(landed.indexOf('people.json')).toBeLessThan(landed.indexOf('memberships.json'));
+    expect(joined(ana.id)).toBe(true);
+    expect(repo.getState().readOnly).toBeNull();
+  });
+
+  it('when the person fails to save, the membership fails the same way and is sent once the person is', async () => {
+    const { repo } = await open(fake, { teams: [team] });
+    fake.fail('people.json', 403);
+
+    const ana = repo.createPerson({ name: 'Ana Ruiz', countryId: 'c1', roleId: 'r1' });
+    repo.addMembership(ana.id, 't1');
+    await repo.flushPending();
+
+    expect(joined(ana.id)).toBe(false);
+    const failures = repo.getState().fileFailures;
+    expect(failures.get('memberships.json')).toEqual(failures.get('people.json'));
+
+    repo.retryFile('people.json');
+    await vi.waitFor(() => expect(joined(ana.id)).toBe(true));
+    await repo.flushPending();
+    expect(repo.getState().readOnly).toBeNull();
   });
 });
