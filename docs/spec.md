@@ -602,7 +602,8 @@ icon, the sync indicator (§3) and the theme control (§9.1):
 
 The **New initiative** button names the missing prerequisite while there is
 no active team, so it is never a dead end: it reads **Create a team** while no
-team exists and **Reactivate a team** while teams exist but none is active,
+team exists (hidden on the Portfolio, whose welcome card carries that action,
+§9.4) and **Reactivate a team** while teams exist but none is active,
 and either opens the Teams overview. With an active team it reads **New
 initiative** and opens a **draft page**, laid out like the
 initiative's header (§5.4): the name field is the title and is focused, with
@@ -658,7 +659,12 @@ Contents, top to bottom:
   once any rate is edited or **Rates are correct** is confirmed, §5.9),
   **Create a team**, **Add people to the team**, and **Create your first
   initiative**. Each item links to where it is done and clears when the data
-  shows it is done; the strip disappears when none remain. A **Dismiss for
+  shows it is done; the strip disappears when none remain. Cleared items
+  stay in the strip, ticked and struck through, beside a count ("2 of 4
+  done") and a small progress bar. With three of four done the strip
+  collapses to a chip in the filter row ("Getting started · 3 of 4 done")
+  that opens the remaining step in a popover. While no team exists the strip
+  is shown instead as the Portfolio's welcome card (§9.4). A **Dismiss for
   now** on the strip hides it for the browser session; it reappears on the
   next visit if items are still outstanding. It never blocks anything. The
   state is derived from the dataset, so every user sees the same strip, and
@@ -690,7 +696,8 @@ Contents, top to bottom:
   visible, so the process is always shown in full. Each column header shows
   the number of initiatives and the sum of their grand estimates. Each
   initiative is a compact **card**: its name, team and owner, its grand
-  estimate, the approval track badge (including "No approval track", §7.4) and
+  estimate with a thin bullet bar against the approval tracks (§5.4 Cost
+  summary), the approval track badge (including "No approval track", §7.4) and
   an attention marker in the item's own state colour (§8.5). Status shows
   only when it is not Active, as an icon in the card's top-right corner
   whose tooltip and accessible name are the status. The whole card opens the initiative page.
@@ -795,7 +802,12 @@ Its layout follows the design rules in §9.8.
 
 - **Header**: initiative name (editable), description (editable, plain text,
   1–2 lines), owner (selected from People list), team, status badge,
-  approval track badge, and the Actions menu. Changing the team while
+  approval track badge, and the Actions menu. Under them, a **time strip**:
+  one segment per phase, sized by its period and labelled with its name and
+  cost, past and current phases filled, a phase without a period hatched,
+  month labels beneath and a **Today** marker; selecting a segment scrolls
+  to that phase. It adds time to the magic bar's status stepper and is not
+  interactive otherwise. Changing the team while
   allocations exist asks for an inline confirmation first, naming the people
   who are not on the new team and will be removed from the phases that are
   still open (§7.2); it is not possible on a Closed or Cancelled initiative.
@@ -804,7 +816,14 @@ Its layout follows the design rules in §9.8.
   the gate's name), the difference between the two, and the deviation (§4)
   of recorded actuals from their estimates. Until a gate that carries cost
   has passed, this figure shows the grand estimate itself, with no
-  "approved at" label — the difference then reads as zero. A **Copy**
+  "approved at" label — the difference then reads as zero. It is shown as
+  a row of four key figures under the header: Grand estimate (with the
+  approved-at figure and difference beneath it, and a **bullet bar**: the
+  grand estimate as a bar over the approval tracks' bands (§7.4) shaded as
+  ranges, the approved-at figure as a tick and the recorded actuals to date
+  as a thinner inner bar; a gap between bands stays unshaded), Deviation,
+  the current
+  phase with its period, and the current gate's "X of Y complete". A **Copy**
   button copies the cost summary and the phase costs (§9.2).
 - **Phases**: the process's phases in order, as a vertical sequence. The
   current phase is expanded with full editing controls (allocations, period,
@@ -819,28 +838,52 @@ Its layout follows the design rules in §9.8.
   their team's Team FTE % in any month of the phase, or is no longer a
   member of the team (§7.2). A phase that starts on or before the previous
 costed phase's end date shows a warning saying so; no phase moves on its own.
-The current phase shows its **period** as two
-  date fields (§9.11), an **allocation table** (person, Allocation %, and
+The current phase shows its **period** as one
+  period picker (§9.11), an **allocation table** (person, Allocation %, and
   the person's cost for the phase), a **cost items table** (label, amount,
   and when: one month, or spread over the phase) beneath it, with the phase
   total in the phase header covering both, and an **actuals table** with a
-  row per month: the estimate, and the actual. **Add cost item** opens an
-  unsaved row with a label, an amount and the timing (a toggle, One month or
-  Spread over the phase, which defaults to spread; the month input, §9.11,
-  appears with One month); nothing is saved until **Add**, which needs a
-  label and an amount of 0 or more. A one-month item outside the period shows
-  "<month> is outside the phase's period. It still counts." A phase with no
+  row per month: the estimate, and the actual.
+  Each Allocation % is set on a **load bar**: the person's load over the
+  phase's months (their highest month, the months the warnings check), with
+  this allocation, their other counted allocations (§7.2) and any overflow
+  past a ceiling as separate segments and a line at each ceiling. It is
+  dragged, stepped with the arrow keys (5%; Home 0%, End 100%), typed into
+  once focused, or set from stops at 25, 50, 75 and 100% and **Fill free
+  <n>%** (the free capacity of §5.11). A row's warnings and fix buttons sit
+  in a full-width row under it, so no column moves. Under the table, the
+  team's active members not yet on the phase show as chips with their free
+  capacity, most free first (§5.11); a chip adds the person at that free
+  capacity, a member with none stays shown as "0% free", and **Copy from
+  <previous costed phase>** sits in the same row. With more than 12 such
+  members the chips give way to the searchable **Add person** picker.
+  **Add cost item** opens an
+  unsaved row with a label, an amount and the timing, chosen on a strip of
+  the period's months: **Spread over the phase** (the default) selects them
+  all, a month selects that month alone, and each month shows the amount it
+  receives. A month outside the period is entered with the month input
+  (§9.11) beside the strip; a phase without a valid period offers the
+  toggle One month / Spread with the month input instead. Nothing is saved
+  until **Add**, which needs a label and an amount of 0 or more. A one-month
+  item outside the period shows "<month> is outside the phase's period. It
+  still counts." A phase with no
   valid period is not costed yet, so its items are listed but count nothing
   and its total reads "—". A phase without items reads "No cost items yet —
   Add cost item". A closed month with no
-  recorded actual reads "using the estimate"; its check icon records the
-  estimate as the actual in one act, and typing another amount records that
-  instead (§7.3). A month not yet closed shows "not closed yet".
+  recorded actual shows the estimate in the "using the estimate" style with a
+  **Record <estimate>** button, which records it as the actual in one act,
+  and **Different amount**, which opens the amount field to record another
+  figure instead (§7.3). A recorded month shows its actual, its difference
+  from the estimate, and **Change**. Months not yet closed fold into one
+  line under the table ("Oct 2026 – Mar 2027 · 6 months not closed yet",
+  with their estimated total). Actuals are recorded one month at a time
+  (§1, Non-goals).
 - **Gate / Checklist panel** (beneath the current phase): the current gate's
   requirements, read as "X of Y complete" (§8.1), and its checklist items.
-  Each item has a name, a description that opens on demand, and a status set
-  with three icon toggles — Incomplete, Tentative, Complete — each with a
-  tooltip; the current status is also named in text beside them (§9.5).
+  Each item has a status icon at its left, a name, a description that opens
+  on demand, and a status set with a labelled segmented control —
+  Incomplete, Tentative, Complete — the selected one in its colour role
+  (§9.8).
   Selecting Tentative opens a note field; the status is saved together with
   the note, and Esc cancels. Items carried forward from earlier gates sit
   under their own subheading with their notes visible.
@@ -880,6 +923,14 @@ focus to the row (§9.5). It shows and allows editing of all person details:
   the field says so beside it ("Set to 40%, the most left. Other teams hold
   the rest.") until it is edited again. Raising it further is done from the
   team detail (§5.8), where the warning is visible.
+  The memberships are shown as one **split bar** of the person's Capacity
+  %: a segment per team in its team colour, the unclaimed rest hatched.
+  Dragging the divider between two teams moves Team FTE % from one to the
+  other in one edit; the divider after the last team claims or releases
+  unclaimed capacity, never past the cap. Each segment's label opens its
+  exact value (same cap rule) and **Remove from team**. A person whose Team
+  FTE %s already add up to more than their Capacity % (raised on the team
+  detail) is shown with one field per team instead of the bar.
 - Actions: Deactivate / Reactivate (§9.3).
 
 The panel carries no warnings and no allocation list. Who is committed to
@@ -914,15 +965,18 @@ A full page showing all detail information for a team:
   initiatives."). Columns Name, Phase and Status, sorted by phase, then name.
 - **Capacity view**: a month-by-month grid from the current month through
   the last month with an allocation. Rows are the team's members, with their
+
   Team FTE % under the name; each cell shows the member's Allocation % on
-  this team's Active initiatives. A cell is tinted with the Warning colour
-  and carries an icon when it exceeds the Team FTE % or when the member's
-  total across all teams exceeds their Capacity % (§7.2); the two cases have
+  this team's Active initiatives as a number over a fill whose height is
+  that share of their Team FTE % (a heatmap: solid at the Team FTE %). A
+  cell is filled with the Warning colour and carries an icon when it
+  exceeds the Team FTE % or when the member's total across all teams
+  exceeds their Capacity % (§7.2); the two cases have
   different icons, and the row detail names which one applies. Allocations
   on Provisional phases appear as a lighter figure beside the number and are
-  not counted toward the flags. Selecting a cell or a row shows the
-  contributing initiatives, including those of other teams, and any other
-  §7.2 warning for that member: Team FTE %s that add up to more than
+  not counted toward the flags. Selecting a cell or a row opens its
+  detail under the grid, listing the contributing initiatives, including
+  those of other teams, and any other §7.2 warning for that member: Team FTE %s that add up to more than
   Capacity %, and allocations that outlived the membership.
   On a deactivated team the capacity view is replaced by a note that its
   initiatives are not counted (§7.2).
@@ -956,7 +1010,9 @@ Contains the following sections:
   (§8.1), falling in that year (day rate) or month (working days), of a
   person in that country — for a day rate, excluding a person whose active
   custom role replaces it. A locked section shows its
-  values read-only with a hint on how to unlock. A **Rates are correct**
+  values as plain text, not disabled fields, with **Unlock to edit** in the
+  section header; unlocked, the fields appear, the header shows an
+  "Editing" tag and the button reads **Lock**. A **Rates are correct**
   confirmation clears the Getting started item (§5.2).
 - **Process** (read-only): a vertical timeline of the phases in order, each
   with its label, description and, for costed phases, its default duration.
@@ -1049,7 +1105,7 @@ A pasted token is checked immediately, and the result is specific:
 | Cannot see the repository | "This token can't see <repository>. Create it with access to that repository." |
 | Read-only | "This token can read but not write. Set Contents to Read and write." |
 | Waiting for approval | "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." |
-| Expired or invalid (a 401) | "GitHub doesn't accept this token." |
+| Expired or invalid (a 401) | "GitHub doesn't accept this token. It has probably expired or been revoked, or part of it is missing from the paste.", then a **Create a new token** link opening GitHub's token page as in step 1 |
 | Network failure or a server error while checking | "Couldn't reach GitHub to check the token. Check your connection and try again." The token stays in the field and the check can be run again. |
 
 ### 5.11 Suggestions and shortcuts
@@ -1079,7 +1135,8 @@ local time, determined the same way as Confirmed vs. Provisional in §4.
   this team and their unused Capacity % across all teams, taken as the
   minimum over the months of the phase; Provisional phases and initiatives
   that do not count (§7.2) are left out. Allocation % is prefilled with the
-  free capacity, so the default never causes a warning.
+  free capacity, so the default never causes a warning. The allocation
+  table shows this list as chips under the table (§5.4).
 - **Extend on overrun.** When the current phase is past its end date, the
   Overrun state (§5.4, §8.5) offers **Extend <phase> by one month**. It
   moves the phase's end date a month later — the same day next month, a day
@@ -1515,7 +1572,8 @@ computed, so the strip never invents a separate colour scale.
 
 ### 9.1 Theming
 
-System (follows the OS), Light or Dark, cycled by one control and
+System (follows the OS), Light or Dark, chosen from one control (an icon
+button at the right end of the top bar opening a menu of the three) and
 remembered across reloads in the browser (never synced). The resolved
 theme is applied as a single `.dark` class on the document root; every
 page repaints under all three without a reload, because every CSS rule
@@ -1564,11 +1622,15 @@ People and Teams overviews, and the members, initiatives and capacity
 sections of the team detail — shows a single line saying what it holds and
 **one primary action** (for example "No initiatives yet — Create your first
 initiative"). The Portfolio with no initiatives shows the same instead of an
-empty board; its action is **Create a team** while no team exists,
+empty board. While no team exists, that empty state is a **welcome card**
+instead: "Welcome to <product>", the line "Four steps to your first costed
+initiative." and the four Getting started items (§5.2) as rows, cleared ones
+ticked, with the next item's action as the card's only primary button; the
+top bar's create button is hidden meanwhile, so "Create a team" appears
+once. Otherwise its action is
 **Reactivate a team** (opening the Teams overview) while teams exist but none
-is active, and **Create your first initiative** after. The first two add a
-line under the heading saying why: "No teams yet." and "All your teams are
-inactive."
+is active, and **Create your first initiative** after. Reactivate a team
+adds a line under the heading saying why: "All your teams are inactive."
 
 An action blocked by a missing prerequisite links to it instead of
 dead-ending: an allocation section on a team without members reads "This
@@ -1602,6 +1664,10 @@ The built-in UI targets **WCAG 2.2 Level AA**.
     focus is not in a text field; Up and Down move between grouped results,
     and Enter opens the selected one. Esc closes it and returns focus to
     where it was.
+  - Sliders (the allocation load bar, §5.4, and the split bar, §5.6): the
+    arrow keys step 5%, Home and End go to 0% and the maximum, digits type
+    a value, and the value is announced with its context ("60%, total load
+    80% of 100%").
   - No other global shortcuts are defined.
   - Animations (a tinted field, the "Passed — Reopen" fade, §9.9) are brief
     and non-essential; under `prefers-reduced-motion` they are skipped and
@@ -1684,6 +1750,14 @@ delay. Critical information is never only in a tooltip.
   **Edit note**, which saves the note alone.
 - **Gate passed:** the magic bar shows "Passed <gate> — Reopen" for a few
   seconds (§5.4).
+- **Changed since you last looked:** an initiative that changed since the
+  user last opened it carries a dot on its card (§5.2) and its row (§5.3),
+  and the Portfolio says how many
+  changed and since when ("2 initiatives changed since you last looked,
+  Tuesday 29 Sep") with **Mark as seen**. On the initiative page, a key
+  figure that changed shows its previous value struck through beside the
+  new one until the page is left. It never says who made a change (§1,
+  Non-goals). Initiatives the user has never opened are not marked.
 - **Changed by others:** a value that another user's change updates while it
   is on screen is tinted for a few seconds, and the sync indicator's tooltip
   says "Updated by others". A field the user is editing is never overwritten
@@ -1755,9 +1829,24 @@ tooltip.
 control: type a month such as "Sep 2026", or open a small popover with a
 year stepper and the twelve months. It is fully operable by keyboard.
 
-**Date input.** A phase's start and end date is a compact control: type a
-date such as "3 Sep 2026", or open a small calendar popover. It is fully
+**Period picker.** A phase's period is one control split into Start and
+End; each half can be typed into ("3 Sep 2026") and opens a two-month
+calendar popover, where the half being set is outlined, the range shades
+as the pointer moves, the previous and next phases' periods are marked
+faintly, and a footer names the period, its length and the working days
+per team country, with the overlap warning (§5.4) when the start falls on
+or before the previous phase's end. Shortcuts set the start right after
+the previous phase, or a length of 1, 2, 3 or 6 whole months. A change
+saves only on **Done**; Esc or clicking outside discards it. It is fully
 operable by keyboard.
+
+**Amount input.** Every amount field (a cost item, an actual, a day rate)
+shows the currency symbol inside the field and accepts shorthand and simple
+sums: k and m (12k, 2.5m), and + − × / between numbers (3 × 4k). The
+decimal separator follows the user's format (§9.7). While the entry is not
+a plain number, the line under the field shows the amount it will save
+("Saves as €12,000"); an entry that isn't a valid amount says so there and
+saves nothing. Amounts are computed with exact decimals.
 
 **Amounts.** Cards, board headers and metrics show compact amounts (for
 example 4.2 M and 210 k) with the full amount in a tooltip; tables, editors
@@ -1861,6 +1950,10 @@ separately from the dataset (§3, Authentication), and is never dropped to make
 room. The cache holds at most half the storage quota; over that, the oldest
 files are dropped first, initiative files before master files. The size rule in
 §3 (at most half the storage quota) is checked by an automated test.
+For **Changed since you last looked** (§9.9), the time the user last opened
+each initiative and its key figures at that moment are kept in IndexedDB
+for that repository, never synced; if they cannot be read, nothing is
+marked.
 The Portfolio's **Dismiss for now** on the Getting started strip (§5.2) is kept in
 session storage, never synced; if session storage cannot be used, the
 dismissal lasts for the page's lifetime.

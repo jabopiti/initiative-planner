@@ -2,13 +2,13 @@
 slice_id: "051"
 title: "Frozen snapshot keeps the rates, roles, countries and person data"
 type: "capability"
-status: "valid"
+status: "superseded"
 criteria_failures: []
 depends_on: ["008"]
 verification_status: null
-superseded_by: null
+superseded_by: "042"
 supersedes: null
-change_summary: "Added from the post-build review of the implementation against the spec (slices 001 to 041). Review finding: freezePhase stores resolved figures only; §8.1 and §6 say the snapshot includes the rates, roles, countries and person data behind them."
+change_summary: "Added from the post-build review of the implementation against the spec (slices 001 to 041). Review finding: freezePhase stores resolved figures only; §8.1 and §6 say the snapshot includes the rates, roles, countries and person data behind them. Backlog reshuffle (3 Oct 2026): merged into 042, which changes the same freeze code; its scope, criteria and open decisions are carried there unchanged."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Changes a stored data shape that frozen records depend on; needs a decision on old snapshots and cannot be verified by simple tests."
 spec_sections: ["§8.1 Passing a gate", "§6 Data model (Gate record)", "§7.1 Time granularity and cost of an allocation"]
