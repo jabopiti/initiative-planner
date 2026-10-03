@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 function renderConnection(repo: Repository, session: Partial<Session> = {}) {
-  const value: Session = { login: 'jmustermann', rememberLogin: vi.fn(), disconnect: vi.fn(), ...session };
+  const value: Session = { login: 'jmustermann', rememberLogin: vi.fn(), classicWarning: false, setClassicWarning: vi.fn(), disconnect: vi.fn(), ...session };
   render(
     <BrandProvider brand={defaultBrandPack}>
       <SessionContext.Provider value={value}>

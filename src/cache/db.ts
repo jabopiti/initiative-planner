@@ -293,3 +293,12 @@ export const loginCache = {
   set: (login: string) => set(AUTH_STORE, LOGIN_KEY, login),
   clear: () => del(AUTH_STORE, LOGIN_KEY),
 };
+
+/** Set while the remembered token is a classic one and its warning has not been dismissed (§5.10); kept and cleared with the token. */
+const CLASSIC_KEY = 'github-classic-warning';
+
+export const classicWarningCache = {
+  get: () => get<boolean>(AUTH_STORE, CLASSIC_KEY),
+  set: () => set(AUTH_STORE, CLASSIC_KEY, true),
+  clear: () => del(AUTH_STORE, CLASSIC_KEY),
+};

@@ -8,6 +8,9 @@ export interface Session {
   /** The GitHub login the token belongs to; null until known. */
   login: string | null;
   rememberLogin: (login: string) => void;
+  /** Whether the classic-token warning is showing (§5.10): the token is a classic one and it is not yet dismissed. */
+  classicWarning: boolean;
+  setClassicWarning: (on: boolean) => void;
   /** Removes the token from the browser and shows the Connect screen; the cache stays (§10.4). */
   disconnect: () => void;
 }

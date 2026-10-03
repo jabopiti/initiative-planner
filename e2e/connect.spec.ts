@@ -22,7 +22,8 @@ test('a token GitHub rejects keeps the Connect screen and says so', async ({ pag
 
   await enterToken(page);
 
-  await expect(page.getByRole('alert')).toHaveText("GitHub doesn't accept this token.");
+  await expect(page.getByRole('alert')).toContainText("GitHub doesn't accept this token. It has probably expired or been revoked");
+  await expect(page.getByRole('link', { name: /Create a new token/ })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0);
 });
 
@@ -41,4 +42,23 @@ test('"Remember me" survives a reload and Disconnect forgets it', async ({ page,
   await fakeGithub(fresh).install();
   await fresh.goto('/');
   await expect(fresh.getByLabel('GitHub token')).toBeVisible();
+});
+
+test('a classic token opens the app with the warning banner until it is dismissed, also after a reload', async ({ page }) => {
+  await fakeGithub(page, { classicTokens: [FAKE_TOKEN] }).install();
+
+  await connect(page);
+
+  const banner = page.getByRole('status').filter({ hasText: 'a classic token reaches all your repositories' });
+  await expect(banner).toBeVisible();
+  await expect(banner.getByRole('link', { name: /Create a fine-grained one/ })).toBeVisible();
+
+  await page.reload();
+  await expect(banner).toBeVisible();
+
+  await banner.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(banner).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible();
+  await expect(banner).toHaveCount(0);
 });

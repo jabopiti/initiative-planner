@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
@@ -44,7 +44,50 @@ describe('ConnectScreen — checked-token outcomes (§5.10)', () => {
 
     const status = await screen.findByRole('status');
     expect(status.textContent).toContain('Connected as bo');
-    expect(onConnected).toHaveBeenCalledWith('a-real-token', false, 'bo');
+    expect(onConnected).toHaveBeenCalledWith('a-real-token', false, 'bo', false);
+  });
+
+  it('a pasted token is checked without pressing Connect, with the Remember me choice as it stands', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => (url.endsWith('/user') ? jsonResponse({ login: 'bo' }) : jsonResponse({ permissions: { push: true } }))),
+    );
+    const onConnected = vi.fn();
+    renderConnectScreen(onConnected);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('checkbox', { name: 'Remember me on this device' }));
+
+    await user.click(screen.getByLabelText('GitHub token'));
+    await user.paste('pasted-token');
+
+    await vi.waitFor(() => expect(onConnected).toHaveBeenCalledWith('pasted-token', true, 'bo', false));
+  });
+
+  it('a classic token connects and tells the app to raise the warning', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.endsWith('/user')
+          ? jsonResponse({ login: 'bo' }, 200, { 'X-OAuth-Scopes': 'repo' })
+          : jsonResponse({ permissions: { push: true } }),
+      ),
+    );
+    const onConnected = vi.fn();
+    renderConnectScreen(onConnected);
+
+    await submitToken('classic-token');
+
+    await vi.waitFor(() => expect(onConnected).toHaveBeenCalledWith('classic-token', false, 'bo', true));
+  });
+
+  it('a token that cannot see the repository names it', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => (url.endsWith('/user') ? jsonResponse({ login: 'bo' }) : jsonResponse({ message: 'Not Found' }, 404))));
+    renderConnectScreen();
+
+    await submitToken();
+
+    const repo = `${defaultBrandPack.github.owner}/${defaultBrandPack.github.repo}`;
+    expect((await screen.findByRole('alert')).textContent).toBe(`This token can't see ${repo}. Create it with access to that repository.`);
   });
 
   it('a 401 shows "GitHub doesn\'t accept this token." as an alert, in the alarm styling', async () => {
@@ -54,7 +97,8 @@ describe('ConnectScreen — checked-token outcomes (§5.10)', () => {
     await submitToken();
 
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toBe("GitHub doesn't accept this token.");
+    expect(alert.textContent).toContain("GitHub doesn't accept this token. It has probably expired or been revoked");
+    expect(within(alert).getByRole('link', { name: /Create a new token/ })).toBeInTheDocument();
     expect(alert.className).toContain('bg-alarm-tint');
   });
 

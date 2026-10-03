@@ -16,7 +16,7 @@ interface StoredFile {
   sha: string;
 }
 
-export function fakeGithub(page: Page, options: { login?: string; rejectedTokens?: string[] } = {}) {
+export function fakeGithub(page: Page, options: { login?: string; rejectedTokens?: string[]; classicTokens?: string[] } = {}) {
   const rejectedTokens = [...(options.rejectedTokens ?? [])];
   const files = new Map<string, StoredFile>();
   const blobs = new Map<string, string>();
@@ -54,6 +54,9 @@ export function fakeGithub(page: Page, options: { login?: string; rejectedTokens
 
     const token = (request.headers().authorization ?? '').replace('Bearer ', '');
     if (rejectedTokens.includes(token)) return json(route, { message: 'Bad credentials' }, 401);
+    if (method === 'GET' && pathname === '/user' && options.classicTokens?.includes(token)) {
+      return json(route, { login: options.login ?? 'e2e-user' }, 200, { 'x-oauth-scopes': 'repo' });
+    }
     if (method === 'GET' && pathname === '/user') return json(route, { login: options.login ?? 'e2e-user' });
     if (method === 'GET' && /^\/repos\/[^/]+\/[^/]+$/.test(pathname)) return json(route, { permissions: { push: true } });
 

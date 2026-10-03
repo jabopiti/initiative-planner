@@ -57,7 +57,22 @@ the real app, and agrees with the Replace-token field.
 
 None.
 
+## Decided in review (pre-implementation)
+
+- The classic-token warning is a banner under the top bar (mockup option A,
+  4 Oct 2026): "Connected as <user> — a classic token reaches all your
+  repositories. Create a fine-grained one." with the link (new tab) and a
+  Dismiss button. It survives a reload until dismissed: the flag is stored
+  beside the token with its lifetime (session, or IndexedDB when remembered)
+  and cleared by Dismiss or by replacing the token. The Replace-token field
+  raises the same banner instead of its toast.
+- Paste checks and connects at once with the Remember me state at that
+  moment; the checkbox stays where it is, and typing then Connect still works.
+- The 401 text is §5.10's full sentence plus a "Create a new token" link; the
+  read-only banner uses the same text and link (replacing its own hint).
+- `TOKEN_CHECK_MESSAGES` take `owner/repo` for "This token can't see
+  owner/repo. Create it with access to that repository."
+
 ## Open decisions
 
-- Where the classic-token warning lives after connecting (a banner under the
-  top bar, recommended, or a one-time dialog), shown as a mockup.
+None.

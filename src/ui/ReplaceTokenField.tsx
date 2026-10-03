@@ -1,7 +1,7 @@
 import { useContext, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { tokenStore } from '../auth/tokenStore';
-import { checkToken, TOKEN_CHECK_MESSAGES } from '../auth/validateToken';
+import { checkToken, repoLabel, TOKEN_CHECK_MESSAGES } from '../auth/validateToken';
 import { useBrand } from '../state/BrandContext';
 import { useRepository } from '../state/DataContext';
 import { SessionContext } from '../state/SessionContext';
@@ -29,18 +29,19 @@ export function ReplaceTokenField({ onReplaced }: { onReplaced?: () => void }) {
     const result = await checkToken(brand.github, token);
     setChecking(false);
     if (result.outcome !== 'works' && result.outcome !== 'classic-warning') {
-      setError(TOKEN_CHECK_MESSAGES[result.outcome]());
+      setError(TOKEN_CHECK_MESSAGES[result.outcome]({ repo: repoLabel(brand.github) }));
       return;
     }
     await tokenStore.save(token, await tokenStore.remembered());
     if (session) session.rememberLogin(result.login);
     else await tokenStore.saveLogin(result.login);
+    // The warning follows the new token: raised for a classic one, gone for a fine-grained one (§5.10).
+    if (session) session.setClassicWarning(result.outcome === 'classic-warning');
+    else await tokenStore.saveClassicWarning(result.outcome === 'classic-warning');
     setValue('');
     repository.setToken(token);
     onReplaced?.();
-    toast.success(TOKEN_CHECK_MESSAGES[result.outcome](result.login), {
-      description: result.outcome === 'classic-warning' ? 'A classic token reaches all your repositories.' : undefined,
-    });
+    toast.success(TOKEN_CHECK_MESSAGES[result.outcome]({ login: result.login, repo: repoLabel(brand.github) }));
   }
 
   function onPaste(event: ClipboardEvent<HTMLInputElement>) {
