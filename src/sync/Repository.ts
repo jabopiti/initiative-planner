@@ -19,7 +19,7 @@ import {
   type Team,
 } from '../data/types';
 import { allocationRefusal, trackedYears } from '../data/cost';
-import { formatDate, formatMonth, monthKey } from '../data/dates';
+import { formatDateEn, formatMonthEn, monthKey } from '../data/dates';
 import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysByMonth } from '../data/rates';
 import { localToday } from '../data/dates';
 import { duplicateInitiative, type DuplicateResult } from '../data/duplicate';
@@ -1097,7 +1097,7 @@ export class Repository {
       `workingDays:${key}`,
       (r) => r.workingDaysByMonth[month],
       (r) => ({ ...r, workingDaysByMonth: r.workingDaysByMonth.map((d, i) => (i === month ? days : d)) }),
-      (name, to) => `${name}: working days in ${formatMonth(key)} set to ${to}`,
+      (name, to) => `${name}: working days in ${formatMonthEn(key)} set to ${to}`,
     );
   }
 
@@ -1529,7 +1529,7 @@ export class Repository {
         field: which,
         from: before,
         to: value,
-        words: (_, to, name, phase) => `${name}: ${phase} ${word} ${to === undefined ? 'cleared' : `set to ${formatDate(to)}`}`,
+        words: (_, to, name, phase) => `${name}: ${phase} ${word} ${to === undefined ? 'cleared' : `set to ${formatDateEn(to)}`}`,
       },
     );
   }
@@ -1543,7 +1543,7 @@ export class Repository {
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, endDate: next }),
-      { field: 'endDate', from: endDate, to: next, words: (_, to, name, phase) => `${name}: ${phase} extended to ${formatDate(to as string)}` },
+      { field: 'endDate', from: endDate, to: next, words: (_, to, name, phase) => `${name}: ${phase} extended to ${formatDateEn(to as string)}` },
     );
   }
 
@@ -1682,7 +1682,7 @@ export class Repository {
       if (after.label !== before.label) parts.push(`renamed to ${after.label}`);
       if (after.amount !== before.amount) parts.push(`amount set to ${this.money(after.amount)}`);
       if (after.timing !== before.timing || after.month !== before.month) {
-        parts.push(after.timing === 'spread' || !after.month ? 'spread over the phase' : `timed to ${formatMonth(after.month)}`);
+        parts.push(after.timing === 'spread' || !after.month ? 'spread over the phase' : `timed to ${formatMonthEn(after.month)}`);
       }
       return `${name}: ${phase} cost item ${before.label} ${parts.join(', ') || 'updated'}`;
     };
@@ -1741,7 +1741,7 @@ export class Repository {
         field: `actual:${month}`,
         from: before,
         to: amount,
-        words: (_, to, name, phase) => `${name}: ${phase} actual for ${formatMonth(month)} recorded (${this.brand.currencySymbol}${Math.round(to as number)})`,
+        words: (_, to, name, phase) => `${name}: ${phase} actual for ${formatMonthEn(month)} recorded (${this.brand.currencySymbol}${Math.round(to as number)})`,
       },
       { allowFrozen: true },
     );

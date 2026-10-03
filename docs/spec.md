@@ -669,7 +669,8 @@ an initiative's page, a person's side panel on the People page, or a team's
 page. Esc closes the overlay. The overlay opens from the icon, from **Ctrl+K /
 ⌘+K** anywhere, and from **/** when focus is not in a text field; the icon's
 tooltip names the shortcut. Matching is a case- and accent-insensitive
-substring; each group shows up to 5 results, name matches before description
+substring; a search with no result reads "No matches for ‘<query>’" (curly
+quotes); each group shows up to 5 results, name matches before description
 matches, with "5 of 12" in the group header when more match. An initiative
 shows its phase, a status chip when not Active, and a one-line description
 excerpt when only its description matched; inactive people and teams are
@@ -994,12 +995,12 @@ what is seen on the team detail (§5.8) and on the initiatives (§5.4).
 
 ### 5.7 Teams overview
 
-A **card layout**, one card per team, each showing a high-level summary:
+A **sortable table**, one row per team, each showing a high-level summary:
 team name, team size (the number of active members), the team's Active
 initiatives as one count chip per phase, and a **warning** marker when any
-member has a capacity warning (§7.2). Cards show no capacity figures; the
-detail is on the team detail view. Clicking a card opens the team detail
-view.
+member has a capacity warning (§7.2). The table shows no capacity figures;
+the detail is on the team detail view. Clicking a row opens the team detail
+view. The table has a **Copy** button (§9.2).
 
 A **New team** button creates a team from a name. Inactive teams are shown
 greyed out.
@@ -1221,7 +1222,9 @@ local time, determined the same way as Confirmed vs. Provisional in §4.
   allocations; other teams' allocations are named, not fixed from there.
   A frozen allocation offers no reduce.
 - **Undo.** Removing an allocation, a cost item or a membership shows
-  "Removed. Undo" for 10 seconds; Undo restores it as a normal edit.
+  "Removed. Undo" for 10 seconds; Undo restores it as a normal edit. Changing
+  an initiative's team removes the allocations of people not in the new team
+  and says so: "Team changed to <team>, <n> allocations removed." with Undo.
   Once the item's phase is frozen (§8.1) or the initiative is Closed or
   Cancelled (§8.4), here or by a pull, the Undo is withdrawn.
   Deleting an initiative is not undoable; it is protected by an inline
@@ -1761,8 +1764,12 @@ laptop with a normal broadband connection:
 ### 9.7 Language and formats
 
 The UI is in English only. Numbers, currency amounts and dates are formatted
-according to the user's browser locale, using the deployment's currency
-symbol (§2). Calculations run on calendar months, prorated at a phase's own
+according to the user's browser locale (decimal and thousands separators,
+month names, the date field's pattern, clock times), using the deployment's
+currency symbol (§2) before the number. Compact amounts (§9.11) are the one
+fixed style: "€395k", "€1.2M" in every locale, with the locale's decimal
+separator. A typed date is accepted in the locale's pattern and in the
+other shapes the date field has always taken ("26.06.2026", "26 Jun 2026"). Calculations run on calendar months, prorated at a phase's own
 start and end date (§7.1), and do not depend on display format.
 
 ### 9.8 Visual design
@@ -1845,8 +1852,13 @@ delay. Critical information is never only in a tooltip.
   people and 5 teams, and sets roles, countries and rates back to their
   defaults. This can't be undone."
 - **Messages:** there is no toast stack. A message appears where the action
-  happened, near the control or in the magic bar. Success is silent; errors
-  stay until they are resolved or dismissed.
+  happened, near the control or in the magic bar. Success is silent, except
+  that Copy confirms in text beside its button; errors stay until they are
+  resolved or dismissed. The one exception is a message that offers an
+  action or names something left out: a single short toast shows "Removed.
+  Undo" (§5.11), the team-change message (§5.11), "Not copied: …" after
+  Duplicate (§5.11) and "Connected as <user>" after a token is replaced
+  (§3). It disappears on its own, or when its action is taken.
 - **Opening:** the cached data shows immediately and refreshes in the
   background; the sync indicator shows syncing (§3). On the very first load
   (no cache) the app waits for the whole dataset in one pull, then shows the
@@ -1863,8 +1875,9 @@ to reduce noise once users have learned its meaning. Every icon has a
 tooltip and an accessible name, and state is never carried by an icon alone
 (§9.5).
 
-- **Team and owner** appear as icons with tooltips on cards, rows and header
-  lines; the full detail pages keep their labels.
+- **Team and owner** are written as text ("Platform · Mara Voss") on cards,
+  rows and header lines, because an icon cannot tell two teams or two people
+  apart; the detail pages keep their labels.
 - **Phases** each have an icon defined in the brand pack (§2). It is shown
   in the stepper (§5.4) beside the label for the current and the next
   phase and icon-only with a tooltip for the others, and beside the label in board column
@@ -1928,7 +1941,7 @@ a plain number, the line under the field shows the amount it will save
 saves nothing. Amounts are computed with exact decimals.
 
 **Amounts.** Cards, board headers and metrics show compact amounts (for
-example 4.2 M and 210 k) with the full amount in a tooltip; tables, editors
+example €4.2M and €210k, no space) with the full amount in a tooltip; tables, editors
 and copy (§9.2) show full amounts. Deviation always shows its sign, and
 overspend uses the Warning colour (§9.8).
 
@@ -2076,6 +2089,13 @@ route, because GitHub Pages serves no fallback page for other paths (§5.1):
 `#/portfolio`, `#/initiatives`, `#/initiatives/<id>` (the only shareable
 one, §5.1), `#/people`, `#/teams`, `#/settings`. People and teams are
 reached only through their overview routes, per §5.1.
+
+Three query parameters on the hash route are for in-app links only and are
+not meant to be shared: `?focus=<anchor>` scrolls the initiative page to a
+field and focuses it, `?openPhase=<phase id>` opens that phase's section
+(both from the Needs attention strip, §5.11), and `?team=<team id>` on
+`#/initiatives/new` pre-selects the team (from a team's page). A parameter
+that names something that no longer exists is ignored.
 
 ### 10.7 Distribution, build and deploy
 

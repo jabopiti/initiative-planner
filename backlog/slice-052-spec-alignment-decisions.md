@@ -46,10 +46,41 @@ in `docs/spec.md`, and the code matches.
 7. **Space opens a table row (§9.5)** is not implemented (rows are clickable,
    only the name link takes focus).
 
+### Decided in review (pre-implementation)
+
+Settled with the user on 3 Oct 2026 from rendered mockups; the spec is
+already amended (commit `Slice 052 spec: …`).
+
+1. **Formats (§9.7).** Follow the browser locale for numbers, amounts, dates,
+   month names and clock times; the currency symbol stays in front. Compact
+   amounts are "€395k" / "€1.2M" (no space, locale decimal separator). Date
+   fields show the locale's pattern; typing still accepts "26.06.2026" and
+   "26 Jun 2026". Code change: `formatAmount.ts`, `dates.ts`,
+   `ConnectionSection.tsx`, `Repository.ts` stop using fixed `en` / `en-GB`.
+2. **Toasts (§9.9).** Keep sonner for messages that offer an action or name
+   something left out (Undo, team change, Duplicate's "Not copied", "Connected
+   as"). Copy's confirmation moves inline, as text beside the button. No other
+   toast.
+3. **Teams overview (§5.7).** The table stays; the spec describes it.
+4. **Card icons (§9.10).** "Team · owner" stays as text; the spec says so.
+5. **Deep links (§10.6).** `?focus=`, `?openPhase=`, `?team=` documented as
+   in-app only.
+6. **Copy.** Search no-match stays "No matches for ‘xyz’" (§5.1). The
+   team-change message stays "Team changed to X, N allocations removed."
+   with Undo (§5.11).
+7. **Space on rows (§9.5).** Implement: rows of the Initiatives, People and
+   Teams tables are focusable; Enter and Space open them.
+
+Assumption: the fallback locale is `en` when the browser reports none.
+
 ## Acceptance criteria
 
 - [ ] Given each item, then the user's decision is in the spec section it
       concerns, and the slice records which way it went.
+- [ ] Given a browser set to German, then amounts, dates and clock times
+      on the board, tables, date fields and Connection panel show German
+      formats, and compact amounts read "€395k".
+- [ ] Given a focused table row, then Enter and Space open it.
 - [ ] Given a decision that changes behaviour, then tests assert it and any
       follow-up code is its own commit.
 - [ ] Given the spec afterwards, then no sentence in it contradicts another
