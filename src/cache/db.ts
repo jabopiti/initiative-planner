@@ -140,6 +140,14 @@ export async function defaultBudget(): Promise<number> {
   return quota / 2;
 }
 
+const encoder = new TextEncoder();
+
+/** A file's size in the cache: its UTF-8 encoded length in bytes, not UTF-16 units (§3 Storage limits, §10.4). */
+const byteLength = (content: string): number => encoder.encode(content).length;
+
+/** A write the browser refused because storage is full (§3 Storage limits). */
+export const isQuotaError = (error: unknown): boolean => (error as { name?: unknown } | null)?.name === 'QuotaExceededError';
+
 /** The key of one repository's and branch's files in the cache. */
 export const cacheScope = ({ owner, repo, dataBranch }: { owner: string; repo: string; dataBranch: string }): string =>
   `${owner}/${repo}@${dataBranch}`;
@@ -194,7 +202,7 @@ export class FileCache {
     const before = this.total ?? (await this.size());
     const previous = await this.get(path);
     await set<CachedFile>(FILES_STORE, this.key(path), { ...value, at: Date.now() });
-    this.total = before - (previous?.content.length ?? 0) + value.content.length;
+    this.total = before - (previous ? byteLength(previous.content) : 0) + byteLength(value.content);
     const budget = await this.budget();
     if (this.total > budget) await this.evict(path, budget);
   }
@@ -228,11 +236,11 @@ export class FileCache {
   private async remove(path: string): Promise<void> {
     const previous = await this.get(path);
     await del(FILES_STORE, this.key(path));
-    if (this.total !== null && previous) this.total -= previous.content.length;
+    if (this.total !== null && previous) this.total -= byteLength(previous.content);
   }
 
   private async size(): Promise<number> {
-    return [...(await this.all()).values()].reduce((sum, file) => sum + file.content.length, 0);
+    return [...(await this.all()).values()].reduce((sum, file) => sum + byteLength(file.content), 0);
   }
 
   /** Drops the oldest files until the cache fits `budget`, and forgets that the cache is complete. */
@@ -246,7 +254,7 @@ export class FileCache {
         await del(META_STORE, this.prefix);
       }
       await del(FILES_STORE, this.key(path));
-      this.total = (this.total ?? 0) - file.content.length;
+      this.total = (this.total ?? 0) - byteLength(file.content);
     }
   }
 

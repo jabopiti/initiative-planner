@@ -2,7 +2,7 @@
 // brand pack's repo and data branch, and only that; the token comes from .env.local
 // (VITE_DEV_TOKEN, via `node --env-file`) and is never printed. AGENTS.md ("Development data") is
 // what allows these to run on this repo.
-import { readFileSync } from 'node:fs';
+import { brandValue as pick } from './brandValue.mjs';
 
 const token = process.env.VITE_DEV_TOKEN;
 if (!token) {
@@ -10,8 +10,6 @@ if (!token) {
   process.exit(1);
 }
 
-const brand = readFileSync(new URL('../src/brand/defaultBrand.ts', import.meta.url), 'utf8');
-const pick = (key) => brand.match(new RegExp(`${key}:\\s*'([^']+)'`))?.[1];
 const [owner, repo, branch, api] = [pick('owner'), pick('repo'), pick('dataBranch'), pick('apiBaseUrl')];
 if (!owner || !repo || !branch || !api || branch === 'main') {
   console.error('Could not determine a safe target from src/brand/defaultBrand.ts.');

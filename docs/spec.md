@@ -525,9 +525,15 @@ damaged but foreign, and is handled under Data integrity above.
 At the volume ceiling (§1) the dataset must use no more than half of the
 smallest supported browser's storage quota, verified by an automated size
 test. The sync file(s) must also stay within the limits of the GitHub API.
-If a local write fails because storage is full, it is handled like a failed
-push: the edit is rejected, the input is kept, and the message says that
-storage is full (Sync failures above). The storage mechanism and the
+If a local write fails because storage is full, the edit is not rejected: the
+local cache is written only after GitHub has accepted the commit, so the edit
+is already saved and the repository stays the source of truth. A dismissible
+banner under the top bar says so: "Browser storage is full. Your changes are
+saved in GitHub, but this browser can't keep a local copy, so the next open
+loads everything again." It shows once per session, for a failed cache write
+after a push or after a pull, and sync stays as it is (not read-only). Other
+cache failures stay silent. The cache budget is counted in bytes (UTF-8
+encoded length). The storage mechanism and the
 repository file layout are defined in §10.
 
 ---

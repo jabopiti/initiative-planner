@@ -8,6 +8,7 @@ import { SessionContext, type Session } from './state/SessionContext';
 import { ClassicTokenBanner } from './ui/ClassicTokenBanner';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { TopBar } from './ui/TopBar';
+import { CacheFullBanner } from './ui/CacheFullBanner';
 import { ReadOnlyBanner } from './ui/ReadOnlyBanner';
 import { ConflictBanner } from './ui/ConflictBanner';
 import { ConflictUiProvider } from './state/ConflictUi';
@@ -60,6 +61,7 @@ function MainApp({ token }: { token: string }) {
             <ClassicTokenBanner />
             <ReadOnlyBanner />
             <ConflictBanner />
+            <CacheFullBanner />
             <Screen route={route} />
           </main>
         </ConflictUiProvider>
