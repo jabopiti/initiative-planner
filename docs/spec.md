@@ -1571,9 +1571,11 @@ opportunity last:
 4. **Due** — the current phase's end date has been reached and the gate
    still has open requirements: a costed phase without an estimate (§8.1),
    or a checklist item that is Incomplete or still Tentative (including one
-   carried forward from an earlier gate).
+   carried forward from an earlier gate). Past the end date the phase is
+   Overrun instead, so Due is the end date itself.
 5. **Ready** — nothing is left blocking the current gate. A "you could do
-   this now," never a problem.
+   this now," never a problem. A gate whose only open items are Tentative
+   reads Ready before its end date and Due on it.
 
 Each item's own state (blocker/warning/met) is kept from wherever it was
 computed, so the strip never invents a separate colour scale.
