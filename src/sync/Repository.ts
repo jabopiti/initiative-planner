@@ -1,5 +1,5 @@
 import type { BrandPack } from '../brand/types';
-import { cacheScope, FileCache, type CacheMeta } from '../cache/db';
+import { cacheScope, FileCache, isQuotaError, type CacheMeta } from '../cache/db';
 import { buildBaselineDataset, type BaselineDataset } from '../data/baseline';
 import { buildExampleData } from '../data/exampleDataset';
 import { newId } from '../data/ids';
@@ -71,6 +71,8 @@ export interface RepositoryState {
   changed: ReadonlySet<string>;
   /** Others' changes arrived a moment ago: the sync indicator's tooltip says so (§9.9). */
   updatedByOthers: boolean;
+  /** The browser's storage is full, so the local cache could not keep a write (§3 Storage limits): a banner says so until dismissed. */
+  cacheFull: boolean;
   /** Initiatives someone else deleted while an edit to them waited to be saved, by id, with their names (§3): their
    * page says the change wasn't saved. */
   deletedWithLostEdit: ReadonlyMap<string, string>;
@@ -221,6 +223,7 @@ export class Repository {
     failedFields: new Set(),
     changed: new Set(),
     updatedByOthers: false,
+    cacheFull: false,
     deletedWithLostEdit: new Map(),
     frozenWithLostEdit: new Set(),
   };
@@ -603,8 +606,9 @@ export class Repository {
       (recorded) => {
         this.meta = recorded ? meta : null;
       },
-      () => {
+      (error) => {
         // The cache is a local convenience: losing it only means the next open pulls everything.
+        if (isQuotaError(error)) this.onCacheFull();
       },
     );
   }
@@ -735,6 +739,25 @@ export class Repository {
       count += failed > 0 ? failed : writer.hasPending ? 1 : 0;
     }
     return count;
+  }
+
+  /** An edit is waiting or being saved, or a save failed: closing the tab now would lose or cut short a change (§10.3). */
+  hasUnsavedWork(): boolean {
+    if (this.unsavedChangeCount() > 0) return true;
+    for (const [, writer] of this.allWriters()) if (writer.busy) return true;
+    return false;
+  }
+
+  private cacheFullDismissed = false;
+
+  /** The banner is raised once per session (§3 Storage limits): never again after it was dismissed. */
+  private readonly onCacheFull = (): void => {
+    if (!this.cacheFullDismissed && !this.state.cacheFull) this.setState({ cacheFull: true });
+  };
+
+  dismissCacheFull(): void {
+    this.cacheFullDismissed = true;
+    this.setState({ cacheFull: false });
   }
 
   /** The GitHub login of the token in use, for a session that never recorded it (§5.9 Connection): one request. */
@@ -906,6 +929,7 @@ export class Repository {
       whenMissing,
       initial,
       onStatus: this.statusOf(path),
+      onCacheFull: this.onCacheFull,
       onConflict: this.onConflict,
       onConflictClosed: this.onConflictClosed,
       onDocument: (content) => this.setState({ [key]: content } as Partial<RepositoryState>),
@@ -939,6 +963,7 @@ export class Repository {
       initial: sha === null ? null : { content: initiative, sha },
       creationFailure: 'Could not create the initiative.',
       onStatus: this.statusOf(path),
+      onCacheFull: this.onCacheFull,
       onConflict: this.onConflict,
       onConflictClosed: this.onConflictClosed,
       onDocument: (doc) => this.replaceInitiative(doc),
