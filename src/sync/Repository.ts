@@ -180,7 +180,7 @@ export interface NewPersonInput {
 export type CopyAllocationsResult = { copied: number; skipped: Person[] };
 
 /** Why an allocation wasn't added (§7.2), in words the page can show as is. */
-export type AddAllocationResult = { ok: true; allocation: Allocation } | { ok: false; reason: string };
+export type AddAllocationResult = { ok: true; allocation: Allocation } | { ok: false; reason?: string };
 
 /** What a team change did, kept by the page for the 10 seconds it can be undone (§5.11). */
 export interface TeamChange {
@@ -861,9 +861,8 @@ export class Repository {
 
   /** Edits of this user's to these phases were overtaken by a gate pass (§8.1): the phases say so until dismissed. */
   private noteLostEdits(initiativeId: string, phaseIds: string[]): void {
-    const next = new Set(this.state.frozenWithLostEdit);
-    for (const phaseId of phaseIds) next.add(lostEditKey(initiativeId, phaseId));
-    if (next.size !== this.state.frozenWithLostEdit.size) this.setState({ frozenWithLostEdit: next });
+    const keys = phaseIds.map((phaseId) => lostEditKey(initiativeId, phaseId)).filter((key) => !this.state.frozenWithLostEdit.has(key));
+    if (keys.length > 0) this.setState({ frozenWithLostEdit: new Set([...this.state.frozenWithLostEdit, ...keys]) });
   }
 
   /** Dismiss a phase's "your last change wasn't saved" message (§8.1, §9.9). */
@@ -1326,12 +1325,16 @@ export class Repository {
     change: (plan: PhasePlan) => PhasePlan,
     note: { field: string; from: T | undefined; to: T | undefined; words: (from: T | undefined, to: T | undefined, initiativeName: string, phase: string) => string },
     /** Only a recorded actual is still accepted on a frozen initiative or phase (§8.4). An Undo is refused
-     * silently on a frozen phase, as its offer is withdrawn once the phase freezes (§5.11). */
+     * silently on a frozen phase, as its offer is withdrawn once the phase freezes (§5.11); any other edit the
+     * freeze overtook is reported in the phase (§8.1). */
     { allowFrozen = false, undo = false }: { allowFrozen?: boolean; undo?: boolean } = {},
   ): boolean {
     const initiative = allowFrozen ? this.state.initiatives.find((i) => i.id === initiativeId) : this.editableInitiative(initiativeId);
     if (!initiative) return false;
-    if (!allowFrozen && this.refuseFrozenPhase(initiative, phaseId, undo)) return false;
+    if (!allowFrozen && isPhaseFrozen(initiative, phaseId)) {
+      if (!undo) this.noteLostEdits(initiative.id, [phaseId]);
+      return false;
+    }
     const plan = initiative.phases?.[phaseId] ?? { allocations: [] };
     // The first edit to the plan ends the suggestion: from here on the dates are the user's (§8.2).
     const next: Initiative = { ...initiative, phases: { ...initiative.phases, [phaseId]: change(plan) } };
@@ -1341,17 +1344,6 @@ export class Repository {
     this.initiativeWriters
       .get(initiativeId)
       ?.schedule(next, this.note('initiative', initiativeId, `${phaseId}:${note.field}`, note.from, note.to, (f, t) => note.words(f, t, name, this.phaseLabel(phaseId))));
-    return true;
-  }
-
-  /**
-   * Whether an edit to `phaseId` is refused because its gate was passed (§8.1): no edit reaches a frozen phase from
-   * any path — an Undo, a field committed after a pull froze it. Anything but an Undo is a change of the user's that
-   * the freeze overtook, and the phase says so.
-   */
-  private refuseFrozenPhase(initiative: Initiative, phaseId: string, undo: boolean): boolean {
-    if (!isPhaseFrozen(initiative, phaseId)) return false;
-    if (!undo) this.noteLostEdits(initiative.id, [phaseId]);
     return true;
   }
 
@@ -1400,8 +1392,11 @@ export class Repository {
     const person = this.state.people.find((p) => p.id === personId);
     const team = initiative && this.state.teams.find((t) => t.id === initiative.teamId);
     if (!initiative || !person || !team) return { ok: false, reason: 'That person or initiative could not be found.' };
-    // Refused by a freeze, which the phase itself reports (§8.1).
-    if (this.refuseFrozenPhase(initiative, phaseId, false)) return { ok: false, reason: '' };
+    // Refused by a freeze, which the phase itself reports (§8.1), so no reason here.
+    if (isPhaseFrozen(initiative, phaseId)) {
+      this.noteLostEdits(initiative.id, [phaseId]);
+      return { ok: false };
+    }
 
     const reason = allocationRefusal(person, team, this.state.memberships);
     if (reason) return { ok: false, reason };

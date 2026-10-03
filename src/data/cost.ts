@@ -170,7 +170,7 @@ export function allocationFigures(period: Period, person: Person, allocationPct:
     personDays += days;
     byMonth[key] = days * rate.factor * rate.dayRate;
     basis[key] = { workingDays, dayRate: rate.dayRate };
-    costFactor = rate.factor;
+    costFactor ??= rate.factor; // the role's, the same every month
     cost += byMonth[key];
   }
   return { byMonth, basis, costFactor, personDays, cost };

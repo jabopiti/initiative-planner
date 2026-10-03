@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import { isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
+import { isPhaseLocked } from '../data/frozen';
 import type { Repository } from '../sync/Repository';
 
 /**
@@ -8,18 +8,9 @@ import type { Repository } from '../sync/Repository';
  * (§5.11, §8.1, §8.4): the data layer would refuse it then.
  */
 export function undoToast(undo: () => void, { repository, initiativeId, phaseId }: { repository: Repository; initiativeId: string; phaseId: string }): void {
-  const locked = () => {
-    const initiative = repository.getState().initiatives.find((i) => i.id === initiativeId);
-    return !initiative || isInitiativeFrozen(initiative) || isPhaseFrozen(initiative, phaseId);
-  };
-  let stop = () => {};
-  const id = toast('Removed.', { duration: 10_000, action: { label: 'Undo', onClick: undo }, onDismiss: () => stop(), onAutoClose: () => stop() });
+  const id = toast('Removed.', { duration: 10_000, action: { label: 'Undo', onClick: undo }, onDismiss: () => unsubscribe(), onAutoClose: () => unsubscribe() });
   const unsubscribe = repository.subscribe(() => {
-    if (!locked()) return;
-    stop();
-    toast.dismiss(id);
+    const initiative = repository.getState().initiatives.find((i) => i.id === initiativeId);
+    if (!initiative || isPhaseLocked(initiative, phaseId)) toast.dismiss(id);
   });
-  stop = () => {
-    unsubscribe();
-  };
 }

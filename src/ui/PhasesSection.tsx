@@ -207,7 +207,7 @@ function CostedPhase({
           value=""
           onValueChange={(personId) => {
             const result = repository.addAllocation(initiative.id, phase.id, personId, free?.get(personId));
-            setRefusal(result.ok ? null : result.reason);
+            setRefusal(result.ok ? null : (result.reason ?? null));
           }}
         >
           <SelectTrigger

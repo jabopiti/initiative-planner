@@ -1,4 +1,4 @@
-import { isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
+import { isInitiativeFrozen, isPhaseLocked } from '../data/frozen';
 import { FILE_PATHS, type Initiative, type Membership, type Person } from '../data/types';
 import type { Path } from '../sync/merge';
 
@@ -43,7 +43,7 @@ function matches(path: Path, pattern: Segment[]): boolean {
 function editableOnInitiative(initiative: Initiative, path: Path): boolean {
   if (path[0] !== 'phases') return !isInitiativeFrozen(initiative);
   if (path[2] === 'actualMonths') return true;
-  return !isInitiativeFrozen(initiative) && !isPhaseFrozen(initiative, path[1] as string);
+  return !isPhaseLocked(initiative, path[1] as string);
 }
 
 /**
