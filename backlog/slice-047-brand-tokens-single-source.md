@@ -75,17 +75,17 @@ unreadable text/background pair, naming the token.
 
 ## Acceptance criteria
 
-- [ ] Given a changed colour in the brand pack only, then the running app
+- [x] Given a changed colour in the brand pack only, then the running app
       shows it in light and dark.
-- [ ] Given a text token below 4.5:1 on its surface (3:1 for large text and
+- [x] Given a text token below 4.5:1 on its surface (3:1 for large text and
       UI), then `npm run build` and the unit test fail naming the token.
-- [ ] Given the default pack, then it passes in both themes.
-- [ ] Given `src/index.css`, then it holds no colour literals.
-- [ ] Given the strict CSP in the production build, then the e2e CSP test
+- [x] Given the default pack, then it passes in both themes.
+- [x] Given `src/index.css`, then it holds no colour literals.
+- [x] Given the strict CSP in the production build, then the e2e CSP test
       still passes.
-- [ ] Given a text field, select or checkbox on a card, then its border is
+- [x] Given a text field, select or checkbox on a card, then its border is
       border-strong at 3:1 or more in both themes.
-- [ ] Given the destructive button, then its colours are brand tokens
+- [x] Given the destructive button, then its colours are brand tokens
       (alarm and text on accent) with no opacity in dark.
 
 ## Flags and compromises
