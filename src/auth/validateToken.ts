@@ -12,15 +12,27 @@ export type TokenCheckResult =
   | { outcome: 'invalid' }
   | { outcome: 'unreachable' };
 
-export const TOKEN_CHECK_MESSAGES: Record<TokenCheckResult['outcome'], (login?: string) => string> = {
-  works: (login) => `Connected as ${login}`,
-  'classic-warning': (login) => `Connected as ${login}`,
-  'cannot-see-repo': () => "This token can't see the repository. Create it with access to that repository.",
+/** What a message names: the GitHub user the token belongs to and the repository (`owner/repo`) it must reach. */
+export interface TokenMessageContext {
+  login?: string;
+  repo: string;
+}
+
+export const TOKEN_CHECK_MESSAGES: Record<TokenCheckResult['outcome'], (context: TokenMessageContext) => string> = {
+  works: ({ login }) => `Connected as ${login}`,
+  'classic-warning': ({ login }) => `Connected as ${login}`,
+  'cannot-see-repo': ({ repo }) => `This token can't see ${repo}. Create it with access to that repository.`,
   'read-only': () => 'This token can read but not write. Set Contents to Read and write.',
   'pending-approval': () => 'Your GitHub organisation needs to approve this token first. Ask your GitHub owner.',
-  invalid: () => "GitHub doesn't accept this token.",
+  invalid: () =>
+    "GitHub doesn't accept this token. It has probably expired or been revoked, or part of it is missing from the paste.",
   unreachable: () => "Couldn't reach GitHub to check the token. Check your connection and try again.",
 };
+
+/** The `owner/repo` of the brand pack's repository, for messages. */
+export function repoLabel(location: GithubLocation): string {
+  return `${location.owner}/${location.repo}`;
+}
 
 /** A network failure, rate limiting, or a status GitHub returns for reasons that have nothing to do with the token itself (§5.10). */
 function isUnreachable(error: unknown): boolean {

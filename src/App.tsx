@@ -5,6 +5,7 @@ import { BrandProvider } from './state/BrandContext';
 import { RepositoryProvider, useRepositoryState } from './state/DataContext';
 import { NeedsAttentionProvider } from './state/NeedsAttentionContext';
 import { SessionContext, type Session } from './state/SessionContext';
+import { ClassicTokenBanner } from './ui/ClassicTokenBanner';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { TopBar } from './ui/TopBar';
 import { ReadOnlyBanner } from './ui/ReadOnlyBanner';
@@ -56,6 +57,7 @@ function MainApp({ token }: { token: string }) {
         <ConflictUiProvider>
           <TopBar route={route} />
           <main>
+            <ClassicTokenBanner />
             <ReadOnlyBanner />
             <ConflictBanner />
             <Screen route={route} />
@@ -69,13 +71,19 @@ function MainApp({ token }: { token: string }) {
 export function App() {
   const [token, setToken] = useState<string | null | undefined>(undefined);
   const [login, setLogin] = useState<string | null>(null);
+  const [classicWarning, setClassicWarningState] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     // Storage unavailable: connect again rather than show nothing.
-    Promise.all([tokenStore.load().catch(() => null), tokenStore.loadLogin().catch(() => null)]).then(([stored, storedLogin]) => {
+    Promise.all([
+      tokenStore.load().catch(() => null),
+      tokenStore.loadLogin().catch(() => null),
+      tokenStore.loadClassicWarning().catch(() => false),
+    ]).then(([stored, storedLogin, storedClassic]) => {
       if (cancelled) return;
       setLogin(stored ? storedLogin : null);
+      setClassicWarningState(stored ? storedClassic : false);
       setToken(stored);
     });
     return () => {
@@ -90,13 +98,19 @@ export function App() {
         setLogin(found);
         void tokenStore.saveLogin(found);
       },
+      classicWarning,
+      setClassicWarning: (on) => {
+        setClassicWarningState(on);
+        void tokenStore.saveClassicWarning(on);
+      },
       disconnect: () => {
         void tokenStore.clear();
         setLogin(null);
+        setClassicWarningState(false);
         setToken(null);
       },
     }),
-    [login],
+    [login, classicWarning],
   );
 
   if (token === undefined) return null; // loading the cached token
@@ -110,9 +124,13 @@ export function App() {
           </SessionContext.Provider>
         ) : (
           <ConnectScreen
-            onConnected={(newToken, remember, newLogin) => {
-              void tokenStore.save(newToken, remember).then(() => tokenStore.saveLogin(newLogin));
+            onConnected={(newToken, remember, newLogin, classic) => {
+              void tokenStore
+                .save(newToken, remember)
+                .then(() => tokenStore.saveLogin(newLogin))
+                .then(() => tokenStore.saveClassicWarning(classic));
               setLogin(newLogin);
+              setClassicWarningState(classic);
               setToken(newToken);
             }}
           />

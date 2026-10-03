@@ -1133,7 +1133,7 @@ A pasted token is checked immediately, and the result is specific:
 | Situation | Message |
 |---|---|
 | Works and can write | "Connected as <user>", then the Portfolio opens |
-| Classic token that works | Connected, with a warning that a classic token reaches all of the user's repositories, and a link to create a fine-grained one |
+| Classic token that works | Connected, with a warning that a classic token reaches all of the user's repositories, and a link to create a fine-grained one. The warning is a banner under the top bar that stays, across reloads, until dismissed or the token is replaced |
 | Cannot see the repository | "This token can't see <repository>. Create it with access to that repository." |
 | Read-only | "This token can read but not write. Set Contents to Read and write." |
 | Waiting for approval | "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." |

@@ -73,13 +73,13 @@ describe('Read-only banner (§3, §9.9)', () => {
       return { fake, repo };
     }
 
-    it('says the token expired or was revoked, with the field, Create a token and no Retry', async () => {
+    it('says the token expired or was revoked, with the field, Create a new token and no Retry', async () => {
       await denied('invalid');
 
-      expect(await screen.findByText(/GitHub doesn't accept this token\. It has expired or been revoked; create a new one\./)).toBeInTheDocument();
+      expect(await screen.findByText(/GitHub doesn't accept this token\. It has probably expired or been revoked, or part of it is missing from the paste\./)).toBeInTheDocument();
       expect(screen.getByLabelText('New GitHub token')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Replace' })).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: /Create a token/ })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Create a new token/ })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
     });
 
