@@ -50,14 +50,14 @@ afterEach(() => {
 });
 
 describe('Duplicate in the Actions menu (§5.4, §5.11)', () => {
-  it.each(['Active', 'On Hold', 'Closed', 'Cancelled'] as const)('is listed for a %s initiative, after Cancel', async (status) => {
+  it.each(['Active', 'On Hold', 'Closed', 'Cancelled'] as const)('is listed for a %s initiative, before Cancel initiative', async (status) => {
     const user = userEvent.setup();
     renderPage(original({ status }));
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
 
     const items = screen.getAllByRole('menuitem').map((i) => i.textContent);
     expect(items).toContain('Duplicate');
-    if (status === 'Active' || status === 'On Hold') expect(items.indexOf('Duplicate')).toBe(items.indexOf('Cancel') + 1);
+    if (status === 'Active' || status === 'On Hold') expect(items.indexOf('Duplicate')).toBeLessThan(items.indexOf('Cancel initiative'));
   });
 
   it('opens the copy in place as a new history entry, and names who was left out', async () => {

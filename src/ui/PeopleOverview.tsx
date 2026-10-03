@@ -12,7 +12,8 @@ import { SortableHeader } from './SortableHeader';
 import { TruncatedText } from './TruncatedText';
 import { sortRows } from '../data/sortRows';
 import { useTableSort } from './tableSort';
-import { DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
+import { PlusIcon } from './icons';
+import { activeToggleAction, RowActionsMenu } from './RowActionsMenu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -209,7 +210,7 @@ export function PeopleOverview() {
                       <td className="px-3 py-2">
                         <button
                           type="button"
-                          className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-inherit"
+                          className="block cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-inherit"
                           onClick={() => setSelectedId(p.id)}
                         >
                           <TruncatedText text={p.name} />
@@ -221,19 +222,12 @@ export function PeopleOverview() {
                       <td className="px-3 py-2 text-right">{p.capacityPct}%</td>
                       <td className="px-3 py-2">{p.active ? 'Active' : 'Inactive'}</td>
                       <td className="px-3 py-2 text-right">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`${p.active ? 'Deactivate' : 'Reactivate'} ${p.name}`}
-                          title={p.active ? 'Deactivate' : 'Reactivate'}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            repository.updatePerson(p.id, { active: !p.active });
-                          }}
-                        >
-                          {p.active ? <DeactivateIcon /> : <ReactivateIcon />}
-                        </Button>
+                        <RowActionsMenu
+                          label={`Actions for ${p.name}`}
+                          actions={[
+                            activeToggleAction('person', p.active, (active) => repository.updatePerson(p.id, { active })),
+                          ]}
+                        />
                       </td>
                     </tr>
                   );

@@ -120,7 +120,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   else guidance = blockers.length > 1 ? `${blockers[0]} (+${blockers.length - 1} more)` : blockers[0];
 
   return (
-    <div id="magic-bar" className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-border-default bg-surface-card px-4 py-3 shadow-[0_-1px_4px_rgba(0,0,0,0.06)]">
+    <div id="magic-bar" role="region" aria-label="Magic bar" className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-border-default bg-surface-card px-4 py-3 shadow-[0_-1px_4px_rgba(0,0,0,0.06)]">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5" aria-hidden="true">
           {process.map((p, i) => (

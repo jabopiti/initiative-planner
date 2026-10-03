@@ -61,9 +61,11 @@ function MainApp({ token }: { token: string }) {
       <NeedsAttentionProvider>
         <ConflictUiProvider>
           <TopBar route={route} />
-          <ReadOnlyBanner />
-          <ConflictBanner />
-          <Screen route={route} />
+          <main>
+            <ReadOnlyBanner />
+            <ConflictBanner />
+            <Screen route={route} />
+          </main>
         </ConflictUiProvider>
       </NeedsAttentionProvider>
     </RepositoryProvider>

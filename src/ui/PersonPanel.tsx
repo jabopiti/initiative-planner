@@ -11,7 +11,8 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DeactivateIcon, PlusIcon, ReactivateIcon, RemoveIcon, TeamsIcon } from './icons';
+import { DeactivateIcon, PlusIcon, ReactivateIcon, RemoveFromTeamIcon, TeamsIcon } from './icons';
+import { RowActionsMenu } from './RowActionsMenu';
 import { CommitInput } from './CommitInput';
 import { CustomRoleFields } from './CustomRoleFields';
 import { PercentInput } from './PercentInput';
@@ -21,12 +22,17 @@ import { teamColorClass } from './teamColors';
 export function PersonPanel({ person, onClose }: { person: Person | null; onClose: () => void }) {
   // The drawer has no trigger element, so hand focus back to whatever opened it (§5.6).
   const opener = useRef<HTMLElement | null>(null);
+  const content = useRef<HTMLDivElement>(null);
   return (
     <Sheet open={person !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
+        ref={content}
         className="w-96 overflow-y-auto p-4"
-        onOpenAutoFocus={() => {
+        onOpenAutoFocus={(e) => {
           opener.current = document.activeElement as HTMLElement | null;
+          // Land on the heading, not the Name field: a stray key press must not replace the name (§5.6).
+          e.preventDefault();
+          content.current?.querySelector<HTMLElement>('[data-slot="sheet-title"]')?.focus();
         }}
         onCloseAutoFocus={(e) => {
           e.preventDefault();
@@ -74,7 +80,7 @@ function PersonDetails({ person }: { person: Person }) {
   return (
     <>
       <SheetHeader className="p-0 pr-6">
-        <SheetTitle className="truncate text-base">{person.name}</SheetTitle>
+        <SheetTitle tabIndex={-1} className="truncate text-base outline-none">{person.name}</SheetTitle>
         <SheetDescription className="sr-only">Person details</SheetDescription>
       </SheetHeader>
 
@@ -199,16 +205,10 @@ function PersonDetails({ person }: { person: Person }) {
                 initialCappedAt={rejoinCap?.id === m.id ? rejoinCap.pct : null}
                 onChange={(teamFtePct) => repository.updateMembership(m.id, { teamFtePct })}
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove from ${team?.name ?? 'team'}`}
-                title="Remove from team"
-                onClick={() => removeMembershipWithUndo(repository, m.id)}
-              >
-                <RemoveIcon />
-              </Button>
+              <RowActionsMenu
+                label={`Actions for ${team?.name ?? 'team'}`}
+                actions={[{ label: 'Remove from team', icon: RemoveFromTeamIcon, onSelect: () => removeMembershipWithUndo(repository, m.id) }]}
+              />
             </div>
           );
         })}

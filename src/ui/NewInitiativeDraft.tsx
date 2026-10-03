@@ -60,6 +60,7 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
 
   return (
     <div className="max-w-page p-8">
+      <h1 className="sr-only">New initiative</h1>
       <div className="flex items-center gap-3">
         <Input
           autoFocus

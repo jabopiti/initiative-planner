@@ -3,7 +3,7 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { Archive, ArchiveRestore, Ban, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, Copy, CirclePause, CircleX, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Play, Plus, RefreshCw, Rocket, RotateCcw, Search, SkipForward, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserCheck, UserX, Users, X, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, Ban, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, Copy, CirclePause, CircleX, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Play, Plus, RefreshCw, Rocket, RotateCcw, Search, SkipForward, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserMinus, Users, X, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
 import type { PhaseIconName } from '../brand/types';
 
@@ -25,10 +25,10 @@ export const OwnerIcon = iconWrapper(User);
 export const RemoveIcon = iconWrapper(Trash2);
 export const DismissIcon = iconWrapper(X);
 export const DuplicateIcon = iconWrapper(Copy);
-export const DeactivateIcon = iconWrapper(UserX);
-export const ReactivateIcon = iconWrapper(UserCheck);
-export const DeactivateTeamIcon = iconWrapper(Archive);
-export const ReactivateTeamIcon = iconWrapper(ArchiveRestore);
+/** One icon per meaning (§9.10): Archive deactivates, ArchiveRestore reactivates, UserMinus removes from a team, Trash deletes. */
+export const DeactivateIcon = iconWrapper(Archive);
+export const ReactivateIcon = iconWrapper(ArchiveRestore);
+export const RemoveFromTeamIcon = iconWrapper(UserMinus);
 export const CalendarIcon = iconWrapper(CalendarDays);
 export const ChevronDownIcon = iconWrapper(ChevronDown);
 export const ChevronLeftIcon = iconWrapper(ChevronLeft);

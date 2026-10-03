@@ -8,7 +8,7 @@ depends_on: ["036"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Quick fixes'. Small, independent findings: F01, F03, F10, F18, F21, F22, F23, F24, F28, F29, F31. F18 was missing from the review's roadmap and is added here. F02 (allocation table errors) moved to 061, which rebuilds that table. Backlog reshuffle (3 Oct 2026): F09 (long names) moved to 056 with the other header fields, F13 (Copy button) to 058's shared toolbar row; eleven findings remain."
+change_summary: "Decided in review (see below): spinner-free percent field, labelled ⋯ row menus, Saved/Saving… indicator, \"Cancel initiative\" without ellipsis, A–Z text filters. From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Quick fixes'. Small, independent findings: F01, F03, F10, F18, F21, F22, F23, F24, F28, F29, F31. F18 was missing from the review's roadmap and is added here. F02 (allocation table errors) moved to 061, which rebuilds that table. Backlog reshuffle (3 Oct 2026): F09 (long names) moved to 056 with the other header fields, F13 (Copy button) to 058's shared toolbar row; eleven findings remain."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "Many small, local fixes, each with a cheap test to write first; no new shared pattern beyond one focus token and one row-actions menu."
 spec_sections: ["§9.5 Accessibility", "§9.8 Visual design", "§9.10 Icons", "§9.2 Copy", "§5.1 Navigation (sync indicator)", "§5.4 Initiative detail view", "§5.6 Person detail view", "§5.8 Team detail view"]
@@ -104,4 +104,34 @@ shared pattern: 057 and 058 reuse it.
 
 ## Decided in review (pre-implementation)
 
-(none yet)
+Settled with the user before implementation:
+
+- **F01:** the number spinner is hidden; the field is 72 px wide with the
+  % inside it. Arrow keys still step the value. Tested by an e2e width
+  check (jsdom can't measure).
+- **F10:** row actions become a "⋯" menu with icon plus text. Labels:
+  "Deactivate person" / "Reactivate person", "Deactivate role",
+  "Deactivate country" (and Reactivate), "Deactivate in team" /
+  "Reactivate in team", "Remove from team". The Person panel's per-team
+  remove becomes the same menu. No Settings "Delete" exists, so none is
+  added. §9.10 gets the icon table: Archive = deactivate, ArchiveRestore =
+  reactivate, UserMinus = remove from team, Trash = delete, Ban = cancel
+  initiative.
+- **F18:** "Saved" tooltip on hover and focus ("Saved · updated by
+  others"); the visible label while writing is "Saving…" (was
+  "Syncing…"); the nav badge tooltip reads "1 needs attention" /
+  "2 need attention". §5.1 updated.
+- **F29:** "Cancel initiative" (no ellipsis: it runs at once and Reopen
+  undoes it). A separator sits before Cancel initiative and Delete; only
+  Delete is red.
+- **F28:** text filters (Team, Owner, Role, Country) sort A–Z with the
+  selected options first, fixed while the popover is open; Phase,
+  Approval track, Status and Year keep their natural order.
+- **F22/F23 copy:** "Why tentative?" (label "Note" in note-only mode on a
+  frozen initiative), no placeholder; magic bar region "Magic bar"; hidden
+  Portfolio h1 "Portfolio".
+- **Assumptions:** F03 covers button, input, textarea, select, checkbox,
+  toggle and calendar cells, keeping the red `aria-invalid` border; F21
+  focuses the panel heading (`tabIndex=-1`); F24 covers the People, Teams,
+  Initiatives and Team members tables and the Settings lists, with a shared
+  numeric header prop.
