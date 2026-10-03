@@ -23,7 +23,9 @@ thresholds in vite.config.ts (raise them as coverage grows).
 `npm run test:e2e` drives the production build in Chromium against a fake
 GitHub (`e2e/support/fakeGithub.ts`): the strict CSP, real connect and
 planning flows, and an axe WCAG A/AA scan of each screen. A new screen
-gets a scan in `e2e/a11y.spec.ts`.
+gets a scan in `e2e/a11y.spec.ts`. After `npm run build`, `npm run
+check:build-output` and `npm run check:licenses` run the §10.8 build-output
+and licence checks that CI runs.
 
 ## Code style
 ESLint (`npm run lint`, warnings fail it). No Prettier config yet — match surrounding

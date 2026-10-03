@@ -2,6 +2,9 @@ name: CI
 
 on:
   pull_request:
+  # New vulnerabilities appear without a code change, so the whole pipeline, scanners included, also runs weekly (§10.8).
+  schedule:
+    - cron: '23 5 * * 1'
 
 permissions:
   contents: read
@@ -61,6 +64,42 @@ jobs:
       # `npm audit` reads the lockfile; no install needed.
       - run: npm audit --audit-level=high
 
+  # Licences of what ships, against the allowed list (§10.8). The lockfile is the source: `npm ci` has already
+  # verified it matches package.json, so this needs no install.
+  licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: npm run check:licenses
+
+  # Static analysis for security issues (§10.8 Code).
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+
+  # No secret or token committed to the code or the dataset (§10.8 Code); the whole history is scanned.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # Builds once; the e2e job serves this exact output instead of rebuilding.
   build:
     runs-on: ubuntu-latest
@@ -72,11 +111,21 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run build
+      # §10.8 build output: the policy, no inline script, no eval or new Function, no third-party origin.
+      - run: npm run check:build-output
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dist
           path: dist
           retention-days: 1
+          if-no-files-found: error
+      # A software bill of materials for every build (§10.8), in CycloneDX, from npm itself.
+      - run: npm sbom --sbom-format cyclonedx > sbom.cdx.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom
+          path: sbom.cdx.json
+          retention-days: 30
           if-no-files-found: error
 
   e2e:
@@ -112,7 +161,7 @@ jobs:
   # The one check branch protection requires: it passes only when every job above did, so jobs can be
   # added, renamed or split without touching the repository's required checks.
   ci:
-    needs: [typecheck, lint, test, audit, build, e2e]
+    needs: [typecheck, lint, test, audit, licenses, codeql, secrets, build, e2e]
     if: always()
     runs-on: ubuntu-latest
     steps:

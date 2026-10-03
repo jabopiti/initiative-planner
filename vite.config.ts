@@ -6,12 +6,8 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { brandColoursPlugin } from './src/brand/brandColoursPlugin';
+import { buildCsp } from './src/brand/csp';
 import { defaultBrandPack } from './src/brand/defaultBrand';
-
-const CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; " +
-  "connect-src 'self' https://api.github.com; base-uri 'self'; form-action 'self'; object-src 'none'; " +
-  "frame-ancestors 'self'";
 
 /**
  * Adds the strict production CSP (§10.1, §10.9) to the built `index.html`
@@ -34,7 +30,7 @@ function cspMetaTag(): Plugin {
     name: 'csp-meta-tag',
     apply: 'build',
     transformIndexHtml(html) {
-      return html.replace('<title>', `<meta http-equiv="Content-Security-Policy" content="${CSP}" />\n    <title>`);
+      return html.replace('<title>', `<meta http-equiv="Content-Security-Policy" content="${buildCsp(defaultBrandPack.github.apiBaseUrl)}" />\n    <title>`);
     },
   };
 }

@@ -16,6 +16,8 @@
     "test:watch": "vitest",
     "test:quiet": "vitest run --reporter=dot",
     "build:quiet": "tsc -b && vite build --logLevel error",
+    "check:build-output": "node scripts/check-build-output.mjs",
+    "check:licenses": "node scripts/check-licenses.mjs",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc -b --noEmit",
     "dev:reset-data": "node --env-file=.env.local scripts/reset-dev-data.mjs"
