@@ -303,7 +303,9 @@ function LoadList({ heading, loads, showPeriod, teamName, fix }: { heading: stri
       <ul className="m-0 flex list-none flex-col gap-0.5 p-0 text-sm">
         {loads.map((l, i) => (
           <li key={`${l.initiativeId}-${l.phaseId}-${i}`}>
-            <a href={`#/initiatives/${l.initiativeId}`}>{l.initiativeName}</a>{' '}
+            <a href={`#/initiatives/${l.initiativeId}`} className="underline">
+              {l.initiativeName}
+            </a>{' '}
             <span className="text-text-secondary">
               {l.phaseLabel}
               {showPeriod && ` · ${formatPeriod(l.startDate, l.endDate)}`}
