@@ -21,6 +21,8 @@ const PAIRS: Pair[] = [
   ...(['textPrimary', 'textSecondary', 'textMuted'] as const).map((fg): Pair => [fg, [...SURFACES, 'accentTint', 'metTint'], TEXT]),
   // Status text sits on the plain surfaces and on its own tint.
   ...(['accent', 'warning', 'alarm', 'met'] as const).map((s): Pair => [`${s}Text`, [...SURFACES, `${s}Tint`], TEXT]),
+  // Search-match highlights: primary and secondary text on the warning tint.
+  ...(['textPrimary', 'textSecondary'] as const).map((fg): Pair => [fg, ['warningTint'], TEXT]),
   ['textOnAccent', ['accent', 'alarm'], TEXT],
   // Tooltips: page-coloured text on a primary-text fill.
   ['surfacePage', ['textPrimary'], TEXT],
@@ -28,7 +30,8 @@ const PAIRS: Pair[] = [
   ...(['focusRing', 'accent', 'met', 'warning', 'alarm', 'borderInput'] as const).map((fg): Pair => [fg, PAGE_CARD, UI]),
 ];
 
-const OKLCH = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/;
+const NUM = String.raw`(\d+(?:\.\d+)?|\.\d+)`;
+const OKLCH = new RegExp(String.raw`^oklch\(\s*${NUM}\s+${NUM}\s+${NUM}\s*\)$`);
 
 export function parseOklch(value: string): Oklch | null {
   const m = OKLCH.exec(value.trim());

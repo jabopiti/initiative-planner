@@ -17,6 +17,9 @@ describe('contrastRatio (§9.5)', () => {
   it('rejects anything that is not an oklch(L C H) triplet', () => {
     expect(parseOklch('#ffffff')).toBeNull();
     expect(parseOklch('oklch(1 0)')).toBeNull();
+    expect(parseOklch('oklch(0.5.1 0.1 120)')).toBeNull();
+    expect(parseOklch('oklch(. 0.1 120)')).toBeNull();
+    expect(parseOklch('oklch(.5 0 120)')).toEqual([0.5, 0, 120]);
   });
 });
 
@@ -29,6 +32,10 @@ describe('checkBrandColours (§9.5, §10.7)', () => {
     const failures = checkBrandColours(withRole('textMuted', 'light', 'oklch(0.622 0.021 162.6)'));
     expect(failures).toContain('textMuted (light) on surfaceSubtle is 3.21:1, needs 4.5:1');
     expect(failures.every((f) => f.startsWith('textMuted (light)'))).toBe(true);
+  });
+
+  it('checks text on the warning tint behind search highlights', () => {
+    expect(checkBrandColours(withRole('textSecondary', 'light', 'oklch(0.622 0.022 167.2)')).some((f) => f.startsWith('textSecondary (light) on warningTint'))).toBe(true);
   });
 
   it('holds the input border to 3:1, not 4.5:1', () => {
