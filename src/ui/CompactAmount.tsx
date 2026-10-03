@@ -12,7 +12,7 @@ export function CompactAmount({ value, prefix, className, signed }: { value: num
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={className}>
+        <span className={`tabular-nums ${className ?? ''}`}>
           {prefix}
           {(signed ? formatCompactSignedAmount : formatCompactAmount)(value, currencySymbol)}
         </span>

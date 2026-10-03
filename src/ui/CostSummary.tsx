@@ -45,7 +45,7 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
   };
 
   return (
-    <section id="cost-summary-section" aria-labelledby="cost-summary-heading" className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border-default bg-surface-card px-4 py-3 text-body">
+    <section id="cost-summary-section" aria-labelledby="cost-summary-heading" className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card bg-surface-card shadow-card px-4 py-3 tabular-nums text-body">
       <h2 id="cost-summary-heading" className="sr-only">
         Cost summary
       </h2>

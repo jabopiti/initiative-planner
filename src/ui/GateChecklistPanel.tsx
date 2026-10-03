@@ -38,7 +38,7 @@ export function GateChecklistPanel({ initiative, phase }: { initiative: Initiati
   if (items.length === 0 && carried.length === 0) return null;
 
   return (
-    <section aria-labelledby="gate-checklist-heading" className="flex flex-col gap-3 rounded-lg border border-border-default bg-surface-card p-3">
+    <section aria-labelledby="gate-checklist-heading" className="flex flex-col gap-3 rounded-card bg-surface-card shadow-card p-3">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="gate-checklist-heading" className="m-0 text-title font-medium">
           Gate / Checklist — {phase.exitGate.label}

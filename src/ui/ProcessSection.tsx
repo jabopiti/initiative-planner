@@ -16,7 +16,7 @@ function trackBounds(track: ApprovalTrackDef, symbol: string): string {
 /** One exit gate: its flags and checklist count, and the items with their descriptions behind a disclosure (§5.9). */
 function GateCard({ gate }: { gate: GateDef }) {
   return (
-    <details className="group rounded-lg border border-border-default bg-surface-card px-3 py-2">
+    <details className="group rounded-card bg-surface-card shadow-card px-3 py-2">
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2.5 gap-y-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-accent [&::-webkit-details-marker]:hidden">
         <ChevronRightIcon width={16} height={16} className="transition-transform group-open:rotate-90" />
         <strong>{gate.label}</strong>
@@ -68,7 +68,7 @@ export function ProcessSection() {
       </ol>
 
       <h2 className="mt-6 mb-3 text-title font-medium">Approval tracks</h2>
-      <table className="w-full border-collapse overflow-hidden rounded-lg border border-border-default bg-surface-card text-left">
+      <table className="tabular-nums w-full border-collapse overflow-hidden rounded-card bg-surface-card shadow-card text-left">
         <thead>
           <tr className="text-label font-medium text-text-secondary">
             <th className={`${cell} font-medium`}>Name</th>

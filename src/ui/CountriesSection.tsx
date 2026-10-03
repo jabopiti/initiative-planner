@@ -93,7 +93,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
       </div>
       {lock.locked && <p className="m-0 text-caption text-text-secondary">Locked. Unlock to edit.</p>}
 
-      <table className="mt-3 w-full border-collapse text-body">
+      <table className="tabular-nums mt-3 w-full border-collapse text-body">
         <caption className="sr-only">Countries</caption>
         <thead>
           <tr className="text-left text-label font-medium text-text-secondary">
@@ -249,7 +249,7 @@ function YearTable({
   const earlier = byYear.filter((r) => r.year < tracked[0]);
 
   return (
-    <table className="w-full border-collapse text-body">
+    <table className="tabular-nums w-full border-collapse text-body">
       <caption className="sr-only">{country.name} rates by year</caption>
       <thead>
         <tr className="text-left text-label font-medium text-text-secondary">

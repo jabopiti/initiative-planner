@@ -65,7 +65,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
         Cost items
       </h3>
       {items.length > 0 && (
-        <table className="w-full border-collapse text-body">
+        <table className="tabular-nums w-full border-collapse text-body">
           <caption className="sr-only">{phase.label} cost items</caption>
           <thead>
             <tr className="text-left text-label font-medium text-text-secondary">

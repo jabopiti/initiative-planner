@@ -128,7 +128,7 @@ export function PeopleOverview() {
       />
 
       <form
-        className="mb-4 flex flex-wrap items-center gap-2 rounded-card border border-border-default bg-surface-card p-3"
+        className="mb-4 flex flex-wrap items-center gap-2 rounded-card bg-surface-subtle p-3"
         onSubmit={handleAdd}
         aria-label="Add a person"
       >
@@ -188,7 +188,7 @@ export function PeopleOverview() {
               onAction={() => setFilter('all')}
             />
           ) : (
-            <table className="w-full border-collapse text-body">
+            <table className="tabular-nums w-full border-collapse text-body">
               <thead>
                 <tr className="text-label font-medium text-left text-text-secondary">
                   <SortableHeader label="Name" sortKey="name" sort={sort} />

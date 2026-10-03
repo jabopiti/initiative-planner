@@ -35,7 +35,7 @@ function BoardCard({ row }: { row: PortfolioRow }) {
   const item = attention.find((i) => i.initiativeId === initiative.id);
   return (
     <a
-      className={`block rounded-lg border border-border-default px-3 py-2.5 text-inherit no-underline transition-colors duration-500 motion-reduce:transition-none ${changed(FILE_PATHS.initiative(initiative.id), []) ? 'bg-met-tint' : 'bg-surface-card'}`}
+      className={`block rounded-card shadow-card px-3 py-2.5 text-inherit no-underline transition-colors duration-500 motion-reduce:transition-none ${changed(FILE_PATHS.initiative(initiative.id), []) ? 'bg-met-tint' : 'bg-surface-card'}`}
       href={`#/initiatives/${initiative.id}`}
     >
       <div className="flex items-center justify-between gap-1.5 text-body font-medium">
@@ -175,7 +175,7 @@ export function PortfolioBoard() {
           const phaseRows = byPhase.get(phase.id) ?? [];
           const columnSum = phaseRows.reduce((sum, r) => sum + r.cost, 0);
           return (
-            <div key={phase.id} className="min-w-55 flex-[1_0_220px] rounded-card bg-surface-subtle p-3">
+            <div key={phase.id} className="min-w-55 flex-[1_0_220px] py-1">
               <div className="mb-2.5 flex items-center justify-between px-0.5 text-body font-medium">
                 <span>{phase.label}</span>
                 <CompactAmount value={columnSum} prefix={`${phaseRows.length} · `} className="font-medium text-text-secondary" />

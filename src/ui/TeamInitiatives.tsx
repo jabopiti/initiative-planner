@@ -66,7 +66,7 @@ export function TeamInitiatives({ team }: { team: Team }) {
           )}
         </p>
       ) : (
-        <table className="w-full border-collapse text-body">
+        <table className="tabular-nums w-full border-collapse text-body">
           <thead>
             <tr className="text-label font-medium text-left text-text-secondary">
               <SortableHeader label="Name" sortKey="name" sort={sort} />

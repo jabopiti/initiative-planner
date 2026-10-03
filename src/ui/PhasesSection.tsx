@@ -84,7 +84,7 @@ export function PhasesSection({ initiative, team, openPhaseId }: { initiative: I
       )}
       <ol className="m-0 flex list-none flex-col gap-2 p-0">
         {process.map((phase) => (
-          <li key={phase.id} id={`phase-row-${phase.id}`} className="rounded-lg border border-border-default bg-surface-card">
+          <li key={phase.id} id={`phase-row-${phase.id}`} className="rounded-card bg-surface-card shadow-card">
             {phase.costed ? (
               <CostedPhase
                 phase={phase}
@@ -346,7 +346,7 @@ function CostedPhase({
                   )}
                 </div>
               ) : (
-                <table className="w-full border-collapse text-body">
+                <table className="tabular-nums w-full border-collapse text-body">
                   <caption className="sr-only">{phase.label} allocations</caption>
                   <thead>
                     <tr className="text-left text-label font-medium text-text-secondary">
@@ -474,7 +474,7 @@ function CostedPhase({
           {costed && months.length > 0 && (
             <div className="flex flex-col gap-2">
               <h3 className="m-0 text-heading font-medium text-text-primary">Actuals</h3>
-              <table className="w-full border-collapse text-body">
+              <table className="tabular-nums w-full border-collapse text-body">
                 <caption className="sr-only">{phase.label} actuals</caption>
                 <thead>
                   <tr className="text-left text-label font-medium text-text-secondary">
@@ -560,7 +560,7 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
         </div>
       </div>
       {phase.allocations.length > 0 && (
-        <table className="w-full border-collapse text-body">
+        <table className="tabular-nums w-full border-collapse text-body">
           <caption className="sr-only">Frozen allocations</caption>
           <thead>
             <tr className="text-left text-label font-medium text-text-secondary">
@@ -590,7 +590,7 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
         </table>
       )}
       {phase.costItems.length > 0 && (
-        <table className="w-full border-collapse text-body">
+        <table className="tabular-nums w-full border-collapse text-body">
           <caption className="sr-only">Frozen cost items</caption>
           <thead>
             <tr className="text-left text-label font-medium text-text-secondary">

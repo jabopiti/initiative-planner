@@ -123,7 +123,7 @@ export function InitiativesTable() {
       {visible.length === 0 ? (
         <EmptyState line="No initiatives match these filters." actionLabel="Clear filters" onAction={() => setFilters(NO_FILTERS)} />
       ) : (
-        <table className="w-full border-collapse text-body">
+        <table className="tabular-nums w-full border-collapse text-body">
           <thead>
             <tr className="text-label font-medium text-left text-text-secondary">
               <SortableHeader label="Name" sortKey="name" sort={sort} />

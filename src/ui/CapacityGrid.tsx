@@ -108,8 +108,8 @@ export function CapacityGrid({ team }: { team: Team }) {
         </>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-border-default bg-surface-card">
-            <table className="w-max min-w-full border-collapse text-body">
+          <div className="overflow-x-auto rounded-card bg-surface-card shadow-card">
+            <table className="tabular-nums w-max min-w-full border-collapse text-body">
               <thead>
                 <tr className="text-label font-medium text-left text-text-secondary">
                   <th scope="col" className="sticky left-0 z-10 min-w-44 border-b border-border-default bg-surface-card px-3 py-2 font-medium">
@@ -253,7 +253,7 @@ function Detail({ row, month, team, capacity, data, onClose }: { row: CapacityRo
   };
 
   return (
-    <section aria-label="Capacity detail" className="mt-4 rounded-lg border border-border-default bg-surface-card p-4">
+    <section aria-label="Capacity detail" className="mt-4 rounded-card bg-surface-card shadow-card p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 ref={heading} tabIndex={-1} className="m-0 text-heading font-medium">
           {person.name} · {month ? formatMonth(month) : 'all months'}
