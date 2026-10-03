@@ -89,7 +89,7 @@ export function TeamsOverview() {
       setRefusal(refused);
       return;
     }
-    repository.createTeam(name.trim());
+    repository.createTeam(name);
     setCreating(false);
     setName('');
   }

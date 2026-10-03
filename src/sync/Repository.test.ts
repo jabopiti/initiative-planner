@@ -297,6 +297,16 @@ describe('Repository — slice 004 people and memberships', () => {
     expect(repo.getState().teams[0].name).toBe('Payments');
     repo.updateTeam(team.id, { name: 'Billing' });
     expect(repo.getState().teams[0].name).toBe('Billing');
+    repo.updateTeam(team.id, { name: ' Ledger ' });
+    expect(repo.getState().teams[0].name).toBe('Ledger');
+  });
+
+  it('createTeam trims the name and refuses an empty or duplicate one', async () => {
+    const repo = await readyRepo();
+    expect(repo.createTeam('  Platform ').name).toBe('Platform');
+    expect(() => repo.createTeam('platform')).toThrow('A team named Platform already exists.');
+    expect(() => repo.createTeam('  ')).toThrow('Enter a name.');
+    expect(repo.getState().teams).toHaveLength(1);
   });
 
   it('deactivates and reactivates a person, keeping the record; removes a membership', async () => {

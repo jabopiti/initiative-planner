@@ -1058,9 +1058,11 @@ export class Repository {
     return taken ? `A team named ${taken.name} already exists.` : null;
   }
 
-  /** New team (§5.7): created from a name only. */
+  /** New team (§5.7): created from a name only. Callers ask `teamNameRefusal` first; a refused name here is a bug. */
   createTeam(name: string): Team {
-    const team: Team = { id: newId(), name, active: true };
+    const refusal = this.teamNameRefusal(name);
+    if (refusal) throw new Error(refusal);
+    const team: Team = { id: newId(), name: name.trim(), active: true };
     this.commitTeams([...this.state.teams, team], this.note('team', team.id, 'record', undefined, team, (f, t) => this.describeTeam(f, t)));
     return team;
   }
@@ -1084,7 +1086,7 @@ export class Repository {
     const current = this.state.teams.find((t) => t.id === id);
     if (!current) return;
     if (patch.name !== undefined && this.teamNameRefusal(patch.name, id)) return;
-    const next = { ...current, ...patch };
+    const next = { ...current, ...patch, ...(patch.name !== undefined && { name: patch.name.trim() }) };
     if (next.name === current.name && next.active === current.active) return;
     this.commitTeams(
       this.state.teams.map((t) => (t.id === id ? next : t)),
