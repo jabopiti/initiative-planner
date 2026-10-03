@@ -59,7 +59,8 @@ export function PercentInput({
         inputMode="numeric"
         min={0}
         max={limit}
-        className="w-16"
+        suffix="%"
+        className="w-[4.5rem] pr-7 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         errorClassName={messageClass}
         id={id}
         aria-label={label}
@@ -78,7 +79,6 @@ export function PercentInput({
           onChange(parsed);
         }}
       />
-      <span className={`text-sm text-text-secondary ${flat ? '-ml-1' : ''}`}>%</span>
       {max !== undefined && cappedAt !== null && (
         <InlineWarning className={messageClass}>Set to {cappedAt}%, the most left. Other teams hold the rest.</InlineWarning>
       )}

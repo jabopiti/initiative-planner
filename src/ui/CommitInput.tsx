@@ -99,6 +99,7 @@ export function CommitInput({
   conflictLabel,
   retryLabel,
   className,
+  suffix,
   ...props
 }: Omit<ComponentProps<typeof Input>, 'value' | 'defaultValue' | 'onChange' | 'onBlur'> & {
   value: string;
@@ -117,14 +118,15 @@ export function CommitInput({
   conflict?: FieldConflict | null;
   /** The field's name in the conflict's accessible names, when it has a visible label rather than an `aria-label`. */
   conflictLabel?: string;
+  /** A unit shown inside the field's right edge (the % of a percent field); `className` should leave room for it. */
+  suffix?: string;
 }) {
   const { draft, setDraft, error, errorId, failureId, commit, cancel } = useCommitField(value, onCommit);
 
   // Not while actively drafting something else: a fresh, uncommitted edit takes over the field's message slot.
   const showFailure = !error && draft === value ? failure : null;
 
-  return (
-    <>
+  const input = (
       <Input
         {...props}
         className={`transition-colors duration-500 motion-reduce:transition-none ${className ?? ''} ${changed ? 'bg-met-tint' : ''}`}
@@ -145,6 +147,20 @@ export function CommitInput({
           }
         }}
       />
+  );
+
+  return (
+    <>
+      {suffix ? (
+        <span className="relative inline-flex items-center">
+          {input}
+          <span aria-hidden="true" className="pointer-events-none absolute right-3 text-sm text-text-secondary">
+            {suffix}
+          </span>
+        </span>
+      ) : (
+        input
+      )}
       <CommitFieldMessages
         error={error}
         errorId={errorId}

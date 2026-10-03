@@ -14,6 +14,7 @@ import { DraftField } from './DraftField';
 import { formatAmount } from './formatAmount';
 import { initiativeCount } from './impactNote';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
+import { RowActionsMenu } from './RowActionsMenu';
 import { LockToggle } from './LockToggle';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
@@ -160,20 +161,15 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                     {current ? `${formatAmount(current.dayRate, currencySymbol)} / day (${tracked[0]})` : '—'}
                   </td>
                   <td className="py-1.5 text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
+                    <RowActionsMenu
+                      label={`Actions for ${country.name}`}
                       disabled={lock.locked}
-                      aria-label={`${country.active ? 'Deactivate' : 'Reactivate'} ${country.name}`}
-                      title={country.active ? 'Deactivate' : 'Reactivate'}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        repository.updateCountry(country.id, { active: !country.active });
-                      }}
-                    >
-                      {country.active ? <DeactivateIcon /> : <ReactivateIcon />}
-                    </Button>
+                      actions={[
+                        country.active
+                          ? { label: 'Deactivate country', icon: DeactivateIcon, onSelect: () => repository.updateCountry(country.id, { active: false }) }
+                          : { label: 'Reactivate country', icon: ReactivateIcon, onSelect: () => repository.updateCountry(country.id, { active: true }) },
+                      ]}
+                    />
                   </td>
                 </tr>
                 <ConflictRow conflict={nameConflict} label={`Name of ${country.name}`} colSpan={3} />

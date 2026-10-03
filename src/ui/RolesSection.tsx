@@ -9,6 +9,7 @@ import { ConflictRow, inRow } from './ConflictBlock';
 import { DraftField } from './DraftField';
 import { initiativeCount } from './impactNote';
 import { DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
+import { RowActionsMenu } from './RowActionsMenu';
 import { LockToggle } from './LockToggle';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
@@ -135,17 +136,15 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                   )}
                 </td>
                 <td className="py-1.5 text-right">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
+                  <RowActionsMenu
+                    label={`Actions for ${role.name}`}
                     disabled={lock.locked}
-                    aria-label={`${role.active ? 'Deactivate' : 'Reactivate'} ${role.name}`}
-                    title={role.active ? 'Deactivate' : 'Reactivate'}
-                    onClick={() => repository.updateRole(role.id, { active: !role.active })}
-                  >
-                    {role.active ? <DeactivateIcon /> : <ReactivateIcon />}
-                  </Button>
+                    actions={[
+                      role.active
+                        ? { label: 'Deactivate role', icon: DeactivateIcon, onSelect: () => repository.updateRole(role.id, { active: false }) }
+                        : { label: 'Reactivate role', icon: ReactivateIcon, onSelect: () => repository.updateRole(role.id, { active: true }) },
+                    ]}
+                  />
                 </td>
               </tr>
               <ConflictRow conflict={conflicts.name} label={`Name of ${role.name}`} colSpan={4} />

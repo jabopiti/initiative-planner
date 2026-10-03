@@ -10,7 +10,7 @@ import { AttentionMarker, IconMarker } from './AttentionMarker';
 import { CompactAmount } from './CompactAmount';
 import { CopyButton } from './CopyButton';
 import type { CopyTableData } from './copyTable';
-import { FilterChip, type FilterOption } from './FilterChip';
+import { byLabel, FilterChip, type FilterOption } from './FilterChip';
 import { formatAmount, formatSignedAmount } from './formatAmount';
 import { StatusCancelledIcon, StatusClosedIcon, StatusOnHoldIcon } from './icons';
 import { TruncatedText } from './TruncatedText';
@@ -77,7 +77,7 @@ export function PortfolioBoard() {
 
   const options = useMemo<Record<'team' | 'phase' | 'initiative' | 'track' | 'status', FilterOption[]>>(
     () => ({
-      team: teams.map((t) => ({ value: t.id, label: inactiveLabel(t.name, t.active) })),
+      team: byLabel(teams.map((t) => ({ value: t.id, label: inactiveLabel(t.name, t.active) }))),
       phase: process.map((p) => ({ value: p.id, label: p.label })),
       initiative: [...initiatives].sort((a, b) => a.name.localeCompare(b.name)).map((i) => ({ value: i.id, label: i.name })),
       track: [...approvalTracks.map((t) => ({ value: t.id, label: t.name })), { value: NONE, label: 'No approval track' }],
@@ -102,6 +102,7 @@ export function PortfolioBoard() {
   if (initiatives.length === 0) {
     return (
       <>
+        <h1 className="sr-only">Portfolio</h1>
         <div className="px-8 pt-6 empty:hidden [&>section]:mb-0">
           <GettingStartedStrip />
         </div>
@@ -115,7 +116,7 @@ export function PortfolioBoard() {
   const clearable = !isDefaultPortfolioFilters(filters);
   const clear = () => setFilters(PORTFOLIO_DEFAULTS);
   const chip = (key: keyof typeof options, label: string) => (
-    <FilterChip label={label} options={options[key]} selected={filters[key]} onChange={(next) => setFilters({ ...filters, [key]: next })} />
+    <FilterChip selectedFirst={key === 'team' || key === 'initiative'} label={label} options={options[key]} selected={filters[key]} onChange={(next) => setFilters({ ...filters, [key]: next })} />
   );
 
   function copyData(): CopyTableData {
@@ -133,6 +134,7 @@ export function PortfolioBoard() {
 
   return (
     <div className="px-8 py-6">
+      <h1 className="sr-only">Portfolio</h1>
       <GettingStartedStrip />
       <NeedsAttentionStrip />
       <div className="mb-3 flex flex-wrap gap-2">

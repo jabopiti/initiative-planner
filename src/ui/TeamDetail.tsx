@@ -15,7 +15,8 @@ import { PersonPanel } from './PersonPanel';
 import { TruncatedText } from './TruncatedText';
 import { sortRows } from '../data/sortRows';
 import { useTableSort } from './tableSort';
-import { DeactivateIcon, DeactivateTeamIcon, ReactivateIcon, ReactivateTeamIcon, RemoveIcon, WarningIcon } from './icons';
+import { DeactivateIcon, ReactivateIcon, RemoveFromTeamIcon, WarningIcon } from './icons';
+import { RowActionsMenu } from './RowActionsMenu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FILE_PATHS } from '../data/types';
@@ -138,7 +139,7 @@ export function TeamDetail({ id }: { id: string }) {
           {!team.active && <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-normal text-text-secondary">Inactive</span>}
         </h1>
         <Button type="button" variant="ghost" size="sm" onClick={() => repository.updateTeam(team.id, { active: !team.active })}>
-          {team.active ? <DeactivateTeamIcon /> : <ReactivateTeamIcon />}
+          {team.active ? <DeactivateIcon /> : <ReactivateIcon />}
           {team.active ? 'Deactivate team' : 'Reactivate team'}
         </Button>
       </div>
@@ -242,7 +243,7 @@ export function TeamDetail({ id }: { id: string }) {
                     <td className="px-3 py-2 font-medium">
                       <button
                         type="button"
-                        className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-inherit"
+                        className="block cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-inherit"
                         onClick={() => setPersonId(person.id)}
                       >
                         <TruncatedText text={person.name} />
@@ -273,26 +274,15 @@ export function TeamDetail({ id }: { id: string }) {
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap" data-row-action>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`${m.active ? 'Deactivate' : 'Reactivate'} ${person.name} in this team`}
-                        title={m.active ? 'Deactivate' : 'Reactivate'}
-                        onClick={() => repository.updateMembership(m.id, { active: !m.active }, true)}
-                      >
-                        {m.active ? <DeactivateIcon /> : <ReactivateIcon />}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Remove ${person.name} from this team`}
-                        title="Remove from team"
-                        onClick={() => repository.removeMembership(m.id)}
-                      >
-                        <RemoveIcon />
-                      </Button>
+                      <RowActionsMenu
+                        label={`Actions for ${person.name} in this team`}
+                        actions={[
+                          m.active
+                            ? { label: 'Deactivate in team', icon: DeactivateIcon, onSelect: () => repository.updateMembership(m.id, { active: false }, true) }
+                            : { label: 'Reactivate in team', icon: ReactivateIcon, onSelect: () => repository.updateMembership(m.id, { active: true }, true) },
+                          { label: 'Remove from team', icon: RemoveFromTeamIcon, onSelect: () => repository.removeMembership(m.id) },
+                        ]}
+                      />
                     </td>
                   </tr>
                   <ConflictRow conflict={fteConflict} label={`Team FTE % for ${person.name}`} colSpan={4} />

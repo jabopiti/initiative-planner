@@ -25,6 +25,8 @@ export interface InitiativeAction {
   run: (repository: Repository, initiative: Initiative, ui: InitiativeActionUi) => void | (() => void);
   /** Irreversible: listed last, after a separator, in the destructive style. */
   destructive?: boolean;
+  /** Ends the initiative's work (Cancel): listed with the destructive actions, after the separator, in the normal style. */
+  ending?: boolean;
 }
 
 let duplicating = false;
@@ -58,7 +60,7 @@ function duplicate(repository: Repository, initiative: Initiative): void {
 export const initiativeActions: InitiativeAction[] = [
   { id: 'put-on-hold', label: () => 'Put on hold', icon: OnHoldIcon, applies: (i) => i.status === 'Active', run: (repository, i) => repository.putOnHold(i.id) },
   { id: 'resume', label: () => 'Resume', icon: ResumeIcon, applies: (i) => i.status === 'On Hold', run: (repository, i) => repository.resume(i.id) },
-  { id: 'cancel', label: () => 'Cancel', icon: CancelledIcon, applies: (i) => !isInitiativeFrozen(i), run: (repository, i) => repository.cancel(i.id) },
+  { id: 'cancel', label: () => 'Cancel initiative', icon: CancelledIcon, applies: (i) => !isInitiativeFrozen(i), run: (repository, i) => repository.cancel(i.id), ending: true },
   { id: 'duplicate', label: () => 'Duplicate', icon: DuplicateIcon, applies: () => true, run: (repository, i) => duplicate(repository, i) },
   { id: 'reopen', label: () => 'Reopen', icon: ReopenIcon, applies: (i) => i.status === 'Cancelled', run: (repository, i) => repository.reopen(i.id) },
   {

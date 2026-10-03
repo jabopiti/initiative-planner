@@ -57,21 +57,21 @@ describe('Others’ changes on screen (§3, §9.9)', () => {
     vi.unstubAllGlobals();
   });
 
-  it('opens from the cache: the page shows before the pull answers, and the indicator says "Syncing…" until it does', async () => {
+  it('opens from the cache: the page shows before the pull answers, and the indicator says "Saving…" until it does', async () => {
     const release = holdNetwork(fake);
     renderPage();
 
     expect(await screen.findByRole('textbox', { name: 'Initiative name' })).toHaveValue('Payments API');
-    expect(screen.getByText('Syncing…')).toBeInTheDocument();
+    expect(screen.getByText('Saving…')).toBeInTheDocument();
 
     release();
-    await vi.waitFor(() => expect(screen.queryByText('Syncing…')).not.toBeInTheDocument());
+    await vi.waitFor(() => expect(screen.queryByText('Saving…')).not.toBeInTheDocument());
   });
 
   it('shows a colleague’s change without a reload, tinted for a few seconds, and the indicator says "Updated by others"', async () => {
     renderPage();
     const name = await screen.findByRole('textbox', { name: 'Initiative name' });
-    await vi.waitFor(() => expect(screen.queryByText('Syncing…')).not.toBeInTheDocument());
+    await vi.waitFor(() => expect(screen.queryByText('Saving…')).not.toBeInTheDocument());
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
     fake.seed('initiatives/i1.json', initiative({ name: 'Payments API v2' }));
 
@@ -79,18 +79,18 @@ describe('Others’ changes on screen (§3, §9.9)', () => {
 
     expect(name).toHaveValue('Payments API v2');
     expect(name).toHaveClass('bg-met-tint');
-    expect(screen.getByTitle('Updated by others')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Synced, updated by others' })).toBeInTheDocument();
 
     await act(async () => void vi.advanceTimersByTime(CHANGE_TINT_MS));
     expect(name).not.toHaveClass('bg-met-tint');
-    expect(screen.getByTitle('Synced')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Synced' })).toBeInTheDocument();
   });
 
   it('leaves what is being typed alone, and brings the change in when the field is left', async () => {
     const user = userEvent.setup();
     renderPage();
     const name = await screen.findByRole('textbox', { name: 'Initiative name' });
-    await vi.waitFor(() => expect(screen.queryByText('Syncing…')).not.toBeInTheDocument());
+    await vi.waitFor(() => expect(screen.queryByText('Saving…')).not.toBeInTheDocument());
 
     await user.click(name);
     await user.type(name, ' EU');
@@ -110,7 +110,7 @@ describe('Others’ changes on screen (§3, §9.9)', () => {
     const user = userEvent.setup();
     renderPage();
     const name = await screen.findByRole('textbox', { name: 'Initiative name' });
-    await vi.waitFor(() => expect(screen.queryByText('Syncing…')).not.toBeInTheDocument());
+    await vi.waitFor(() => expect(screen.queryByText('Saving…')).not.toBeInTheDocument());
 
     await user.click(name);
     await user.clear(name);

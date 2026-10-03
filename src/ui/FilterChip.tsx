@@ -9,24 +9,34 @@ export interface FilterOption {
   label: string;
 }
 
+/** Options in A–Z order by their label. */
+export function byLabel(options: FilterOption[]): FilterOption[] {
+  return [...options].sort((a, b) => a.label.localeCompare(b.label));
+}
+
 interface Props {
   label: string;
   options: FilterOption[];
   selected: string[];
   onChange: (selected: string[]) => void;
+  /** A long, alphabetical list (Team, Owner, Initiative): the options ticked when the popover opened come first. */
+  selectedFirst?: boolean;
 }
 
 /**
  * A filter chip (§9.11): a multi-select dropdown with a search field and checkboxes, applied instantly; an active
  * chip is highlighted and names its one chosen value ("Team: Platform"), or counts two or more ("Team: 2"). Down
  * moves from the search field into the options, Up from the first option back; Space or Enter toggles an option;
- * Esc closes with focus back on the chip.
+ * Esc closes with focus back on the chip. With `selectedFirst` the options ticked at opening lead the list, and the
+ * order stays fixed while it is open, so an option never jumps away under the pointer when ticked.
  */
-export function FilterChip({ label, options, selected, onChange }: Props) {
+export function FilterChip({ label, options, selected, onChange, selectedFirst }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
-  const shown = options.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()));
+  const [firstValues, setFirstValues] = useState<string[]>([]);
+  const ordered = selectedFirst ? [...options.filter((o) => firstValues.includes(o.value)), ...options.filter((o) => !firstValues.includes(o.value))] : options;
+  const shown = ordered.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()));
   const active = selected.length > 0;
   const chosen = selected.length === 1 ? (options.find((o) => o.value === selected[0])?.label ?? '1') : String(selected.length);
 
@@ -50,6 +60,7 @@ export function FilterChip({ label, options, selected, onChange }: Props) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
+        if (next) setFirstValues(selected);
         if (!next) setQuery('');
       }}
     >
