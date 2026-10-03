@@ -1,4 +1,4 @@
-import { loginCache, tokenCache } from '../cache/db';
+import { classicWarningCache, loginCache, tokenCache } from '../cache/db';
 
 /**
  * Where the GitHub token lives (§3). By default it stays in this tab's
@@ -8,6 +8,7 @@ import { loginCache, tokenCache } from '../cache/db';
  */
 const SESSION_KEY = 'github-token';
 const LOGIN_SESSION_KEY = 'github-login';
+const CLASSIC_SESSION_KEY = 'github-classic-warning';
 
 function readSession(key = SESSION_KEY): string | null {
   try {
@@ -51,12 +52,13 @@ export const tokenStore = {
    * token it replaces goes with it; {@link saveLogin} records the new one. */
   async save(token: string, remember: boolean): Promise<void> {
     writeSession(null, LOGIN_SESSION_KEY);
+    writeSession(null, CLASSIC_SESSION_KEY);
     if (remember) {
       writeSession(null);
-      await Promise.all([tokenCache.set(token), loginCache.clear()]);
+      await Promise.all([tokenCache.set(token), loginCache.clear(), classicWarningCache.clear()]);
     } else {
       writeSession(token);
-      await Promise.all([tokenCache.clear(), loginCache.clear()]);
+      await Promise.all([tokenCache.clear(), loginCache.clear(), classicWarningCache.clear()]);
     }
   },
 
@@ -64,6 +66,20 @@ export const tokenStore = {
   async saveLogin(login: string): Promise<void> {
     if (await tokenStore.remembered()) await loginCache.set(login);
     else writeSession(login, LOGIN_SESSION_KEY);
+  },
+
+  /** Whether the stored token is a classic one whose warning is still to be shown (§5.10). */
+  async loadClassicWarning(): Promise<boolean> {
+    return readSession(CLASSIC_SESSION_KEY) === '1' || ((await classicWarningCache.get().catch(() => null)) ?? false);
+  },
+
+  /** Shows (or, with `false`, dismisses) the classic-token warning, in the same place as the token. */
+  async saveClassicWarning(on: boolean): Promise<void> {
+    writeSession(null, CLASSIC_SESSION_KEY);
+    await classicWarningCache.clear();
+    if (!on) return;
+    if (await tokenStore.remembered()) await classicWarningCache.set();
+    else writeSession('1', CLASSIC_SESSION_KEY);
   },
 
   /** Whether the token is kept on this device (Remember me), so a replacement keeps the same choice. */
@@ -78,6 +94,7 @@ export const tokenStore = {
   async clear(): Promise<void> {
     writeSession(null);
     writeSession(null, LOGIN_SESSION_KEY);
-    await Promise.all([tokenCache.clear(), loginCache.clear()]);
+    writeSession(null, CLASSIC_SESSION_KEY);
+    await Promise.all([tokenCache.clear(), loginCache.clear(), classicWarningCache.clear()]);
   },
 };

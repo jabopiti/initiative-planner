@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react';
 import { tokenCreationUrl, tokenManagementUrl } from '../auth/tokenCreationUrl';
 import { CommitHistoryLink } from './CommitHistoryLink';
-import { TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
+import { repoLabel, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { Button } from '@/components/ui/button';
 import { ReplaceTokenField } from './ReplaceTokenField';
 import { TokenSteps } from './TokenSteps';
 import { WarningIcon } from './icons';
-
-/** What the banner says for a rejected token, on top of §5.10's own "GitHub doesn't accept this token." (§3). */
-const REJECTED_HINT = ' It has expired or been revoked; create a new one.';
 
 /**
  * The app-wide read-only banner (§3, §9.9): shown on every page while sync has failed, naming the cause and
@@ -63,12 +60,12 @@ export function ReadOnlyBanner() {
     const creationUrl = tokenCreationUrl(brand.github, brand.productName);
     const rejected = diagnosis?.outcome === 'invalid';
     const message = diagnosis
-      ? TOKEN_CHECK_MESSAGES[diagnosis.outcome]() + (rejected ? REJECTED_HINT : '')
+      ? TOKEN_CHECK_MESSAGES[diagnosis.outcome]({ repo: repoLabel(brand.github) })
       : checked
         ? readOnly.message
         : 'Checking your token…';
     const link = rejected
-      ? { href: creationUrl, label: 'Create a token' }
+      ? { href: creationUrl, label: 'Create a new token' }
       : checked && diagnosis?.outcome !== 'pending-approval'
         ? { href: tokenManagementUrl(brand.github), label: 'Edit this token in GitHub' }
         : null;

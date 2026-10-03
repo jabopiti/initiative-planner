@@ -34,7 +34,7 @@ function json(body: unknown, status = 200): Response {
 }
 
 /** A repository on the data branch: files with shas, held or failed writes on demand, and "the other writer". */
-export type TokenBehaviour = 'invalid' | 'read-only' | 'cannot-see';
+export type TokenBehaviour = 'invalid' | 'read-only' | 'cannot-see' | 'classic' | 'pending-approval';
 
 export function fakeGithub() {
   const files = new Map<string, { content: string; sha: string }>();
@@ -114,10 +114,15 @@ export function fakeGithub() {
     // The §5.10 token check: who the bearer is, and what it may do to the repository.
     const behaviour = tokenBehaviours.get((new Headers(init.headers).get('Authorization') ?? '').replace('Bearer ', ''));
     if (method === 'GET' && pathname === '/user') {
-      return behaviour === 'invalid' ? json({ message: 'Bad credentials' }, 401) : json({ login: 'jmustermann' });
+      if (behaviour === 'invalid') return json({ message: 'Bad credentials' }, 401);
+      // A classic token's response carries X-OAuth-Scopes; a fine-grained token's doesn't.
+      return behaviour === 'classic'
+        ? new Response(JSON.stringify({ login: 'jmustermann' }), { status: 200, headers: { 'X-OAuth-Scopes': 'repo' } })
+        : json({ login: 'jmustermann' });
     }
     if (method === 'GET' && /^\/repos\/[^/]+\/[^/]+$/.test(pathname)) {
       if (behaviour === 'cannot-see') return json({ message: 'Not Found' }, 404);
+      if (behaviour === 'pending-approval') return json({ message: 'Resource pending approval by organization owner' }, 403);
       return json({ permissions: { push: behaviour !== 'read-only' } });
     }
 
@@ -216,7 +221,7 @@ export function fakeGithub() {
       holds.push({ prefix, gate: new Promise<void>((resolve) => (release = resolve)) });
       return release;
     },
-    /** What the token check (§5.10) finds for this token: rejected, read-only or unable to see the repository. Every other token works. */
+    /** What the token check (§5.10) finds for this token: rejected, read-only, unable to see the repository, classic, or awaiting approval. Every other token works. */
     setTokenBehaviour: (token: string, behaviour: TokenBehaviour) => void tokenBehaviours.set(token, behaviour),
     /** The next write (put or delete) to a path starting with `prefix` is refused with `status` and changes nothing. */
     fail: (prefix: string, status: number) => void failures.push({ prefix, status }),

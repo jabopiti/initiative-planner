@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, type ClipboardEvent } from 'react';
 import { useBrand } from '../state/BrandContext';
-import { checkToken, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
+import { checkToken, repoLabel, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
 import { tokenCreationUrl, tokenManagementUrl } from '../auth/tokenCreationUrl';
 import { ChevronDown, KeyRound, ShieldCheck } from 'lucide-react';
 import { TokenSteps } from './TokenSteps';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -18,25 +19,39 @@ const MESSAGE_STYLES: Record<TokenCheckResult['outcome'], string> = {
   unreachable: 'bg-warning-tint text-warning-text',
 };
 
-export function ConnectScreen({ onConnected }: { onConnected: (token: string, remember: boolean, login: string) => void }) {
+export function ConnectScreen({ onConnected }: { onConnected: (token: string, remember: boolean, login: string, classic: boolean) => void }) {
   const [token, setToken] = useState('');
   const [remember, setRemember] = useState(false);
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<TokenCheckResult | null>(null);
   const brand = useBrand();
-  const repoLabel = `${brand.github.owner}/${brand.github.repo}`;
+  const repo = repoLabel(brand.github);
 
-  async function handleConnect(event: React.FormEvent) {
-    event.preventDefault();
-    if (!token.trim() || checking) return;
+  async function connect(raw: string) {
+    const trimmed = raw.trim();
+    if (!trimmed || checking) return;
     setChecking(true);
     setResult(null);
-    const outcome = await checkToken(brand.github, token.trim());
+    const outcome = await checkToken(brand.github, trimmed);
     setChecking(false);
     setResult(outcome);
     if (outcome.outcome === 'works' || outcome.outcome === 'classic-warning') {
-      onConnected(token.trim(), remember, outcome.login);
+      onConnected(trimmed, remember, outcome.login, outcome.outcome === 'classic-warning');
     }
+  }
+
+  // A pasted token is checked at once, with the Remember me choice as it stands (§5.10); typing needs Connect.
+  function onPaste(event: ClipboardEvent<HTMLInputElement>) {
+    const pasted = event.clipboardData.getData('text').trim();
+    if (!pasted) return;
+    event.preventDefault();
+    setToken(pasted);
+    void connect(pasted);
+  }
+
+  function handleConnect(event: React.FormEvent) {
+    event.preventDefault();
+    void connect(token);
   }
 
   const tokenSettingsUrl = tokenCreationUrl(brand.github, brand.productName);
@@ -65,6 +80,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
                 spellCheck={false}
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
+                onPaste={onPaste}
                 placeholder="github_pat_..."
                 className="flex-1"
               />
@@ -74,12 +90,11 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
             </div>
           </div>
           <div className="flex items-start gap-2">
-            <input
+            <Checkbox
               id="remember-field"
-              type="checkbox"
               checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              className="mt-0.5 size-4 accent-brand-accent"
+              onCheckedChange={(checked) => setRemember(checked === true)}
+              className="mt-0.5"
             />
             <Label htmlFor="remember-field">Remember me on this device</Label>
           </div>
@@ -90,15 +105,13 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
             className={`mt-4 rounded-lg px-3 py-2.5 text-sm ${MESSAGE_STYLES[result.outcome]}`}
             role={isError ? 'alert' : 'status'}
           >
-            {TOKEN_CHECK_MESSAGES[result.outcome]('login' in result ? result.login : undefined)}
-            {result.outcome === 'classic-warning' && (
+            {TOKEN_CHECK_MESSAGES[result.outcome]({ login: 'login' in result ? result.login : undefined, repo })}
+            {result.outcome === 'invalid' && (
               <>
                 {' '}
-                — a classic token reaches all your repositories.{' '}
                 <a href={tokenSettingsUrl} target="_blank" rel="noreferrer" className="underline">
-                  Create a fine-grained one{newTab}
+                  Create a new token{newTab}
                 </a>
-                .
               </>
             )}
           </div>
@@ -156,7 +169,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
             the dataset or any commit.
           </li>
           <li>
-            <strong className="font-semibold">Limited by design.</strong> A fine-grained token reaches {repoLabel} only,
+            <strong className="font-semibold">Limited by design.</strong> A fine-grained token reaches {repo} only,
             with Contents access, and expires after a year.{' '}
             <a href={tokenManagementLink} target="_blank" rel="noreferrer" className="underline">
               Revoke it in GitHub any time{newTab}
