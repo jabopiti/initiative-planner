@@ -16,8 +16,10 @@ import { TruncatedText } from './TruncatedText';
 import { sortRows } from '../data/sortRows';
 import { useTableSort } from './tableSort';
 import { DeactivateIcon, DeactivateTeamIcon, ReactivateIcon, ReactivateTeamIcon, RemoveIcon, WarningIcon } from './icons';
+import { removeMembershipWithUndo } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CommitInput } from './CommitInput';
 import { FILE_PATHS } from '../data/types';
 
 /** Team detail (§5.8): the Members list, the Initiatives list and the Capacity view. */
@@ -134,7 +136,23 @@ export function TeamDetail({ id }: { id: string }) {
       </a>
       <div className="mt-1 mb-5 flex items-center justify-between gap-4">
         <h1 className="m-0 flex items-center gap-2 text-xl">
-          {team.name}
+          <CommitInput
+            aria-label="Team name"
+            className="h-auto w-64 max-w-full border-transparent bg-transparent px-2 py-0.5 text-xl font-semibold shadow-none hover:border-input focus-visible:border-ring md:text-xl"
+            changed={changed(FILE_PATHS.teams, [{ id: team.id }, 'name'])}
+            failure={failure(FILE_PATHS.teams, [{ id: team.id }, 'name'])}
+            conflict={conflict(FILE_PATHS.teams, [{ id: team.id }, 'name'])}
+            conflictLabel="Team name"
+            retryLabel="Retry saving Team name"
+            value={team.name}
+            onCommit={(text) => {
+              const trimmed = text.trim();
+              if (trimmed === team.name) return false;
+              const refusal = repository.teamNameRefusal(trimmed, team.id);
+              if (refusal) return refusal;
+              repository.updateTeam(team.id, { name: trimmed });
+            }}
+          />
           {!team.active && <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-normal text-text-secondary">Inactive</span>}
         </h1>
         <Button type="button" variant="ghost" size="sm" onClick={() => repository.updateTeam(team.id, { active: !team.active })}>
@@ -289,7 +307,7 @@ export function TeamDetail({ id }: { id: string }) {
                         size="icon-sm"
                         aria-label={`Remove ${person.name} from this team`}
                         title="Remove from team"
-                        onClick={() => repository.removeMembership(m.id)}
+                        onClick={() => removeMembershipWithUndo(repository, m.id)}
                       >
                         <RemoveIcon />
                       </Button>

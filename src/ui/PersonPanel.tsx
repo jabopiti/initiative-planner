@@ -5,6 +5,7 @@ import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
 import { joinableTeams } from '../data/teamMembers';
 import type { Person } from '../data/types';
 import { FILE_PATHS } from '../data/types';
+import { removeMembershipWithUndo } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Label } from '@/components/ui/label';
@@ -204,7 +205,7 @@ function PersonDetails({ person }: { person: Person }) {
                 size="icon-sm"
                 aria-label={`Remove from ${team?.name ?? 'team'}`}
                 title="Remove from team"
-                onClick={() => repository.removeMembership(m.id)}
+                onClick={() => removeMembershipWithUndo(repository, m.id)}
               >
                 <RemoveIcon />
               </Button>
