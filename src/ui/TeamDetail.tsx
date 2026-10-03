@@ -16,7 +16,7 @@ import { TruncatedText } from './TruncatedText';
 import { sortRows } from '../data/sortRows';
 import { useTableSort } from './tableSort';
 import { DeactivateIcon, ReactivateIcon, RemoveFromTeamIcon, WarningIcon } from './icons';
-import { RowActionsMenu } from './RowActionsMenu';
+import { activeToggleAction, RowActionsMenu } from './RowActionsMenu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { FILE_PATHS } from '../data/types';
@@ -277,9 +277,7 @@ export function TeamDetail({ id }: { id: string }) {
                       <RowActionsMenu
                         label={`Actions for ${person.name} in this team`}
                         actions={[
-                          m.active
-                            ? { label: 'Deactivate in team', icon: DeactivateIcon, onSelect: () => repository.updateMembership(m.id, { active: false }, true) }
-                            : { label: 'Reactivate in team', icon: ReactivateIcon, onSelect: () => repository.updateMembership(m.id, { active: true }, true) },
+                          activeToggleAction('in team', m.active, (active) => repository.updateMembership(m.id, { active }, true)),
                           { label: 'Remove from team', icon: RemoveFromTeamIcon, onSelect: () => repository.removeMembership(m.id) },
                         ]}
                       />

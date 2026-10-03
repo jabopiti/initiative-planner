@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from 'react';
-import { ActionsIcon } from './icons';
+import { ActionsIcon, DeactivateIcon, ReactivateIcon } from './icons';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -9,6 +9,13 @@ export type RowAction = {
   onSelect: () => void;
   destructive?: boolean;
 };
+
+/** The Deactivate / Reactivate item for a row (§9.10): `set` receives the new `active` value. */
+export function activeToggleAction(noun: string, active: boolean, set: (active: boolean) => void): RowAction {
+  return active
+    ? { label: `Deactivate ${noun}`, icon: DeactivateIcon, onSelect: () => set(false) }
+    : { label: `Reactivate ${noun}`, icon: ReactivateIcon, onSelect: () => set(true) };
+}
 
 /**
  * A list row's actions (§9.10): one "⋯" button whose menu items each carry their icon and a text label, so no row

@@ -12,8 +12,8 @@ import { SortableHeader } from './SortableHeader';
 import { TruncatedText } from './TruncatedText';
 import { sortRows } from '../data/sortRows';
 import { useTableSort } from './tableSort';
-import { DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
-import { RowActionsMenu } from './RowActionsMenu';
+import { PlusIcon } from './icons';
+import { activeToggleAction, RowActionsMenu } from './RowActionsMenu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -225,9 +225,7 @@ export function PeopleOverview() {
                         <RowActionsMenu
                           label={`Actions for ${p.name}`}
                           actions={[
-                            p.active
-                              ? { label: 'Deactivate person', icon: DeactivateIcon, onSelect: () => repository.updatePerson(p.id, { active: false }) }
-                              : { label: 'Reactivate person', icon: ReactivateIcon, onSelect: () => repository.updatePerson(p.id, { active: true }) },
+                            activeToggleAction('person', p.active, (active) => repository.updatePerson(p.id, { active })),
                           ]}
                         />
                       </td>

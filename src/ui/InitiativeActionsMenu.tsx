@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState, type Ref } from 'react';
+import { Fragment, useCallback, useRef, useState, type Ref } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { useRepository } from '../state/DataContext';
 import type { Initiative } from '../data/types';
@@ -22,11 +22,14 @@ export function InitiativeActionsMenu({ initiative, ui, triggerRef }: { initiati
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const returningFocus = useRef(false);
   const button = useRef<HTMLButtonElement | null>(null);
-  const setButton = (node: HTMLButtonElement | null) => {
-    button.current = node;
-    if (typeof triggerRef === 'function') triggerRef(node);
-    else if (triggerRef) triggerRef.current = node;
-  };
+  const setButton = useCallback(
+    (node: HTMLButtonElement | null) => {
+      button.current = node;
+      if (typeof triggerRef === 'function') triggerRef(node);
+      else if (triggerRef) triggerRef.current = node;
+    },
+    [triggerRef],
+  );
   const applicable = initiativeActions.filter((action) => action.applies(initiative, process));
   const isLast = (a: InitiativeAction) => a.ending || a.destructive;
   const actions = [...applicable.filter((a) => !isLast(a)), ...applicable.filter((a) => a.ending), ...applicable.filter((a) => a.destructive)];

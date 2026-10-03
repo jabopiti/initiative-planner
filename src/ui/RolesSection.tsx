@@ -8,8 +8,8 @@ import { CommitInput } from './CommitInput';
 import { ConflictRow, inRow } from './ConflictBlock';
 import { DraftField } from './DraftField';
 import { initiativeCount } from './impactNote';
-import { DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
-import { RowActionsMenu } from './RowActionsMenu';
+import { PlusIcon } from './icons';
+import { activeToggleAction, RowActionsMenu } from './RowActionsMenu';
 import { LockToggle } from './LockToggle';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
@@ -140,9 +140,7 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                     label={`Actions for ${role.name}`}
                     disabled={lock.locked}
                     actions={[
-                      role.active
-                        ? { label: 'Deactivate role', icon: DeactivateIcon, onSelect: () => repository.updateRole(role.id, { active: false }) }
-                        : { label: 'Reactivate role', icon: ReactivateIcon, onSelect: () => repository.updateRole(role.id, { active: true }) },
+                      activeToggleAction('role', role.active, (active) => repository.updateRole(role.id, { active })),
                     ]}
                   />
                 </td>

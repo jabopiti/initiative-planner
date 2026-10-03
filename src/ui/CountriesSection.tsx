@@ -13,8 +13,8 @@ import { ConflictBlock, ConflictRow, inRow } from './ConflictBlock';
 import { DraftField } from './DraftField';
 import { formatAmount } from './formatAmount';
 import { initiativeCount } from './impactNote';
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
-import { RowActionsMenu } from './RowActionsMenu';
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon } from './icons';
+import { activeToggleAction, RowActionsMenu } from './RowActionsMenu';
 import { LockToggle } from './LockToggle';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
@@ -165,9 +165,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                       label={`Actions for ${country.name}`}
                       disabled={lock.locked}
                       actions={[
-                        country.active
-                          ? { label: 'Deactivate country', icon: DeactivateIcon, onSelect: () => repository.updateCountry(country.id, { active: false }) }
-                          : { label: 'Reactivate country', icon: ReactivateIcon, onSelect: () => repository.updateCountry(country.id, { active: true }) },
+                        activeToggleAction('country', country.active, (active) => repository.updateCountry(country.id, { active })),
                       ]}
                     />
                   </td>

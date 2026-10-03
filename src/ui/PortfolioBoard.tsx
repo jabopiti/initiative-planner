@@ -79,7 +79,7 @@ export function PortfolioBoard() {
     () => ({
       team: byLabel(teams.map((t) => ({ value: t.id, label: inactiveLabel(t.name, t.active) }))),
       phase: process.map((p) => ({ value: p.id, label: p.label })),
-      initiative: [...initiatives].sort((a, b) => a.name.localeCompare(b.name)).map((i) => ({ value: i.id, label: i.name })),
+      initiative: byLabel(initiatives.map((i) => ({ value: i.id, label: i.name }))),
       track: [...approvalTracks.map((t) => ({ value: t.id, label: t.name })), { value: NONE, label: 'No approval track' }],
       status: INITIATIVE_STATUSES.map((s) => ({ value: s, label: s })),
     }),
