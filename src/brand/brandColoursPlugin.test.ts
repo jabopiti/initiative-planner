@@ -1,14 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { brandColoursPlugin } from './brandColoursPlugin';
 import { defaultBrandPack } from './defaultBrand';
 
-type Hook = (this: { error: (msg: string) => never }, ...args: unknown[]) => unknown;
-const call = (hook: unknown, ...args: unknown[]) => {
-  const error = vi.fn((msg: string) => {
+const ctx = {
+  error: (msg: string): never => {
     throw new Error(msg);
-  });
-  return (hook as Hook).call({ error: error as unknown as (msg: string) => never }, ...args);
+  },
 };
+const call = (hook: unknown, ...args: unknown[]) => (hook as (...a: unknown[]) => unknown).call(ctx, ...args);
 
 describe('brandColoursPlugin (§9.5, §10.7)', () => {
   it('serves the generated stylesheet as virtual:brand-colours.css', () => {

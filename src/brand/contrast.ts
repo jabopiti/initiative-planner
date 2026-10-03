@@ -8,29 +8,24 @@ import type { BrandColours } from './types';
 
 type Role = keyof BrandColours;
 type Oklch = [l: number, c: number, h: number];
+type Pair = [fg: Role, bgs: Role[], min: number];
 
 const TEXT = 4.5;
 const UI = 3;
 
+const PAGE_CARD: Role[] = ['surfacePage', 'surfaceCard'];
+const SURFACES: Role[] = [...PAGE_CARD, 'surfaceSubtle'];
+
 /** Which roles sit on which: the core's usage, so a fork's pack is held to how the screens actually draw it. */
-const PAIRS: [fg: Role, bgs: Role[], min: number][] = [
-  ['textPrimary', ['surfacePage', 'surfaceCard', 'surfaceSubtle', 'accentTint', 'metTint'], TEXT],
-  ['textSecondary', ['surfacePage', 'surfaceCard', 'surfaceSubtle', 'accentTint', 'metTint'], TEXT],
-  ['textMuted', ['surfacePage', 'surfaceCard', 'surfaceSubtle', 'accentTint', 'metTint'], TEXT],
-  ['accentText', ['surfacePage', 'surfaceCard', 'surfaceSubtle', 'accentTint'], TEXT],
-  ['warningText', ['surfacePage', 'surfaceCard', 'surfaceSubtle', 'warningTint'], TEXT],
-  ['alarmText', ['surfacePage', 'surfaceCard', 'surfaceSubtle', 'alarmTint'], TEXT],
-  ['metText', ['surfacePage', 'surfaceCard', 'surfaceSubtle', 'metTint'], TEXT],
+const PAIRS: Pair[] = [
+  ...(['textPrimary', 'textSecondary', 'textMuted'] as const).map((fg): Pair => [fg, [...SURFACES, 'accentTint', 'metTint'], TEXT]),
+  // Status text sits on the plain surfaces and on its own tint.
+  ...(['accent', 'warning', 'alarm', 'met'] as const).map((s): Pair => [`${s}Text`, [...SURFACES, `${s}Tint`], TEXT]),
   ['textOnAccent', ['accent', 'alarm'], TEXT],
   // Tooltips: page-coloured text on a primary-text fill.
   ['surfacePage', ['textPrimary'], TEXT],
   // Non-text contrast (WCAG 1.4.11): focus indicator, status fills and form-control outlines.
-  ['focusRing', ['surfacePage', 'surfaceCard'], UI],
-  ['accent', ['surfacePage', 'surfaceCard'], UI],
-  ['met', ['surfacePage', 'surfaceCard'], UI],
-  ['warning', ['surfacePage', 'surfaceCard'], UI],
-  ['alarm', ['surfacePage', 'surfaceCard'], UI],
-  ['borderStrong', ['surfacePage', 'surfaceCard'], UI],
+  ...(['focusRing', 'accent', 'met', 'warning', 'alarm', 'borderStrong'] as const).map((fg): Pair => [fg, PAGE_CARD, UI]),
 ];
 
 const OKLCH = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/;
@@ -72,10 +67,11 @@ export function checkBrandColours(colours: BrandColours): string[] {
       else failures.push(`${role} (${theme}) is not an oklch(L C H) colour: "${value}"`);
     }
     for (const [fg, bgs, min] of PAIRS) {
+      const f = parsed.get(fg);
+      if (!f) continue;
       for (const bg of bgs) {
-        const f = parsed.get(fg);
         const b = parsed.get(bg);
-        if (!f || !b) continue;
+        if (!b) continue;
         const ratio = contrastRatio(f, b);
         if (ratio < min) failures.push(`${fg} (${theme}) on ${bg} is ${ratio.toFixed(2)}:1, needs ${min}:1`);
       }

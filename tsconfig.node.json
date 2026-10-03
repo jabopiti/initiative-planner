@@ -10,7 +10,6 @@
     "moduleDetection": "force",
     "noEmit": true,
     "strict": true,
-    "resolveJsonModule": true,
     "types": ["node"]
   },
   "include": ["vite.config.ts", "playwright.config.ts", "e2e"]
