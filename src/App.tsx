@@ -19,6 +19,7 @@ import { TeamDetail } from './ui/TeamDetail';
 import { InitiativesTable } from './ui/InitiativesTable';
 import { SettingsPage, DEFAULT_SECTION } from './ui/SettingsPage';
 import { useHashRoute } from './router/useHashRoute';
+import { CommitHistoryLink } from './ui/CommitHistoryLink';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -29,7 +30,15 @@ function Screen({ route }: { route: string }) {
   if (status === 'loading') {
     return readOnly ? (
       <div className="max-w-[720px] p-8">
-        <p role="alert">{readOnly.message}</p>
+        <p role="alert">
+          {readOnly.message}
+          {readOnly.cause === 'damaged' && (
+            <>
+              {' '}
+              <CommitHistoryLink />
+            </>
+          )}
+        </p>
       </div>
     ) : null;
   }

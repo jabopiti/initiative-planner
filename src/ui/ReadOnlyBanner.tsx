@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { tokenCreationUrl, tokenManagementUrl } from '../auth/tokenCreationUrl';
+import { CommitHistoryLink } from './CommitHistoryLink';
 import { TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
@@ -113,7 +114,15 @@ export function ReadOnlyBanner() {
     <div className={`${wrap} flex items-center justify-between gap-3`} role="alert">
       <span className="flex items-center gap-1.5">
         <WarningIcon />
-        {readOnly.message}
+        <span>
+          {readOnly.message}
+          {readOnly.cause === 'damaged' && (
+            <>
+              {' '}
+              <CommitHistoryLink />
+            </>
+          )}
+        </span>
       </span>
       <Button type="button" variant="outline" size="sm" onClick={() => repository.retryAll()}>
         Retry

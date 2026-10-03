@@ -4,6 +4,7 @@ import type { Initiative } from '../data/types';
 import { lostEditKey, Repository } from './Repository';
 import { splitMessage, subjectOf } from './testing/commitMessage';
 import { rootListing } from './testing/rootListing';
+import { FIXTURE_ROLE } from './testing/fakeGithub';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
@@ -561,6 +562,7 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
     const { mock, repo } = await open({
       'GET /repos/jabopiti/initiative-planner/contents/countries.json': () => contentsResponse(germany, 'countries-sha'),
       'GET /repos/jabopiti/initiative-planner/contents/people.json': () => contentsResponse(cai, 'people-sha'),
+      'GET /repos/jabopiti/initiative-planner/contents/roles.json': () => contentsResponse([FIXTURE_ROLE], 'roles-sha'),
     });
 
     const stop = repo.keepTrackedYears(() => new Date(2027, 0, 2));

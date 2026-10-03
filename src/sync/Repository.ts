@@ -28,8 +28,8 @@ import { FROZEN_PHASE_FIELDS, frozenPaths, hasPassedGate, isInitiativeFrozen, is
 import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
 import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
-import { AUTOMATIC_RETRY_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { GithubClient, parseJsonFile, type BranchHead } from '../github/client';
+import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
+import { GithubClient, type BranchHead } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
@@ -37,6 +37,7 @@ import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
 import { FileWriter, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
+import { parseDataFile, validateDataset } from './validateDataset';
 import { WriteQueue } from './WriteQueue';
 
 export type { ReadOnlyState } from '../github/errors';
@@ -147,7 +148,7 @@ export type LoadExampleResult = 'loaded' | 'not-empty' | { failed: ReadOnlyState
 /** How Reset ended (§5.9): reset, or failed with the cause. */
 export type ResetResult = 'reset' | { failed: ReadOnlyState };
 
-const pulledFile = ({ content, sha }: { content: string; sha: string }): PulledFile => ({ raw: content, sha, value: JSON.parse(content) });
+const pulledFile = (path: string, { content, sha }: { content: string; sha: string }): PulledFile => ({ raw: content, sha, value: parseDataFile(path, content) });
 
 /** Everything one pull found: the files it read, and the versions on screen it compared them with. */
 interface Pulled {
@@ -256,6 +257,9 @@ export class Repository {
   private readonly firstPullDone = new Promise<void>((resolve) => (this.markFirstPullDone = resolve));
   /** Why the last pull failed, until one succeeds (§3 Sync failures). */
   private pullFailure: ReadOnlyState | null = null;
+  /** Why the dataset may not be written (§3 Data integrity, Damaged data): set by a pull that refused it, kept
+   * through pulls that fail for another reason (GitHub unreachable), and cleared only by one that applies. */
+  private datasetRefusal: ReadOnlyState | null = null;
   /** Fields with unsaved typing: a pull that arrives meanwhile is held until they are left (§3). */
   private editing = 0;
   private held: Pulled | null = null;
@@ -324,11 +328,9 @@ export class Repository {
       const [cached, meta] = await Promise.all([this.cache.all(), this.cache.getMeta()]);
       if (!meta || !cached.has(FILE_PATHS.datasetFlags)) return null;
       // A file that cannot be read makes the whole cache untrustworthy.
-      const files = new Map([...cached].map(([path, file]) => [path, pulledFile(file)]));
-      const flags = files.get(FILE_PATHS.datasetFlags)!.value as DatasetFlags;
-      if (flags.processIdentity.id !== this.brand.processIdentity.id || flags.schemaVersion !== SCHEMA_VERSION) {
-        throw new Error('The cache is from another dataset.');
-      }
+      const files = new Map([...cached].map(([path, file]) => [path, pulledFile(path, file)]));
+      validateDataset(new Map([...files].map(([path, file]) => [path, file.value])));
+      if (this.refusal(files.get(FILE_PATHS.datasetFlags)!.value as DatasetFlags)) throw new Error('The cache is from another dataset.');
       this.meta = meta;
       return { head: null, files, listing: new Map(), compared: new Map() };
     } catch {
@@ -339,11 +341,18 @@ export class Repository {
 
   /** Why a dataset may not be used by this build (§3 Data integrity), or null. */
   private refusal(flags: DatasetFlags): ReadOnlyState | null {
+    // Flags without this shape are damaged, which validation names (§3 Damaged data).
+    if (typeof flags?.schemaVersion !== 'number' || typeof flags.processIdentity?.structureVersion !== 'number') return null;
     if (flags.processIdentity.id !== this.brand.processIdentity.id) {
       return { cause: 'process-mismatch', message: 'This dataset belongs to a different process build. Use the matching build.' };
     }
-    if (flags.schemaVersion > SCHEMA_VERSION) {
+    const structure = this.brand.processIdentity.structureVersion;
+    if (flags.schemaVersion > SCHEMA_VERSION || flags.processIdentity.structureVersion > structure) {
       return { cause: 'dataset-newer', message: 'Dataset is newer than this version — reload to update.' };
+    }
+    // Migration is out of scope for v1 (§3 Versioning and migration): an older dataset is refused, not migrated.
+    if (flags.schemaVersion < SCHEMA_VERSION || flags.processIdentity.structureVersion < structure) {
+      return { cause: 'dataset-older', message: "Dataset is older than this version and can't be opened by it." };
     }
     return null;
   }
@@ -418,6 +427,7 @@ export class Repository {
       }
     } catch (error) {
       this.pullFailure = toReadOnlyState(error, 'Something went wrong loading the dataset.');
+      if (error instanceof DamagedDataError) this.datasetRefusal = this.pullFailure;
     }
     this.settlePull(complete);
   }
@@ -429,13 +439,18 @@ export class Repository {
     if (head === 'not-modified') return null;
     if (head && this.meta && this.state.status === 'ready' && head.sha === this.meta.head) return null;
 
-    let listing = await this.listDataset(branch);
+    // Listing and files are read at the head just checked, so they are one commit's snapshot: validation across
+    // files (§3 Damaged data) never sees half of another user's change, such as a membership without its person.
+    let at = head?.sha ?? branch;
+    let listing = await this.listDataset(at);
     if (!listing.has(FILE_PATHS.datasetFlags)) {
-      // No dataset anywhere: the first write-capable client creates it (§3). Never over a dataset already on screen.
-      if (this.state.status === 'ready') throw new Error('Dataset damaged — its files are gone from the repository.');
+      // No dataset anywhere: the first write-capable client creates it (§3). Never over a dataset that has any file
+      // left, nor one already on screen: that dataset is damaged, and the owner restores it (§3 Damaged data).
+      if (listing.size > 0 || this.state.status === 'ready') throw new DamagedDataError(FILE_PATHS.datasetFlags, 'is missing');
       await this.bootstrapBaseline(branch);
-      listing = await this.listDataset(branch);
-      if (!listing.has(FILE_PATHS.datasetFlags)) throw new Error('Dataset damaged — could not read it after creating it.');
+      at = branch;
+      listing = await this.listDataset(at);
+      if (!listing.has(FILE_PATHS.datasetFlags)) throw new DamagedDataError(FILE_PATHS.datasetFlags, 'is missing');
     }
 
     const compared = this.knownShas();
@@ -444,8 +459,8 @@ export class Repository {
     const waiting = [...changed];
     const worker = async () => {
       for (let path = waiting.shift(); path !== undefined; path = waiting.shift()) {
-        const file = await this.github.getFile({ path, branch });
-        if (file) files.set(path, pulledFile(file));
+        const file = await this.github.getFile({ path, branch: at });
+        if (file) files.set(path, pulledFile(path, file));
       }
     };
     await Promise.all(Array.from({ length: Math.min(PULL_READS_AT_ONCE, changed.length) }, worker));
@@ -454,6 +469,7 @@ export class Repository {
 
   /** The master files and the initiative files the repository lists, by path, with their versions (§10.2). */
   private async listDataset(branch: string): Promise<Map<string, string>> {
+    // `branch` is any ref: the data branch, or one commit of it.
     const [root, initiatives] = await Promise.all([
       this.github.listDirectory({ path: '', branch }),
       this.github.listDirectory({ path: 'initiatives', branch }),
@@ -506,14 +522,39 @@ export class Repository {
   /** Puts a pull on screen and in the cache. True when every file it read was applied, so the pull is complete. */
   private finishPull(pulled: Pulled): boolean {
     const flagsFile = pulled.files.get(FILE_PATHS.datasetFlags);
-    const refusal = flagsFile ? this.refusal(flagsFile.value as DatasetFlags) : null;
+    const refusal = (flagsFile ? this.refusal(flagsFile.value as DatasetFlags) : null) ?? this.damage(pulled);
     if (refusal) {
       this.pullFailure = refusal;
+      this.datasetRefusal = refusal;
       return false;
     }
+    const lifted = this.datasetRefusal !== null;
+    this.datasetRefusal = null;
     const complete = this.state.status === 'ready' ? this.mergeIn(pulled) : (this.build(pulled), true);
     this.remember(pulled, complete);
+    // Edits refused while the dataset could not be written are sent now it can (§3).
+    if (lifted) for (const [, writer] of this.allWriters()) if (writer.failure && REFUSED_DATASET_CAUSES.includes(writer.failure.cause)) void writer.retry();
     return complete;
+  }
+
+  /**
+   * Why the dataset a pull would leave on screen is damaged (§3 Damaged data), or null: the pulled files, over what
+   * this client last read of every other file the repository still lists. Nothing of a damaged pull is applied.
+   */
+  private damage({ files, listing }: Pulled): ReadOnlyState | null {
+    const whole = new Map<string, unknown>();
+    const known = new Map(this.allWriters());
+    for (const path of listing.keys()) {
+      const value = files.has(path) ? files.get(path)!.value : known.get(path)?.syncedContent;
+      if (value !== undefined && value !== null) whole.set(path, value);
+    }
+    try {
+      validateDataset(whole);
+      return null;
+    } catch (error) {
+      if (error instanceof DamagedDataError) return toReadOnlyState(error, error.message);
+      throw error;
+    }
   }
 
   /** A pull's changes into the dataset on screen; each file goes through its writer, which merges it with any edit not yet saved. */
@@ -794,6 +835,9 @@ export class Repository {
     return recoverable;
   }
 
+  /** Why no write may be sent now (§3): the dataset was refused, or null. */
+  private readonly refused = (): ReadOnlyState | null => this.datasetRefusal;
+
   /** Any conflict a file's writer finds, to resolve in the banner. */
   private readonly onConflict = (conflict: FileConflict): void =>
     this.setState({ conflicts: [...this.state.conflicts, conflict] });
@@ -817,6 +861,7 @@ export class Repository {
       queue: this.queue,
       cache: this.cache,
       gate: () => this.firstPullDone,
+      refused: this.refused,
       merge: mergeDocument,
       whenMissing,
       initial,
@@ -837,6 +882,7 @@ export class Repository {
       queue: this.queue,
       cache: this.cache,
       gate: () => this.firstPullDone,
+      refused: this.refused,
       merge: (base, mine, theirs) => {
         const lost = phasesFrozenOverEdit(base, mine, theirs);
         if (lost.length > 0) this.noteLostEdits(initiative.id, lost);
@@ -1862,6 +1908,7 @@ export class Repository {
     const writer = this.initiativeWriters.get(id);
     if (!initiative || !writer) return 'deleted';
     if (hasPassedGate(initiative)) return 'refused';
+    if (this.datasetRefusal) return { failed: this.datasetRefusal };
     const result = await writer.deleteFile(deletedMessage(initiative), hasPassedGate);
     if (result === 'deleted') {
       this.deleteFailure = null;
@@ -1900,9 +1947,13 @@ export class Repository {
    * branch, read at the head the commit builds on, has any person, team, membership or initiative.
    */
   async loadExampleData(today: Date = new Date()): Promise<LoadExampleResult> {
+    if (this.datasetRefusal) return { failed: this.datasetRefusal };
     await this.flushPending();
     const result = await this.commitDataset('Example data loaded', 'Something went wrong loading the example data.', async (at) => {
-      const read = async <T>(path: string, fallback: T): Promise<T> => parseJsonFile(await this.github.getFile({ path, branch: at }), fallback);
+      const read = async <T>(path: string, fallback: T): Promise<T> => {
+        const file = await this.github.getFile({ path, branch: at });
+        return file ? (parseDataFile(path, file.content) as T) : fallback;
+      };
       const [teams, people, memberships, initiatives, roles, countries] = await Promise.all([
         read<Team[]>(FILE_PATHS.teams, []),
         read<Person[]>(FILE_PATHS.people, []),
@@ -1937,6 +1988,7 @@ export class Repository {
    * files removed are those the data branch lists at the head the commit builds on, so one created meanwhile goes too.
    */
   async resetDataset(): Promise<ResetResult> {
+    if (this.datasetRefusal) return { failed: this.datasetRefusal };
     await Promise.all(this.allWriters().map(([, writer]) => writer.drop()));
     const result = await this.commitDataset('Dataset reset', 'Something went wrong resetting the dataset.', async (at) => {
       const listed = await this.github.listDirectory({ path: 'initiatives', branch: at });

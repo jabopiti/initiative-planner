@@ -2,6 +2,7 @@ import type { FileCache } from '../cache/db';
 import type { GithubClient } from '../github/client';
 import { GithubApiError, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { changedPaths, getAtPath, pathKey, sameValue, setAtPath, type DocumentMerge, type MergeConflict, type Path } from './merge';
+import { parseDataFile } from './validateDataset';
 import type { WriteQueue } from './WriteQueue';
 
 const COMMIT_DEBOUNCE_MS = 1000;
@@ -101,6 +102,9 @@ export interface FileWriterOptions<D> {
   cache: FileCache;
   /** Settles when the first pull of the dataset has (§3): a save waits for it, so it is built on what the pull brought in. */
   gate?: () => Promise<unknown>;
+  /** Why the dataset may not be written at all just now (§3 Data integrity, Damaged data), or null: a save is then
+   * refused before anything is sent, failing like a push would, with the typed value kept. */
+  refused?: () => ReadOnlyState | null;
   /** Waits before a retry (§10.3); real timers by default. */
   delay?: (ms: number) => Promise<void>;
   /** Uniform in [0, 1), for the retry jitter; `Math.random` by default. */
@@ -204,6 +208,11 @@ export class FileWriter<D> {
   /** The version of the file this writer last read or wrote; null while the file does not exist yet. */
   get sha(): string | null {
     return this.synced?.sha ?? null;
+  }
+
+  /** The file as this writer last read or wrote it; null while it does not exist yet. */
+  get syncedContent(): D | null {
+    return this.synced?.content ?? null;
   }
 
   /** Nothing is waiting to be saved, no save is running and no choice is open: a pull may replace what is on screen. */
@@ -368,6 +377,10 @@ export class FileWriter<D> {
     }
     const mine = this.pending;
     this.pending = null;
+    const refusal = this.options.refused?.();
+    // Refused before anything is sent: the edit fails with the typed value kept, and its notes stay for the save
+    // that follows once the dataset can be written again.
+    if (refusal) return this.failWith(refusal, mine);
     const message = this.commitMessage();
     const cancelled = this.noted && this.describe() === null && this.synced !== null && sameValue(mine, this.synced.content);
     this.clearEdits();
@@ -466,7 +479,7 @@ export class FileWriter<D> {
       throw new Error('The file is gone from the repository.');
     }
     if (file === null && this.synced === null) return null;
-    const theirs = file ? (JSON.parse(file.content) as D) : (this.options.whenMissing as D);
+    const theirs = file ? (parseDataFile(this.options.path, file.content) as D) : (this.options.whenMissing as D);
     // A file created by an earlier attempt of this same save: it is now the base.
     const base = this.synced?.content ?? theirs;
     const outcome = this.options.merge(base, mine, theirs);
@@ -540,7 +553,7 @@ export class FileWriter<D> {
         try {
           const file = await this.options.github.getFile({ path: this.options.path, branch: this.options.branch });
           if (file === null) return 'deleted';
-          const theirs = JSON.parse(file.content) as D;
+          const theirs = parseDataFile(this.options.path, file.content) as D;
           // Shown unless a choice is open or a failed save waits: the writer's next save merges it then.
           if (this.openConflicts.length === 0 && this.failedCause === null) this.show({ content: theirs, sha: file.sha });
           if (refuses(theirs)) return 'refused';
@@ -665,8 +678,12 @@ export class FileWriter<D> {
   }
 
   private fail(error: unknown, fallback: string, content: D): SaveResult {
+    return this.failWith(toReadOnlyState(error, fallback), content);
+  }
+
+  private failWith(cause: ReadOnlyState, content: D): SaveResult {
     this.failedContent = content;
-    this.failedCause = toReadOnlyState(error, fallback);
+    this.failedCause = cause;
     this.options.onStatus({ readOnly: this.failedCause });
     return 'failed';
   }

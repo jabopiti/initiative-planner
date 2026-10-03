@@ -155,4 +155,33 @@ describe('Read-only banner (§3, §9.9)', () => {
       await vi.waitFor(() => expect(fake.requests().filter((r) => r === 'GET /user').length).toBeGreaterThan(before));
     });
   });
+
+  it('names the damaged file and links the data branch\'s commit history (§3 Damaged data)', async () => {
+    const fake = fakeGithub();
+    const { repo } = await open(fake);
+    fake.seed('people.json', {});
+    await repo.pull();
+    renderBanner(repo);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Dataset damaged: people.json: should be a list. Ask the repository owner to restore an earlier version from the commit history. Open commit history',
+    );
+    expect(screen.getByRole('link', { name: /^Open commit history/ })).toHaveAttribute(
+      'href',
+      `https://github.com/${defaultBrandPack.github.owner}/${defaultBrandPack.github.repo}/commits/${defaultBrandPack.github.dataBranch}`,
+    );
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('shows no history link for other causes', async () => {
+    const fake = fakeGithub();
+    const { repo } = await open(fake);
+    fake.fail('teams.json', 429);
+    repo.createTeam('Platform');
+    await repo.flushPending();
+    renderBanner(repo);
+
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('link', { name: /Open commit history/ })).toBeNull();
+  });
 });

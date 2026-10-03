@@ -56,7 +56,7 @@ beforeAll(() => {
 afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
-  teams = [PLATFORM, RETIRED];
+  teams = [PLATFORM, RETIRED, { id: 't3', name: 'Growth', active: true }];
   initiatives = [];
   window.location.hash = '';
 });
