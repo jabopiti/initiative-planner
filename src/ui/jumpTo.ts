@@ -4,8 +4,16 @@ import { checklistItemAnchor } from './GateChecklistPanel';
 /** Where a click on a gate's own blocker jumps to (§5.4): the first missing phase's row, or the first blocking checklist item. */
 export function jumpTargetId(requirements: GateRequirement[], phaseId: string): string | null {
   const blocker = requirements.find((r) => r.state === 'blocker');
-  if (!blocker) return null;
-  return blocker.kind === 'estimates' ? `phase-row-${blocker.missingPhaseIds[0]}` : checklistItemAnchor(phaseId, blocker.itemId);
+  return blocker ? requirementAnchor(blocker, phaseId) : null;
+}
+
+/**
+ * Where one open requirement of a phase's gate lives on the page: the first missing phase's row, or the checklist item
+ * itself (Incomplete or Tentative) — a carried-forward one under the gate it came from (§8.1).
+ */
+export function requirementAnchor(requirement: GateRequirement, phaseId: string): string {
+  if (requirement.kind === 'estimates') return `phase-row-${requirement.missingPhaseIds[0]}`;
+  return checklistItemAnchor(requirement.carried?.originPhaseId ?? phaseId, requirement.itemId);
 }
 
 /** Scrolls an id into view and moves focus to it (or its first focusable control), for keyboard operability (§9.5). */
