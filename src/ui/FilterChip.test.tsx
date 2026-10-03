@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { FilterChip } from './FilterChip';
+import { byLabel, FilterChip } from './FilterChip';
 
 const options = [
   { value: 'a', label: 'Active' },
@@ -115,5 +115,24 @@ describe('FilterChip (§9.11)', () => {
     await user.keyboard('{ArrowDown}{Escape}');
     expect(screen.queryByRole('textbox', { name: 'Search status' })).not.toBeInTheDocument();
     expect(chip()).toHaveFocus();
+  });
+
+  it('sorts A–Z with the options ticked at opening first, and keeps that order while open (F28)', async () => {
+    const user = userEvent.setup();
+    const teams = byLabel([
+      { value: 'p', label: 'Platform' },
+      { value: 'g', label: 'Growth' },
+      { value: 'y', label: 'Payments' },
+    ]);
+    function TeamHarness() {
+      const [selected, setSelected] = useState(['p']);
+      return <FilterChip label="Team" options={teams} selected={selected} onChange={setSelected} selectedFirst />;
+    }
+    render(<TeamHarness />);
+    await user.click(screen.getByRole('button', { name: /^Team/ }));
+    const labels = () => screen.getAllByRole('checkbox').map((c) => c.parentElement?.textContent);
+    expect(labels()).toEqual(['Platform', 'Growth', 'Payments']);
+    await user.click(screen.getByRole('checkbox', { name: 'Payments' }));
+    expect(labels()).toEqual(['Platform', 'Growth', 'Payments']);
   });
 });

@@ -8,7 +8,11 @@ import { addPerson, connect, createInitiative, createTeam, enterToken, FAKE_TOKE
 // retried until the screen settles; a real violation is still there on every attempt and fails the test.
 async function expectNoViolations(page: Page) {
   await expect(async () => {
-    const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    // The best-practice landmark rules too: routed content sits in <main>, and nothing is left outside a landmark.
+    const { violations } = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .options({ rules: { region: { enabled: true }, 'landmark-one-main': { enabled: true } } })
+      .analyze();
     expect(
       violations.map((v) => ({ rule: v.id, impact: v.impact, targets: v.nodes.map((n) => n.target.join(' ')) })),
     ).toEqual([]);

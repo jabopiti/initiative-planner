@@ -23,8 +23,20 @@ export interface InitiativeAction {
   applies: (initiative: Initiative, process: PhaseDef[]) => boolean;
   /** May return where focus goes once the menu has closed, for an action that opens something (it would otherwise return to ⋯). */
   run: (repository: Repository, initiative: Initiative, ui: InitiativeActionUi) => void | (() => void);
-  /** Irreversible: listed last, after a separator, in the destructive style. */
-  destructive?: boolean;
+  /**
+   * Where it sits after the separator that closes the menu: `ending` (Cancel) ends the initiative's work, in the
+   * normal style; `destructive` (Delete) is irreversible, last, in the destructive style. Left out, it is a normal item.
+   */
+  tier?: ActionTier;
+}
+
+export type ActionTier = 'ending' | 'destructive';
+
+const TIER_ORDER: (ActionTier | undefined)[] = [undefined, 'ending', 'destructive'];
+
+/** The applicable actions in menu order: normal items first, then the ending, then the destructive tier. */
+export function menuOrder(actions: InitiativeAction[]): InitiativeAction[] {
+  return [...actions].sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
 }
 
 let duplicating = false;
@@ -58,7 +70,7 @@ function duplicate(repository: Repository, initiative: Initiative): void {
 export const initiativeActions: InitiativeAction[] = [
   { id: 'put-on-hold', label: () => 'Put on hold', icon: OnHoldIcon, applies: (i) => i.status === 'Active', run: (repository, i) => repository.putOnHold(i.id) },
   { id: 'resume', label: () => 'Resume', icon: ResumeIcon, applies: (i) => i.status === 'On Hold', run: (repository, i) => repository.resume(i.id) },
-  { id: 'cancel', label: () => 'Cancel', icon: CancelledIcon, applies: (i) => !isInitiativeFrozen(i), run: (repository, i) => repository.cancel(i.id) },
+  { id: 'cancel', label: () => 'Cancel initiative', icon: CancelledIcon, applies: (i) => !isInitiativeFrozen(i), run: (repository, i) => repository.cancel(i.id), tier: 'ending' },
   { id: 'duplicate', label: () => 'Duplicate', icon: DuplicateIcon, applies: () => true, run: (repository, i) => duplicate(repository, i) },
   { id: 'reopen', label: () => 'Reopen', icon: ReopenIcon, applies: (i) => i.status === 'Cancelled', run: (repository, i) => repository.reopen(i.id) },
   {
@@ -69,5 +81,5 @@ export const initiativeActions: InitiativeAction[] = [
     run: (repository, i) => repository.reopenGate(i.id),
   },
   // In any status, while no gate was passed (§9.3); a skipped gate approved nothing, so it does not count.
-  { id: 'delete', label: () => 'Delete', icon: RemoveIcon, applies: (i) => !hasPassedGate(i), run: (_, __, ui) => ui.confirmDelete(), destructive: true },
+  { id: 'delete', label: () => 'Delete', icon: RemoveIcon, applies: (i) => !hasPassedGate(i), run: (_, __, ui) => ui.confirmDelete(), tier: 'destructive' },
 ];

@@ -9,7 +9,7 @@ import { navigate } from '../router/useHashRoute';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
 import { CopyButton } from './CopyButton';
 import { EmptyState } from './EmptyState';
-import { FilterChip, type FilterOption } from './FilterChip';
+import { byLabel, FilterChip, type FilterOption } from './FilterChip';
 import { formatAmount } from './formatAmount';
 import { AttentionMarker } from './AttentionMarker';
 import { KIND_CONFIG } from './NeedsAttentionStrip';
@@ -63,8 +63,8 @@ export function InitiativesTable() {
 
   const options = useMemo<Record<keyof InitiativeFilters, FilterOption[]>>(
     () => ({
-    team: teams.map((t) => ({ value: t.id, label: inactiveLabel(t.name, t.active) })),
-    owner: [{ value: NONE, label: 'No owner' }, ...people.map((p) => ({ value: p.id, label: inactiveLabel(p.name, p.active) }))],
+    team: byLabel(teams.map((t) => ({ value: t.id, label: inactiveLabel(t.name, t.active) }))),
+    owner: [{ value: NONE, label: 'No owner' }, ...byLabel(people.map((p) => ({ value: p.id, label: inactiveLabel(p.name, p.active) })))],
     phase: process.map((p) => ({ value: p.id, label: p.label })),
     track: [...approvalTracks.map((t) => ({ value: t.id, label: t.name })), { value: NONE, label: 'No approval track' }],
     status: INITIATIVE_STATUSES.map((s) => ({ value: s, label: s })),
@@ -72,7 +72,13 @@ export function InitiativesTable() {
     [teams, people, process, approvalTracks],
   );
 
-  if (initiatives.length === 0) return <NoInitiatives />;
+  if (initiatives.length === 0)
+    return (
+      <>
+        <h1 className="sr-only">Initiatives</h1>
+        <NoInitiatives />
+      </>
+    );
 
   const filtering = activeFilterCount(filters) > 0;
   const noun = (n: number) => `${n} ${n === 1 ? 'initiative' : 'initiatives'}`;
@@ -103,7 +109,7 @@ export function InitiativesTable() {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
           {CHIPS.map(([key, label]) => (
-            <FilterChip key={key} label={label} options={options[key]} selected={filters[key]} onChange={(next) => setFilters({ ...filters, [key]: next })} />
+            <FilterChip key={key} selectedFirst={key === 'team' || key === 'owner'} label={label} options={options[key]} selected={filters[key]} onChange={(next) => setFilters({ ...filters, [key]: next })} />
           ))}
         </div>
         <p className="m-0 text-sm text-text-secondary">

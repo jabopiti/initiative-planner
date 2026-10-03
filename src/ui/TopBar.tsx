@@ -5,6 +5,7 @@ import { NewInitiativeControl } from './NewInitiativeControl';
 import { SyncIndicator } from './SyncIndicator';
 import { ThemeControl } from './ThemeControl';
 import { LogoMark } from './icons';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const NAV_ITEMS: { label: string; path: string }[] = [
   { label: 'Portfolio', path: '/portfolio' },
@@ -18,6 +19,7 @@ const NAV_ITEMS: { label: string; path: string }[] = [
 export function TopBar({ route }: { route: string }) {
   const brand = useBrand();
   const needsAttentionCount = useNeedsAttentionItems().length;
+  const attentionLabel = `${needsAttentionCount} ${needsAttentionCount === 1 ? 'needs' : 'need'} attention`;
   return (
     <header className="sticky top-0 z-10 flex items-center gap-6 border-b border-border-default bg-surface-card px-5 py-2.5">
       <a href="#/portfolio" className="flex shrink-0 items-center gap-2 font-bold text-text-primary no-underline">
@@ -41,9 +43,14 @@ export function TopBar({ route }: { route: string }) {
             >
               {item.label}
               {item.path === '/initiatives' && needsAttentionCount > 0 && (
-                <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-label font-medium text-text-secondary" aria-label={`${needsAttentionCount} needing attention`}>
-                  {needsAttentionCount}
-                </span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-label font-medium text-text-secondary" aria-label={attentionLabel}>
+                      {needsAttentionCount}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{attentionLabel}</TooltipContent>
+                </Tooltip>
               )}
             </a>
           );

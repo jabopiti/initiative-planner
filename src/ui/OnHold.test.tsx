@@ -88,13 +88,29 @@ const renderPage = () => render(page('i1'));
 const bar = () => document.getElementById('magic-bar')!;
 
 describe('Actions menu (§5.4)', () => {
+  it('puts a separator before Cancel initiative, and keeps the tooltip closed when focus returns to the button (F29, F31)', async () => {
+    const user = userEvent.setup();
+    initiative = initiativeWith();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    const items = screen.getAllByRole('menuitem');
+    expect(items[2].nextElementSibling).toHaveAttribute('role', 'separator');
+    expect(items[3]).toHaveTextContent('Cancel initiative');
+    await user.click(screen.getByRole('menuitem', { name: 'Put on hold' }));
+
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Actions' })).toHaveFocus());
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+  });
+
   it('lists Put on hold for an Active initiative, and puts it on hold in one click with its own commit (AC1, AC2)', async () => {
     const user = userEvent.setup();
     initiative = initiativeWith();
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel', 'Duplicate', 'Reopen G1']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Duplicate', 'Reopen G1', 'Cancel initiative']);
     await user.click(screen.getByRole('menuitem', { name: 'Put on hold' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(); // no confirmation
@@ -109,7 +125,7 @@ describe('Actions menu (§5.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel', 'Duplicate', 'Reopen G1']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Duplicate', 'Reopen G1', 'Cancel initiative']);
     expect(screen.getAllByText('On Hold').length).toBeGreaterThan(0);
   });
 

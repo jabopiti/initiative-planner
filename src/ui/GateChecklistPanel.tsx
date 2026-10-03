@@ -9,6 +9,7 @@ import { Refusal } from './CommitInput';
 import { CompleteIcon, IncompleteIcon, InfoIcon, TentativeIcon } from './icons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -94,6 +95,7 @@ function ChecklistItemRow({
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [refused, setRefused] = useState<string | null>(null);
   const noteErrorId = useId();
+  const noteInputId = useId();
   const FrozenStatusIcon = STATUS_ICON[item.status];
 
   const setStatus = (status: ChecklistStatus, note: string) => repository.setChecklistItem(initiativeId, writePhaseId, item.id, status, note);
@@ -187,9 +189,10 @@ function ChecklistItemRow({
       {noteEditor ? (
         <div className="flex flex-wrap items-start gap-2">
           <div className="flex flex-col gap-1">
+            <Label htmlFor={noteInputId}>{noteEditor === 'note-only' || frozen ? 'Note' : 'Why tentative?'}</Label>
             <Input
               autoFocus
-              aria-label={`Note for "${item.name}"`}
+              id={noteInputId}
               className="w-72"
               value={draftNote}
               aria-invalid={refused ? true : undefined}

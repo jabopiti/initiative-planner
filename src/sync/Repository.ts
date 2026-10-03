@@ -1050,9 +1050,19 @@ export class Repository {
     return { entity: { kind, id }, field, from, to, words: words as CommitNote['words'] };
   }
 
-  /** New team (§5.7): created from a name only. */
+  /** Why a team name is refused (§5.8): empty, or another team already has it (case-insensitive). */
+  teamNameRefusal(name: string, exceptId?: string): string | null {
+    const trimmed = name.trim();
+    if (!trimmed) return 'Enter a name.';
+    const taken = this.state.teams.find((t) => t.id !== exceptId && t.name.trim().toLowerCase() === trimmed.toLowerCase());
+    return taken ? `A team named ${taken.name} already exists.` : null;
+  }
+
+  /** New team (§5.7): created from a name only. Callers ask `teamNameRefusal` first; a refused name here is a bug. */
   createTeam(name: string): Team {
-    const team: Team = { id: newId(), name, active: true };
+    const refusal = this.teamNameRefusal(name);
+    if (refusal) throw new Error(refusal);
+    const team: Team = { id: newId(), name: name.trim(), active: true };
     this.commitTeams([...this.state.teams, team], this.note('team', team.id, 'record', undefined, team, (f, t) => this.describeTeam(f, t)));
     return team;
   }
@@ -1071,18 +1081,22 @@ export class Repository {
     return person;
   }
 
-  /** Deactivate or reactivate a team (§5.8, §9.3): teams are never deleted, so the record stays. */
-  updateTeam(id: string, patch: Pick<Team, 'active'>): void {
+  /** Rename, deactivate or reactivate a team (§5.8, §9.3): teams are never deleted, so the record stays. */
+  updateTeam(id: string, patch: Partial<Pick<Team, 'name' | 'active'>>): void {
     const current = this.state.teams.find((t) => t.id === id);
-    if (!current || current.active === patch.active) return;
+    if (!current) return;
+    if (patch.name !== undefined && this.teamNameRefusal(patch.name, id)) return;
+    const next = { ...current, ...patch, ...(patch.name !== undefined && { name: patch.name.trim() }) };
+    if (next.name === current.name && next.active === current.active) return;
     this.commitTeams(
-      this.state.teams.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-      this.note('team', id, 'record', current, { ...current, ...patch }, (f, t) => this.describeTeam(f, t)),
+      this.state.teams.map((t) => (t.id === id ? next : t)),
+      this.note('team', id, 'record', current, next, (f, t) => this.describeTeam(f, t)),
     );
   }
 
   private describeTeam(from: Team | undefined, to: Team | undefined): string {
     if (!from) return `${to?.name}: team created`;
+    if (to && to.name !== from.name) return `${from.name}: team renamed to ${to.name}`;
     return `${from.name}: team ${to?.active ? 'reactivated' : 'deactivated'}`;
   }
 
@@ -1200,13 +1214,30 @@ export class Repository {
     return this.state.teams.find((t) => t.id === id)?.name ?? 'unknown team';
   }
 
-  /** Memberships are removable (§9.3); nothing points at them. */
-  removeMembership(id: string): void {
-    const removed = this.state.memberships.find((m) => m.id === id);
+  /** Memberships are removable (§9.3); nothing points at them. The record and position come back for an Undo (§5.11). */
+  removeMembership(id: string): { membership: Membership; index: number } | null {
+    const index = this.state.memberships.findIndex((m) => m.id === id);
+    if (index < 0) return null;
+    const membership = this.state.memberships[index];
     this.commitMemberships(
       this.state.memberships.filter((m) => m.id !== id),
-      removed && this.membershipNote(id, removed, undefined),
+      this.membershipNote(id, membership, undefined),
     );
+    return { membership, index };
+  }
+
+  /** Undo of {@link removeMembership}: the same record back in its place, or why it can't be (§5.11). */
+  restoreMembership(membership: Membership, index: number): { ok: true } | { ok: false; message: string } {
+    const person = this.state.people.find((p) => p.id === membership.personId);
+    const team = this.state.teams.find((t) => t.id === membership.teamId);
+    if (!person || !team) return { ok: false, message: "Can't undo: the person or team is no longer there." };
+    if (this.state.memberships.some((m) => m.id === membership.id || (m.personId === membership.personId && m.teamId === membership.teamId))) {
+      return { ok: false, message: `Can't undo: ${person.name} is on ${team.name} again.` };
+    }
+    const next = [...this.state.memberships];
+    next.splice(Math.min(index, next.length), 0, membership);
+    this.commitMemberships(next, this.membershipNote(membership.id, undefined, membership));
+    return { ok: true };
   }
 
   private commitRoles(next: Role[], note?: CommitNote): void {

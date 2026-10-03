@@ -1,8 +1,9 @@
 import { shortCause } from '../github/errors';
 import { useRepositoryState } from '../state/DataContext';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { CheckIcon, SyncingIcon, WarningIcon } from './icons';
 
-/** The sync indicator (§5.1, §3 Sync failures): a small icon, with a label while syncing or read-only. */
+/** The sync indicator (§5.1, §3 Sync failures): a small icon, with "Saving…" while writes are pending, and a label in read-only mode; the synced check says "Saved" on hover and focus. */
 export function SyncIndicator() {
   const state = useRepositoryState();
 
@@ -19,19 +20,24 @@ export function SyncIndicator() {
     return (
       <span className="inline-flex items-center gap-1.5 text-sm text-text-secondary">
         <SyncingIcon className="animate-spin" />
-        Syncing…
+        Saving…
       </span>
     );
   }
 
   return (
-    <span
-      role="img"
-      aria-label={state.updatedByOthers ? 'Synced, updated by others' : 'Synced'}
-      className="inline-flex items-center gap-1.5 text-sm text-met-text"
-      title={state.updatedByOthers ? 'Updated by others' : 'Synced'}
-    >
-      <CheckIcon />
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          role="img"
+          tabIndex={0}
+          aria-label={state.updatedByOthers ? 'Synced, updated by others' : 'Synced'}
+          className="inline-flex items-center gap-1.5 rounded-sm text-sm text-met-text"
+        >
+          <CheckIcon />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{state.updatedByOthers ? 'Saved · updated by others' : 'Saved'}</TooltipContent>
+    </Tooltip>
   );
 }

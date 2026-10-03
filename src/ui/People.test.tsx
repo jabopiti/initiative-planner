@@ -11,6 +11,12 @@ import { PeopleOverview } from './PeopleOverview';
 import { TeamDetail } from './TeamDetail';
 import { rootListing } from '../sync/testing/rootListing';
 
+/** Opens a list row's "⋯" menu and chooses one of its items (§9.10). */
+async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string, item: string) {
+  await user.click(await screen.findByRole('button', { name: menu }));
+  await user.click(await screen.findByRole('menuitem', { name: item }));
+}
+
 const baseline = buildBaselineDataset(defaultBrandPack);
 const teams = [
   { id: 't1', name: 'Payments', active: true },
@@ -98,12 +104,13 @@ describe('People overview and team members (slice 004)', () => {
     await renderApp();
     await addPerson(user, 'Grace Hopper');
 
-    await user.click(screen.getByRole('button', { name: 'Deactivate Grace Hopper' }));
+    await rowAction(user, 'Actions for Grace Hopper', 'Deactivate person');
 
     expect(screen.queryByRole('row', { name: /Grace Hopper/ })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Show all' }));
     expect(screen.getByRole('row', { name: /Grace Hopper/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reactivate Grace Hopper' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Actions for Grace Hopper' }));
+    expect(await screen.findByRole('menuitem', { name: 'Reactivate person' })).toBeInTheDocument();
   });
 
   it('defaults a first membership to full capacity, then caps a second at what is unclaimed', async () => {
@@ -235,7 +242,7 @@ describe('People overview and team members (slice 004)', () => {
     await user.clear(fte);
     await user.type(fte, '70');
     await user.tab();
-    await user.click(screen.getByRole('button', { name: 'Deactivate Lucía Ramos in this team' }));
+    await rowAction(user, 'Actions for Lucía Ramos in this team', 'Deactivate in team');
     // Payments takes the 100% that is now unclaimed.
     goTo('t1');
     await user.type(await screen.findByRole('combobox', { name: 'Add member' }), 'Luc');

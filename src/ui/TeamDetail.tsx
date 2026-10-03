@@ -15,9 +15,12 @@ import { PersonPanel } from './PersonPanel';
 import { TruncatedText } from './TruncatedText';
 import { sortRows } from '../data/sortRows';
 import { useTableSort } from './tableSort';
-import { DeactivateIcon, DeactivateTeamIcon, ReactivateIcon, ReactivateTeamIcon, RemoveIcon, WarningIcon } from './icons';
+import { DeactivateIcon, ReactivateIcon, RemoveFromTeamIcon, WarningIcon } from './icons';
+import { activeToggleAction, RowActionsMenu } from './RowActionsMenu';
+import { removeMembershipWithUndo } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CommitInput } from './CommitInput';
 import { FILE_PATHS } from '../data/types';
 
 /** Team detail (§5.8): the Members list, the Initiatives list and the Capacity view. */
@@ -134,11 +137,27 @@ export function TeamDetail({ id }: { id: string }) {
       </a>
       <div className="mt-1 mb-5 flex items-center justify-between gap-4">
         <h1 className="m-0 flex items-center gap-2 text-xl">
-          {team.name}
+          <CommitInput
+            aria-label="Team name"
+            className="h-auto w-64 max-w-full border-transparent bg-transparent px-2 py-0.5 text-xl font-semibold shadow-none hover:border-input focus-visible:border-ring md:text-xl"
+            changed={changed(FILE_PATHS.teams, [{ id: team.id }, 'name'])}
+            failure={failure(FILE_PATHS.teams, [{ id: team.id }, 'name'])}
+            conflict={conflict(FILE_PATHS.teams, [{ id: team.id }, 'name'])}
+            conflictLabel="Team name"
+            retryLabel="Retry saving Team name"
+            value={team.name}
+            onCommit={(text) => {
+              const trimmed = text.trim();
+              if (trimmed === team.name) return false;
+              const refusal = repository.teamNameRefusal(trimmed, team.id);
+              if (refusal) return refusal;
+              repository.updateTeam(team.id, { name: trimmed });
+            }}
+          />
           {!team.active && <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-normal text-text-secondary">Inactive</span>}
         </h1>
         <Button type="button" variant="ghost" size="sm" onClick={() => repository.updateTeam(team.id, { active: !team.active })}>
-          {team.active ? <DeactivateTeamIcon /> : <ReactivateTeamIcon />}
+          {team.active ? <DeactivateIcon /> : <ReactivateIcon />}
           {team.active ? 'Deactivate team' : 'Reactivate team'}
         </Button>
       </div>
@@ -242,7 +261,7 @@ export function TeamDetail({ id }: { id: string }) {
                     <td className="px-3 py-2 font-medium">
                       <button
                         type="button"
-                        className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-inherit"
+                        className="block cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-inherit"
                         onClick={() => setPersonId(person.id)}
                       >
                         <TruncatedText text={person.name} />
@@ -273,26 +292,13 @@ export function TeamDetail({ id }: { id: string }) {
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap" data-row-action>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`${m.active ? 'Deactivate' : 'Reactivate'} ${person.name} in this team`}
-                        title={m.active ? 'Deactivate' : 'Reactivate'}
-                        onClick={() => repository.updateMembership(m.id, { active: !m.active }, true)}
-                      >
-                        {m.active ? <DeactivateIcon /> : <ReactivateIcon />}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Remove ${person.name} from this team`}
-                        title="Remove from team"
-                        onClick={() => repository.removeMembership(m.id)}
-                      >
-                        <RemoveIcon />
-                      </Button>
+                      <RowActionsMenu
+                        label={`Actions for ${person.name} in this team`}
+                        actions={[
+                          activeToggleAction('in team', m.active, (active) => repository.updateMembership(m.id, { active }, true)),
+                          { label: 'Remove from team', icon: RemoveFromTeamIcon, onSelect: () => removeMembershipWithUndo(repository, m.id) },
+                        ]}
+                      />
                     </td>
                   </tr>
                   <ConflictRow conflict={fteConflict} label={`Team FTE % for ${person.name}`} colSpan={4} />

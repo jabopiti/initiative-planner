@@ -100,8 +100,8 @@ describe('Cancel (§8.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Cancel', 'Duplicate', 'Reopen G1']);
-    await user.click(screen.getByRole('menuitem', { name: 'Cancel' }));
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Put on hold', 'Duplicate', 'Reopen G1', 'Cancel initiative']);
+    await user.click(screen.getByRole('menuitem', { name: 'Cancel initiative' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
@@ -115,7 +115,7 @@ describe('Cancel (§8.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Cancel', 'Duplicate', 'Reopen G1']);
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Resume', 'Duplicate', 'Reopen G1', 'Cancel initiative']);
   });
 });
 
@@ -164,7 +164,7 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Add note for "Business case approved"' }));
-    await user.type(screen.getByLabelText('Note for "Business case approved"'), 'Risk withdrew sign-off{Enter}');
+    await user.type(screen.getByLabelText("Note"), 'Risk withdrew sign-off{Enter}');
 
     await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
     expect(puts[0].message).toBe('Fraud Detection Upgrade: note on "Business case approved" changed');
@@ -178,7 +178,7 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Edit note for "Business case approved"' }));
-    await user.clear(screen.getByLabelText('Note for "Business case approved"'));
+    await user.clear(screen.getByLabelText("Note"));
     await user.keyboard('{Enter}');
     expect(screen.getByText('Enter a note.')).toBeInTheDocument();
   });
@@ -191,7 +191,7 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     await user.click(await screen.findByRole('button', { name: 'Add note for "Business case approved"' }));
     await user.click(screen.getByRole('button', { name: 'Reopen Fraud Detection Upgrade' }));
     await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
-    await user.type(screen.getByLabelText('Note for "Business case approved"'), 'Signed off by Risk{Enter}');
+    await user.type(screen.getByLabelText("Note"), 'Signed off by Risk{Enter}');
 
     await vi.waitFor(() => expect(puts).toHaveLength(2), { timeout: 3000 });
     expect(puts[1].message).toBe('Fraud Detection Upgrade: note on "Business case approved" changed');
@@ -206,9 +206,9 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     const row = (await screen.findByText('Business case approved')).closest('li')!;
     await user.click(within(row).getByRole('radio', { name: 'Tentative' }));
     await user.click(screen.getByRole('button', { name: 'Actions' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Cancel' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Cancel initiative' }));
     await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
-    await user.type(screen.getByLabelText('Note for "Business case approved"'), 'Waiting on Risk{Enter}');
+    await user.type(screen.getByLabelText("Note"), 'Waiting on Risk{Enter}');
 
     await vi.waitFor(() => expect(puts).toHaveLength(2), { timeout: 3000 });
     expect(puts[1].content.checklist?.[validationId]?.['g2-business-case']).toEqual({ status: 'incomplete', note: 'Waiting on Risk' });
