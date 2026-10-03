@@ -48,6 +48,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --surface-page: oklch(0.187 0.012 167.0);
   --surface-card: oklch(0.235 0.018 165.2);
   --surface-subtle: oklch(0.254 0.022 166.2);

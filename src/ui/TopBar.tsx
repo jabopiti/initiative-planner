@@ -3,6 +3,7 @@ import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { GlobalSearch } from './GlobalSearch';
 import { NewInitiativeControl } from './NewInitiativeControl';
 import { SyncIndicator } from './SyncIndicator';
+import { ThemeControl } from './ThemeControl';
 import { LogoMark } from './icons';
 
 const NAV_ITEMS: { label: string; path: string }[] = [
@@ -53,6 +54,7 @@ export function TopBar({ route }: { route: string }) {
         <NewInitiativeControl />
         <GlobalSearch />
         <SyncIndicator />
+        <ThemeControl />
       </div>
     </header>
   );

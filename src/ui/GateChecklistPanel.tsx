@@ -138,7 +138,7 @@ function ChecklistItemRow({
             </Tooltip>
           )}
         </div>
-        <div className={`flex items-center gap-2 transition-colors duration-500 ${changed(file, ['checklist', writePhaseId, item.id]) ? 'rounded-md bg-met-tint' : ''}`}>
+        <div className={`flex items-center gap-2 transition-colors duration-500 motion-reduce:transition-none ${changed(file, ['checklist', writePhaseId, item.id]) ? 'rounded-md bg-met-tint' : ''}`}>
           {frozen ? (
             <>
               <FrozenStatusIcon width={16} height={16} className="text-text-muted" />

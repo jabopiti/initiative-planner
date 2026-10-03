@@ -127,7 +127,7 @@ export function CommitInput({
     <>
       <Input
         {...props}
-        className={`transition-colors duration-500 ${className ?? ''} ${changed ? 'bg-met-tint' : ''}`}
+        className={`transition-colors duration-500 motion-reduce:transition-none ${className ?? ''} ${changed ? 'bg-met-tint' : ''}`}
         value={draft}
         aria-invalid={error ? true : props['aria-invalid']}
         aria-describedby={error ? errorId : showFailure !== null ? failureId : (conflict?.id ?? props['aria-describedby'])}

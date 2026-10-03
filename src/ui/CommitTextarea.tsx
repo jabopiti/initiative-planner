@@ -45,7 +45,7 @@ export function CommitTextarea({
       <Textarea
         {...props}
         rows={2}
-        className={`resize-none overflow-hidden transition-colors duration-500 ${className ?? ''} ${changed ? 'bg-met-tint' : ''}`}
+        className={`resize-none overflow-hidden transition-colors duration-500 motion-reduce:transition-none ${className ?? ''} ${changed ? 'bg-met-tint' : ''}`}
         value={draft}
         aria-invalid={error ? true : props['aria-invalid']}
         aria-describedby={error ? errorId : showFailure !== null ? failureId : (conflict?.id ?? props['aria-describedby'])}
