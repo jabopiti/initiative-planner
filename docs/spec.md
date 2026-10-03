@@ -623,8 +623,9 @@ same once a team is selected); leaving a field saves nothing. Creating the
 initiative saves it and its detail page replaces the draft, so Back skips the
 draft. Esc discards the draft, without asking, and returns to the Portfolio.
 The Portfolio's empty state (§9.4) opens the same draft page. The **sync indicator** is a small check icon while everything is
-synced (named "Synced" for screen readers); its label appears while syncing
-and stays visible in read-only mode as "Read-only · <short cause>" in the
+synced (named "Synced" for screen readers; hovering or focusing it shows
+"Saved", or "Saved · updated by others"); its label "Saving…" appears while
+writes are pending and stays visible in read-only mode as "Read-only · <short cause>" in the
 Warning colour, e.g. "Read-only · Cannot reach GitHub" (§3).
 
 **Search.** The search icon opens a search overlay. Typing shows matches
@@ -1815,6 +1816,11 @@ escalated, overrun, overdue actual, gate due, ready and complete, on hold,
 cancelled, frozen and locked, over Team FTE %, and over Capacity %. Overrun
 and the two capacity warnings each have a distinct icon. The glyphs come
 from the Lucide icon set (§10.1), shadcn/ui's default.
+
+One icon per meaning: Archive deactivates, ArchiveRestore reactivates,
+UserMinus removes from a team, Trash deletes, Ban cancels an initiative.
+Row actions on lists sit in a "⋯" menu whose items carry their icon and a
+text label.
 
 ### 9.11 Lists, filters, inputs and amounts
 
