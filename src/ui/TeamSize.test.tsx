@@ -14,6 +14,12 @@ import { TeamDetail } from './TeamDetail';
 import { TeamsOverview } from './TeamsOverview';
 import { rootListing } from '../sync/testing/rootListing';
 
+/** Opens a list row's "⋯" menu and chooses one of its items (§9.10). */
+async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string, item: string) {
+  await user.click(await screen.findByRole('button', { name: menu }));
+  await user.click(await screen.findByRole('menuitem', { name: item }));
+}
+
 const baseline = buildBaselineDataset(defaultBrandPack);
 const [role] = baseline.roles;
 const [country] = baseline.countries;
@@ -167,7 +173,7 @@ describe('team size counts only active people (§5.7)', () => {
       </>,
     );
     expect(await within(await screen.findByRole('row', { name: /^Payments/ })).findByText('3')).toBeInTheDocument();
-    await user.click(await screen.findByRole('button', { name: 'Deactivate Ben Ito' }));
+    await rowAction(user, 'Actions for Ben Ito', 'Deactivate person');
     expect(cells(rowFor('Payments'))[1]).toHaveTextContent('2');
   });
 });

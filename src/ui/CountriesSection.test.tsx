@@ -12,6 +12,12 @@ import { CountriesSection } from './CountriesSection';
 import { useSectionLock } from './useSectionLock';
 import { subjectOf } from '../sync/testing/commitMessage';
 
+/** Opens a list row's "⋯" menu and chooses one of its items (§9.10). */
+async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string, item: string) {
+  await user.click(await screen.findByRole('button', { name: menu }));
+  await user.click(await screen.findByRole('menuitem', { name: item }));
+}
+
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
 
@@ -150,7 +156,7 @@ describe('Countries & rates list (§5.9)', () => {
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Reset to weekdays/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add country' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Deactivate Germany' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Actions for Germany' })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Locked' }));
     expect(screen.getByRole('spinbutton', { name: 'Day rate 2026, Germany' })).toBeEnabled();
@@ -224,11 +230,12 @@ describe('Countries & rates list (§5.9)', () => {
     await user.type(name, '{Enter}');
     expect(screen.getByRole('alert')).toHaveTextContent('Enter a name.');
     await user.type(name, 'España{Enter}');
-    await user.click(screen.getByRole('button', { name: 'Deactivate España' }));
+    await rowAction(user, 'Actions for España', 'Deactivate country');
 
     const messages = (await saved('countries.json')).map((p) => p.message);
     expect(messages.join('; ')).toMatch(/Countries: Spain renamed to España/);
-    expect(screen.getByRole('button', { name: 'Reactivate España' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Actions for España' }));
+    expect(await screen.findByRole('menuitem', { name: 'Reactivate country' })).toBeInTheDocument();
   });
 });
 

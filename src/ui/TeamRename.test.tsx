@@ -94,13 +94,14 @@ describe('Undo removing a membership (§5.11)', () => {
   it('offers Undo on the team detail and puts the member back with the same Team FTE %', async () => {
     const user = userEvent.setup();
     renderWith(<TeamDetail id="t1" />);
-    await user.click(await screen.findByRole('button', { name: 'Remove Mara Voss from this team' }));
-    expect(screen.queryByRole('button', { name: 'Remove Mara Voss from this team' })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Actions for Mara Voss in this team' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Remove from team' }));
+    expect(screen.queryByRole('button', { name: 'Actions for Mara Voss in this team' })).not.toBeInTheDocument();
     const options = vi.mocked(toast).mock.calls[0][1] as { action: { label: string; onClick: () => void }; duration: number };
     expect(options.action.label).toBe('Undo');
     expect(options.duration).toBe(10_000);
     options.action.onClick();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Remove Mara Voss from this team' })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Actions for Mara Voss in this team' })).toBeInTheDocument());
     expect(screen.getByLabelText('Team FTE % for Mara Voss')).toHaveValue(40);
   });
 });

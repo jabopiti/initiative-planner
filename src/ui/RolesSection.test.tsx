@@ -10,6 +10,12 @@ import { rootListing } from '../sync/testing/rootListing';
 import { RolesSection } from './RolesSection';
 import { useSectionLock } from './useSectionLock';
 
+/** Opens a list row's "⋯" menu and chooses one of its items (§9.10). */
+async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string, item: string) {
+  await user.click(await screen.findByRole('button', { name: menu }));
+  await user.click(await screen.findByRole('menuitem', { name: item }));
+}
+
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
 
@@ -133,9 +139,9 @@ describe('RolesSection editing (§5.9)', () => {
     const user = userEvent.setup();
     renderRoles();
     await unlock(user);
-    await user.click(screen.getByRole('button', { name: 'Deactivate Tech Lead' }));
-    expect(await screen.findByRole('button', { name: 'Reactivate Tech Lead' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reactivate QA Engineer' })).toBeInTheDocument();
+    await rowAction(user, 'Actions for Tech Lead', 'Deactivate role');
+    await user.click(await screen.findByRole('button', { name: 'Actions for Tech Lead' }));
+    expect(await screen.findByRole('menuitem', { name: 'Reactivate role' })).toBeInTheDocument();
   });
 
   it('locking closes an unsaved new role, so nothing is added while locked', async () => {

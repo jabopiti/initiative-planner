@@ -13,7 +13,8 @@ import { ConflictBlock, ConflictRow, inRow } from './ConflictBlock';
 import { DraftField } from './DraftField';
 import { formatAmount } from './formatAmount';
 import { initiativeCount } from './impactNote';
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DeactivateIcon, PlusIcon, ReactivateIcon } from './icons';
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon } from './icons';
+import { activeToggleAction, RowActionsMenu } from './RowActionsMenu';
 import { LockToggle } from './LockToggle';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
@@ -160,20 +161,13 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                     {current ? `${formatAmount(current.dayRate, currencySymbol)} / day (${tracked[0]})` : '—'}
                   </td>
                   <td className="py-1.5 text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
+                    <RowActionsMenu
+                      label={`Actions for ${country.name}`}
                       disabled={lock.locked}
-                      aria-label={`${country.active ? 'Deactivate' : 'Reactivate'} ${country.name}`}
-                      title={country.active ? 'Deactivate' : 'Reactivate'}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        repository.updateCountry(country.id, { active: !country.active });
-                      }}
-                    >
-                      {country.active ? <DeactivateIcon /> : <ReactivateIcon />}
-                    </Button>
+                      actions={[
+                        activeToggleAction('country', country.active, (active) => repository.updateCountry(country.id, { active })),
+                      ]}
+                    />
                   </td>
                 </tr>
                 <ConflictRow conflict={nameConflict} label={`Name of ${country.name}`} colSpan={3} />
