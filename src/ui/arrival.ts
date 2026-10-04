@@ -1,4 +1,5 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { cn } from '@/lib/utils';
 import type { GettingStartedStep } from '../data/gettingStarted';
 
 /** Where a Getting started step leads (§5.2): the place it is done, named by the step. */
@@ -6,38 +7,40 @@ export type ArrivalTarget = GettingStartedStep['id'];
 
 /** How long the arrival highlight stays (§5.2). */
 const HIGHLIGHT_MS = 3000;
-/** How long a followed step waits for its place to appear: a link to elsewhere (no active team yet) highlights nothing later. */
-const PENDING_MS = 2000;
 
-/** The Accent ring and tint on an arrival target (§5.2); it fades out where motion is allowed, and simply goes otherwise (§9.5). */
-export const ARRIVAL_RING = 'ring-2 ring-brand-accent ring-offset-2 ring-offset-surface-page';
-export const ARRIVAL_HIGHLIGHT = `${ARRIVAL_RING} bg-brand-accent-tint`;
-export const ARRIVAL_TRANSITION = 'motion-safe:transition-[color,box-shadow,background-color] motion-safe:duration-500';
+/** The Accent ring and fill that mark a place to act on: a step arrived at (§5.2), the draft's next step (§5.4). */
+export const ACCENT_RING = 'ring-2 ring-brand-accent ring-offset-2 ring-offset-surface-page';
+export const ACCENT_FILL = 'border-brand-accent bg-brand-accent-tint';
+/** The highlight fades out where motion is allowed, and simply goes otherwise (§9.5). */
+const FADE = 'transition-[color,box-shadow,background-color,border-color] duration-500 motion-reduce:transition-none';
 
-let pending: { target: ArrivalTarget; at: number } | null = null;
+let pending: ArrivalTarget | null = null;
 
-/** Following a Getting started step: its place, once shown, gets focus and the highlight. */
-export function arriveAt(target: ArrivalTarget): void {
-  pending = { target, at: Date.now() };
+/** Following a Getting started step that leads to its place: that place, once shown, gets focus and the highlight. */
+export function arriveAt(step: GettingStartedStep): void {
+  pending = step.arrives ? step.id : null;
 }
 
 /**
- * Whether this place was just arrived at from its Getting started step (§5.2): if so, on mount it moves focus to `ref`
- * and returns true for {@link HIGHLIGHT_MS}, the time the highlight shows.
+ * The place a Getting started step is done (§5.2): `ref` goes on its control, `className` on the same control. Arrived
+ * at from the step, it takes focus and shows the Accent ring and fill for {@link HIGHLIGHT_MS}; on a solid (primary)
+ * button pass `fill: false`, as the fill would wash out its own.
  */
-export function useArrival(target: ArrivalTarget, ref: RefObject<HTMLElement | null>): boolean {
+export function useArrival<T extends HTMLElement>(target: ArrivalTarget, { fill = true } = {}): { ref: RefObject<T | null>; className: string } {
+  const ref = useRef<T>(null);
   const [highlighted, setHighlighted] = useState(false);
   useEffect(() => {
-    if (pending?.target !== target || Date.now() - pending.at > PENDING_MS) return;
+    if (pending !== target) return;
+    pending = null;
     ref.current?.scrollIntoView?.({ block: 'center' });
     ref.current?.focus();
     setHighlighted(true);
-    // Cleared only once the highlight ends, so a re-run effect (Strict Mode) highlights again rather than never ending it.
-    const timer = setTimeout(() => {
-      pending = null;
-      setHighlighted(false);
-    }, HIGHLIGHT_MS);
+  }, [target]);
+  // Its own effect, so a re-run (Strict Mode) re-arms the timer rather than leaving the highlight on.
+  useEffect(() => {
+    if (!highlighted) return;
+    const timer = setTimeout(() => setHighlighted(false), HIGHLIGHT_MS);
     return () => clearTimeout(timer);
-  }, [target, ref]);
-  return highlighted;
+  }, [highlighted]);
+  return { ref, className: cn(FADE, highlighted && ACCENT_RING, highlighted && fill && ACCENT_FILL) };
 }

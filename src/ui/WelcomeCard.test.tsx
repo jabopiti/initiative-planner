@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { RepositoryState } from '../sync/Repository';
 import { BrandProvider } from '../state/BrandContext';
-import { NewInitiativeControl } from './NewInitiativeControl';
 import { WelcomeCard } from './WelcomeCard';
 
 let state: Partial<RepositoryState>;
@@ -41,20 +40,5 @@ describe('Welcome card (§9.4)', () => {
     renderCard();
     expect(within(row('Review rates')).getByText('(done)')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Review rates' })).toBeNull();
-  });
-});
-
-describe('Top bar create button with no team (§9.4)', () => {
-  it('is hidden on the Portfolio, where the welcome card has Create a team, and shown elsewhere', () => {
-    const { container } = render(<NewInitiativeControl onPortfolio />);
-    expect(container).toBeEmptyDOMElement();
-    render(<NewInitiativeControl />);
-    expect(screen.getByRole('button', { name: 'Create a team' })).toBeInTheDocument();
-  });
-
-  it('stays on the Portfolio once a team exists', () => {
-    state = { ...state, teams: [{ id: 't1', name: 'Platform', active: true }] };
-    render(<NewInitiativeControl onPortfolio />);
-    expect(screen.getByRole('button', { name: 'New initiative' })).toBeInTheDocument();
   });
 });

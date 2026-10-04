@@ -124,7 +124,7 @@ describe('Getting started strip on the Portfolio (§5.2)', () => {
     const strip = await screen.findByRole('heading', { name: 'Getting started' });
     expect(screen.getByText('No initiatives yet')).toBeInTheDocument();
     expect(strip.compareDocumentPosition(screen.getByText('No initiatives yet')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(screen.getByRole('link', { name: /Create a team/ }).closest('li')!).getByText('Done')).toBeInTheDocument();
+    expect(within(screen.getByRole('link', { name: /Create a team/ }).closest('li')!).getByText('(done)')).toBeInTheDocument();
   });
 
   it('collapses to a chip first in the toolbar row at three of four done', async () => {

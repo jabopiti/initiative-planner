@@ -24,7 +24,7 @@ const update = (next: Partial<RepositoryState>) => {
   act(() => listeners.forEach((l) => l()));
 };
 const link = (name: string) => screen.getByRole('link', { name: new RegExp(name) });
-const isDone = (name: string) => within(link(name).closest('li')!).queryByText('Done') !== null;
+const isDone = (name: string) => within(link(name).closest('li')!).queryByText('(done)') !== null;
 
 beforeEach(() => {
   listeners = new Set();
@@ -41,7 +41,7 @@ describe('Getting started strip (§5.2)', () => {
     render(<GettingStartedStrip />);
     expect(screen.getByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
     expect(screen.getAllByRole('listitem')).toHaveLength(4);
-    expect(screen.queryByText('Done')).toBeNull();
+    expect(screen.queryByText('(done)')).toBeNull();
     expect(screen.getByRole('button', { name: 'Dismiss for now' })).toBeInTheDocument();
   });
 

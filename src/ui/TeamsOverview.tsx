@@ -22,8 +22,7 @@ import { FILE_PATHS } from '../data/types';
 import { Page, Toolbar } from './Page';
 import { plural } from '../data/plural';
 import { TeamSwatch } from './TeamSwatch';
-import { cn } from '@/lib/utils';
-import { ARRIVAL_RING, ARRIVAL_TRANSITION, useArrival } from './arrival';
+import { useArrival } from './arrival';
 
 /** Teams overview (§5.7): name, size, per-phase initiative counts, and New team. */
 export function TeamsOverview() {
@@ -35,10 +34,7 @@ export function TeamsOverview() {
   const [name, setName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   // New team, or Create a team in the empty state: where Getting started's Create a team arrives (§5.2).
-  const newTeamRef = useRef<HTMLButtonElement>(null);
-  const arrived = useArrival('team', newTeamRef);
-  // A primary button: the ring alone, as a tint would wash out its own fill.
-  const newTeamClass = cn(ARRIVAL_TRANSITION, arrived && ARRIVAL_RING);
+  const newTeam = useArrival<HTMLButtonElement>('team', { fill: false });
   const sort = useTableSort('name');
   const [refusal, setRefusal] = useState<string | null>(null);
 
@@ -108,7 +104,7 @@ export function TeamsOverview() {
   if (teams.length === 0 && !creating) {
     return (
       <Page title="Teams">
-        <EmptyState line="No teams yet" actionLabel="Create a team" onAction={startCreating} actionRef={newTeamRef} actionClassName={newTeamClass} />
+        <EmptyState line="No teams yet" actionLabel="Create a team" onAction={startCreating} actionProps={newTeam} />
       </Page>
     );
   }
@@ -142,7 +138,7 @@ export function TeamsOverview() {
               </Button>
             </form>
           ) : (
-            <Button ref={newTeamRef} type="button" className={newTeamClass} onClick={startCreating}>
+            <Button {...newTeam} type="button" onClick={startCreating}>
               <PlusIcon />
               New team
             </Button>

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
@@ -27,8 +27,7 @@ import { TeamSwatch } from './TeamSwatch';
 import { Page } from './Page';
 import { PageHeader, SectionHeader } from './PageHeader';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { ARRIVAL_HIGHLIGHT, ARRIVAL_TRANSITION, useArrival } from './arrival';
+import { useArrival } from './arrival';
 
 /** Team detail (§5.8): the Members list, the Initiatives list and the Capacity view. */
 export function TeamDetail({ id }: { id: string }) {
@@ -38,8 +37,7 @@ export function TeamDetail({ id }: { id: string }) {
   const conflict = useFieldConflict();
   const { teams, people, memberships, roles, countries } = useRepositoryState();
   const [query, setQuery] = useState('');
-  const addMemberRef = useRef<HTMLInputElement>(null);
-  const arrived = useArrival('people', addMemberRef);
+  const addMember = useArrival<HTMLInputElement>('people');
   const [focused, setFocused] = useState(false);
   const [active, setActive] = useState(-1);
   const [personId, setPersonId] = useState<string | null>(null);
@@ -182,8 +180,7 @@ export function TeamDetail({ id }: { id: string }) {
 
         <div className="relative mb-4 max-w-sm">
           <Input
-            ref={addMemberRef}
-            className={cn(ARRIVAL_TRANSITION, arrived && ARRIVAL_HIGHLIGHT)}
+            {...addMember}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);

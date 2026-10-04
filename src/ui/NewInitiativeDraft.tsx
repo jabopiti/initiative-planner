@@ -8,9 +8,8 @@ import { TeamSelect } from './TeamSelect';
 import { Page } from './Page';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { ARRIVAL_HIGHLIGHT, ARRIVAL_TRANSITION, useArrival } from './arrival';
+import { ACCENT_FILL, ACCENT_RING, useArrival } from './arrival';
 
-const HIGHLIGHT = 'border-brand-accent bg-brand-accent-tint';
 const GUIDANCE_ID = 'new-initiative-guidance';
 
 /**
@@ -37,8 +36,7 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
   const [draftId] = useState(newId); // kept across retries, so a failed creation is the same file when tried again
   const creating = useRef(false); // set on the first create, so a double click or Enter makes one commit
   const teamTrigger = useRef<HTMLButtonElement>(null);
-  const nameField = useRef<HTMLInputElement>(null);
-  const arrived = useArrival('initiative', nameField);
+  const nameField = useArrival<HTMLInputElement>('initiative');
 
   // Leaving the draft after a failed creation ends that failure: nothing will retry it (a saved one is left alone).
   useEffect(() => {
@@ -69,9 +67,9 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
       <h1 className="sr-only">New initiative</h1>
       <div className="flex items-center gap-3">
         <Input
-          ref={nameField}
+          ref={nameField.ref}
           autoFocus
-          className={cn('h-auto min-w-0 flex-1 px-3 py-1.5 text-display', ARRIVAL_TRANSITION, nextStep === 'name' && HIGHLIGHT, arrived && ARRIVAL_HIGHLIGHT)}
+          className={cn('h-auto min-w-0 flex-1 px-3 py-1.5 text-display', nameField.className, nextStep === 'name' && ACCENT_FILL)}
           aria-label="Initiative name"
           aria-describedby={GUIDANCE_ID}
           placeholder="Name this initiative"
@@ -90,14 +88,14 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
           value={teamId}
           onValueChange={setPicked}
           aria-describedby={GUIDANCE_ID}
-          className={nextStep === 'team' ? HIGHLIGHT : ''}
+          className={nextStep === 'team' ? ACCENT_FILL : ''}
         />
         <Badge variant="subtle">Draft</Badge>
         <Button
           type="button"
           size="sm"
           disabled={nextStep !== 'create'}
-          className={nextStep === 'create' ? 'ring-2 ring-brand-accent ring-offset-2' : ''}
+          className={nextStep === 'create' ? ACCENT_RING : ''}
           onClick={() => void create()}
         >
           Create initiative

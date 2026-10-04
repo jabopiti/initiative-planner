@@ -1,58 +1,64 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
-import { useRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { GettingStartedStep } from '../data/gettingStarted';
 import { arriveAt, useArrival, type ArrivalTarget } from './arrival';
 
-function Target({ target }: { target: ArrivalTarget }) {
-  const ref = useRef<HTMLButtonElement>(null);
-  const arrived = useArrival(target, ref);
+function Target({ target, fill }: { target: ArrivalTarget; fill?: boolean }) {
+  const arrival = useArrival<HTMLButtonElement>(target, { fill });
   return (
-    <button ref={ref} type="button" data-arrived={arrived}>
+    <button {...arrival} type="button">
       New team
     </button>
   );
 }
 const button = () => screen.getByRole('button', { name: 'New team' });
+const step = (id: ArrivalTarget, arrives = true): GettingStartedStep => ({ id, label: id, href: '#/teams', arrives, done: false });
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
   cleanup();
-  act(() => vi.runAllTimers()); // ends any highlight still showing, which clears the pending arrival
   vi.useRealTimers();
 });
 
 describe('Arrival from a Getting started step (§5.2)', () => {
-  it('focuses and highlights the step’s place for 3 seconds', () => {
-    arriveAt('team');
+  it('focuses and highlights the step’s place, ring and fill, for 3 seconds', () => {
+    arriveAt(step('team'));
     render(<Target target="team" />);
     expect(button()).toHaveFocus();
-    expect(button()).toHaveAttribute('data-arrived', 'true');
+    expect(button()).toHaveClass('ring-brand-accent', 'bg-brand-accent-tint');
     act(() => vi.advanceTimersByTime(2999));
-    expect(button()).toHaveAttribute('data-arrived', 'true');
+    expect(button()).toHaveClass('ring-brand-accent');
     act(() => vi.advanceTimersByTime(1));
-    expect(button()).toHaveAttribute('data-arrived', 'false');
+    expect(button()).not.toHaveClass('ring-brand-accent');
+  });
+
+  it('shows the ring alone without the fill', () => {
+    arriveAt(step('team'));
+    render(<Target target="team" fill={false} />);
+    expect(button()).toHaveClass('ring-brand-accent');
+    expect(button()).not.toHaveClass('bg-brand-accent-tint');
   });
 
   it('highlights once: showing the place again later does not', () => {
-    arriveAt('team');
+    arriveAt(step('team'));
     render(<Target target="team" />);
-    act(() => vi.advanceTimersByTime(3000));
     cleanup();
     render(<Target target="team" />);
-    expect(button()).toHaveAttribute('data-arrived', 'false');
+    expect(button()).not.toHaveFocus();
+    expect(button()).not.toHaveClass('ring-brand-accent');
   });
 
   it('leaves another step’s place alone', () => {
-    arriveAt('rates');
+    arriveAt(step('rates'));
     render(<Target target="team" />);
     expect(button()).not.toHaveFocus();
-    expect(button()).toHaveAttribute('data-arrived', 'false');
+    expect(button()).not.toHaveClass('ring-brand-accent');
   });
 
-  it('lapses when the place does not appear soon (a step that led elsewhere)', () => {
-    arriveAt('team');
-    act(() => vi.advanceTimersByTime(2001));
+  it('marks nothing for a step that leads elsewhere (to Teams, for want of an active team)', () => {
+    arriveAt(step('team'));
+    arriveAt(step('team', false));
     render(<Target target="team" />);
-    expect(button()).toHaveAttribute('data-arrived', 'false');
+    expect(button()).not.toHaveClass('ring-brand-accent');
   });
 });

@@ -21,6 +21,7 @@ import { TruncatedText } from './TruncatedText';
 import { NoInitiatives } from './NoInitiatives';
 import { GettingStartedChip, GettingStartedStrip } from './GettingStartedStrip';
 import { WelcomeCard } from './WelcomeCard';
+import { showsWelcome } from '../data/gettingStarted';
 import { NeedsAttentionStrip } from './NeedsAttentionStrip';
 import { useSessionFilters } from './sessionFilters';
 import { YearChip } from './YearChip';
@@ -117,7 +118,7 @@ export function PortfolioBoard() {
   if (initiatives.length === 0) {
     return (
       <Page title="Portfolio">
-        {teams.length === 0 ? (
+        {showsWelcome({ teams, initiatives }) ? (
           <WelcomeCard />
         ) : (
           <>

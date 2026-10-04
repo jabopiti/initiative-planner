@@ -35,10 +35,15 @@ export function StepMarker({ step, index, size = 'size-check' }: { step: Getting
   );
 }
 
+/** Read after a cleared step's label, which its tick shows to sighted users. */
+export function DoneNote() {
+  return <span className="sr-only"> (done)</span>;
+}
+
 /** A step's link to where it is done (§5.2); following it highlights that place on arrival. */
-function StepLink({ step, className }: { step: GettingStartedStep; className?: string }) {
+export function StepLink({ step, className }: { step: GettingStartedStep; className?: string }) {
   return (
-    <a href={step.href} onClick={() => arriveAt(step.id)} className={className}>
+    <a href={step.href} onClick={() => arriveAt(step)} className={className}>
       {step.label}
     </a>
   );
@@ -82,7 +87,7 @@ export function GettingStartedStrip({ collapsible = false }: { collapsible?: boo
             <li key={step.id} className="flex items-center gap-1.5">
               <StepMarker step={step} index={index} />
               <StepLink step={step} className={step.done ? 'text-text-secondary line-through' : 'font-medium text-text-primary underline'} />
-              {step.done && <span className="sr-only">Done</span>}
+              {step.done && <DoneNote />}
             </li>
           ))}
         </ol>
@@ -104,8 +109,8 @@ export function GettingStartedStrip({ collapsible = false }: { collapsible?: boo
  */
 export function GettingStartedChip() {
   const { steps, done, shown } = useGettingStarted();
-  const index = steps.findIndex((s) => !s.done);
   if (!shown || !collapses(done, steps.length)) return null;
+  const index = steps.findIndex((s) => !s.done);
   const step = steps[index];
 
   return (

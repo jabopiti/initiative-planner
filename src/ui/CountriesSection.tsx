@@ -1,4 +1,4 @@
-import { Fragment, useId, useMemo, useRef, useState } from 'react';
+import { Fragment, useId, useMemo, useState } from 'react';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { useFieldConflict, useRevealTarget } from '../state/ConflictUi';
@@ -22,8 +22,7 @@ import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { SectionHeader } from './PageHeader';
-import { cn } from '@/lib/utils';
-import { ARRIVAL_HIGHLIGHT, ARRIVAL_TRANSITION, useArrival } from './arrival';
+import { useArrival } from './arrival';
 
 const NAME_REFUSAL = 'Enter a name.';
 const DAY_RATE_REFUSAL = 'Enter a day rate of 0 or more.';
@@ -51,8 +50,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
   const { currencySymbol } = useBrand();
   const failure = useFieldFailure();
   const conflict = useFieldConflict();
-  const ratesCorrect = useRef<HTMLButtonElement>(null);
-  const arrived = useArrival('rates', ratesCorrect);
+  const ratesCorrect = useArrival<HTMLButtonElement>('rates');
   const changed = useIsChangedByOthers();
   const [openId, setOpenId] = useState<string | null>(null);
   // The banner's Show opens the country whose rates are in conflict (§9.9).
@@ -91,7 +89,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
               </span>
             ) : (
               // Usable while locked: it confirms the rates, it doesn't edit them (§5.9).
-              <Button ref={ratesCorrect} type="button" variant="outline" size="sm" className={cn(ARRIVAL_TRANSITION, arrived && ARRIVAL_HIGHLIGHT)} onClick={() => repository.confirmRates()}>
+              <Button {...ratesCorrect} type="button" variant="outline" size="sm" onClick={() => repository.confirmRates()}>
                 <CheckIcon width={16} height={16} />
                 Rates are correct
               </Button>

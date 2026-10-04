@@ -6,7 +6,7 @@ import { useBrand } from '../state/BrandContext';
 import { useRepositoryState } from '../state/DataContext';
 import { arriveAt } from './arrival';
 import { cardClass } from './cardClass';
-import { StepMarker } from './GettingStartedStrip';
+import { DoneNote, StepLink, StepMarker } from './GettingStartedStrip';
 
 /**
  * The Portfolio's empty state while no team exists (§9.4): the four Getting started steps as rows, cleared ones ticked,
@@ -29,24 +29,22 @@ export function WelcomeCard() {
             <StepMarker step={step} index={index} size="size-5.5" />
             <span className={cn('flex-1', step.done || index > 1 ? 'text-text-secondary' : 'font-medium', step.done && 'line-through')}>
               {step.label}
-              {step.done && <span className="sr-only"> (done)</span>}
+              {step.done && <DoneNote />}
             </span>
             {step.id === 'team' && (
               <Button
                 type="button"
                 size="sm"
                 onClick={() => {
-                  arriveAt(step.id);
-                  navigate('/teams');
+                  arriveAt(step);
+                  navigate(step.href.replace(/^#/, ''));
                 }}
               >
                 Create a team
               </Button>
             )}
             {step.id === 'rates' && !step.done && (
-              <a href={step.href} onClick={() => arriveAt(step.id)} className="text-caption text-brand-accent-text underline">
-                Review rates
-              </a>
+              <StepLink step={step} className="text-caption text-brand-accent-text underline" />
             )}
           </li>
         ))}

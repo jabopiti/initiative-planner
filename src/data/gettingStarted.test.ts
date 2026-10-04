@@ -32,14 +32,16 @@ describe('gettingStartedSteps (§5.2)', () => {
   });
 
   it('links to the settings section, Teams, the first active team and the draft page', () => {
-    const hrefs = gettingStartedSteps({ ...base, teams: [team('old', false), team('t1'), team('t2')] }).map((s) => s.href);
-    expect(hrefs).toEqual(['#/settings/countries', '#/teams', '#/teams/t1', '#/initiatives/new']);
+    const steps = gettingStartedSteps({ ...base, teams: [team('old', false), team('t1'), team('t2')] });
+    expect(steps.map((s) => s.href)).toEqual(['#/settings/countries', '#/teams', '#/teams/t1', '#/initiatives/new']);
+    expect(steps.every((s) => s.arrives)).toBe(true);
   });
 
-  it('sends the steps that need an active team to Teams while none is active', () => {
+  it('sends the steps that need an active team to Teams while none is active, where they arrive at nothing', () => {
     for (const teams of [[], [team('old', false)]]) {
-      const hrefs = gettingStartedSteps({ ...base, teams }).map((s) => s.href);
-      expect(hrefs.slice(2)).toEqual(['#/teams', '#/teams']);
+      const steps = gettingStartedSteps({ ...base, teams }).slice(2);
+      expect(steps.map((s) => s.href)).toEqual(['#/teams', '#/teams']);
+      expect(steps.map((s) => s.arrives)).toEqual([false, false]);
     }
   });
 });

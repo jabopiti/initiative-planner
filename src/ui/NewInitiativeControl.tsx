@@ -1,3 +1,4 @@
+import { showsWelcome } from '../data/gettingStarted';
 import { useRepositoryState } from '../state/DataContext';
 import { navigate } from '../router/useHashRoute';
 import { Button } from '@/components/ui/button';
@@ -10,10 +11,11 @@ import { PlusIcon, ReactivateIcon } from './icons';
  * the one there (§9.4).
  */
 export function NewInitiativeControl({ onPortfolio = false }: { onPortfolio?: boolean }) {
-  const { teams } = useRepositoryState();
+  const state = useRepositoryState();
+  const { teams } = state;
   const noTeam = teams.length === 0;
   const noActiveTeam = !teams.some((t) => t.active);
-  if (noTeam && onPortfolio) return null;
+  if (onPortfolio && showsWelcome(state)) return null;
   return (
     <Button type="button" data-new-initiative onClick={() => navigate(noActiveTeam ? '/teams' : '/initiatives/new')}>
       {noActiveTeam && !noTeam ? <ReactivateIcon /> : <PlusIcon />}
