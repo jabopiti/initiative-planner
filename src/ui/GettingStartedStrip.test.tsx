@@ -1,9 +1,10 @@
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepositoryState } from '../sync/Repository';
 import { GettingStartedChip, GettingStartedStrip } from './GettingStartedStrip';
 import { resetGettingStartedDismissal } from './gettingStartedDismissal';
+import { useArrival } from './arrival';
 
 let state: Partial<RepositoryState>;
 let listeners: Set<() => void>;
@@ -52,6 +53,27 @@ describe('Getting started strip (§5.2)', () => {
     expect(link('Create a team')).toHaveAttribute('href', '#/teams');
     expect(link('Add people to the team')).toHaveAttribute('href', '#/teams/t1');
     expect(link('Create your first initiative')).toHaveAttribute('href', '#/initiatives/new');
+  });
+
+  it('highlights the place a followed step leads to, but not when the link opens in a new tab', () => {
+    function RatesCorrect() {
+      return (
+        <button {...useArrival<HTMLButtonElement>('rates')} type="button">
+          Rates are correct
+        </button>
+      );
+    }
+    const arrived = () => {
+      const { unmount } = render(<RatesCorrect />);
+      const highlighted = screen.getByRole('button', { name: 'Rates are correct' }).classList.contains('ring-brand-accent');
+      unmount();
+      return highlighted;
+    };
+    render(<GettingStartedStrip />);
+    fireEvent.click(link('Review rates'), { ctrlKey: true });
+    expect(arrived()).toBe(false);
+    fireEvent.click(link('Review rates'));
+    expect(arrived()).toBe(true);
   });
 
   it('checks each step as the data shows it done, including a change pulled in from another user, then disappears', () => {

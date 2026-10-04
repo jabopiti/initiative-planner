@@ -40,10 +40,19 @@ export function DoneNote() {
   return <span className="sr-only"> (done)</span>;
 }
 
-/** A step's link to where it is done (§5.2); following it highlights that place on arrival. */
+/**
+ * A step's link to where it is done (§5.2); following it highlights that place on arrival. A modified click opens it
+ * elsewhere (a new tab or window), so this page arrives nowhere.
+ */
 export function StepLink({ step, className }: { step: GettingStartedStep; className?: string }) {
   return (
-    <a href={step.href} onClick={() => arriveAt(step)} className={className}>
+    <a
+      href={step.href}
+      onClick={(e) => {
+        if (!(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey)) arriveAt(step);
+      }}
+      className={className}
+    >
       {step.label}
     </a>
   );
