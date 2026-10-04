@@ -1,4 +1,3 @@
-import { amountRefusal, parseAmountExpression } from '../data/amountExpression';
 import { parseAmount, trackedYears, yearRecord } from '../data/cost';
 import type { CustomRole, Person } from '../data/types';
 import { FILE_PATHS } from '../data/types';
@@ -6,7 +5,7 @@ import { useBrand } from '../state/BrandContext';
 import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { Label } from '@/components/ui/label';
-import { savesAsNote, symbolPadding } from './AmountInput';
+import { AmountInput } from './AmountInput';
 import { CommitInput } from './CommitInput';
 import { ConflictBlock } from './ConflictBlock';
 import { InlineWarning } from './InlineWarning';
@@ -35,18 +34,9 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
   const past = customRole.dayRatesByYear.map((r) => r.year).filter((y) => y < tracked[0]).sort();
   const rows = [...past, ...tracked];
 
-  const setRate = (year: number, text: string) => {
-    const entered = customRole.dayRatesByYear.find((r) => r.year === year);
+  const setRate = (year: number, dayRate: number | null) => {
     const others = customRole.dayRatesByYear.filter((r) => r.year !== year);
-    if (text.trim() === '') {
-      save({ dayRatesByYear: others });
-      return;
-    }
-    const parsed = parseAmountExpression(text);
-    if (!parsed.ok) return amountRefusal(parsed.reason, DAY_RATE_REFUSAL);
-    const dayRate = parsed.value;
-    if (dayRate === entered?.dayRate) return false;
-    save({ dayRatesByYear: [...others, { year, dayRate }].sort((a, b) => a.year - b.year) });
+    save({ dayRatesByYear: dayRate === null ? others : [...others, { year, dayRate }].sort((a, b) => a.year - b.year) });
   };
 
   return (
@@ -99,23 +89,20 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
           const entered = customRole.dayRatesByYear.find((r) => r.year === year);
           const inherited = entered ? undefined : yearRecord(customRole.dayRatesByYear, year);
           return (
-            <div key={year} className="flex items-center gap-2">
+            <div key={year} className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="w-10 text-body tabular-nums">{year}</span>
-              <CommitInput
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
-                prefix={currencySymbol}
-                note={(draft) => savesAsNote(draft, currencySymbol)}
-                className={`w-28 ${symbolPadding(currencySymbol)}`}
+              <AmountInput
+                currencySymbol={currencySymbol}
+                label={`Day rate ${year}`}
+                refusal={DAY_RATE_REFUSAL}
                 errorClassName="w-full"
-                aria-label={`Day rate ${year}`}
                 changed={changed(FILE_PATHS.people, customPath('dayRatesByYear'))}
                 failure={failure(FILE_PATHS.people, customPath('dayRatesByYear'))}
                 disabled={year < tracked[0]}
                 placeholder={inherited ? String(inherited.dayRate) : undefined}
-                value={entered ? String(entered.dayRate) : ''}
-                onCommit={(text) => setRate(year, text)}
+                value={entered?.dayRate}
+                onClear={() => setRate(year, null)}
+                onChange={(dayRate) => setRate(year, dayRate)}
               />
               <span className="text-caption text-text-secondary">per day</span>
               {inherited && <span className="text-caption text-text-muted">uses {inherited.year}</span>}

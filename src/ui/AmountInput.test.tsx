@@ -102,6 +102,21 @@ describe('AmountInput (§9.11)', () => {
   });
 });
 
+describe('AmountInput clearing', () => {
+  it('clears the value on an empty commit when it can be cleared, and refuses it otherwise', async () => {
+    const user = userEvent.setup();
+    const onClear = vi.fn();
+    const { rerender } = render(<AmountInput label="Rate" currencySymbol="€" value={400} onClear={onClear} onChange={() => {}} />);
+    await user.clear(screen.getByRole('textbox', { name: 'Rate' }));
+    await user.tab();
+    expect(onClear).toHaveBeenCalledOnce();
+    rerender(<AmountInput label="Rate" currencySymbol="€" value={400} onChange={() => {}} />);
+    await user.clear(screen.getByRole('textbox', { name: 'Rate' }));
+    await user.tab();
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter an amount, 0 or more.');
+  });
+});
+
 describe('AmountDraftInput (§9.11)', () => {
   function Draft({ error }: { error?: string }) {
     const [text, setText] = useState('');

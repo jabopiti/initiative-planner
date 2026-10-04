@@ -142,6 +142,7 @@ export function CommitInput({
   const showFailure = !error && draft === value ? failure : null;
   const noteText = !error && !showFailure ? (note?.(draft) ?? null) : null;
   const noteId = `${errorId}-note`;
+  const describedBy = error ? errorId : showFailure !== null ? failureId : [noteText ? noteId : null, conflict?.id ?? props['aria-describedby']].filter(Boolean).join(' ') || undefined;
 
   const input = (
       <Input
@@ -149,7 +150,7 @@ export function CommitInput({
         className={`transition-colors duration-500 motion-reduce:transition-none ${className ?? ''} ${changed ? 'bg-met-tint' : ''}`}
         value={draft}
         aria-invalid={error ? true : props['aria-invalid']}
-        aria-describedby={error ? errorId : showFailure !== null ? failureId : noteText ? noteId : (conflict?.id ?? props['aria-describedby'])}
+        aria-describedby={describedBy}
         onChange={(e) => {
           setDraft(e.target.value);
           onDraftChange?.(e.target.value);

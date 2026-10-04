@@ -509,7 +509,10 @@ function DraftCountryRow({
           className="h-8 w-28 text-right"
           value={dayRate}
           error={refused.dayRate}
-          onChange={setDayRate}
+          onChange={(text) => {
+            setDayRate(text);
+            setRefused((current) => ({ ...current, dayRate: undefined }));
+          }}
           onKeyDown={keys}
         />
       </div>

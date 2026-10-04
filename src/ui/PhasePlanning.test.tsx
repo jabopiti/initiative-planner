@@ -595,6 +595,22 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     expect(screen.getByRole('button', { name: 'Add cost item to Validation' })).toBeInTheDocument();
   });
 
+  it('drops the amount refusal as the amount is edited, bringing the "Saves as" line back', async () => {
+    const user = userEvent.setup();
+    planned();
+    renderPage();
+    const draft = await openDraft(user);
+    await user.type(within(draft).getByRole('combobox', { name: 'Label' }), 'Licences');
+    const amount = within(draft).getByRole('textbox', { name: 'Amount' });
+    await user.type(amount, 'abc');
+    await user.click(within(draft).getByRole('button', { name: 'Add' }));
+    expect(within(draft).getByRole('alert')).toHaveTextContent("Can't read that as an amount");
+    await user.clear(amount);
+    await user.type(amount, '3 × 4k');
+    expect(within(draft).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(draft).getByText('Saves as €12,000')).toBeInTheDocument();
+  });
+
   it('takes a sum as the amount, shows what it saves as and saves the result', async () => {
     const user = userEvent.setup();
     planned();

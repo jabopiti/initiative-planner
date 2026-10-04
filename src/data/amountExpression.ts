@@ -8,7 +8,7 @@ const MAX_LENGTH = 120;
 type AmountReason = 'empty' | 'unreadable' | 'divideByZero' | 'negative' | 'tooLarge';
 
 type AmountEntry =
-  | { ok: true; value: number; /** The entry is one plain number, with no suffix, operator or bracket: nothing to explain before it saves. */ plain: boolean }
+  | { ok: true; value: number; /** The entry is one plain number, with no suffix, operator, bracket or rounding to cents: nothing to explain before it saves. */ plain: boolean }
   | { ok: false; reason: AmountReason };
 
 /** The refusal shown on commit (§9.11); an empty entry gets the field's own text, which names what it holds (a day rate). */
@@ -201,7 +201,8 @@ export function parseAmountExpression(text: string, locale = displayLocale()): A
     if (result.n < 0n) return { ok: false, reason: 'negative' };
     if (result.n > MAX_AMOUNT * result.d) return { ok: false, reason: 'tooLarge' };
     const cents = (result.n * 200n + result.d) / (result.d * 2n); // half up, to whole cents
-    return { ok: true, value: Number(cents) / 100, plain: operations === 0 };
+    // Rounding to cents is also a change the user should be told about ("820.456" saves as 820.46).
+    return { ok: true, value: Number(cents) / 100, plain: operations === 0 && (result.n * 100n) % result.d === 0n };
   } catch (error) {
     if (error instanceof Refused) return { ok: false, reason: error.reason };
     throw error;

@@ -276,7 +276,10 @@ function DraftRow({
           currencySymbol={currencySymbol}
           value={amount}
           error={refused.amount}
-          onChange={setAmount}
+          onChange={(text) => {
+            setAmount(text);
+            setRefused((current) => ({ ...current, amount: undefined }));
+          }}
           onKeyDown={keys}
         />
         <TimingToggle value={timing} label="When" onChange={setTiming} />

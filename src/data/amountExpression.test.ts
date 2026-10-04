@@ -84,6 +84,8 @@ describe('parseAmountExpression', () => {
     expect(plain('12k')).toBe(false);
     expect(plain('3 × 4k')).toBe(false);
     expect(plain('(5)')).toBe(false);
+    expect(plain('820.45')).toBe(true);
+    expect(plain('820.456')).toBe(false);
   });
 
   it('reads the decimal comma of a comma-decimal locale', () => {

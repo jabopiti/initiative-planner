@@ -9,10 +9,10 @@ import { Input } from '@/components/ui/input';
 const REFUSAL = 'Enter an amount, 0 or more.';
 
 /** The room the field leaves, inside its left edge, for the currency symbol. */
-export const symbolPadding = (symbol: string) => (symbol.length > 2 ? 'pl-11' : symbol.length === 2 ? 'pl-9' : 'pl-7');
+const symbolPadding = (symbol: string) => (symbol.length > 2 ? 'pl-11' : symbol.length === 2 ? 'pl-9' : 'pl-7');
 
 /** "Saves as €12,000" for an entry that is a valid amount but not a plain number (§9.11); nothing otherwise, an unfinished sum included. */
-export function savesAsNote(text: string, currencySymbol: string): string | null {
+function savesAsNote(text: string, currencySymbol: string): string | null {
   const entry = parseAmountExpression(text);
   return entry.ok && !entry.plain ? `Saves as ${formatExactAmount(entry.value, currencySymbol)}` : null;
 }
@@ -35,6 +35,8 @@ export function AmountInput({
   retryLabel,
   className = 'w-28',
   errorClassName,
+  disabled,
+  onClear,
   onChange,
 }: {
   value: number | undefined;
@@ -53,6 +55,9 @@ export function AmountInput({
   /** The field's width and alignment. */
   className?: string;
   errorClassName?: string;
+  disabled?: boolean;
+  /** Committing an empty field clears the value (a day rate falling back to the year before) instead of being refused. */
+  onClear?: () => void;
   onChange: (value: number) => void;
 }) {
   return (
@@ -71,8 +76,10 @@ export function AmountInput({
         retryLabel={retryLabel}
         aria-label={label}
         placeholder={placeholder}
+        disabled={disabled}
         value={value === undefined ? '' : String(value)}
         onCommit={(text) => {
+          if (onClear && text.trim() === '') return value === undefined ? false : onClear();
           const parsed = parseAmountExpression(text);
           if (!parsed.ok) return amountRefusal(parsed.reason, refusal);
           if (parsed.value === value) return false;
