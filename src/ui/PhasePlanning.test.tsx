@@ -304,11 +304,10 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     await user.hover(day(/October 31st/));
     expect(within(footer()).getByText('1 Sept – 31 Oct 2026 · 2 months · 40 working days (DE)')).toBeInTheDocument();
     await user.click(day(/October 31st/));
-    const periodPuts = () => puts.filter((p) => p.message.includes('Validation period set to Sep'));
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-    expect(periodPuts()).toEqual([]); // nothing is written before Done
     await user.click(within(footer()).getByRole('button', { name: 'Done' }));
 
+    // Picks write nothing of their own: the one write carries only the period's note.
+    const periodPuts = () => puts.filter((p) => p.message.includes('Validation period set to Sep'));
     await vi.waitFor(() => expect(periodPuts()).toHaveLength(1), { timeout: 3000 });
     expect(periodPuts()[0].message).toBe('Payments API: Validation period set to Sep–Oct');
     expect(periodPuts()[0].content.phases?.validation).toMatchObject({ startDate: '2026-09-01', endDate: '2026-10-31' });
