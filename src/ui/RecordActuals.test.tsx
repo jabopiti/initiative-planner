@@ -77,7 +77,7 @@ function renderPage() {
   );
 }
 
-const validationRow = () => screen.getByRole('button', { name: /^Validation/ });
+const validationRow = () => screen.getByRole('button', { name: /^Validation(?!,)/ });
 const actualsTable = async () => within(await screen.findByRole('table', { name: 'Validation actuals' }));
 const monthRow = (table: ReturnType<typeof within>, month: string) => table.getByRole('row', { name: new RegExp(`^${month}`) });
 

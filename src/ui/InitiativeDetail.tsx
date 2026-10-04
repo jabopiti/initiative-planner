@@ -13,9 +13,10 @@ import { InitiativeTeamRow } from './InitiativeTeamRow';
 import { JumpContext, jumpTo, type Jump } from './jumpTo';
 import { MagicBar } from './MagicBar';
 import { PhasesSection } from './PhasesSection';
+import { TimeStrip } from './TimeStrip';
 
 /**
- * The initiative page (§5.4): header, cost summary, Phases (with the current gate's checklist panel beneath
+ * The initiative page (§5.4): header, time strip, cost summary, Phases (with the current gate's checklist panel beneath
  * the current phase) and the sticky magic bar. A Closed or Cancelled initiative shows it all read-only (§8.4). `focus`/`openPhaseId` arrive from a Needs attention strip link
  * (§5.2, §8.5): the place to scroll and focus on arrival, and, for a link into a collapsed phase, the phase to open
  * first so that place exists in the DOM. A jump from the page itself (Go to <phase>, a blocker) works the same way.
@@ -99,6 +100,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
             )}
           </div>
           <InitiativeTeamRow initiative={initiative} />
+          <TimeStrip initiative={initiative} />
           <CostSummary initiative={initiative} />
           <PhasesSection initiative={initiative} team={team} reveal={jump} />
         </Page>

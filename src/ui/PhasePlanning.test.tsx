@@ -114,7 +114,7 @@ async function addPerson(user: ReturnType<typeof userEvent.setup>, optionName: s
   await user.click(await screen.findByRole('option', { name: (name) => name.startsWith(optionName) }));
 }
 
-const validationRow = () => screen.getByRole('button', { name: /^Validation/ });
+const validationRow = () => screen.getByRole('button', { name: /^Validation(?!,)/ });
 
 describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
   it('lists every phase, opens the first costed one, and marks the others', async () => {
@@ -122,7 +122,7 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     expect(await screen.findByRole('heading', { name: 'Phases' })).toBeInTheDocument();
     expect(screen.getAllByText('· not costed')).toHaveLength(2); // Discovery and Rollout
     expect(validationRow()).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('button', { name: /^Development/ })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: /^Development(?!,)/ })).toHaveAttribute('aria-expanded', 'false');
     expect(validationRow()).toHaveTextContent('Set period');
     expect(screen.getByText("Who works on Validation? Add a team member to see this phase's cost.")).toBeInTheDocument();
   });
@@ -372,7 +372,7 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
 });
 
 describe('Default plan (§5.11)', () => {
-  const developmentRow = () => screen.getByRole('button', { name: /^Development/ });
+  const developmentRow = () => screen.getByRole('button', { name: /^Development(?!,)/ });
   const suggested = {
     validation: { startDate: '2026-09-24', endDate: '2026-12-23', allocations: [] },
     development: { startDate: '2026-12-24', endDate: '2027-06-23', allocations: [] },
@@ -868,7 +868,7 @@ describe('Copy allocations from the previous costed phase (§5.11)', () => {
   const developmentBody = () => within(document.getElementById(`phase-${development.id}`)!);
   const copyButton = () => screen.queryByRole('button', { name: 'Copy from Validation' });
   async function openDevelopment(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(await screen.findByRole('button', { name: /^Development/ }));
+    await user.click(await screen.findByRole('button', { name: /^Development(?!,)/ }));
   }
 
   it('copies each active member with the same Allocation % in one commit, and names who was skipped until the next edit', async () => {

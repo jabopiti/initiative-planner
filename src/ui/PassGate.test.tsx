@@ -167,7 +167,7 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     expect(screen.getAllByText('€16,000').length).toBeGreaterThan(1); // grand estimate and approved-at match, nothing changed since
 
     // Validation shows frozen and locked; its inputs are gone.
-    const validationRow = screen.getByRole('button', { name: /^Validation/ });
+    const validationRow = screen.getByRole('button', { name: /^Validation(?!,)/ });
     expect(validationRow).toHaveTextContent('Frozen');
     expect(screen.queryByRole('textbox', { name: 'Validation start date' })).not.toBeInTheDocument();
 
@@ -283,7 +283,7 @@ describe('a frozen phase refuses what the page no longer offers (§5.11, §8.1)'
       phases: { [validationId]: bothPlanned[validationId] },
     };
     renderPage();
-    await screen.findByRole('button', { name: /^Validation/ });
+    await screen.findByRole('button', { name: /^Validation(?!,)/ });
 
     act(() => repository.setPhaseDate('i1', validationId, 'endDate', '2026-12-31'));
 
@@ -314,7 +314,7 @@ describe('a frozen phase refuses what the page no longer offers (§5.11, §8.1)'
       phases: { [validationId]: bothPlanned[validationId] },
     };
     renderPage();
-    const validation = await screen.findByRole('button', { name: /^Validation/ });
+    const validation = await screen.findByRole('button', { name: /^Validation(?!,)/ });
     if (validation.getAttribute('aria-expanded') !== 'true') await user.click(validation);
 
     const table = await screen.findByRole('table', { name: 'Frozen allocations' });

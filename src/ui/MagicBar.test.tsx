@@ -183,7 +183,7 @@ describe('A skipped phase on the Phases list (§8.2)', () => {
     };
     renderPage();
 
-    const discovery = (await screen.findByText('Discovery')).parentElement!;
+    const discovery = (await screen.findByText('Discovery', { selector: 'li span' })).parentElement!;
     expect(within(discovery).getByRole('img', { name: 'Skipped' })).toBeInTheDocument();
     expect(within(discovery).getByText('· Skipped G1')).toBeInTheDocument();
     expect(within(discovery).getByText('· Validated in an earlier pilot.')).toBeInTheDocument();

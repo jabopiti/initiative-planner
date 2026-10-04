@@ -104,7 +104,8 @@ export function PhasesSection({ initiative, team, reveal = null }: { initiative:
       )}
       <ol className="m-0 flex list-none flex-col gap-2 p-0">
         {process.map((phase) => (
-          <li key={phase.id} id={`phase-row-${phase.id}`} className="flex flex-col gap-2">
+          // A phase that isn't costed has no control of its own, so its row takes focus when the time strip jumps to it (§5.4).
+          <li key={phase.id} id={`phase-row-${phase.id}`} tabIndex={phase.costed ? undefined : -1} className="flex flex-col gap-2">
             <div className={cardClass}>
               {phase.costed ? (
                 <CostedPhase
