@@ -1,13 +1,13 @@
-import { displayLocale } from './dates';
+import { displayLocale, perLocale } from './dates';
 
 /** The largest amount an entry may come to (§9.11): far above any budget, and far inside what a stored number holds exactly. */
 const MAX_AMOUNT = 1_000_000_000_000n;
 /** An entry longer than this is not an amount; it also keeps the exact arithmetic small. */
 const MAX_LENGTH = 120;
 
-export type AmountReason = 'empty' | 'unreadable' | 'divideByZero' | 'negative' | 'tooLarge';
+type AmountReason = 'empty' | 'unreadable' | 'divideByZero' | 'negative' | 'tooLarge';
 
-export type AmountEntry =
+type AmountEntry =
   | { ok: true; value: number; /** The entry is one plain number, with no suffix, operator or bracket: nothing to explain before it saves. */ plain: boolean }
   | { ok: false; reason: AmountReason };
 
@@ -48,16 +48,13 @@ class Refused extends Error {
 const separators = new Map<string, { decimal: string; group: string }>();
 /** The locale's decimal and group separators (§9.7). */
 function localeSeparators(locale: string): { decimal: string; group: string } {
-  let found = separators.get(locale);
-  if (!found) {
+  return perLocale(separators, locale, () => {
     const parts = new Intl.NumberFormat(locale).formatToParts(12345.6);
-    found = {
+    return {
       decimal: parts.find((p) => p.type === 'decimal')?.value ?? '.',
       group: parts.find((p) => p.type === 'group')?.value ?? ',',
     };
-    separators.set(locale, found);
-  }
-  return found;
+  });
 }
 
 const isDigit = (c: string | undefined): c is string => c !== undefined && c >= '0' && c <= '9';
