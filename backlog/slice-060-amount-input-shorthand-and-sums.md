@@ -79,6 +79,29 @@ today and adjust in one place.
 
 ## Decided in review (pre-implementation)
 
-User picked research pattern 2 on 2 Oct 2026. Open for the next-slice
-session: whether `×` is also typed as `x` (the mockup accepted it), and
-the exact copy of the invalid-entry reasons.
+User picked research pattern 2 on 2 Oct 2026. Settled in the 4 Oct 2026
+session:
+
+- **Symbol:** inside the field, on the left, in every amount field.
+- **Multiply:** `x`, `X`, `*` and `×` all work.
+- **Separators:** the locale's decimal and group separators apply; a
+  separator that is neither this locale's decimal nor a valid group (exactly
+  three digits follow) is read as the decimal, so "1.5k" is 1,500 everywhere.
+- **Reasons** are shown on commit (Enter or blur), in the existing alarm box;
+  the "Saves as" line is live while typing and an unfinished sum shows
+  nothing until commit:
+  - unreadable (`abc`, `5-`, `3 ×`, `(2+3`): "Can't read that as an amount. Try 12k or 3 × 4k."
+  - `1/0`: "Can't divide by 0."
+  - below 0 (`-3`, `2 − 5`): "An amount can't be below 0."
+  - above 1,000,000,000,000: "That amount is too large."
+  - empty: each field's existing text ("Enter an amount of 0 or more.", "Enter a day rate of 0 or more.").
+- **Assumptions:** new `parseAmountExpression` (hand-written parser, BigInt
+  rational arithmetic, no new dependency, no `eval`); the old `parseAmount`
+  stays for cost factor and percent. The result rounds to whole cents. `k`/`m`
+  are case-insensitive and attach to a number or a bracketed group; implicit
+  multiplication (`3(4)`) is refused. A leading currency symbol is ignored.
+  The "Saves as" line uses up to two decimals, drops ".00", and is linked with
+  `aria-describedby`; a refusal or failed save replaces it. Fields become
+  `type="text"` with `inputMode="decimal"`. Placeholders: "Amount" (cost
+  items), "Actual" (actuals, was "Enter amount"). The actuals row layout and
+  the Use estimate button stay in 061b.

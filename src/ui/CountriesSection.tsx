@@ -2,12 +2,13 @@ import { Fragment, useId, useMemo, useState } from 'react';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { useBrand } from '../state/BrandContext';
 import { useFieldConflict, useRevealTarget } from '../state/ConflictUi';
-import { daysInMonth, parseAmount, trackedYears, yearRecord } from '../data/cost';
+import { daysInMonth, trackedYears, yearRecord } from '../data/cost';
 import { shortMonths, formatMonth, monthKey } from '../data/dates';
 import { joinList } from '../data/joinList';
 import { initiativesAffectedByRate, weekdaysByMonth, type RateEdit } from '../data/rates';
 import { FILE_PATHS, type Country, type CountryYearRateRecord } from '../data/types';
-import { AmountInput } from './AmountInput';
+import { amountRefusal, parseAmountExpression } from '../data/amountExpression';
+import { AmountDraftInput, AmountInput } from './AmountInput';
 import { openRowProps } from './openRowProps';
 import { CommitInput, FailedEdit } from './CommitInput';
 import { ConflictBlock, ConflictRow, inRow } from './ConflictBlock';
@@ -473,14 +474,13 @@ function DraftCountryRow({
   const [dayRate, setDayRate] = useState('');
   const [refused, setRefused] = useState<{ name?: string; dayRate?: string }>({});
   const nameErrorId = useId();
-  const dayRateErrorId = useId();
   const hintId = useId();
 
   const add = () => {
     const trimmed = name.trim();
-    const parsed = parseAmount(dayRate);
-    setRefused({ name: trimmed === '' ? NAME_REFUSAL : undefined, dayRate: parsed === null ? DAY_RATE_REFUSAL : undefined });
-    if (trimmed !== '' && parsed !== null) onAdd({ name: trimmed, dayRate: parsed });
+    const parsed = parseAmountExpression(dayRate);
+    setRefused({ name: trimmed === '' ? NAME_REFUSAL : undefined, dayRate: parsed.ok ? undefined : amountRefusal(parsed.reason, DAY_RATE_REFUSAL) });
+    if (trimmed !== '' && parsed.ok) onAdd({ name: trimmed, dayRate: parsed.value });
   };
   const keys = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') add();
@@ -501,24 +501,20 @@ function DraftCountryRow({
           onChange={(e) => setName(e.target.value)}
           onKeyDown={keys}
         />
-        <div className="flex items-start gap-1">
-          <span className="inline-flex h-8 items-center text-text-secondary">{currencySymbol}</span>
-          <DraftField
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step="any"
-            aria-label="Day rate"
-            placeholder="Day rate"
-            className="w-28 text-right"
-            value={dayRate}
-            errorId={dayRateErrorId}
-            error={refused.dayRate}
-            hintId={hintId}
-            onChange={(e) => setDayRate(e.target.value)}
-            onKeyDown={keys}
-          />
-        </div>
+        <AmountDraftInput
+          aria-label="Day rate"
+          aria-describedby={hintId}
+          placeholder="Day rate"
+          currencySymbol={currencySymbol}
+          className="h-8 w-28 text-right"
+          value={dayRate}
+          error={refused.dayRate}
+          onChange={(text) => {
+            setDayRate(text);
+            setRefused((current) => ({ ...current, dayRate: undefined }));
+          }}
+          onKeyDown={keys}
+        />
       </div>
       <p id={hintId} className="m-0 text-caption text-text-secondary">
         Used for {joinList(years.map(String))}. Working days start as the weekdays of each month.

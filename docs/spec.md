@@ -1975,11 +1975,16 @@ operable by keyboard.
 
 **Amount input.** Every amount field (a cost item, an actual, a day rate)
 shows the currency symbol inside the field and accepts shorthand and simple
-sums: k and m (12k, 2.5m), and + − × / between numbers (3 × 4k). The
-decimal separator follows the user's format (§9.7). While the entry is not
+sums: k and m (12k, 2.5m), and + − × / between numbers (3 × 4k; x and *
+also multiply), with brackets. The decimal separator follows the user's
+format (§9.7); a separator that is neither the decimal nor a valid thousands
+group is read as the decimal. While the entry is not
 a plain number, the line under the field shows the amount it will save
 ("Saves as €12,000"); an entry that isn't a valid amount says so there and
-saves nothing. Amounts are computed with exact decimals.
+saves nothing: the reason shows when the entry is committed ("Can't read
+that as an amount. Try 12k or 3 × 4k.", "Can't divide by 0.", "An amount
+can't be below 0.", "That amount is too large."). Amounts are computed with
+exact decimals and the result is rounded to whole cents.
 
 **Amounts.** Cards, board headers and metrics show compact amounts (for
 example €4.2M and €210k, no space) with the full amount in a tooltip; tables, editors

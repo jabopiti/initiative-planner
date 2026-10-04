@@ -15,6 +15,12 @@ export function formatAmount(value: number, currencySymbol: string): string {
   return `${currencySymbol}${numberFormat(0).format(value)}`;
 }
 
+/** An amount as it will be saved (§9.11): whole, or to the cent when it has cents; the one place an amount shows decimals. */
+export function formatExactAmount(value: number, currencySymbol: string): string {
+  const digits = Number.isInteger(value) ? 0 : 2;
+  return `${currencySymbol}${numberFormat(digits).format(value)}`;
+}
+
 /**
  * A compact amount for cards and board headers (§9.11): under 1,000 in full, thousands as "k" with no decimals,
  * millions as "M" with one decimal (the locale's separator), no space before the letter. Rounds the exact value, and
