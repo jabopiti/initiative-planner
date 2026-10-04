@@ -8,7 +8,7 @@ depends_on: ["056", "057"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Split from 057 while settling the modernization decisions with the user (2 Oct 2026, from rendered mockups): the initiative header gets four key figures, the checklist a labelled segmented control with the status icon at the left, the phase period one Airbnb-style range picker that saves on Done, and four extra motions. §5.4 and §9.11 updated. Later the same day the user chose the bullet bar against the approval bands (research pattern 8) for the Grand estimate tile and the board cards; §5.2 and §5.4 updated. Backlog reshuffle (3 Oct 2026): the period range picker split out as 059b (self-contained; 061b reuses its month cells); 057's motion item (accordion, toasts) joined the motion list here, so all motion is built in one place."
+change_summary: "Split from 057 while settling the modernization decisions with the user (2 Oct 2026, from rendered mockups): the initiative header gets four key figures, the checklist a labelled segmented control with the status icon at the left, the phase period one Airbnb-style range picker that saves on Done, and four extra motions. §5.4 and §9.11 updated. Later the same day the user chose the bullet bar against the approval bands (research pattern 8) for the Grand estimate tile and the board cards; §5.2 and §5.4 updated. Backlog reshuffle (3 Oct 2026): the period range picker split out as 059b (self-contained; 061b reuses its month cells); 057's motion item (accordion, toasts) joined the motion list here, so all motion is built in one place. Pre-implementation review (4 Oct 2026, from rendered mockups): fixed bullet bar scale (0 to twice the highest finite band bound, clipped past the end), the bar and difference in Warning when escalated, the lifetime bar kept on cards with a year selected, the tiles as cards with Copy in the Grand estimate tile and their copy per state, the selected checklist segment tinted. §5.2 and §5.4 updated."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "The header and checklist touch hot files, the bullet bar reads the brand pack's approval bands, and the figure roll and gate-pass motion must stay off under reduced motion."
 spec_sections: ["§5.2 Portfolio overview (landing page)", "§5.4 Initiative detail view", "§7.4 Approval tracks", "§8.1 Passing a gate", "§9.5 Accessibility", "§9.8 Visual design", "§9.11 Lists, filters, inputs and amounts"]
@@ -55,7 +55,7 @@ small, purposeful motion.
 ## Execution path
 
 1. Open Onboarding Flow v2 → four tiles: €59,008 · €0 · Validation 1 Sep –
-   30 Nov 2026 · 1 of 4.
+   30 Nov 2026 · 0 of 4 complete.
 2. Gate panel → Cost estimate reviewed → Tentative → note field opens.
 3. Change an allocation → Grand estimate rolls to the new value.
 
@@ -81,6 +81,14 @@ small, purposeful motion.
       segment has the role colour and an accessible pressed state.
 - [ ] Given reduced motion, then none of the motions runs (including the
       accordion, toast and tint transitions).
+- [ ] Given a bar over the scale's end (twice the highest finite band
+      bound), then it is clipped with an end mark; given an escalated
+      initiative, then its bar and the "since <gate>" line are in Warning.
+- [ ] Given a year selected on the Portfolio, then each card's bar still
+      shows the lifetime grand estimate.
+- [ ] Given each tile state (no costed gate passed, changed since the gate,
+      no actuals, actuals over or under, no period, gate ready, Closed),
+      then the tile reads the copy below.
 - [ ] Given the e2e axe scan in both themes, then the detail page passes.
 
 ## Flags and compromises
@@ -93,3 +101,55 @@ Settled with the user on 2 Oct 2026 from rendered mockups (header
 hierarchy B, checklist B with icon, all four extra motions; the range
 picker decisions moved with it to 059b). Copy uses the spec's "Incomplete",
 not the mockup's "Open".
+
+### Decided in review (pre-implementation), 4 Oct 2026
+
+Settled with the user from rendered mockups.
+
+- **Bullet bar scale: fixed (A).** Every bar runs from 0 to twice the
+  brand pack's highest finite band bound (€400k with the default pack),
+  on the detail tile and the board cards alike, so lengths compare. The
+  open top band fades out to the end. A bar past the end is clipped with a
+  ▸ mark. Bands are neutral shades, lightest first; a gap stays unshaded.
+  The estimate bar is neutral; recorded actuals to date (all recorded
+  actuals, every phase) a thin dark inner bar; the approved-at figure a
+  tick taller than the bar. The bar is `role="img"` with a label naming
+  the figures; the figure stays as text beside it.
+- **Escalated: Warning (A).** When the live track is above the last costed
+  passed gate's recorded track (§7.4), the bar and the "since <gate>" line
+  are in Warning; the attention marker stays the second cue.
+- **Year filter: lifetime bar kept (B).** With a year selected, a card's
+  bar still shows the lifetime grand estimate, like its track badge
+  (§5.2); the text shows the year's cost.
+- **Tiles: cards (A), Copy in the Grand estimate tile.** Four tiles as
+  cards in one row; Copy is an icon button in the Grand estimate tile's
+  top-right corner, named "Copy cost summary". The row keeps the
+  `cost-summary-section` anchor (Escalated deep link). With no costed
+  phase in the process, only the phase and gate tiles show.
+- **Tile copy (as drafted):**
+  - Grand estimate: the figure, the bar, then once a costed gate passed
+    "Approved at G2: €394,800" and "Unchanged since G2" / "+€24,000 since
+    G2" / "−€… since G2".
+  - Deviation: signed figure (overspend in Warning), then "No actuals
+    recorded yet", or "Over estimate · 3 months recorded" / "Under
+    estimate · 12 months recorded" / "On estimate · 1 month recorded".
+  - Current phase: phase icon and name, then its period ("1 Sep – 30 Nov
+    2026") or "No period yet". Closed: "Closed", "after G4".
+  - Gate: label "Gate G3", "1 of 4 complete", then "3 open" or "Ready to
+    pass"; a gate with no requirements reads "Nothing to check". Closed:
+    label "Gates", "All passed", "G1 – G4".
+- **Checklist segment: tinted (A).** The selected segment takes its role
+  tint and text colour in medium weight (Incomplete neutral subtle,
+  Tentative Warning, Complete Met); the status icon at the left takes the
+  role colour. While the Tentative note field is open, Tentative shows
+  selected; Cancel or Esc reverts. Closed or Cancelled: muted icon at the
+  left, "Complete · Add note" / "Tentative · Edit note" at the right.
+- **Assumptions stated in review:** figures roll only on a change while
+  the page is open (others' changes too), never on first load; the
+  recalculation tint reuses the changed-by-others tint, on the key figures
+  and the phase header totals; the route fade (150 ms) runs on the
+  incoming screen when the screen changes, not on jumps within a page or
+  between Settings sections; the gate-pass draw runs only right after Pass
+  gate; the accordion animates opening only; toasts enter in 150 ms; the
+  Copy contents are unchanged; reduced motion is tested with a stubbed
+  `matchMedia` and the `motion-reduce:` classes.
