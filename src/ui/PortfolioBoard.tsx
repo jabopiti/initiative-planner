@@ -5,7 +5,10 @@ import { inactiveLabel, initiativeRows, NONE } from '../data/initiativeList';
 import { costedRows, isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, portfolioRows, liveYear, portfolioYears, type PortfolioFilters, type PortfolioRow } from '../data/portfolio';
 import { FILE_PATHS, INITIATIVE_STATUSES, type InitiativeStatus } from '../data/types';
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
+import { lastCostedPassedGate } from '../data/gate';
+import { recordedActuals } from '../data/keyFigures';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
+import { BulletBar } from './BulletBar';
 import { AttentionMarker, IconMarker } from './AttentionMarker';
 import { CompactAmount } from './CompactAmount';
 import { CopyButton } from './CopyButton';
@@ -31,15 +34,20 @@ function StatusMarker({ status }: { status: InitiativeStatus }) {
   );
 }
 
-/** One initiative's card (§5.2): name, status and attention markers, team · owner, compact cost and approval track; the whole card is the link. */
+/**
+ * One initiative's card (§5.2): name, status and attention markers, team · owner, compact cost with its miniature
+ * bullet bar, and approval track; the whole card is the link, lifting slightly on hover (slice 059). The bar always
+ * shows the lifetime grand estimate, like the badge, even when the figure beside it is one year's cost.
+ */
 function BoardCard({ row }: { row: PortfolioRow }) {
   const attention = useNeedsAttentionItems();
   const changed = useIsChangedByOthers();
+  const { process } = useBrand();
   const { initiative } = row;
   const item = attention.find((i) => i.initiativeId === initiative.id);
   return (
     <a
-      className={`block rounded-card shadow-card px-3 py-2.5 text-inherit no-underline transition-colors duration-500 motion-reduce:transition-none ${changed(FILE_PATHS.initiative(initiative.id), []) ? 'bg-met-tint' : 'bg-surface-card'}`}
+      className={`block rounded-card shadow-card px-3 py-2.5 text-inherit no-underline transition-[background-color,translate,box-shadow] duration-500 hover:-translate-y-px hover:shadow-md hover:duration-[120ms] motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${changed(FILE_PATHS.initiative(initiative.id), []) ? 'bg-met-tint' : 'bg-surface-card'}`}
       href={`#/initiatives/${initiative.id}`}
     >
       <div className="flex items-center justify-between gap-1.5 text-body font-medium">
@@ -52,8 +60,17 @@ function BoardCard({ row }: { row: PortfolioRow }) {
       <div className="mb-1.5 mt-0.5 truncate text-caption text-text-secondary">
         {row.teamName} · {initiative.ownerId ? row.ownerName : 'No owner'}
       </div>
-      <div className="flex items-center justify-between text-caption">
-        <CompactAmount value={row.cost} />
+      <div className="flex items-center gap-2 text-caption">
+        <CompactAmount value={row.cost} className="min-w-11" />
+        <div className="min-w-0 flex-1 pr-1.5">
+          <BulletBar
+            size="card"
+            estimate={row.total}
+            approved={lastCostedPassedGate(process, initiative)?.record.recordedGrandEstimate}
+            actuals={recordedActuals(initiative, process).total}
+            escalated={item?.kind === 'escalated'}
+          />
+        </div>
         <ApprovalTrackBadge initiative={initiative} />
       </div>
     </a>

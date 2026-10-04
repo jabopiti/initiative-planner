@@ -68,28 +68,28 @@ small, purposeful motion.
 
 ## Acceptance criteria
 
-- [ ] Given any initiative, then the header shows the four key figures; the
+- [x] Given any initiative, then the header shows the four key figures; the
       approved-at line appears only after a costed gate has passed.
-- [ ] Given Checkout Redesign (€394,800, Elevated, approved at G2), then
+- [x] Given Checkout Redesign (€394,800, Elevated, approved at G2), then
       the Grand estimate tile's bullet bar shows three shaded bands, the
       bar ending in Elevated and the approved-at tick; a brand pack with a
       gap between two bands leaves the gap unshaded.
-- [ ] Given a board card, then it shows the miniature bullet bar and its
+- [x] Given a board card, then it shows the miniature bullet bar and its
       estimate as text.
-- [ ] Given a checklist item, then its status icon is at the left and the
+- [x] Given a checklist item, then its status icon is at the left and the
       segmented control reads Incomplete, Tentative, Complete; the selected
       segment has the role colour and an accessible pressed state.
-- [ ] Given reduced motion, then none of the motions runs (including the
+- [x] Given reduced motion, then none of the motions runs (including the
       accordion, toast and tint transitions).
-- [ ] Given a bar over the scale's end (twice the highest finite band
+- [x] Given a bar over the scale's end (twice the highest finite band
       bound), then it is clipped with an end mark; given an escalated
       initiative, then its bar and the "since <gate>" line are in Warning.
-- [ ] Given a year selected on the Portfolio, then each card's bar still
+- [x] Given a year selected on the Portfolio, then each card's bar still
       shows the lifetime grand estimate.
-- [ ] Given each tile state (no costed gate passed, changed since the gate,
+- [x] Given each tile state (no costed gate passed, changed since the gate,
       no actuals, actuals over or under, no period, gate ready, Closed),
       then the tile reads the copy below.
-- [ ] Given the e2e axe scan in both themes, then the detail page passes.
+- [x] Given the e2e axe scan in both themes, then the detail page passes.
 
 ## Flags and compromises
 

@@ -50,6 +50,12 @@ export function Screen({ route }: { route: string }) {
   return <PortfolioBoard />;
 }
 
+/** Which screen a route shows, for the route fade: the path without its query, all of Settings as one screen. */
+export function screenKey(route: string): string {
+  const path = route.split('?')[0];
+  return path.startsWith('/settings') ? '/settings' : path;
+}
+
 function MainApp({ token }: { token: string }) {
   const route = useHashRoute();
   return (
@@ -62,7 +68,10 @@ function MainApp({ token }: { token: string }) {
             <ReadOnlyBanner />
             <ConflictBanner />
             <CacheFullBanner />
-            <Screen route={route} />
+            {/* Each new screen fades in (150 ms, slice 059); a jump within a page or a Settings section switch is the same screen and doesn't. */}
+            <div key={screenKey(route)} className="motion-safe:animate-fade-in">
+              <Screen route={route} />
+            </div>
           </main>
         </ConflictUiProvider>
       </NeedsAttentionProvider>

@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { App } from './App';
+import { App, screenKey } from './App';
 import { tokenStore } from './auth/tokenStore';
 import { defaultBrandPack } from './brand/defaultBrand';
 import { buildBaselineDataset } from './data/baseline';
@@ -111,5 +111,14 @@ describe('App — Connect outcomes (§5.10)', () => {
     render(<App />);
     await screen.findByRole('navigation', { name: 'Primary' });
     await waitFor(() => expect(screen.queryByText(/a classic token reaches/)).toBeNull());
+  });
+});
+
+describe('the route fade (slice 059)', () => {
+  it('fades a new screen in, but not a jump within the page or a Settings section switch', () => {
+    expect(screenKey('/initiatives/i1?focus=cost-summary-section')).toBe(screenKey('/initiatives/i1'));
+    expect(screenKey('/initiatives/i1')).not.toBe(screenKey('/initiatives/i2'));
+    expect(screenKey('/settings/roles')).toBe(screenKey('/settings'));
+    expect(screenKey('/portfolio')).not.toBe(screenKey('/teams'));
   });
 });

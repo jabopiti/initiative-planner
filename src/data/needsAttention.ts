@@ -1,7 +1,8 @@
 import type { ApprovalTrackDef, PhaseDef } from '../brand/types';
 import { formatMonth, monthOf, nextMonth } from './dates';
-import { currentPhaseId, gateOverdue, gateProgress, gateProgressText, gateRequirements, lastCostedPassedGate, overrunMessage, READY_MESSAGE, type GateRequirement } from './gate';
-import { grandEstimate, phaseMonths, resolveApprovalTrack, type RateData } from './cost';
+import { currentPhaseId, gateOverdue, gateProgress, gateProgressText, gateRequirements, overrunMessage, READY_MESSAGE, type GateRequirement } from './gate';
+import { phaseMonths, type RateData } from './cost';
+import { escalation } from './keyFigures';
 import type { Initiative } from './types';
 import type { Person } from './types';
 
@@ -23,17 +24,10 @@ export type NeedsAttentionItem =
   | (NeedsAttentionBase & { kind: 'due'; phaseId: string; openItem: GateRequirement })
   | (NeedsAttentionBase & { kind: 'ready' });
 
-/**
- * Escalated (§7.4, §8.5): the live approval track is stricter than the one recorded at the last passed gate that
- * carried cost. `null` with no such baseline yet, when no band covers the live total, or when the baseline itself
- * carries no recorded track (a gap in the bands at the time it passed) — none of these give a severity to compare.
- */
+/** Escalated (§7.4, §8.5), as the strip names it: the track it now needs and the one it was approved in. */
 function escalatedReason(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData, approvalTracks: ApprovalTrackDef[]): string | null {
-  const baseline = lastCostedPassedGate(process, initiative)?.record.recordedApprovalTrack;
-  if (!baseline) return null;
-  const live = resolveApprovalTrack(approvalTracks, grandEstimate(initiative, process, people, data));
-  if (!live || live.severity <= baseline.severity) return null;
-  return `Needs ${live.name} approval (was ${baseline.name})`;
+  const escalated = escalation(initiative, process, people, data, approvalTracks);
+  return escalated && `Needs ${escalated.live.name} approval (was ${escalated.baseline.name})`;
 }
 
 /** Overrun (§8.1, §8.5): the current phase is past its own estimated end date, whether or not its gate is otherwise ready. */

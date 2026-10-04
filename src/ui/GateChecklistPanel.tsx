@@ -17,6 +17,14 @@ import { cardClass } from './cardClass';
 
 const STATUS_LABEL: Record<ChecklistStatus, string> = { incomplete: 'Incomplete', tentative: 'Tentative', complete: 'Complete' };
 const STATUS_ICON: Record<ChecklistStatus, typeof IncompleteIcon> = { incomplete: IncompleteIcon, tentative: TentativeIcon, complete: CompleteIcon };
+/** Each status's colour role (§9.8): the icon at the row's left, and the selected segment's tint. */
+const STATUS_ICON_CLASS: Record<ChecklistStatus, string> = { incomplete: 'text-text-secondary', tentative: 'text-warning-text', complete: 'text-met-text' };
+const STATUS_SEGMENT_CLASS: Record<ChecklistStatus, string> = {
+  incomplete: 'data-[state=on]:bg-surface-subtle data-[state=on]:text-text-primary',
+  tentative: 'data-[state=on]:bg-warning-tint data-[state=on]:text-warning-text',
+  complete: 'data-[state=on]:bg-met-tint data-[state=on]:text-met-text',
+};
+const STATUSES: ChecklistStatus[] = ['incomplete', 'tentative', 'complete'];
 
 /** The panel's row anchor, for the magic bar's "jump to the first open item" (§5.4). */
 export const checklistItemAnchor = (writePhaseId: string, itemId: string) => `checklist-${writePhaseId}-${itemId}`;
@@ -125,7 +133,7 @@ function ChecklistItemRow({
   const [refused, setRefused] = useState<string | null>(null);
   const noteErrorId = useId();
   const noteInputId = useId();
-  const FrozenStatusIcon = STATUS_ICON[item.status];
+  const StatusIcon = STATUS_ICON[item.status];
 
   const setStatus = (status: ChecklistStatus, note: string) => repository.setChecklistItem(initiativeId, writePhaseId, item.id, status, note);
 
@@ -154,9 +162,11 @@ function ChecklistItemRow({
 
   return (
     <li id={checklistItemAnchor(writePhaseId, item.id)} className="flex flex-col gap-1 border-t border-border-default py-2 first:border-t-0">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-1">
-          <span className="text-body">{item.name}</span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          {/* The status icon at the left, in its colour role (§5.4, §9.8); the segmented control or the label names it. */}
+          <StatusIcon width={16} height={16} aria-hidden="true" className={`shrink-0 ${frozen ? 'text-text-muted' : STATUS_ICON_CLASS[item.status]}`} />
+          <span className={`text-body ${frozen ? 'text-text-secondary' : ''}`}>{item.name}</span>
           {originGateLabel && <span className="text-caption text-warning-text">carried from {originGateLabel}</span>}
           {item.description && (
             <Tooltip>
@@ -169,10 +179,9 @@ function ChecklistItemRow({
             </Tooltip>
           )}
         </div>
-        <div className={`flex items-center gap-2 transition-colors duration-500 motion-reduce:transition-none ${changed(file, ['checklist', writePhaseId, item.id]) ? 'rounded-md bg-met-tint' : ''}`}>
+        <div className={`flex shrink-0 items-center gap-2 transition-colors duration-500 motion-reduce:transition-none ${changed(file, ['checklist', writePhaseId, item.id]) ? 'rounded-md bg-met-tint' : ''}`}>
           {frozen ? (
             <>
-              <FrozenStatusIcon width={16} height={16} className="text-text-muted" />
               <span className="text-caption text-text-muted">{STATUS_LABEL[item.status]}</span>
               <span className="text-caption text-text-muted" aria-hidden="true">
                 ·
@@ -182,35 +191,30 @@ function ChecklistItemRow({
               </Button>
             </>
           ) : (
-            <>
-              <ToggleGroup
-                type="single"
-                variant="outline"
-                size="sm"
-                value={item.status}
-                aria-label={`Status of "${item.name}"`}
-                onValueChange={(next) => {
-                  if (!next) return;
-                  if (next === 'tentative') startNote();
-                  else {
-                    cancelNote();
-                    setStatus(next as ChecklistStatus, item.note);
-                  }
-                }}
-              >
-                {(Object.entries(STATUS_ICON) as [ChecklistStatus, typeof IncompleteIcon][]).map(([value, Icon]) => (
-                  <Tooltip key={value}>
-                    <TooltipTrigger asChild>
-                      <ToggleGroupItem value={value} aria-label={STATUS_LABEL[value]}>
-                        <Icon width={16} height={16} />
-                      </ToggleGroupItem>
-                    </TooltipTrigger>
-                    <TooltipContent>{STATUS_LABEL[value]}</TooltipContent>
-                  </Tooltip>
-                ))}
-              </ToggleGroup>
-              <span className="text-caption text-text-secondary">{STATUS_LABEL[item.status]}</span>
-            </>
+            // A labelled segmented control (§5.4): the selected segment tinted in its role; Tentative shows selected while its note is open.
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              // Radix gives the single-choice segments radio semantics but leaves the root a bare div; name it as their group.
+              role="radiogroup"
+              value={noteEditor === 'tentative' ? 'tentative' : item.status}
+              aria-label={`Status of "${item.name}"`}
+              onValueChange={(next) => {
+                if (!next) return;
+                if (next === 'tentative') startNote();
+                else {
+                  cancelNote();
+                  setStatus(next as ChecklistStatus, item.note);
+                }
+              }}
+            >
+              {STATUSES.map((value) => (
+                <ToggleGroupItem key={value} value={value} className={`px-2.5 text-caption font-normal text-text-secondary data-[state=on]:font-medium ${STATUS_SEGMENT_CLASS[value]}`}>
+                  {STATUS_LABEL[value]}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           )}
         </div>
       </div>

@@ -145,6 +145,15 @@ describe('Portfolio board cards (§5.2)', () => {
     expect(within(c).getByText((_, el) => el?.textContent === 'E Elevated')).toBeTruthy();
   });
 
+  it('shows the miniature bullet bar beside the estimate, past the scale’s end clipped (§5.2, slice 059)', async () => {
+    await renderBoard([big, small]);
+    const bar = within(card(/Big One/)).getByTestId('bullet-bar');
+    expect(bar).toHaveAttribute('aria-hidden', 'true'); // the figure beside it is the text
+    expect(within(bar).getAllByTestId('bullet-band')).toHaveLength(3);
+    expect(within(bar).getByTestId('bullet-clipped')).toBeInTheDocument(); // €412k past €400k
+    expect(within(card(/Small One/)).getByTestId('bullet-estimate').style.width).toBe('29.5%'); // €118k of €400k
+  });
+
   it('names a missing owner and marks a deactivated one', async () => {
     await renderBoard([long, small]);
     expect(within(card(new RegExp(longName))).getByText('Platform · No owner')).toBeTruthy();
@@ -282,6 +291,11 @@ describe('Portfolio filters (§5.2, §9.11)', () => {
     expect(chipButton('Year: 2027')).toBeInTheDocument();
     expect(cardNames()).toHaveLength(1);
     expect(within(card(/Later One/)).getByText('€30k')).toBeInTheDocument();
+    // The bar stays on the lifetime grand estimate, like the badge (slice 059).
+    const lifetime = within(card(/Later One/)).getByTestId('bullet-estimate').style.width;
+    await pickYear(user, 'All years');
+    expect(within(card(/Later One/)).getByTestId('bullet-estimate').style.width).toBe(lifetime);
+    await pickYear(user, '2027');
     expect(screen.getByText('1 · €30k')).toBeInTheDocument();
     await pickYear(user, '2026');
     expect(within(card(/Big One/)).getByText('€412k')).toBeInTheDocument();

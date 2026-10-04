@@ -35,6 +35,8 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   const jump = useJump();
   // "Passed G2" or "Skipped G2", shown with Reopen for a few seconds after the gate is passed or skipped.
   const [doneMessage, setDoneMessage] = useState<string | null>(null);
+  // The phase whose gate this bar just passed, for the stepper's fill and drawn tick (slice 059).
+  const [passedPhaseId, setPassedPhaseId] = useState<string | null>(null);
   const [holdAsked, setHoldAsked] = useState<'pass' | 'skip' | null>(null);
   // The skip reason being typed, tied to the gate it was opened on (§8.2).
   const [skipping, setSkipping] = useState<{ phaseId: string; reason: string } | null>(null);
@@ -74,7 +76,9 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   const gateLabel = phase.exitGate.label;
   const pass = () => {
     const result = repository.passGate(initiative.id);
-    if (result.ok) setDoneMessage(`Passed ${gateLabel}`);
+    if (!result.ok) return;
+    setDoneMessage(`Passed ${gateLabel}`);
+    setPassedPhaseId(phaseId);
   };
   const skipReason = skipping?.reason.trim() ?? '';
   const skip = () => {
@@ -130,7 +134,7 @@ export function MagicBar({ initiative }: { initiative: Initiative }) {
   return (
     <div id="magic-bar" role="region" aria-label="Magic bar" className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-border-default bg-surface-card px-4 py-3 shadow-[0_-1px_4px_rgba(0,0,0,0.06)]">
       <div className="flex items-center gap-3">
-        <PhaseStepper process={process} initiative={initiative} currentId={phaseId} />
+        <PhaseStepper process={process} initiative={initiative} currentId={phaseId} justPassedId={doneMessage?.startsWith('Passed') ? passedPhaseId : null} />
         {offerStart && (
           <button
             ref={startButton}

@@ -11,10 +11,12 @@ interface Props {
   noun: [string, string];
   /** Accessible name, when a page has more than one Copy button. */
   label?: string;
+  /** Ghost inside a tile, where an outline would compete with the figure (§5.4 key figures). */
+  variant?: 'outline' | 'ghost';
 }
 
 /** Icon-only Copy button (§9.2) with a "Copy" tooltip and text beside it on success or failure (§9.9). */
-export function CopyButton({ getData, noun, label = 'Copy' }: Props) {
+export function CopyButton({ getData, noun, label = 'Copy', variant = 'outline' }: Props) {
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   // Success is confirmed for a few seconds; a failure stays until the next copy.
   useEffect(() => {
@@ -42,7 +44,7 @@ export function CopyButton({ getData, noun, label = 'Copy' }: Props) {
       )}
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" variant="outline" size="icon" aria-label={label} onClick={() => void handleCopy()}>
+          <Button type="button" variant={variant} size={variant === 'ghost' ? 'icon-sm' : 'icon'} aria-label={label} onClick={() => void handleCopy()}>
             <Copy size={18} aria-hidden="true" />
           </Button>
         </TooltipTrigger>
