@@ -116,7 +116,7 @@ describe('Countries & rates list (§5.9)', () => {
     await user.click(screen.getByRole('button', { name: 'Show Germany’s rates' }));
     const table = screen.getByRole('table', { name: 'Germany rates by year' });
     expect(within(table).getAllByRole('rowheader').map((th) => th.textContent)).toEqual(['2026', '2027', '2028']);
-    expect(within(table).getByRole('spinbutton', { name: 'Day rate 2027, Germany' })).toHaveValue(1000);
+    expect(within(table).getByRole('textbox', { name: 'Day rate 2027, Germany' })).toHaveValue('1000');
     expect(within(table).getByRole('spinbutton', { name: 'Working days in Mar 2027, Germany' })).toHaveValue(23);
     expect(within(table).getAllByRole('spinbutton', { name: /^Working days in .* 2027/ })).toHaveLength(12);
   });
@@ -145,7 +145,7 @@ describe('Countries & rates list (§5.9)', () => {
     expect(screen.queryByText('€950')).not.toBeInTheDocument();
     await user.click(earlier);
     expect(screen.getByText('€950')).toBeInTheDocument();
-    expect(screen.queryByRole('spinbutton', { name: /2025/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /2025/ })).not.toBeInTheDocument();
   });
 
   it('is read-only while locked, and editable once unlocked', async () => {
@@ -153,13 +153,14 @@ describe('Countries & rates list (§5.9)', () => {
     expect(screen.getByText('Locked. Unlock to edit.')).toBeInTheDocument();
     await user.click(screen.getByText('Germany'));
     expect(screen.getByRole('table', { name: 'Germany rates by year' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Reset to weekdays/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add country' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Actions for Germany' })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Locked' }));
-    expect(screen.getByRole('spinbutton', { name: 'Day rate 2026, Germany' })).toBeEnabled();
+    expect(screen.getByRole('textbox', { name: 'Day rate 2026, Germany' })).toBeEnabled();
     expect(screen.getByRole('textbox', { name: 'Name of Germany' })).toBeEnabled();
   });
 
@@ -176,10 +177,10 @@ describe('Countries & rates list (§5.9)', () => {
   it('refuses a negative day rate inline', async () => {
     const user = await renderSection({ unlock: true });
     await user.click(screen.getByRole('button', { name: 'Show Germany’s rates' }));
-    const rate = screen.getByRole('spinbutton', { name: 'Day rate 2027, Germany' });
+    const rate = screen.getByRole('textbox', { name: 'Day rate 2027, Germany' });
     await user.clear(rate);
     await user.type(rate, '-5{Enter}');
-    expect(screen.getByRole('alert')).toHaveTextContent('Enter a day rate of 0 or more.');
+    expect(screen.getByRole('alert')).toHaveTextContent("An amount can't be below 0.");
   });
 
   it('adds a country with its day rate for every tracked year and weekday working days', async () => {
@@ -187,7 +188,7 @@ describe('Countries & rates list (§5.9)', () => {
     await user.click(screen.getByRole('button', { name: 'Add country' }));
     expect(screen.getByText('Used for 2026, 2027 and 2028. Working days start as the weekdays of each month.')).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Portugal');
-    await user.type(screen.getByRole('spinbutton', { name: 'Day rate' }), '600');
+    await user.type(screen.getByRole('textbox', { name: 'Day rate' }), '600');
     await user.click(screen.getByRole('button', { name: 'Add' }));
 
     const [put] = await saved('countries.json');
@@ -268,7 +269,7 @@ describe('Rates are correct (§5.9, §5.2)', () => {
     ];
     const user = await renderSection({ unlock: true });
     await user.click(screen.getByRole('button', { name: 'Show Germany’s rates' }));
-    const rate = screen.getByRole('spinbutton', { name: 'Day rate 2027, Germany' });
+    const rate = screen.getByRole('textbox', { name: 'Day rate 2027, Germany' });
     await user.clear(rate);
     await user.type(rate, '740{Enter}');
 

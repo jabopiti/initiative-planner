@@ -1,3 +1,4 @@
+import { amountRefusal, parseAmountExpression } from '../data/amountExpression';
 import { parseAmount, trackedYears, yearRecord } from '../data/cost';
 import type { CustomRole, Person } from '../data/types';
 import { FILE_PATHS } from '../data/types';
@@ -5,6 +6,7 @@ import { useBrand } from '../state/BrandContext';
 import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { Label } from '@/components/ui/label';
+import { savesAsNote, symbolPadding } from './AmountInput';
 import { CommitInput } from './CommitInput';
 import { ConflictBlock } from './ConflictBlock';
 import { InlineWarning } from './InlineWarning';
@@ -34,13 +36,16 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
   const rows = [...past, ...tracked];
 
   const setRate = (year: number, text: string) => {
+    const entered = customRole.dayRatesByYear.find((r) => r.year === year);
     const others = customRole.dayRatesByYear.filter((r) => r.year !== year);
     if (text.trim() === '') {
       save({ dayRatesByYear: others });
       return;
     }
-    const dayRate = parseAmount(text);
-    if (dayRate === null) return DAY_RATE_REFUSAL;
+    const parsed = parseAmountExpression(text);
+    if (!parsed.ok) return amountRefusal(parsed.reason, DAY_RATE_REFUSAL);
+    const dayRate = parsed.value;
+    if (dayRate === entered?.dayRate) return false;
     save({ dayRatesByYear: [...others, { year, dayRate }].sort((a, b) => a.year - b.year) });
   };
 
@@ -96,12 +101,14 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
           return (
             <div key={year} className="flex items-center gap-2">
               <span className="w-10 text-body tabular-nums">{year}</span>
-              <span className="text-caption text-text-secondary">{currencySymbol}</span>
               <CommitInput
-                type="number"
-                step="any"
-                min={0}
-                className="w-28"
+                type="text"
+                inputMode="decimal"
+                autoComplete="off"
+                prefix={currencySymbol}
+                note={(draft) => savesAsNote(draft, currencySymbol)}
+                className={`w-28 ${symbolPadding(currencySymbol)}`}
+                errorClassName="w-full"
                 aria-label={`Day rate ${year}`}
                 changed={changed(FILE_PATHS.people, customPath('dayRatesByYear'))}
                 failure={failure(FILE_PATHS.people, customPath('dayRatesByYear'))}

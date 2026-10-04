@@ -595,13 +595,30 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     expect(screen.getByRole('button', { name: 'Add cost item to Validation' })).toBeInTheDocument();
   });
 
+  it('takes a sum as the amount, shows what it saves as and saves the result', async () => {
+    const user = userEvent.setup();
+    planned();
+    renderPage();
+    const draft = await openDraft(user);
+    await user.type(within(draft).getByRole('combobox', { name: 'Label' }), 'Licences');
+    await user.type(within(draft).getByRole('textbox', { name: 'Amount' }), '3 × 4k');
+    expect(within(draft).getByText('Saves as €12,000')).toBeInTheDocument();
+    await user.click(within(draft).getByRole('button', { name: 'Add' }));
+
+    const row = screen.getByRole('row', { name: /Licences/ });
+    expect(within(row).getByLabelText('Amount for Licences')).toHaveValue('12000');
+    await vi.waitFor(() => expect(added()).toBeDefined(), { timeout: 3000 });
+    expect(added()!.message).toBe('Payments API: Licences added to Validation at €12,000');
+    expect(added()!.content.phases![id].costItems).toEqual([{ id: expect.any(String), label: 'Licences', amount: 12000, timing: 'spread' }]);
+  });
+
   it('adds a one-month item in one commit, and the phase total includes it', async () => {
     const user = userEvent.setup();
     planned();
     renderPage();
     const draft = await openDraft(user);
     await user.type(within(draft).getByRole('combobox', { name: 'Label' }), 'Penetration test');
-    await user.type(within(draft).getByRole('spinbutton', { name: 'Amount' }), '12000');
+    await user.type(within(draft).getByRole('textbox', { name: 'Amount' }), '12000');
     await user.click(within(draft).getByRole('radio', { name: 'One month' }));
     const month = within(draft).getByRole('textbox', { name: 'Month' });
     expect(month).toHaveValue('Oct 2026'); // the phase's first month
@@ -611,7 +628,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     await user.click(within(draft).getByRole('button', { name: 'Add' }));
 
     const row = screen.getByRole('row', { name: /Penetration test/ });
-    expect(within(row).getByLabelText('Amount for Penetration test')).toHaveValue(12000);
+    expect(within(row).getByLabelText('Amount for Penetration test')).toHaveValue('12000');
     expect(within(row).getByRole('radio', { name: 'One month' })).toBeChecked();
     expect(within(row).getByLabelText('Month for Penetration test')).toHaveValue('Nov 2026');
     expect(screen.queryByRole('group', { name: 'New cost item for Validation' })).not.toBeInTheDocument();
@@ -630,7 +647,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     expect(within(draft).getByRole('radio', { name: 'Spread over the phase' })).toBeChecked();
     expect(within(draft).queryByRole('textbox', { name: 'Month' })).not.toBeInTheDocument();
     await user.type(within(draft).getByRole('combobox', { name: 'Label' }), 'Load-testing licence');
-    await user.type(within(draft).getByRole('spinbutton', { name: 'Amount' }), '6000{Enter}');
+    await user.type(within(draft).getByRole('textbox', { name: 'Amount' }), '6000{Enter}');
     expect(screen.getByRole('row', { name: /Load-testing licence/ })).toBeInTheDocument();
     expect(validationRow()).toHaveTextContent('€14,000');
     await vi.waitFor(() => expect(added()).toBeDefined(), { timeout: 3000 });
@@ -639,7 +656,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
 
   it.each([
     ['no label and no amount', '', '', ['Enter a label.', 'Enter an amount of 0 or more.']],
-    ['a label and a negative amount', 'Penetration test', '-5', ['Enter an amount of 0 or more.']],
+    ['a label and a negative amount', 'Penetration test', '-5', ["An amount can't be below 0."]],
     ['a label and an empty amount', 'Penetration test', '', ['Enter an amount of 0 or more.']],
     ['an amount and a blank label', '   ', '100', ['Enter a label.']],
   ])('refuses %s inline and saves nothing', async (_name, label, amount, messages) => {
@@ -648,7 +665,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     renderPage();
     const draft = await openDraft(user);
     if (label) await user.type(within(draft).getByRole('combobox', { name: 'Label' }), label);
-    if (amount) await user.type(within(draft).getByRole('spinbutton', { name: 'Amount' }), amount);
+    if (amount) await user.type(within(draft).getByRole('textbox', { name: 'Amount' }), amount);
     await user.click(within(draft).getByRole('button', { name: 'Add' }));
     expect(within(draft).getAllByRole('alert').map((a) => a.textContent)).toEqual(messages);
     expect(screen.queryByRole('table', { name: 'Validation cost items' })).not.toBeInTheDocument();
@@ -704,7 +721,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
       await user.type(draftLabel(draft), 'pen');
       await user.click(await screen.findByRole('option', { name: /Penetration test/ }));
       expect(draftLabel(draft)).toHaveValue('Penetration test');
-      expect(within(draft).getByRole('spinbutton', { name: 'Amount' })).toHaveValue(12000);
+      expect(within(draft).getByRole('textbox', { name: 'Amount' })).toHaveValue('12000');
       expect(within(draft).getByRole('radio', { name: 'One month' })).toBeChecked();
       expect(within(draft).getByRole('textbox', { name: 'Month' })).toHaveValue('');
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
@@ -737,7 +754,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
       expect(screen.getByRole('option', { name: /Pension fee/ })).toHaveAttribute('aria-selected', 'true');
       await user.keyboard('{Enter}');
       expect(draftLabel(draft)).toHaveValue('Pension fee');
-      expect(within(draft).getByRole('spinbutton', { name: 'Amount' })).toHaveValue(2);
+      expect(within(draft).getByRole('textbox', { name: 'Amount' })).toHaveValue('2');
     });
 
     it('shows no list for text no earlier label contains', async () => {
@@ -760,7 +777,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     const amount = within(row).getByLabelText('Amount for Load-testing licence');
     await user.clear(amount);
     await user.type(amount, '-1{Enter}');
-    expect(within(row).getByRole('alert')).toHaveTextContent('Enter an amount of 0 or more.');
+    expect(within(row).getByRole('alert')).toHaveTextContent("An amount can't be below 0.");
     await user.clear(amount);
     await user.type(amount, '9000{Enter}');
     expect(within(row).queryByRole('alert')).not.toBeInTheDocument();

@@ -19,6 +19,15 @@ function MessageBox({ id, tone, className = '', children }: { id?: string; tone:
   );
 }
 
+/** The quiet line under a field that says what an entry will save as (§9.11); announced politely as the entry changes. */
+export function AmountNote({ id, className = '', children }: { id?: string; className?: string; children: ReactNode }) {
+  return (
+    <p id={id} aria-live="polite" className={`m-0 text-caption text-text-secondary ${className}`}>
+      {children}
+    </p>
+  );
+}
+
 /** The message under a field that refused its text (§9.9), announced when it appears. */
 export function Refusal({ id, className = '', children }: { id?: string; className?: string; children: ReactNode }) {
   return (
@@ -100,6 +109,8 @@ export function CommitInput({
   retryLabel,
   className,
   suffix,
+  prefix,
+  note,
   ...props
 }: Omit<ComponentProps<typeof Input>, 'value' | 'defaultValue' | 'onChange' | 'onBlur'> & {
   value: string;
@@ -120,11 +131,17 @@ export function CommitInput({
   conflictLabel?: string;
   /** A unit shown inside the field's right edge (the % of a percent field); `className` should leave room for it. */
   suffix?: string;
+  /** A unit shown inside the field's left edge (the currency of an amount); `className` should leave room for it. */
+  prefix?: string;
+  /** A line under the field about the draft being typed ("Saves as €12,000", §9.11), until a refusal or failed save takes its place. */
+  note?: (draft: string) => string | null;
 }) {
   const { draft, setDraft, error, errorId, failureId, commit, cancel } = useCommitField(value, onCommit);
 
   // Not while actively drafting something else: a fresh, uncommitted edit takes over the field's message slot.
   const showFailure = !error && draft === value ? failure : null;
+  const noteText = !error && !showFailure ? (note?.(draft) ?? null) : null;
+  const noteId = `${errorId}-note`;
 
   const input = (
       <Input
@@ -132,7 +149,7 @@ export function CommitInput({
         className={`transition-colors duration-500 motion-reduce:transition-none ${className ?? ''} ${changed ? 'bg-met-tint' : ''}`}
         value={draft}
         aria-invalid={error ? true : props['aria-invalid']}
-        aria-describedby={error ? errorId : showFailure !== null ? failureId : (conflict?.id ?? props['aria-describedby'])}
+        aria-describedby={error ? errorId : showFailure !== null ? failureId : noteText ? noteId : (conflict?.id ?? props['aria-describedby'])}
         onChange={(e) => {
           setDraft(e.target.value);
           onDraftChange?.(e.target.value);
@@ -151,16 +168,24 @@ export function CommitInput({
 
   return (
     <>
-      {suffix ? (
+      {suffix || prefix ? (
         <span className="relative inline-flex items-center">
+          {prefix && (
+            <span aria-hidden="true" className="pointer-events-none absolute left-3 text-caption text-text-secondary">
+              {prefix}
+            </span>
+          )}
           {input}
-          <span aria-hidden="true" className="pointer-events-none absolute right-3 text-caption text-text-secondary">
-            {suffix}
-          </span>
+          {suffix && (
+            <span aria-hidden="true" className="pointer-events-none absolute right-3 text-caption text-text-secondary">
+              {suffix}
+            </span>
+          )}
         </span>
       ) : (
         input
       )}
+      {noteText && <AmountNote id={noteId} className={errorClassName}>{noteText}</AmountNote>}
       <CommitFieldMessages
         error={error}
         errorId={errorId}
