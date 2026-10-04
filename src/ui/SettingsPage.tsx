@@ -6,7 +6,6 @@ import { DangerZoneSection } from './DangerZoneSection';
 import { ProcessSection } from './ProcessSection';
 import { RolesSection } from './RolesSection';
 import { Page } from './Page';
-import { PageHeader } from './PageHeader';
 import { useSectionLock } from './useSectionLock';
 
 /**
@@ -45,8 +44,7 @@ export function SettingsPage({ section }: { section: string }) {
   const content = sections[active.id];
 
   return (
-    <Page>
-      <PageHeader title="Settings" />
+    <Page title="Settings">
       <div className="flex gap-6">
         <nav aria-label="Settings sections" className="w-44 shrink-0 border-r border-border-default pr-4">
           <ul className="m-0 flex list-none flex-col gap-0.5 p-0">

@@ -10,8 +10,8 @@ import { AttentionMarker, IconMarker } from './AttentionMarker';
 import { CompactAmount } from './CompactAmount';
 import { CopyButton } from './CopyButton';
 import { PhaseIcon } from './icons';
-import { Page, Toolbar } from './Page';
-import { PageHeader } from './PageHeader';
+import { ClearFilters, Page, Toolbar } from './Page';
+import { plural } from '../data/plural';
 import type { CopyTableData } from './copyTable';
 import { byLabel, FilterChip, type FilterOption } from './FilterChip';
 import { formatAmount, formatSignedAmount } from './formatAmount';
@@ -107,8 +107,7 @@ export function PortfolioBoard() {
 
   if (initiatives.length === 0) {
     return (
-      <Page>
-        <PageHeader title="Portfolio" />
+      <Page title="Portfolio">
         <div className="empty:hidden [&>section]:mb-0">
           <GettingStartedStrip />
         </div>
@@ -139,8 +138,7 @@ export function PortfolioBoard() {
   }
 
   return (
-    <Page>
-      <PageHeader title="Portfolio" />
+    <Page title="Portfolio">
       <GettingStartedStrip />
       <NeedsAttentionStrip />
       <Toolbar
@@ -157,12 +155,10 @@ export function PortfolioBoard() {
         }
       >
         <p className="m-0">
-          {shown.length} of {initiatives.length} {initiatives.length === 1 ? 'initiative' : 'initiatives'}
+          {shown.length} of {plural(initiatives.length, 'initiative', 'initiatives')}
         </p>
         {clearable && (
-          <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-brand-accent-text underline" onClick={clear}>
-            Clear filters
-          </button>
+          <ClearFilters onClick={clear} />
         )}
         {shown.length > 0 && <CopyButton getData={copyData} noun={['initiative', 'initiatives']} />}
       </Toolbar>
@@ -174,9 +170,7 @@ export function PortfolioBoard() {
       {shown.length === 0 && (
         <p className="m-0 mb-3 rounded-lg border border-dashed border-border-strong bg-surface-card p-3.5 text-center text-body text-text-secondary">
           No initiatives match these filters.
-          <button type="button" className="ml-2 cursor-pointer border-0 bg-transparent p-0 text-body text-brand-accent-text underline" onClick={clear}>
-            Clear filters
-          </button>
+          <span className="ml-2"><ClearFilters onClick={clear} /></span>
         </p>
       )}
       <div className="flex items-start gap-4 overflow-x-auto">

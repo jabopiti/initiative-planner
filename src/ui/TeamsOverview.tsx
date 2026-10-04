@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { FILE_PATHS } from '../data/types';
 import { Page, Toolbar } from './Page';
-import { PageHeader } from './PageHeader';
+import { plural } from '../data/plural';
 import { TeamSwatch } from './TeamSwatch';
 
 /** Teams overview (§5.7): name, size, per-phase initiative counts, and New team. */
@@ -100,57 +100,53 @@ export function TeamsOverview() {
 
   if (teams.length === 0 && !creating) {
     return (
-      <Page>
-        <PageHeader title="Teams" />
+      <Page title="Teams">
         <EmptyState line="No teams yet" actionLabel="Create a team" onAction={startCreating} />
       </Page>
     );
   }
 
   return (
-    <Page>
-      <PageHeader
-        title="Teams"
-        actions={
-          <>
-            {creating ? (
-              <form
-                className="flex gap-1.5"
-                onSubmit={handleSubmit}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') setCreating(false);
+    <Page
+      title="Teams"
+      actions={
+        <>
+          {creating ? (
+            <form
+              className="flex gap-1.5"
+              onSubmit={handleSubmit}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setCreating(false);
+              }}
+            >
+              <Input
+                ref={inputRef}
+                aria-label="Team name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setRefusal(null);
                 }}
-              >
-                <Input
-                  ref={inputRef}
-                  aria-label="Team name"
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setRefusal(null);
-                  }}
-                  aria-invalid={refusal ? true : undefined}
-                  placeholder="Team name"
-                />
-                <Button type="submit" disabled={!name.trim()}>
-                  Create
-                </Button>
-              </form>
-            ) : (
-              <Button type="button" onClick={startCreating}>
-                <PlusIcon />
-                New team
+                aria-invalid={refusal ? true : undefined}
+                placeholder="Team name"
+              />
+              <Button type="submit" disabled={!name.trim()}>
+                Create
               </Button>
-            )}
-          </>
-        }
-      />
+            </form>
+          ) : (
+            <Button type="button" onClick={startCreating}>
+              <PlusIcon />
+              New team
+            </Button>
+          )}
+        </>
+      }
+    >
       {creating && refusal && <Refusal className="mb-3 w-fit">{refusal}</Refusal>}
       {teams.length > 0 && (
         <Toolbar>
-          <p className="m-0">
-            {teams.length} {teams.length === 1 ? 'team' : 'teams'}
-          </p>
+          <p className="m-0">{plural(teams.length, 'team', 'teams')}</p>
           <CopyButton getData={copyData} noun={['team', 'teams']} />
         </Toolbar>
       )}

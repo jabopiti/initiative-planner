@@ -19,8 +19,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FILE_PATHS } from '../data/types';
-import { PageHeader } from './PageHeader';
 import { Page, Toolbar } from './Page';
+import { plural } from '../data/plural';
 
 type StatusFilter = 'active' | 'inactive' | 'all';
 
@@ -109,8 +109,7 @@ export function PeopleOverview() {
   }
 
   return (
-    <Page>
-      <PageHeader title="People" />
+    <Page title="People">
       <Toolbar
         filters={
           <Select value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
@@ -125,9 +124,7 @@ export function PeopleOverview() {
           </Select>
         }
       >
-        <p className="m-0">
-          {visible.length} {visible.length === 1 ? 'person' : 'people'}
-        </p>
+        <p className="m-0">{plural(visible.length, 'person', 'people')}</p>
         {visible.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} />}
       </Toolbar>
 

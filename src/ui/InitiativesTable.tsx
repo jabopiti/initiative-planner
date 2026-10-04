@@ -19,8 +19,8 @@ import { SortableHeader } from './SortableHeader';
 import { TruncatedText } from './TruncatedText';
 import { useTableSort } from './tableSort';
 import { useSessionFilters } from './sessionFilters';
-import { PageHeader } from './PageHeader';
-import { Page, Toolbar } from './Page';
+import { ClearFilters, Page, Toolbar } from './Page';
+import { plural } from '../data/plural';
 import { StatusLabel, statusText } from './StatusLabel';
 
 const CHIPS: [keyof InitiativeFilters, string][] = [
@@ -78,14 +78,13 @@ export function InitiativesTable() {
 
   if (initiatives.length === 0)
     return (
-      <Page>
-        <PageHeader title="Initiatives" />
+      <Page title="Initiatives">
         <NoInitiatives />
       </Page>
     );
 
   const filtering = activeFilterCount(filters) > 0;
-  const noun = (n: number) => `${n} ${n === 1 ? 'initiative' : 'initiatives'}`;
+  const noun = (n: number) => plural(n, 'initiative', 'initiatives');
 
   function copyData() {
     return {
@@ -105,8 +104,7 @@ export function InitiativesTable() {
   }
 
   return (
-    <Page>
-      <PageHeader title="Initiatives" />
+    <Page title="Initiatives">
       <Toolbar
         filters={CHIPS.map(([key, label]) => (
           <FilterChip key={key} selectedFirst={key === 'team' || key === 'owner'} label={label} options={options[key]} selected={filters[key]} onChange={(next) => setFilters({ ...filters, [key]: next })} />
@@ -114,9 +112,7 @@ export function InitiativesTable() {
       >
         <p className="m-0">{filtering ? `${visible.length} of ${noun(rows.length)}` : noun(rows.length)}</p>
         {filtering && (
-          <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-brand-accent-text underline" onClick={() => setFilters(NO_FILTERS)}>
-            Clear filters
-          </button>
+          <ClearFilters onClick={() => setFilters(NO_FILTERS)} />
         )}
         {visible.length > 0 && <CopyButton getData={copyData} noun={['initiative', 'initiatives']} />}
       </Toolbar>

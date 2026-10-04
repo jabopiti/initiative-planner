@@ -5,6 +5,7 @@ import { NewInitiativeControl } from './NewInitiativeControl';
 import { SyncIndicator } from './SyncIndicator';
 import { ThemeControl } from './ThemeControl';
 import { LogoMark } from './icons';
+import { pageContainerClass } from './Page';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const NAV_ITEMS: { label: string; path: string }[] = [
@@ -23,7 +24,7 @@ export function TopBar({ route }: { route: string }) {
   return (
     <header className="sticky top-0 z-10 border-b border-border-default bg-surface-card">
       {/* The bar spans the window; its content lines up with the page container below (§9.8). */}
-      <div className="mx-auto flex w-full max-w-page items-center gap-6 px-8 py-2.5">
+      <div className={`${pageContainerClass} flex items-center gap-6 py-2.5`}>
         <a href="#/portfolio" className="flex shrink-0 items-center gap-2 font-medium text-text-primary no-underline">
           <LogoMark />
           {brand.productName}

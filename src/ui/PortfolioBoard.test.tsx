@@ -313,7 +313,7 @@ describe('Portfolio filters (§5.2, §9.11)', () => {
 
   it('states Total cost and a signed Deviation for what is shown, overspend in Warning', async () => {
     await renderBoard([small, over]);
-    expect(screen.getAllByText('€222k').length).toBeGreaterThan(0);
+    expect(within(screen.getByText(/^Total cost/)).getByText('€222k')).toBeInTheDocument();
     const deviation = screen.getByText('+€4k');
     expect(deviation).toHaveClass('text-warning-text');
   });
