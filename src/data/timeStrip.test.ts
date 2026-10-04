@@ -98,10 +98,8 @@ describe('timeStrip (§5.4)', () => {
 });
 
 describe('stripMonthLabel', () => {
-  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  it('names the month, with the year on the first label and on January', () => {
-    expect(stripMonthLabel('2026-05', true, names)).toBe('May 2026');
-    expect(stripMonthLabel('2026-06', false, names)).toBe('Jun');
-    expect(stripMonthLabel('2027-01', false, names)).toBe('Jan 2027');
+  it('names the month, with the year when asked', () => {
+    expect(stripMonthLabel('2026-05', true)).toBe('May 2026');
+    expect(stripMonthLabel('2026-06', false)).toBe('Jun');
   });
 });

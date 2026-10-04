@@ -110,6 +110,14 @@ describe('Time strip (§5.4)', () => {
     expect(document.getElementById('phase-row-rollout')).toHaveFocus();
   });
 
+  it('moves focus to the current phase\'s row, not into its gate checklist, when the process doesn\'t cost it', async () => {
+    const user = userEvent.setup();
+    initiative = { ...checkout, gates: {} };
+    renderPage();
+    await user.click((await strip()).getByRole('button', { name: /^Discovery/ }));
+    expect(document.getElementById('phase-row-discovery')).toHaveFocus();
+  });
+
   it('shows on a Closed initiative too, every phase done', async () => {
     initiative = { ...checkout, status: 'Closed', gates: { discovery: passed, validation: passed, development: passed, rollout: passed } };
     renderPage();

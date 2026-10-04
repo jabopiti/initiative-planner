@@ -1,6 +1,6 @@
 import { useMemo, type CSSProperties } from 'react';
-import { cn } from 'cn';
-import { formatPeriod, localToday, shortMonths } from '../data/dates';
+import { cn } from '@/lib/utils';
+import { formatPeriod, localToday } from '../data/dates';
 import { stripMonthLabel, timeStrip, type StripPhase, type TimeStrip as Strip } from '../data/timeStrip';
 import type { Initiative } from '../data/types';
 import { useBrand } from '../state/BrandContext';
@@ -16,12 +16,14 @@ const AXIS_CLASS = {
   current: 'border-brand-accent bg-brand-accent text-text-on-accent',
   ahead: 'border-border-input bg-surface-card text-text-primary',
 } as const;
-// Hatched for a phase without a period, in the same state colours.
+// Hatched and dashed for a phase without a period, the current one in Accent.
+const HATCH = 'border-dashed bg-[repeating-linear-gradient(135deg,var(--surface-subtle)_0_5px,var(--surface-card)_5px_10px)]';
 const BLOCK_CLASS = {
-  done: 'border-dashed border-border-strong bg-[repeating-linear-gradient(135deg,var(--surface-subtle)_0_5px,var(--surface-card)_5px_10px)] text-text-secondary',
+  done: `${HATCH} border-border-strong text-text-secondary`,
   current: 'border-dashed border-brand-accent bg-[repeating-linear-gradient(135deg,var(--accent-tint)_0_5px,var(--surface-card)_5px_10px)] text-brand-accent-text',
-  ahead: 'border-dashed border-border-input bg-[repeating-linear-gradient(135deg,var(--surface-subtle)_0_5px,var(--surface-card)_5px_10px)] text-text-primary',
+  ahead: `${HATCH} border-border-input text-text-primary`,
 } as const;
+const BLOCK_TEXT = { 'not-costed': 'Not costed', 'no-period': 'No period yet' } as const;
 
 /**
  * The initiative header's time strip (§5.4): each phase over time, dated phases on one month axis and the others as
@@ -39,36 +41,38 @@ export function TimeStrip({ initiative }: { initiative: Initiative }) {
     [
       phase.label,
       state,
-      placement.kind === 'axis' ? formatPeriod(placement.start, placement.end) : placement.kind === 'not-costed' ? 'not costed' : 'no period yet',
-      ...(placement.kind === 'axis' && cost !== undefined ? [formatAmount(cost, currencySymbol)] : []),
+      ...(placement.kind === 'axis' ? [formatPeriod(placement.start, placement.end), formatAmount(cost ?? 0, currencySymbol)] : [BLOCK_TEXT[placement.kind].toLowerCase()]),
     ].join(', ');
 
-  const segment = (p: StripPhase, className: string, style?: CSSProperties) => (
-    <Tooltip key={p.phase.id}>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          aria-label={describe(p)}
-          style={style}
-          className={cn(
-            'flex h-12 min-w-0 cursor-pointer flex-col justify-center overflow-hidden rounded-md border px-2 text-left',
-            p.placement.kind === 'axis' ? AXIS_CLASS[p.state] : BLOCK_CLASS[p.state],
-            className,
-          )}
-          onClick={() => jump({ id: `phase-row-${p.phase.id}`, phaseId: p.phase.costed ? p.phase.id : undefined })}
-        >
-          <span className="flex min-w-0 items-center gap-1 text-caption font-medium">
-            {p.state === 'done' && <CheckIcon width={14} height={14} className="shrink-0" />}
-            <span className="truncate">{p.phase.label}</span>
-          </span>
-          <span className="truncate text-label">
-            {p.placement.kind === 'not-costed' ? 'Not costed' : p.placement.kind === 'no-period' ? 'No period yet' : formatCompactAmount(p.cost ?? 0, currencySymbol)}
-          </span>
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>{describe(p)}</TooltipContent>
-    </Tooltip>
-  );
+  const segment = (p: StripPhase, className: string, style?: CSSProperties) => {
+    const label = describe(p);
+    return (
+      <Tooltip key={p.phase.id}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={label}
+            style={style}
+            className={cn(
+              'flex h-12 min-w-0 cursor-pointer flex-col justify-center overflow-hidden rounded-md border px-2 text-left',
+              p.placement.kind === 'axis' ? AXIS_CLASS[p.state] : BLOCK_CLASS[p.state],
+              className,
+            )}
+            onClick={() => jump({ id: `phase-row-${p.phase.id}`, phaseId: p.phase.costed ? p.phase.id : undefined })}
+          >
+            <span className="flex min-w-0 items-center gap-1 text-caption font-medium">
+              {p.state === 'done' && <CheckIcon width={14} height={14} className="shrink-0" />}
+              <span className="truncate">{p.phase.label}</span>
+            </span>
+            <span className="truncate text-label">
+              {p.placement.kind === 'axis' ? formatCompactAmount(p.cost ?? 0, currencySymbol) : BLOCK_TEXT[p.placement.kind]}
+            </span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    );
+  };
 
   // A phase without a period, outside the axis: a fixed width beside it, or an equal share when there is no axis.
   const block = (p: StripPhase) => (
@@ -84,9 +88,7 @@ export function TimeStrip({ initiative }: { initiative: Initiative }) {
       {!blocksOnly && (
         <div className="relative min-w-0 flex-1 py-5">
           <div className="relative h-12">
-            {strip.axis.map((p) =>
-              p.placement.kind === 'axis' ? segment(p, 'absolute inset-y-0', { left: pct(p.placement.left), width: pct(p.placement.width) }) : null,
-            )}
+            {strip.axis.map((p) => segment(p, 'absolute inset-y-0', { left: pct(p.placement.left), width: pct(p.placement.width) }))}
           </div>
           <MonthLabels months={strip.months} />
           <AxisToday today={strip.today} />
@@ -122,7 +124,6 @@ function AxisToday({ today }: { today: Strip['today'] }) {
 
 /** A tick at each month's start, labelled — every month while they fit, else every second or third, the year on the first label of each year. */
 function MonthLabels({ months }: { months: Strip['months'] }) {
-  const names = shortMonths();
   const step = Math.ceil(months.length / 12);
   let labelledYear = '';
   return (
@@ -130,7 +131,7 @@ function MonthLabels({ months }: { months: Strip['months'] }) {
       {months.map(({ key, left }, i) => {
         const labelled = i % step === 0;
         const year = key.slice(0, 4);
-        const label = labelled ? stripMonthLabel(key, year !== labelledYear, names) : '';
+        const label = labelled ? stripMonthLabel(key, year !== labelledYear) : '';
         if (labelled) labelledYear = year;
         return (
           <span key={key} className="absolute top-0 h-full whitespace-nowrap border-l border-border-default pl-1 text-label leading-5 text-text-muted" style={{ left: pct(left) }}>

@@ -1,6 +1,6 @@
 import type { PhaseDef } from '../brand/types';
 import { hasValidPeriod, type RateData } from './cost';
-import { nextMonth, parseIso } from './dates';
+import { daysBetween, formatMonth, monthOf, nextMonth, shortMonths } from './dates';
 import { isInitiativeFrozen } from './frozen';
 import { phaseSummary } from './phaseSummary';
 import { currentPhaseId } from './processState';
@@ -13,10 +13,21 @@ export interface StripPhase {
   phase: PhaseDef;
   state: StripState;
   /** On the month axis: its period. Otherwise a hatched block: a phase the process doesn't cost, or a costed one without a usable period yet. */
-  placement: { kind: 'axis'; start: string; end: string; left: number; width: number } | { kind: 'not-costed' } | { kind: 'no-period' };
+  placement: AxisPlacement | { kind: 'not-costed' } | { kind: 'no-period' };
   /** What the phase costs, as its row says; undefined for a phase the process doesn't cost. */
   cost: number | undefined;
 }
+
+export interface AxisPlacement {
+  kind: 'axis';
+  start: string;
+  end: string;
+  left: number;
+  width: number;
+}
+
+/** A dated phase: always costed, so it has a cost. */
+export type AxisPhase = StripPhase & { placement: AxisPlacement; cost: number };
 
 /** Where Today sits: a fraction of the axis, the middle of the current phase's own block, or past either end of the axis. */
 export type TodayMarker = { at: 'axis'; position: number } | { at: 'block'; phaseId: string } | { at: 'after' } | { at: 'before' };
@@ -25,7 +36,7 @@ export interface TimeStrip {
   /** Phases without a period ahead of every dated phase, left of the axis, in process order. */
   before: StripPhase[];
   /** Dated phases on one month axis; empty when no phase has a period. */
-  axis: StripPhase[];
+  axis: AxisPhase[];
   /** Every other phase without a period, right of the axis, in process order. */
   after: StripPhase[];
   /** The axis's months, `YYYY-MM`, each with its left edge as a fraction of the axis. */
@@ -33,11 +44,6 @@ export interface TimeStrip {
   today: TodayMarker;
 }
 
-const dayNumber = (isoDate: string) => {
-  const [y, m, d] = parseIso(isoDate);
-  return Date.UTC(y, m - 1, d) / 86_400_000;
-};
-const monthStart = (key: string) => dayNumber(`${key}-01`);
 
 /**
  * The time strip under the initiative header (§5.4): each phase with a period sits on one month axis, so gaps and
@@ -65,30 +71,31 @@ export function timeStrip(initiative: Initiative, process: PhaseDef[], people: P
     return { before: phases.map(block), axis: [], after: [], months: [], today: { at: 'block', phaseId: current.phase.id } };
   }
 
-  const firstMonth = dated.map((p) => p.period!.start.slice(0, 7)).sort()[0];
-  const lastMonth = dated.map((p) => p.period!.end.slice(0, 7)).sort().at(-1)!;
-  const axisStart = monthStart(firstMonth);
-  const axisEnd = monthStart(nextMonth(lastMonth)); // exclusive: the day after the last month
-  const span = axisEnd - axisStart;
-  const fraction = (day: number) => (day - axisStart) / span;
+  const firstMonth = dated.map((p) => monthOf(p.period!.start)).sort()[0];
+  const lastMonth = dated.map((p) => monthOf(p.period!.end)).sort().at(-1)!;
+  // Days from the axis's first day; the axis ends (exclusive) on the first day after its last month.
+  const dayNumber = (isoDate: string) => daysBetween(`${firstMonth}-01`, isoDate);
+  const monthStart = (key: string) => dayNumber(`${key}-01`);
+  const span = monthStart(nextMonth(lastMonth));
+  const fraction = (day: number) => day / span;
 
   const months: TimeStrip['months'] = [];
   for (let key = firstMonth; key <= lastMonth; key = nextMonth(key)) months.push({ key, left: fraction(monthStart(key)) });
 
-  const axis = dated.map((p): StripPhase => {
+  const axis = dated.map((p): AxisPhase => {
     const { start, end } = p.period!;
     const left = fraction(dayNumber(start));
-    return { phase: p.phase, state: p.state, cost: p.cost, placement: { kind: 'axis', start, end, left, width: fraction(dayNumber(end) + 1) - left } };
+    return { phase: p.phase, state: p.state, cost: p.cost ?? 0, placement: { kind: 'axis', start, end, left, width: fraction(dayNumber(end) + 1) - left } };
   });
 
   const todayDay = dayNumber(today);
   const currentWithoutPeriod = phases.find((p) => p.state === 'current' && !p.period && !isInitiativeFrozen(initiative));
   const todayMarker: TodayMarker =
-    todayDay >= axisStart && todayDay < axisEnd
+    todayDay >= 0 && todayDay < span
       ? { at: 'axis', position: fraction(todayDay) }
       : currentWithoutPeriod
         ? { at: 'block', phaseId: currentWithoutPeriod.phase.id }
-        : todayDay < axisStart
+        : todayDay < 0
           ? { at: 'before' }
           : { at: 'after' };
 
@@ -101,10 +108,8 @@ export function timeStrip(initiative: Initiative, process: PhaseDef[], people: P
   };
 }
 
-/** The month a label names on the strip: its short name, with the year on the first label and on January. */
-export function stripMonthLabel(key: string, first: boolean, shortMonthNames: readonly string[]): string {
-  const [year, month] = parseIso(`${key}-01`);
-  const name = shortMonthNames[month - 1];
-  return first || month === 1 ? `${name} ${year}` : name;
+/** The month a label names on the strip: its short name, with the year when asked (the first label of each year). */
+export function stripMonthLabel(key: string, withYear: boolean): string {
+  return withYear ? formatMonth(key) : shortMonths()[Number(key.slice(5)) - 1];
 }
 
