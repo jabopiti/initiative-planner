@@ -14,13 +14,14 @@ import { isInitiativeFrozen, isPhaseFrozen, skipReason } from '../data/frozen';
 import { overdueActualMonths } from '../data/needsAttention';
 import { allocatablePeople } from '../data/personLoad';
 import { nextStepPhase, overlapWithPrevious, phaseSummary, planningGap } from '../data/phaseSummary';
+import { workingDaysByCountry } from '../data/period';
 import { roleLabel } from '../data/roleLabel';
 import { FILE_PATHS, type FrozenAllocation, type FrozenPhaseSnapshot, type Initiative, type PhasePlan, type Person, type Role, type Team } from '../data/types';
 import { AmountInput } from './AmountInput';
 import { ConflictRow, inRow } from './ConflictBlock';
 import { CostItemsTable } from './CostItemsTable';
 import { TIMING_LABELS } from './costItemTiming';
-import { DateInput } from './DateInput';
+import { PeriodPicker } from './PeriodPicker';
 import { formatAmount } from './formatAmount';
 import { GateChecklistPanel } from './GateChecklistPanel';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DismissIcon, FrozenIcon, InfoIcon, OverdueIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
@@ -110,6 +111,7 @@ export function PhasesSection({ initiative, team, reveal = null }: { initiative:
                 <CostedPhase
                   phase={phase}
                   previous={costedPhases[costedPhases.indexOf(phase) - 1]}
+                  next={costedPhases[costedPhases.indexOf(phase) + 1]}
                   isNextStep={phase.id === nextStepId}
                   initiative={initiative}
                   team={team}
@@ -139,6 +141,7 @@ export function PhasesSection({ initiative, team, reveal = null }: { initiative:
 function CostedPhase({
   phase,
   previous,
+  next,
   isNextStep,
   initiative,
   team,
@@ -150,6 +153,8 @@ function CostedPhase({
   phase: PhaseDef;
   /** The costed phase before this one, for the overlap warning. */
   previous: PhaseDef | undefined;
+  /** The costed phase after this one, marked faintly in the period picker (§9.11). */
+  next: PhaseDef | undefined;
   /** This is the phase whose missing period or people is the highlighted next step. */
   isNextStep: boolean;
   initiative: Initiative;
@@ -320,32 +325,20 @@ function CostedPhase({
                 data-highlight={needsPeriod || undefined}
               >
                 {needsPeriod && <p className="m-0 text-body font-medium text-brand-accent-text">Set the period to calculate cost.</p>}
-                <div className="flex flex-wrap items-start gap-4">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-caption text-text-secondary">Start date</span>
-                    <DateInput
-                      label={`${phase.label} start date`}
-                      value={plan.startDate}
-                      changed={changed(file, ['phases', phase.id, 'startDate'])}
-                      failure={failure(file, ['phases', phase.id, 'startDate'])}
-                      conflict={conflict(file, ['phases', phase.id, 'startDate'])}
-                      highlight={needsPeriod}
-                      onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'startDate', v)}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-caption text-text-secondary">End date</span>
-                    <DateInput
-                      label={`${phase.label} end date`}
-                      value={plan.endDate}
-                      changed={changed(file, ['phases', phase.id, 'endDate'])}
-                      failure={failure(file, ['phases', phase.id, 'endDate'])}
-                      conflict={conflict(file, ['phases', phase.id, 'endDate'])}
-                      openOn={plan.startDate}
-                      highlight={needsPeriod}
-                      onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'endDate', v)}
-                    />
-                  </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-caption text-text-secondary">Period</span>
+                  <PeriodPicker
+                    phaseLabel={phase.label}
+                    value={{ startDate: plan.startDate, endDate: plan.endDate }}
+                    previous={previous && { label: previous.label, ...pick(initiative.phases?.[previous.id]) }}
+                    next={next && { label: next.label, ...pick(initiative.phases?.[next.id]) }}
+                    workingDays={(startIso, endIso) => (team ? workingDaysByCountry(startIso, endIso, team.id, { memberships, people, countries }) : [])}
+                    highlight={needsPeriod}
+                    changed={changed(file, ['phases', phase.id, 'startDate']) || changed(file, ['phases', phase.id, 'endDate'])}
+                    failure={failure(file, ['phases', phase.id, 'startDate']) ?? failure(file, ['phases', phase.id, 'endDate'])}
+                    conflict={conflict(file, ['phases', phase.id, 'startDate']) ?? conflict(file, ['phases', phase.id, 'endDate'])}
+                    onSave={(period) => repository.setPhasePeriod(initiative.id, phase.id, period)}
+                  />
                 </div>
               </div>
               {overlap && (
@@ -565,6 +558,9 @@ type ReadOnlyPhase = Pick<FrozenPhaseSnapshot, 'costItems'> & {
   endDate?: string;
   allocations: (Omit<FrozenAllocation, 'cost'> & { cost?: number })[];
 };
+
+/** A phase plan's period, for marking it in a neighbour's period picker (§9.11). */
+const pick = (plan: PhasePlan | undefined) => ({ startDate: plan?.startDate, endDate: plan?.endDate });
 
 /**
  * A phase's period, allocations and cost items, read-only and muted (§8.1, §8.4, §9.9): a frozen phase from its gate's

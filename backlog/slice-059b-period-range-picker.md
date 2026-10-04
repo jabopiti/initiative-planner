@@ -62,25 +62,25 @@ Build the month cells so 061b's cost item month strip can reuse them.
 
 ## Acceptance criteria
 
-- [ ] Given the period picker, then typing "3 Sep 2026" into Start or End
+- [x] Given the period picker, then typing "3 Sep 2026" into Start or End
       works, and the calendar follows it.
-- [ ] Given a start chosen, then hovering or arrowing to a day previews the
+- [x] Given a start chosen, then hovering or arrowing to a day previews the
       range and the footer shows its length and working days per country.
-- [ ] Given a start on or before the previous phase's end, then the footer
+- [x] Given a start on or before the previous phase's end, then the footer
       shows the overlap warning and Done still saves.
-- [ ] Given a picked range, then nothing is written until Done; Esc or a
+- [x] Given a picked range, then nothing is written until Done; Esc or a
       click outside leaves the period unchanged and makes no request.
-- [ ] Given Done, then exactly one write and one commit record the period.
-- [ ] Given a shortcut "3 months" with start 1 Sep, then the range is 1 Sep
+- [x] Given Done, then exactly one write and one commit record the period.
+- [x] Given a shortcut "3 months" with start 1 Sep, then the range is 1 Sep
       – 30 Nov.
-- [ ] Given the e2e axe scan in both themes, then the detail page passes
+- [x] Given the e2e axe scan in both themes, then the detail page passes
       with the picker open.
-- [ ] Given Settings → Countries unlocked, then each country's Code is
+- [x] Given Settings → Countries unlocked, then each country's Code is
       editable beside its name, and adding a country without a code is
       refused with "Enter a code."
-- [ ] Given a team with members in Germany and Spain, then the footer
+- [x] Given a team with members in Germany and Spain, then the footer
       reads "44 working days (DE) / 43 (ES)" for 1 Sep – 31 Oct 2026.
-- [ ] Given 3 Sep – 30 Oct 2026, then the footer's length reads "1 month
+- [x] Given 3 Sep – 30 Oct 2026, then the footer's length reads "1 month
       28 days".
 
 ## Flags and compromises
