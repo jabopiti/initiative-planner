@@ -7,6 +7,7 @@ const twenty = Array(12).fill(20);
 const germany: Country = {
   id: 'de',
   name: 'Germany',
+  code: 'DE',
   active: true,
   ratesByYear: [
     { year: 2026, dayRate: 1000, workingDaysByMonth: twenty },

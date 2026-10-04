@@ -549,7 +549,7 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
 
   it('adds a country with its day rate for every tracked year and weekday working days', async () => {
     const { mock, repo } = await open();
-    const portugal = repo.createCountry({ name: 'Portugal', dayRate: 600 }, new Date(2026, 8, 30));
+    const portugal = repo.createCountry({ name: 'Portugal', code: 'PT', dayRate: 600 }, new Date(2026, 8, 30));
     await repo.flushPending();
 
     expect(portugal.ratesByYear.map((r) => [r.year, r.dayRate])).toEqual([
@@ -566,7 +566,7 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
 
   it('names each rate edit, and the first one marks the rates reviewed in its own commit', async () => {
     const { mock, repo } = await open();
-    const germany = repo.createCountry({ name: 'Germany', dayRate: 1000 }, new Date(2026, 8, 30));
+    const germany = repo.createCountry({ name: 'Germany', code: 'DE', dayRate: 1000 }, new Date(2026, 8, 30));
     await repo.flushPending();
     repo.setCountryDayRate(germany.id, 2027, 740);
     await repo.flushPending();
@@ -595,7 +595,7 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
 
   it('writes nothing for an edit that changes nothing', async () => {
     const { mock, repo } = await open();
-    const germany = repo.createCountry({ name: 'Germany', dayRate: 1000 }, new Date(2026, 8, 30));
+    const germany = repo.createCountry({ name: 'Germany', code: 'DE', dayRate: 1000 }, new Date(2026, 8, 30));
     await repo.flushPending();
     repo.setCountryDayRate(germany.id, 2027, 1000);
     repo.resetCountryWorkingDays(germany.id, 2027);

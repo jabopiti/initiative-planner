@@ -197,6 +197,8 @@ export interface CountryYearRateRecord {
 export interface Country {
   id: string;
   name: string;
+  /** A short code such as DE, shown where space is short (§6, §9.11). */
+  code: string;
   active: boolean;
   ratesByYear: CountryYearRateRecord[];
 }

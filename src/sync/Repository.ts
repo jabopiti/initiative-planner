@@ -1056,18 +1056,18 @@ export class Repository {
   }
 
   /** New country (§5.9): its one day rate copied to every tracked year, working days prefilled with weekdays. */
-  createCountry(input: { name: string; dayRate: number }, today: Date = new Date()): Country {
-    const country: Country = { id: newId(), name: input.name, active: true, ratesByYear: newCountryRates(input.dayRate, trackedYears(today)) };
+  createCountry(input: { name: string; code: string; dayRate: number }, today: Date = new Date()): Country {
+    const country: Country = { id: newId(), name: input.name, code: input.code, active: true, ratesByYear: newCountryRates(input.dayRate, trackedYears(today)) };
     this.commitCountries([...this.state.countries, country], this.note('country', country.id, 'record', undefined, country, (f, t) => this.describeCountry(f, t)));
     return country;
   }
 
-  /** Rename, deactivate or reactivate a country; countries are never deleted (§9.3). */
-  updateCountry(id: string, patch: Partial<Pick<Country, 'name' | 'active'>>): void {
+  /** Rename, recode, deactivate or reactivate a country; countries are never deleted (§9.3). */
+  updateCountry(id: string, patch: Partial<Pick<Country, 'name' | 'code' | 'active'>>): void {
     const current = this.state.countries.find((c) => c.id === id);
     if (!current) return;
     const next = { ...current, ...patch };
-    if (next.name === current.name && next.active === current.active) return;
+    if (next.name === current.name && next.code === current.code && next.active === current.active) return;
     this.commitCountries(
       this.state.countries.map((c) => (c.id === id ? next : c)),
       this.note('country', id, 'record', current, next, (f, t) => this.describeCountry(f, t)),
@@ -1079,6 +1079,7 @@ export class Repository {
     if (!to) return `Countries: ${from.name} removed`;
     const parts: string[] = [];
     if (to.name !== from.name) parts.push(`renamed to ${to.name}`);
+    if (to.code !== from.code) parts.push(`code set to ${to.code}`);
     if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
     return `Countries: ${from.name} ${parts.join(', ') || 'updated'}`;
   }

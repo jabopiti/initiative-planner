@@ -8,7 +8,7 @@ const costed = process.filter((p) => p.costed);
 const [first, second] = [costed[0].id, costed[1].id];
 
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }];
-const countries: Country[] = [{ id: 'de', name: 'Germany', active: true, ratesByYear: [{ year: 2026, dayRate: 800, workingDaysByMonth: Array(12).fill(20) }] }];
+const countries: Country[] = [{ id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [{ year: 2026, dayRate: 800, workingDaysByMonth: Array(12).fill(20) }] }];
 const ana: Person = { id: 'ana', name: 'Ana', countryId: 'de', roleId: 'dev', capacityPct: 100, active: true };
 const data = { roles, countries };
 
