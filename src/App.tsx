@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { tokenStore } from './auth/tokenStore';
 import { defaultBrandPack } from './brand/defaultBrand';
 import { BrandProvider } from './state/BrandContext';
@@ -29,11 +29,22 @@ export function Screen({ route }: { route: string }) {
   // Until the dataset has loaded every list would read as empty and every id as missing, so no screen shows. If it
   // cannot load, the read-only banner above carries the reason (§3, §9.9), once.
   if (status === 'loading') return null;
-  if (route === '/portfolio') return <PortfolioBoard />;
-  if (route === '/teams') return <TeamsOverview />;
+  const screen = screenFor(route);
+  // Each new screen fades in (150 ms, slice 059); a jump within a page or a Settings section switch is the same screen
+  // (the same key) and doesn't.
+  return (
+    <div key={screen.key} className="motion-safe:animate-fade-in">
+      {screen}
+    </div>
+  );
+}
+
+/** The screen a route shows, keyed by which screen it is: the same key for the same screen, whatever its query or Settings section. */
+export function screenFor(route: string): ReactElement {
+  if (route === '/teams') return <TeamsOverview key="teams" />;
   if (route.startsWith('/teams/')) return <TeamDetail key={route} id={route.slice('/teams/'.length)} />;
   if (route === '/initiatives/new' || route.startsWith('/initiatives/new?')) {
-    return <NewInitiativeDraft presetTeamId={new URLSearchParams(route.split('?')[1]).get('team') ?? undefined} />;
+    return <NewInitiativeDraft key="initiatives/new" presetTeamId={new URLSearchParams(route.split('?')[1]).get('team') ?? undefined} />;
   }
   if (route.startsWith('/initiatives/')) {
     // A Needs attention strip link (§5.2, §8.5) carries where to scroll and focus as a query suffix on the
@@ -41,13 +52,13 @@ export function Screen({ route }: { route: string }) {
     const rest = route.slice('/initiatives/'.length);
     const [id, query = ''] = rest.split('?');
     const params = new URLSearchParams(query);
-    return <InitiativeDetail key={id} id={id} focus={params.get('focus')} openPhaseId={params.get('openPhase')} />;
+    return <InitiativeDetail key={`initiatives/${id}`} id={id} focus={params.get('focus')} openPhaseId={params.get('openPhase')} />;
   }
-  if (route === '/initiatives') return <InitiativesTable />;
-  if (route === '/people') return <PeopleOverview />;
-  if (route === '/settings') return <SettingsPage section={DEFAULT_SECTION} />;
-  if (route.startsWith('/settings/')) return <SettingsPage section={route.slice('/settings/'.length)} />;
-  return <PortfolioBoard />;
+  if (route === '/initiatives') return <InitiativesTable key="initiatives" />;
+  if (route === '/people') return <PeopleOverview key="people" />;
+  if (route === '/settings') return <SettingsPage key="settings" section={DEFAULT_SECTION} />;
+  if (route.startsWith('/settings/')) return <SettingsPage key="settings" section={route.slice('/settings/'.length)} />;
+  return <PortfolioBoard key="portfolio" />;
 }
 
 function MainApp({ token }: { token: string }) {

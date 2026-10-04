@@ -107,7 +107,7 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { name: /Gate \/ Checklist — G2/ })).toBeInTheDocument();
-    expect(screen.getByText('3 of 4 complete')).toBeInTheDocument(); // estimates met + 2 complete + 1 incomplete, of 4 requirements
+    expect(within(screen.getByRole('region', { name: /Gate \/ Checklist/ })).getByText('3 of 4 complete')).toBeInTheDocument(); // estimates met + 2 complete + 1 incomplete, of 4 requirements
     const passButton = screen.getByRole('button', { name: /^Pass gate/ });
     await user.click(passButton);
 
@@ -148,7 +148,7 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     };
     renderPage();
 
-    await screen.findByText('4 of 4 complete');
+    await within(await screen.findByRole('region', { name: /Gate \/ Checklist/ })).findByText('4 of 4 complete');
     // Validation: 40 days × 50% × 500 × 0.8 = 8,000. Development: 40 days × 50% × 500 × 0.8 = 8,000 (fixture countries fix 20 workdays/month). Grand estimate 16,000.
     expect(screen.getByText('Grand estimate')).toBeInTheDocument();
     expect(screen.getByText('€16,000')).toBeInTheDocument();
@@ -159,12 +159,16 @@ describe('Pass a gate with its checklist (§8.1)', () => {
 
     expect(await screen.findByText(/^Passed G2/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reopen' })).toBeInTheDocument();
+    // The stepper's Validation step fills and its tick draws in (slice 059).
+    const step = screen.getByRole('img', { name: 'Validation, done' });
+    expect(step).toHaveClass('motion-safe:animate-step-fill');
+    expect(step.querySelector('path')).toHaveClass('motion-safe:animate-draw');
     await vi.waitFor(() => expect(puts.some((p) => p.message.includes('G2 passed'))).toBe(true), { timeout: 3000 });
     expect(puts.find((p) => p.message.includes('G2 passed'))!.message).toContain('€16,000');
 
     // Cost summary now shows the recorded figure as "approved at" (AC4).
-    expect(screen.getByText('Approved at (G2)')).toBeInTheDocument();
-    expect(screen.getAllByText('€16,000').length).toBeGreaterThan(1); // grand estimate and approved-at match, nothing changed since
+    expect(screen.getByText('Approved at G2: €16,000')).toBeInTheDocument();
+    expect(screen.getByText('Unchanged since G2')).toBeInTheDocument(); // grand estimate and approved-at match
 
     // Validation shows frozen and locked; its inputs are gone.
     const validationRow = screen.getByRole('button', { name: /^Validation/ });
@@ -206,12 +210,12 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     };
     renderPage();
 
-    expect(await screen.findByText('Approved at (G2)')).toBeInTheDocument();
+    expect(await screen.findByText(/^Approved at G2:/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Reopen G2' }));
 
     await vi.waitFor(() => expect(puts.some((p) => p.message.includes('G2 reopened'))).toBe(true), { timeout: 3000 });
-    expect(screen.queryByText('Approved at (G2)')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Approved at G2:/)).not.toBeInTheDocument();
     expect(await screen.findByRole('textbox', { name: 'Validation start date' })).toHaveValue('01/10/2026'); // editable again
 
     // Checklist note kept, not reset (AC5).
@@ -322,5 +326,41 @@ describe('a frozen phase refuses what the page no longer offers (§5.11, §8.1)'
     expect(rows[0]).toHaveTextContent('Ana RuizProduct Manager'); // as costed, not today's Developer
     expect(rows[1]).toHaveTextContent('Bea HolmTech Lead'); // gone since, still named
     expect(rows[2]).toHaveTextContent('Ana RuizDeveloper'); // an older snapshot: today's data
+  });
+});
+
+describe('the checklist control (§5.4, slice 059)', () => {
+  it('reads Incomplete, Tentative, Complete with the status icon at the left; the selected segment is checked and tinted in its role', async () => {
+    const user = userEvent.setup();
+    initiative = {
+      id: 'i1',
+      name: 'Checkout Redesign',
+      teamId: 't1',
+      status: 'Active',
+      gates: { [discoveryId]: discoveryPassed },
+      phases: bothPlanned,
+      checklist: { [validationId]: { [g2.checklistItems[0].id]: { status: 'complete', note: '' } } },
+    };
+    renderPage();
+    const name = g2.checklistItems[0].name;
+    await screen.findByRole('heading', { name: /Gate \/ Checklist — G2/ });
+    const control = screen.getByLabelText(`Status of "${name}"`);
+    expect(control).toHaveAttribute('role', 'radiogroup');
+    const segments = within(control).getAllByRole('radio');
+    expect(segments.map((s) => s.textContent)).toEqual(['Incomplete', 'Tentative', 'Complete']);
+    const complete = within(control).getByRole('radio', { name: 'Complete' });
+    expect(complete).toHaveAttribute('aria-checked', 'true');
+    expect(complete).toHaveClass('data-[state=on]:bg-met-tint');
+    // The status icon sits before the name, in the Met role.
+    const row = control.closest('li')!;
+    expect(row.querySelector('svg')).toHaveClass('text-met-text');
+
+    // Tentative shows selected while its note is open; Esc reverts to the saved status.
+    await user.click(within(control).getByRole('radio', { name: 'Tentative' }));
+    expect(within(control).getByRole('radio', { name: 'Tentative' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('textbox', { name: 'Why tentative?' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('textbox', { name: 'Why tentative?' })).not.toBeInTheDocument();
+    expect(within(control).getByRole('radio', { name: 'Complete' })).toHaveAttribute('aria-checked', 'true');
   });
 });

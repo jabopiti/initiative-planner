@@ -21,6 +21,7 @@ import { ConflictRow, inRow } from './ConflictBlock';
 import { CostItemsTable } from './CostItemsTable';
 import { TIMING_LABELS } from './costItemTiming';
 import { DateInput } from './DateInput';
+import { RecalcTint } from './motion';
 import { formatAmount } from './formatAmount';
 import { GateChecklistPanel } from './GateChecklistPanel';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DismissIcon, FrozenIcon, InfoIcon, OverdueIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
@@ -286,7 +287,10 @@ function CostedPhase({
         {plan.allocations.length === 0 && !initiativeFrozen && (
           <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>· Add people</span>
         )}
-        <span className="ml-auto font-medium tabular-nums">{costed && hasCost ? formatAmount(total, currencySymbol) : '—'}</span>
+        {/* The phase total tints briefly when it recalculates (slice 059). */}
+        <RecalcTint value={total} className="ml-auto font-medium tabular-nums">
+          {costed && hasCost ? formatAmount(total, currencySymbol) : '—'}
+        </RecalcTint>
         <Badge variant="subtle">{coverageLabel}</Badge>
       </button>
 
@@ -295,7 +299,7 @@ function CostedPhase({
       )}
 
       {expanded && (
-        <div id={bodyId} className="flex flex-col gap-4 border-t border-border-default px-3 py-3">
+        <div id={bodyId} className="flex flex-col gap-4 border-t border-border-default px-3 py-3 motion-safe:animate-reveal">
           {skipped !== undefined && (
             <p className="m-0 flex items-start gap-2 rounded-md bg-surface-subtle px-2.5 py-2 text-caption text-text-secondary">
               <SkippedIcon width={16} height={16} className="mt-0.5 shrink-0" />
