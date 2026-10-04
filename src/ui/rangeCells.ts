@@ -1,13 +1,9 @@
 /**
- * How a cell in a range of days or months looks (§9.11 period picker). Shared so a month strip (061b's cost item
- * months) marks its cells the way the period picker marks its days: the period shaded, the range being chosen shaded
- * as it is previewed, a neighbouring phase's period faint, today dotted.
+ * How a cell in a range of days or months is marked beyond the range itself (§9.11 period picker). Shared so a month
+ * strip (061b's cost item months) marks its cells the way the period picker marks its days: a neighbouring phase's
+ * period faint, today dotted.
  */
 export const rangeCell = {
-  /** Inside the chosen period. */
-  inRange: 'bg-brand-accent-tint',
-  /** Inside the range the pointer or keyboard focus previews, before it is picked. */
-  preview: 'bg-brand-accent-tint',
   /** A neighbouring phase's period: faint, so the period being set stands out. */
   neighbour: 'bg-surface-subtle',
   /** Today: a dot under the number. */

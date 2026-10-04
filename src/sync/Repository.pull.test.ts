@@ -293,7 +293,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
     it('drops an edit still waiting to save, and the phase says so', async () => {
       fake.seed('initiatives/i1.json', initiative({ phases: { validation: plan } }));
       const repo = await reopen();
-      repo.setPhaseDate('i1', 'validation', 'endDate', '2026-04-30');
+      repo.setPhasePeriod('i1', 'validation', { startDate: plan.startDate, endDate: '2026-04-30' });
       fake.seed('initiatives/i1.json', initiative({ phases: { validation: plan }, gates }));
       await repo.flushPending();
 
@@ -305,7 +305,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
     it('keeps an edit to another phase, and says nothing', async () => {
       fake.seed('initiatives/i1.json', initiative({ phases: { validation: plan, development: plan } }));
       const repo = await reopen();
-      repo.setPhaseDate('i1', 'development', 'endDate', '2026-04-30');
+      repo.setPhasePeriod('i1', 'development', { startDate: plan.startDate, endDate: '2026-04-30' });
       fake.seed('initiatives/i1.json', initiative({ phases: { validation: plan, development: plan }, gates }));
       await repo.flushPending();
 
@@ -320,7 +320,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
       await repo.pull();
       const writes = fake.requests().filter((r) => r.startsWith('PUT')).length;
 
-      repo.setPhaseDate('i1', 'validation', 'endDate', '2026-04-30');
+      repo.setPhasePeriod('i1', 'validation', { startDate: plan.startDate, endDate: '2026-04-30' });
       await repo.flushPending();
 
       expect(fake.requests().filter((r) => r.startsWith('PUT'))).toHaveLength(writes);

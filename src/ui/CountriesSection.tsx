@@ -172,7 +172,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                       <CommitInput
                         aria-label={`Code of ${country.name}`}
                         className="w-20"
-                        value={country.code ?? ''}
+                        value={country.code}
                         changed={changed(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
                         failure={failure(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
                         conflict={inRow(codeConflict)}

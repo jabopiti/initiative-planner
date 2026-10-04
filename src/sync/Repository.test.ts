@@ -695,16 +695,14 @@ describe('Repository — slice 005 phase periods and allocations', () => {
 
   it("commits the period and allocations to the initiative's file with plain-words messages, once edits settle", async () => {
     const { repo, initiative, member } = await repoWithInitiative();
-    repo.setPhaseDate(initiative.id, 'validation', 'startDate', '2026-10-01');
-    repo.setPhaseDate(initiative.id, 'validation', 'endDate', '2026-11-30');
+    repo.setPhasePeriod(initiative.id, 'validation', { startDate: '2026-10-01', endDate: '2026-11-30' });
     const added = repo.addAllocation(initiative.id, 'validation', member.id);
     if (!added.ok) throw new Error('expected the allocation to be added');
     repo.updateAllocation(initiative.id, 'validation', added.allocation.id, 80);
     await repo.flushPending();
 
     expect(commits).toHaveLength(1);
-    expect(commits[0].message).toContain('Payments API: Validation start date set to 1 Oct 2026');
-    expect(commits[0].message).toContain('Payments API: Validation end date set to 30 Nov 2026');
+    expect(commits[0].message).toContain('Payments API: Validation period set to Oct–Nov');
     expect(commits[0].message).toContain('Payments API: Ana Ruiz added to Validation at 80%');
     expect(commits[0].content.phases?.validation).toEqual({
       startDate: '2026-10-01',
@@ -944,7 +942,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
   it('the first edit to a default plan ends the suggestion, and the flag is gone from the committed file', async () => {
     const { repo, initiative } = await repoWithInitiative();
     expect(repo.getState().initiatives[0].defaultPlan).toBe(true);
-    repo.setPhaseDate(initiative.id, 'validation', 'endDate', '2026-12-31');
+    repo.setPhasePeriod(initiative.id, 'validation', { startDate: '2026-09-24', endDate: '2026-12-31' });
     expect(repo.getState().initiatives[0].defaultPlan).toBeUndefined();
     await repo.flushPending();
     expect(commits[0].content.defaultPlan).toBeUndefined();
@@ -959,8 +957,8 @@ describe('Repository — slice 005 phase periods and allocations', () => {
 
   it('clears a date', async () => {
     const { repo, initiative } = await repoWithInitiative();
-    repo.setPhaseDate(initiative.id, 'validation', 'endDate', '2026-11-30');
-    repo.setPhaseDate(initiative.id, 'validation', 'endDate', undefined);
+    repo.setPhasePeriod(initiative.id, 'validation', { startDate: '2026-09-24', endDate: '2026-11-30' });
+    repo.setPhasePeriod(initiative.id, 'validation', { startDate: '2026-09-24' });
     expect(repo.getState().initiatives[0].phases!.validation).toEqual({ startDate: '2026-09-24', allocations: [] });
   });
 });
@@ -992,8 +990,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     const member = repo.createPerson({ name: 'Mara Voss', countryId: 'c1', roleId: 'r1' });
     repo.addMembership(member.id, team.id);
     const initiative = await repo.createInitiative('Fraud Detection Upgrade', team.id, '2026-09-24');
-    repo.setPhaseDate(initiative.id, 'validation', 'startDate', '2026-01-01');
-    repo.setPhaseDate(initiative.id, 'validation', 'endDate', '2026-03-31');
+    repo.setPhasePeriod(initiative.id, 'validation', { startDate: '2026-01-01', endDate: '2026-03-31' });
     const added = repo.addAllocation(initiative.id, 'validation', member.id);
     if (!added.ok) throw new Error('expected the allocation to be added');
     const item = repo.addCostItem(initiative.id, 'validation', { label: 'Licences', amount: 1000, timing: 'spread' })!;
@@ -1052,7 +1049,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       ['setOwner', ({ repo, id, member }) => repo.setOwner(id, member.id)],
       ['changeTeam', ({ repo, id, other }) => repo.changeTeam(id, other.id)],
       ['restoreTeam', ({ repo, id, team, other }) => repo.restoreTeam(id, { fromTeamId: other.id, toTeamId: team.id, removed: [] })],
-      ['setPhaseDate', ({ repo, id }) => repo.setPhaseDate(id, 'validation', 'endDate', '2026-04-30')],
+      ['setPhasePeriod', ({ repo, id }) => repo.setPhasePeriod(id, 'validation', { startDate: '2026-01-01', endDate: '2026-04-30' })],
       ['extendPhase', ({ repo, id }) => repo.extendPhase(id, 'validation')],
       ['addAllocation', ({ repo, id, member }) => repo.addAllocation(id, 'development', member.id)],
       ['updateAllocation', ({ repo, id, allocationId }) => repo.updateAllocation(id, 'validation', allocationId, 10)],
@@ -1116,7 +1113,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     }
 
     const refusals: [string, (r: Awaited<ReturnType<typeof repoWithPlannedInitiative>>) => void][] = [
-      ['setPhaseDate', ({ repo, id }) => repo.setPhaseDate(id, 'validation', 'endDate', '2026-04-30')],
+      ['setPhasePeriod', ({ repo, id }) => repo.setPhasePeriod(id, 'validation', { startDate: '2026-01-01', endDate: '2026-04-30' })],
       ['extendPhase', ({ repo, id }) => repo.extendPhase(id, 'validation')],
       ['addAllocation', ({ repo, id, member }) => repo.addAllocation(id, 'validation', member.id)],
       ['updateAllocation', ({ repo, id, allocationId }) => repo.updateAllocation(id, 'validation', allocationId, 10)],
@@ -1171,8 +1168,8 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     it('leaves the other phases editable, and the message is dismissed by the user', async () => {
       const { repo, id, current } = await repoWithPlannedInitiative();
       freezeValidation(repo, current());
-      repo.setPhaseDate(id, 'development', 'endDate', '2027-06-30');
-      repo.setPhaseDate(id, 'validation', 'endDate', '2026-04-30');
+      repo.setPhasePeriod(id, 'development', { startDate: current().phases?.development.startDate, endDate: '2027-06-30' });
+      repo.setPhasePeriod(id, 'validation', { startDate: '2026-01-01', endDate: '2026-04-30' });
       await repo.flushPending();
       expect(current().phases?.development.endDate).toBe('2027-06-30');
       repo.dismissLostEdit(id, 'validation');
@@ -1182,7 +1179,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     it('drops the message when the gate is reopened, so passing it again does not bring it back', async () => {
       const { repo, id, current } = await repoWithPlannedInitiative();
       freezeValidation(repo, current());
-      repo.setPhaseDate(id, 'validation', 'endDate', '2026-04-30');
+      repo.setPhasePeriod(id, 'validation', { startDate: '2026-01-01', endDate: '2026-04-30' });
       expect(repo.getState().frozenWithLostEdit.size).toBe(1);
       // Reopened elsewhere, as a pull brings it: the gate record is gone.
       const gates = { ...current().gates };

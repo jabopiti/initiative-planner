@@ -114,8 +114,8 @@ Settled with the user from rendered mockups.
   are added to `countries.json` (an exception to AGENTS.md's "never edit
   the dataset directly", for this edit only). The schema version stays 1:
   the current build ignores the extra field, so the live app keeps working
-  before this slice deploys, and no other dataset needs it. A country
-  read without a code shows its name in the footer, defensively.
+  before this slice deploys, and no other dataset needs it, so the code
+  is read as always present.
 - **Length in months and days (D2 A).** "2 months" for whole months,
   "1 month 28 days" (3 Sep – 30 Oct), "19 days" under a month: whole
   calendar months counted from the start, then the remaining days.

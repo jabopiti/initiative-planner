@@ -18,7 +18,7 @@ import {
   type Role,
   type Team,
 } from '../data/types';
-import { allocationRefusal, trackedYears } from '../data/cost';
+import { allocationRefusal, trackedYears, type Period } from '../data/cost';
 import { formatDateEn, formatMonthEn, monthKey } from '../data/dates';
 import { periodMonthsEn } from '../data/period';
 import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysByMonth } from '../data/rates';
@@ -1514,38 +1514,17 @@ export class Repository {
     return true;
   }
 
-  /** Set or clear (`undefined`) one end of a phase's period. Any dates are accepted: an inverted period only warns (§7.2). */
-  setPhaseDate(initiativeId: string, phaseId: string, which: 'startDate' | 'endDate', value: string | undefined): void {
-    const word = which === 'startDate' ? 'start date' : 'end date';
-    const before = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.[which];
-    this.editPhase<string>(
-      initiativeId,
-      phaseId,
-      (plan) => {
-        const next = { ...plan };
-        if (value === undefined) delete next[which];
-        else next[which] = value;
-        return next;
-      },
-      {
-        field: which,
-        from: before,
-        to: value,
-        words: (_, to, name, phase) => `${name}: ${phase} ${word} ${to === undefined ? 'cleared' : `set to ${formatDateEn(to)}`}`,
-      },
-    );
-  }
-
   /**
    * Set a phase's whole period at once (§9.11 period picker, saved on Done): one write and one commit, "Payments API:
-   * Development period set to Apr–Sep". An `undefined` end clears it. Nothing is written when neither date changes.
+   * Development period set to Apr–Sep". An `undefined` end clears it, and any dates are accepted: an inverted period
+   * only warns (§7.2). Nothing is written when neither date changes.
    */
-  setPhasePeriod(initiativeId: string, phaseId: string, period: { startDate?: string; endDate?: string }): void {
+  setPhasePeriod(initiativeId: string, phaseId: string, period: Period): void {
     const plan = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId];
     const before = { startDate: plan?.startDate, endDate: plan?.endDate };
     if (before.startDate === period.startDate && before.endDate === period.endDate) return;
     const to = { startDate: period.startDate, endDate: period.endDate };
-    this.editPhase<{ startDate?: string; endDate?: string }>(
+    this.editPhase<Period>(
       initiativeId,
       phaseId,
       (current) => {

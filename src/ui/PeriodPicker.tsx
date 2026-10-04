@@ -1,11 +1,13 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import { useId, useRef, useState, useSyncExternalStore } from 'react';
+import { hasValidPeriod, type Period } from '../data/cost';
 import { formatDate, formatDateField, formatPeriod, localIso, localToday, parseDateText, parseIso } from '../data/dates';
 import { addDays } from '../data/defaultPlan';
 import { endAfterMonths, periodLength } from '../data/period';
+import { overlapWithPrevious } from '../data/phaseSummary';
+import { plural } from '../data/plural';
 import type { FieldConflict } from '../state/ConflictUi';
 import { useHoldWhileEditing, type FieldFailure } from '../state/DataContext';
-import { ConflictBlock } from './ConflictBlock';
-import { FailedEdit } from './CommitInput';
+import { FieldMessages, fieldMessageId, focusIntoPicker } from './FieldMessages';
 import { InlineWarning } from './InlineWarning';
 import { CalendarIcon } from './icons';
 import { neighbourSwatch, rangeCell } from './rangeCells';
@@ -15,10 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
 
 type Half = 'startDate' | 'endDate';
-export interface Period {
-  startDate?: string;
-  endDate?: string;
-}
+type Texts = Record<Half, string>;
 /** A neighbouring phase, marked faintly in the calendar (§9.11). */
 export interface NeighbourPhase extends Period {
   label: string;
@@ -26,31 +25,34 @@ export interface NeighbourPhase extends Period {
 
 const REFUSAL = "Couldn't read that date. Try 26.06.2026.";
 const LENGTHS = [1, 2, 3, 6] as const;
+const WIDE = '(min-width: 40rem)';
 
 const toDate = (isoDate: string) => {
   const [y, m, d] = parseIso(isoDate);
   return new Date(y, m - 1, d);
 };
 const show = (isoDate: string | undefined) => (isoDate ? formatDateField(isoDate) : '');
+const textsOf = (period: Period): Texts => ({ startDate: show(period.startDate), endDate: show(period.endDate) });
+/** A typed half as a date: empty is no date, and text that doesn't read as one is none yet (Done refuses it). */
+const readText = (text: string) => (text.trim() === '' ? undefined : (parseDateText(text) ?? undefined));
+const range = (period: Period) => (hasValidPeriod(period) ? { from: toDate(period.startDate!), to: toDate(period.endDate!) } : undefined);
 
-/** Two calendar months from `sm` up, one below it (§9.11). */
-function useWideScreen(): boolean {
-  return useSyncExternalStore(
-    (onChange) => {
-      if (typeof window === 'undefined' || !window.matchMedia) return () => {};
-      const query = window.matchMedia('(min-width: 40rem)');
-      query.addEventListener('change', onChange);
-      return () => query.removeEventListener('change', onChange);
-    },
-    () => (typeof window === 'undefined' || !window.matchMedia ? true : window.matchMedia('(min-width: 40rem)').matches),
-  );
-}
+/** The §5.4 overlap warning, the same in the phase and in its period picker. */
+export const overlapWarning = (previousLabel: string, previousEnd: string) => `Starts before ${previousLabel} ends (${formatDate(previousEnd)}). The two phases overlap.`;
+
+const subscribeWide = (onChange: () => void) => {
+  if (!window.matchMedia) return () => {};
+  const query = window.matchMedia(WIDE);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+};
+const isWide = () => (window.matchMedia ? window.matchMedia(WIDE).matches : true);
 
 /**
  * The period picker (§9.11): one control split into Start and End, each typed into, with a two-month calendar
- * popover where the range is previewed as it is chosen, the neighbouring phases are marked faintly, and a footer
- * names the period, its length and the working days per team country. A change saves only on Done (or Enter in a
- * half), as one write; Esc, a click outside or Tab out of it discards it.
+ * popover (one month below `sm`) where the range is previewed as it is chosen, the neighbouring phases are marked
+ * faintly, and a footer names the period, its length and the working days per team country. A change saves only on
+ * Done (or Enter in a half), as one write; Esc, a click outside or Tab out of it discards it.
  */
 export function PeriodPicker({
   phaseLabel,
@@ -82,14 +84,13 @@ export function PeriodPicker({
   conflict?: FieldConflict | null;
   onSave: (period: Period) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  // What is typed in each half while the picker is open; null while it is closed, when the saved period shows.
+  const [texts, setTexts] = useState<Texts | null>(null);
   const [active, setActive] = useState<Half>('startDate');
-  const [draft, setDraft] = useState<Period>(value);
-  const [texts, setTexts] = useState({ startDate: show(value.startDate), endDate: show(value.endDate) });
   const [unreadable, setUnreadable] = useState<Half | null>(null);
   const [hover, setHover] = useState<string | undefined>();
   const [month, setMonth] = useState<Date>(() => toDate(value.startDate ?? value.endDate ?? localToday()));
-  const wide = useWideScreen();
+  const wide = useSyncExternalStore(subscribeWide, isWide);
   const errorId = useId();
   const failureId = useId();
   const startRef = useRef<HTMLInputElement>(null);
@@ -97,53 +98,40 @@ export function PeriodPicker({
   const anchorRef = useRef<HTMLDivElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
 
-  const dirty = draft.startDate !== value.startDate || draft.endDate !== value.endDate || texts.startDate !== show(draft.startDate) || texts.endDate !== show(draft.endDate);
-  useHoldWhileEditing(open && dirty);
-
-  // While closed, the control shows the saved period, also after another user's change.
-  useEffect(() => {
-    if (open) return;
-    setDraft(value);
-    setTexts({ startDate: show(value.startDate), endDate: show(value.endDate) });
-  }, [open, value.startDate, value.endDate]); // eslint-disable-line react-hooks/exhaustive-deps
+  const open = texts !== null;
+  const draft: Period = texts ? { startDate: readText(texts.startDate), endDate: readText(texts.endDate) } : value;
+  const saved = textsOf(value);
+  useHoldWhileEditing(open && (texts.startDate !== saved.startDate || texts.endDate !== saved.endDate));
 
   const inputOf = (half: Half) => (half === 'startDate' ? startRef : endRef);
 
   const begin = (half: Half) => {
     setActive(half);
     if (open) return;
-    setDraft(value);
-    setTexts({ startDate: show(value.startDate), endDate: show(value.endDate) });
-    setUnreadable(null);
+    setTexts(saved);
     setMonth(toDate(value[half] ?? value.startDate ?? value.endDate ?? localToday()));
-    setOpen(true);
   };
 
-  const discard = () => {
-    setOpen(false);
+  /** Closes the picker; whatever was not saved is gone. */
+  const close = () => {
+    setTexts(null);
     setHover(undefined);
     setUnreadable(null);
-    setDraft(value);
-    setTexts({ startDate: show(value.startDate), endDate: show(value.endDate) });
   };
 
   const done = () => {
-    for (const half of ['startDate', 'endDate'] as const) {
-      if (texts[half].trim() !== '' && !parseDateText(texts[half])) {
-        setUnreadable(half);
-        inputOf(half).current?.focus();
-        return;
-      }
+    const unread = (['startDate', 'endDate'] as const).find((half) => texts![half].trim() !== '' && !parseDateText(texts![half]));
+    if (unread) {
+      setUnreadable(unread);
+      inputOf(unread).current?.focus();
+      return;
     }
     onSave(draft);
-    setOpen(false);
-    setHover(undefined);
-    setUnreadable(null);
+    close();
   };
 
   const set = (next: Period, nextActive: Half = active) => {
-    setDraft(next);
-    setTexts({ startDate: show(next.startDate), endDate: show(next.endDate) });
+    setTexts(textsOf(next));
     setUnreadable(null);
     setActive(nextActive);
   };
@@ -153,20 +141,17 @@ export function PeriodPicker({
       set({ startDate: day, endDate: draft.endDate && draft.endDate >= day ? draft.endDate : undefined }, 'endDate');
     } else if (!draft.startDate || day < draft.startDate) {
       // A day before the start, while setting the end, starts the range again.
-      set({ startDate: day, endDate: undefined }, 'endDate');
+      set({ startDate: day }, 'endDate');
     } else {
       set({ ...draft, endDate: day });
     }
   };
 
   const type = (half: Half, text: string) => {
-    setTexts((current) => ({ ...current, [half]: text }));
+    setTexts((current) => ({ ...(current ?? saved), [half]: text }));
     setUnreadable(null);
-    if (text.trim() === '') return setDraft((current) => ({ ...current, [half]: undefined }));
-    const parsed = parseDateText(text);
-    if (!parsed) return;
-    setDraft((current) => ({ ...current, [half]: parsed }));
-    setMonth(toDate(parsed));
+    const parsed = readText(text);
+    if (parsed) setMonth(toDate(parsed));
   };
 
   /** Focus leaving the inputs and the popover together is Tab out: the change is discarded (§9.11). */
@@ -175,18 +160,16 @@ export function PeriodPicker({
     const to = e.relatedTarget as Node | null;
     if (to && (anchorRef.current?.contains(to) || pickerRef.current?.contains(to))) return;
     if (!to && !document.hasFocus()) return; // the window lost focus; the user is coming back
-    discard();
+    close();
   };
 
   // What the footer and the shading show: the draft, with the hovered or focused day standing in for the half being set.
   const shown: Period = { ...draft };
   if (hover && active === 'endDate' && draft.startDate && hover >= draft.startDate) shown.endDate = hover;
   if (hover && active === 'startDate' && (!draft.endDate || hover <= draft.endDate)) shown.startDate = hover;
-  const inverted = Boolean(shown.startDate && shown.endDate && shown.endDate < shown.startDate);
-  const overlapEnd = previous?.endDate && shown.startDate && shown.startDate <= previous.endDate ? previous.endDate : null;
-
-  const neighbours = [previous, next].filter((p): p is NeighbourPhase => Boolean(p?.startDate && p.endDate && p.startDate <= p.endDate));
-  const range = (from?: string, to?: string) => (from && to && from <= to ? { from: toDate(from), to: toDate(to) } : undefined);
+  const inverted = Boolean(shown.startDate && shown.endDate) && !hasValidPeriod(shown);
+  const overlapEnd = overlapWithPrevious(previous, shown);
+  const neighbours = [previous, next].filter((p): p is NeighbourPhase => Boolean(p && hasValidPeriod(p)));
 
   const summary = () => {
     const { startDate, endDate } = shown;
@@ -197,27 +180,27 @@ export function PeriodPicker({
     const days = counts.length === 0 ? '' : ` · ${counts.map((c, i) => (i === 0 ? `${c.days} working days (${c.label})` : `${c.days} (${c.label})`)).join(' / ')}`;
     return `${formatPeriod(startDate, endDate)} · ${periodLength(startDate, endDate)}${days}`;
   };
-  const summaryText = summary();
+  // Only the open picker shows it.
+  const summaryText = open ? summary() : null;
+  // Not while the picker is open: the edit in it takes over the message slot.
+  const shownFailure = open ? null : failure;
 
   const half = (which: Half) => {
     const ref = inputOf(which);
     const word = which === 'startDate' ? 'start' : 'end';
     return (
-      <div className="relative">
-        <Input
+      <Input
           ref={ref}
           type="text"
           aria-label={`${phaseLabel} ${word} date`}
           aria-invalid={unreadable === which || undefined}
-          aria-describedby={unreadable === which ? errorId : failure ? failureId : conflict?.id}
+          aria-describedby={fieldMessageId({ refusal: unreadable === which ? REFUSAL : null, refusalId: errorId, failure: shownFailure, failureId, conflict })}
           placeholder={which === 'startDate' ? 'Start' : 'End'}
           className={`h-8 w-36 rounded-md border-0 bg-transparent shadow-none dark:bg-transparent ${open && active === which ? 'outline-2 -outline-offset-2 outline-brand-accent' : ''}`}
-          value={open ? texts[which] : show(value[which])}
+          value={texts ? texts[which] : saved[which]}
           onClick={() => begin(which)}
-          onFocus={(e) => {
-            // Tab between the halves moves the outline; focus coming back from the calendar keeps it where it was.
-            if (open && !pickerRef.current?.contains(e.relatedTarget as Node | null)) setActive(which);
-          }}
+          // Tab between the halves moves the outline.
+          onFocus={() => open && setActive(which)}
           onChange={(e) => {
             begin(which);
             type(which, e.target.value);
@@ -230,15 +213,14 @@ export function PeriodPicker({
               else begin(which);
             } else if (e.key === 'Escape') {
               if (open) e.preventDefault();
-              discard();
+              close();
             } else if (e.key === 'ArrowDown') {
               e.preventDefault();
               begin(which);
-              requestAnimationFrame(() => pickerRef.current?.querySelector<HTMLElement>('[role="grid"] button[tabindex="0"]')?.focus());
+              focusIntoPicker(pickerRef, ['[role="grid"] button[tabindex="0"]']);
             }
           }}
-        />
-      </div>
+      />
     );
   };
 
@@ -247,7 +229,7 @@ export function PeriodPicker({
       <Popover
         open={open}
         onOpenChange={(next) => {
-          if (!next) discard();
+          if (!next) close();
         }}
       >
         <PopoverAnchor asChild>
@@ -302,7 +284,7 @@ export function PeriodPicker({
                   setMonth(toDate(draft.startDate!));
                 }}
               >
-                {n === 1 ? '1 month' : `${n} months`}
+                {plural(n, 'month', 'months')}
               </Button>
             ))}
           </div>
@@ -312,38 +294,36 @@ export function PeriodPicker({
             month={month}
             onMonthChange={setMonth}
             today={toDate(localToday())}
-            selected={range(shown.startDate, shown.endDate) ?? (shown.startDate ? { from: toDate(shown.startDate), to: undefined } : undefined)}
+            selected={range(shown) ?? (shown.startDate ? { from: toDate(shown.startDate), to: undefined } : undefined)}
             // The picker decides what a click means (the half being set), so only the clicked day is taken from here.
             onSelect={(_, day) => pick(localIso(day))}
             onDayMouseEnter={(day) => setHover(localIso(day))}
             onDayMouseLeave={() => setHover(undefined)}
             onDayFocus={(day) => setHover(localIso(day))}
             onDayBlur={() => setHover(undefined)}
-            modifiers={{ neighbour: neighbours.map((p) => range(p.startDate, p.endDate)!) }}
+            modifiers={{ neighbour: neighbours.map((p) => range(p)!) }}
             modifiersClassNames={{ neighbour: rangeCell.neighbour }}
             classNames={{ today: `relative ${rangeCell.today}` }}
           />
           <div className="flex flex-col gap-2 border-t border-border-default px-3 py-2.5">
             <p className="m-0 flex flex-wrap items-center gap-3 text-label text-text-secondary">
-                {neighbours.map((p) => (
-                  <span key={p.label} className="inline-flex items-center gap-1">
-                    <span aria-hidden="true" className={neighbourSwatch} />
-                    {p.label}
-                  </span>
-                ))}
-                <span className="inline-flex items-center gap-1">
-                  <span aria-hidden="true" className="inline-block size-1.5 rounded-full bg-brand-accent" />
-                  Today
+              {neighbours.map((p) => (
+                <span key={p.label} className="inline-flex items-center gap-1">
+                  <span aria-hidden="true" className={neighbourSwatch} />
+                  {p.label}
                 </span>
-              </p>
+              ))}
+              <span className="inline-flex items-center gap-1">
+                <span aria-hidden="true" className="inline-block size-1.5 rounded-full bg-brand-accent" />
+                Today
+              </span>
+            </p>
             {summaryText && (
               <p className="m-0 text-caption text-text-primary" aria-live="polite">
                 {summaryText}
               </p>
             )}
-            {overlapEnd && previous && (
-              <InlineWarning>{`Starts before ${previous.label} ends (${formatDate(overlapEnd)}). The two phases overlap.`}</InlineWarning>
-            )}
+            {overlapEnd && previous && <InlineWarning>{overlapWarning(previous.label, overlapEnd)}</InlineWarning>}
             {inverted && <InlineWarning>The end date is before the start date, so this phase isn&apos;t costed yet.</InlineWarning>}
             <div className="flex items-center justify-between gap-2">
               <Button type="button" variant="ghost" size="sm" onClick={() => set({}, 'startDate')}>
@@ -356,13 +336,15 @@ export function PeriodPicker({
           </div>
         </PopoverContent>
       </Popover>
-      {unreadable && (
-        <p id={errorId} role="alert" className="m-0 text-caption text-warning-text">
-          {REFUSAL}
-        </p>
-      )}
-      {failure && !open && <FailedEdit id={failureId} failure={failure} retryLabel={`Retry saving the ${phaseLabel} period`} />}
-      {conflict && !conflict.inRow && <ConflictBlock conflict={conflict} label={`${phaseLabel} period`} />}
+      <FieldMessages
+        refusal={unreadable ? REFUSAL : null}
+        refusalId={errorId}
+        failure={shownFailure}
+        failureId={failureId}
+        retryLabel={`Retry saving the ${phaseLabel} period`}
+        conflict={conflict}
+        label={`${phaseLabel} period`}
+      />
     </div>
   );
 }

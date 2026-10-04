@@ -1,5 +1,5 @@
 import { workingDaysForPeriod } from './cost';
-import { formatMonthEn, iso, monthOf, parseIso } from './dates';
+import { daysBetween, formatMonthEn, iso, monthOf, parseIso } from './dates';
 import { addDays, addMonths } from './defaultPlan';
 import { plural } from './plural';
 import { activeMembers } from './teamMembers';
@@ -13,9 +13,7 @@ export function periodLength(startIso: string, endIso: string): string {
   let months = 0;
   while (addDays(addMonths(startIso, months + 1), -1) <= endIso) months += 1;
   const restFrom = addMonths(startIso, months);
-  const [ry, rm, rd] = parseIso(restFrom);
-  const [ey, em, ed] = parseIso(endIso);
-  const days = restFrom > endIso ? 0 : Math.round((Date.UTC(ey, em - 1, ed) - Date.UTC(ry, rm - 1, rd)) / 86_400_000) + 1;
+  const days = restFrom > endIso ? 0 : daysBetween(restFrom, endIso) + 1;
   const parts = [months > 0 ? plural(months, 'month', 'months') : null, days > 0 || months === 0 ? plural(days, 'day', 'days') : null];
   return parts.filter(Boolean).join(' ');
 }
@@ -32,29 +30,20 @@ export function periodMonthsEn(startIso: string, endIso: string): string {
 /** The end of a length shortcut (§9.11): `months` whole months ending at a month end, the start's month counting first. */
 export function endAfterMonths(startIso: string, months: number): string {
   const [y, m] = parseIso(startIso);
-  const index = y * 12 + (m - 1) + months;
-  const year = Math.floor(index / 12);
-  const month = (index % 12) + 1;
-  return addDays(iso(year, month, 1), -1);
+  return addDays(addMonths(iso(y, m, 1), months), -1);
 }
 
-/**
- * The working days a period covers in each country of a team's current members (§7.1, §9.11), prorated, rounded to
- * whole days, ordered by code. A country read without a code is named by its name.
- */
-export function workingDaysByCountry(
-  startIso: string,
-  endIso: string,
-  teamId: string,
-  data: { memberships: Membership[]; people: Person[]; countries: Country[] },
-): { label: string; days: number }[] {
-  if (endIso < startIso) return [];
+/** The countries of a team's current members (§7.1), ordered by code: the columns of the period picker's footer (§9.11). */
+export function teamCountries(teamId: string, data: { memberships: Membership[]; people: Person[]; countries: Country[] }): Country[] {
   const ids = new Set(activeMembers(teamId, data.memberships, data.people).map((p) => p.countryId));
-  return data.countries
-    .filter((c) => ids.has(c.id))
-    .map((c) => ({
-      label: c.code || c.name,
-      days: Math.round(Object.values(workingDaysForPeriod(c, startIso, endIso)).reduce((sum, d) => sum + d, 0)),
-    }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+  return data.countries.filter((c) => ids.has(c.id)).sort((a, b) => a.code.localeCompare(b.code));
+}
+
+/** The working days a period covers in each of `countries` (§7.1, §9.11), prorated and rounded to whole days, labelled by code. */
+export function workingDaysByCountry(startIso: string, endIso: string, countries: Country[]): { label: string; days: number }[] {
+  if (endIso < startIso) return [];
+  return countries.map((c) => ({
+    label: c.code,
+    days: Math.round(Object.values(workingDaysForPeriod(c, startIso, endIso)).reduce((sum, d) => sum + d, 0)),
+  }));
 }

@@ -289,7 +289,7 @@ describe('a frozen phase refuses what the page no longer offers (§5.11, §8.1)'
     renderPage();
     await screen.findByRole('button', { name: /^Validation/ });
 
-    act(() => repository.setPhaseDate('i1', validationId, 'endDate', '2026-12-31'));
+    act(() => repository.setPhasePeriod('i1', validationId, { startDate: '2026-10-01', endDate: '2026-12-31' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent("G2 was passed while you were editing, so your last change to Validation wasn't saved.");
     await user.click(screen.getByRole('button', { name: 'Dismiss' }));
