@@ -2,7 +2,7 @@ import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepositoryState } from '../sync/Repository';
-import { GettingStartedStrip } from './GettingStartedStrip';
+import { GettingStartedChip, GettingStartedStrip } from './GettingStartedStrip';
 import { resetGettingStartedDismissal } from './gettingStartedDismissal';
 
 let state: Partial<RepositoryState>;
@@ -96,5 +96,43 @@ describe('Getting started strip (§5.2)', () => {
     expect(screen.getByRole('heading', { name: 'Getting started' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dismiss for now' }));
     expect(screen.queryByRole('heading', { name: 'Getting started' })).toBeNull();
+  });
+
+  it('counts the steps done beside a progress bar, cleared ones struck through', () => {
+    update({ datasetFlags: flags(true), teams: [team] });
+    render(<GettingStartedStrip />);
+    expect(screen.getByText('2 of 4 done')).toBeInTheDocument();
+    expect(link('Review rates')).toHaveClass('line-through');
+    expect(link('Add people to the team')).not.toHaveClass('line-through');
+  });
+
+  it('stays expanded at three of four unless it may collapse', () => {
+    update({ datasetFlags: flags(true), teams: [team], people: [mara], memberships: [membership] });
+    render(<GettingStartedStrip />);
+    expect(screen.getByText('3 of 4 done')).toBeInTheDocument();
+    cleanup();
+    render(<GettingStartedStrip collapsible />);
+    expect(screen.queryByRole('heading', { name: 'Getting started' })).toBeNull();
+  });
+});
+
+describe('Getting started chip (§5.2)', () => {
+  it('shows only at three of four done', () => {
+    update({ datasetFlags: flags(true), teams: [team] });
+    render(<GettingStartedChip />);
+    expect(screen.queryByRole('button', { name: /Getting started/ })).toBeNull();
+    update({ people: [mara], memberships: [membership] });
+    expect(screen.getByRole('button', { name: 'Getting started · 3 of 4 done' })).toBeInTheDocument();
+  });
+
+  it('opens the remaining step in a popover, with Dismiss for now', async () => {
+    const user = userEvent.setup();
+    update({ teams: [team], people: [mara], memberships: [membership], initiatives: [checkout] as RepositoryState['initiatives'] });
+    render(<GettingStartedChip />);
+    await user.click(screen.getByRole('button', { name: 'Getting started · 3 of 4 done' }));
+    expect(screen.getByText('One step left')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review rates' })).toHaveAttribute('href', '#/settings/countries');
+    await user.click(screen.getByRole('button', { name: 'Dismiss for now' }));
+    expect(screen.queryByRole('button', { name: /Getting started/ })).toBeNull();
   });
 });

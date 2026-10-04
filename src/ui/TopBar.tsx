@@ -61,7 +61,7 @@ export function TopBar({ route }: { route: string }) {
         </nav>
 
         <div className="flex items-center gap-3">
-          <NewInitiativeControl />
+          <NewInitiativeControl onPortfolio={route === '/portfolio'} />
           <GlobalSearch />
           <SyncIndicator />
           <ThemeControl />

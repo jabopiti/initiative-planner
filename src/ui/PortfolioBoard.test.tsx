@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
-import type { Initiative, Person, Team } from '../data/types';
+import type { Initiative, Membership, Person, Team } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider, useRepositoryState } from '../state/DataContext';
 import { NeedsAttentionProvider } from '../state/NeedsAttentionContext';
@@ -40,6 +40,7 @@ const gap: Initiative = { id: 'gp', name: 'Gap One', teamId: 't1', ownerId: 'ana
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
 let initiatives: Initiative[] = [];
+let memberships: Membership[] = [];
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
@@ -54,7 +55,7 @@ beforeAll(() => {
       if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');
       if (url.includes('/contents/teams.json')) return file(teams, 't');
       if (url.includes('/contents/people.json')) return file(people, 'p');
-      if (url.includes('/contents/memberships.json')) return file([], 'm');
+      if (url.includes('/contents/memberships.json')) return file(memberships, 'm');
       const match = /\/contents\/initiatives\/(.+)\.json$/.exec(new URL(url).pathname);
       if (match) {
         const found = initiatives.find((i) => i.id === match[1]);
@@ -70,6 +71,7 @@ afterEach(() => {
   cleanup();
   resetSessionFilters();
   resetGettingStartedDismissal();
+  memberships = [];
 });
 
 /** Shows the Initiatives table's filters, to prove the Portfolio's are kept apart. */
@@ -123,6 +125,14 @@ describe('Getting started strip on the Portfolio (§5.2)', () => {
     expect(screen.getByText('No initiatives yet')).toBeInTheDocument();
     expect(strip.compareDocumentPosition(screen.getByText('No initiatives yet')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(screen.getByRole('link', { name: /Create a team/ }).closest('li')!).getByText('Done')).toBeInTheDocument();
+  });
+
+  it('collapses to a chip first in the toolbar row at three of four done', async () => {
+    memberships = [{ id: 'm1', personId: 'ana', teamId: 't1', teamFtePct: 100, active: true }];
+    await renderBoard([big]);
+    expect(screen.queryByRole('heading', { name: 'Getting started' })).toBeNull();
+    const chip = screen.getByRole('button', { name: 'Getting started · 3 of 4 done' });
+    expect(chip.compareDocumentPosition(screen.getByRole('button', { name: 'Team' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shows above the Needs attention strip once initiatives exist', async () => {

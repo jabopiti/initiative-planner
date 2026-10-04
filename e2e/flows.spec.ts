@@ -76,3 +76,19 @@ test('read-only mode: a token GitHub stops accepting turns the app read-only, wi
   await expect(page.getByRole('link', { name: 'Platform' })).toBeVisible();
   expect(github.read<{ name: string }[]>('teams.json')?.map((t) => t.name)).toEqual(['Platform']);
 });
+
+test('first run: the welcome card is the one way to create a team, and Teams opens with its button focused and highlighted', async ({ page }) => {
+  await fakeGithub(page).install();
+  await connect(page);
+
+  await expect(page.getByRole('heading', { name: /^Welcome to/ })).toBeVisible();
+  // The top bar's button is hidden meanwhile, so Create a team appears once (§9.4).
+  await expect(page.getByRole('button', { name: 'Create a team' })).toHaveCount(1);
+  await page.getByRole('button', { name: 'Create a team' }).click();
+
+  // Arriving from the step (§5.2): Teams' own Create a team has focus and the Accent ring, for 3 seconds.
+  const create = page.getByRole('main').getByRole('button', { name: 'Create a team' });
+  await expect(create).toBeFocused();
+  await expect(create).toHaveClass(/ring-brand-accent/);
+  await expect(create).not.toHaveClass(/ring-brand-accent/, { timeout: 5000 });
+});

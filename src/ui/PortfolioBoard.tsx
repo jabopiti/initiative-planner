@@ -19,7 +19,8 @@ import { formatAmount, formatSignedAmount } from './formatAmount';
 import { STATUS_GLYPH, statusText } from './StatusLabel';
 import { TruncatedText } from './TruncatedText';
 import { NoInitiatives } from './NoInitiatives';
-import { GettingStartedStrip } from './GettingStartedStrip';
+import { GettingStartedChip, GettingStartedStrip } from './GettingStartedStrip';
+import { WelcomeCard } from './WelcomeCard';
 import { NeedsAttentionStrip } from './NeedsAttentionStrip';
 import { useSessionFilters } from './sessionFilters';
 import { YearChip } from './YearChip';
@@ -116,10 +117,17 @@ export function PortfolioBoard() {
   if (initiatives.length === 0) {
     return (
       <Page title="Portfolio">
-        <div className="empty:hidden [&>section]:mb-0">
-          <GettingStartedStrip />
-        </div>
-        <NoInitiatives />
+        {teams.length === 0 ? (
+          <WelcomeCard />
+        ) : (
+          <>
+            {/* No toolbar row without initiatives, so the strip stays expanded at three of four (§5.2). */}
+            <div className="empty:hidden [&>section]:mb-0">
+              <GettingStartedStrip />
+            </div>
+            <NoInitiatives />
+          </>
+        )}
       </Page>
     );
   }
@@ -147,12 +155,13 @@ export function PortfolioBoard() {
 
   return (
     <Page title="Portfolio">
-      <GettingStartedStrip />
+      <GettingStartedStrip collapsible />
       <NeedsAttentionStrip />
       <Toolbar
         className="mb-2"
         filters={
           <>
+            <GettingStartedChip />
             {chip('team', 'Team')}
             {chip('phase', 'Phase')}
             <YearChip years={years} selected={filters.year} onChange={(year) => setFilters({ ...filters, year })} />
