@@ -20,6 +20,7 @@ import {
 } from '../data/types';
 import { allocationRefusal, trackedYears } from '../data/cost';
 import { formatDateEn, formatMonthEn, monthKey } from '../data/dates';
+import { periodMonthsEn } from '../data/period';
 import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysByMonth } from '../data/rates';
 import { localToday } from '../data/dates';
 import { duplicateInitiative, type DuplicateResult } from '../data/duplicate';
@@ -1531,6 +1532,41 @@ export class Repository {
         from: before,
         to: value,
         words: (_, to, name, phase) => `${name}: ${phase} ${word} ${to === undefined ? 'cleared' : `set to ${formatDateEn(to)}`}`,
+      },
+    );
+  }
+
+  /**
+   * Set a phase's whole period at once (§9.11 period picker, saved on Done): one write and one commit, "Payments API:
+   * Development period set to Apr–Sep". An `undefined` end clears it. Nothing is written when neither date changes.
+   */
+  setPhasePeriod(initiativeId: string, phaseId: string, period: { startDate?: string; endDate?: string }): void {
+    const plan = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId];
+    const before = { startDate: plan?.startDate, endDate: plan?.endDate };
+    if (before.startDate === period.startDate && before.endDate === period.endDate) return;
+    const to = { startDate: period.startDate, endDate: period.endDate };
+    this.editPhase<{ startDate?: string; endDate?: string }>(
+      initiativeId,
+      phaseId,
+      (current) => {
+        const next = { ...current };
+        for (const which of ['startDate', 'endDate'] as const) {
+          if (to[which] === undefined) delete next[which];
+          else next[which] = to[which];
+        }
+        return next;
+      },
+      {
+        field: 'period',
+        from: before,
+        to,
+        words: (_, after, name, phase) => {
+          const { startDate, endDate } = after ?? {};
+          if (startDate && endDate) return `${name}: ${phase} period set to ${periodMonthsEn(startDate, endDate)}`;
+          if (startDate) return `${name}: ${phase} start date set to ${formatDateEn(startDate)}, no end date`;
+          if (endDate) return `${name}: ${phase} end date set to ${formatDateEn(endDate)}, no start date`;
+          return `${name}: ${phase} period cleared`;
+        },
       },
     );
   }

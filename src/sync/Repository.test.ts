@@ -713,6 +713,25 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     });
   });
 
+  it('saves a whole period as one write and one commit, and writes nothing when it is unchanged (§9.11)', async () => {
+    const { repo, initiative } = await repoWithInitiative();
+    repo.setPhasePeriod(initiative.id, 'validation', { startDate: '2026-09-01', endDate: '2026-10-31' });
+    await repo.flushPending();
+    expect(commits.map((c) => c.message.split('\n')[0])).toEqual(['Payments API: Validation period set to Sep–Oct']);
+    expect(commits[0].content.phases?.validation).toMatchObject({ startDate: '2026-09-01', endDate: '2026-10-31' });
+
+    commits.length = 0;
+    repo.setPhasePeriod(initiative.id, 'validation', { startDate: '2026-09-01', endDate: '2026-10-31' });
+    await repo.flushPending();
+    expect(commits).toEqual([]);
+
+    repo.setPhasePeriod(initiative.id, 'validation', {});
+    await repo.flushPending();
+    expect(commits.map((c) => c.message.split('\n')[0])).toEqual(['Payments API: Validation period cleared']);
+    expect(commits[0].content.phases?.validation.startDate).toBeUndefined();
+    expect(commits[0].content.phases?.validation.endDate).toBeUndefined();
+  });
+
   it('copies the previous costed phase into an empty one as a single commit, skipping someone who left, and refuses a non-empty phase', async () => {
     const { repo, initiative, member } = await repoWithInitiative();
     const leaver = repo.createPerson({ name: 'Lucía Ramos', countryId: 'c1', roleId: 'r1' });
