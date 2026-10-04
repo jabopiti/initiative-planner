@@ -3,7 +3,9 @@ import { useBrand } from '../state/BrandContext';
 import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
-import { isOutsidePeriod, parseAmount, periodMonths } from '../data/cost';
+import { amountRefusal, parseAmountExpression } from '../data/amountExpression';
+import { isOutsidePeriod, periodMonths } from '../data/cost';
+import { AmountDraftInput, AmountInput } from './AmountInput';
 import { formatMonth, localToday, monthOf } from '../data/dates';
 import type { CostItemSuggestion } from '../data/costItemSuggestions';
 import { FILE_PATHS, type CostItem, type PhasePlan } from '../data/types';
@@ -16,7 +18,6 @@ import { PlusIcon, RemoveIcon } from './icons';
 import { TIMING_LABELS } from './costItemTiming';
 import { undoToast } from './undoToast';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const LABEL_REFUSAL = 'Enter a label.';
@@ -113,29 +114,18 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                     )}
                   </td>
                   <td className="min-w-40 py-1.5 pr-2">
-                    <div className="flex flex-wrap items-center gap-x-1">
-                      <span className="text-caption text-text-secondary">{currencySymbol}</span>
-                      <CommitInput
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        step="any"
-                        aria-label={`Amount for ${item.label}`}
-                        className="w-28"
-                        errorClassName="mt-1 order-last w-full"
-                        value={String(item.amount)}
-                        changed={itemChanged('amount')}
-                        failure={itemFailure('amount')}
-                        conflict={inRow(conflicts.amount)}
-                        retryLabel={itemRetryLabel('amount')}
-                        onCommit={(text) => {
-                          const amount = parseAmount(text);
-                          if (amount === null) return AMOUNT_REFUSAL;
-                          if (amount === item.amount) return false;
-                          repository.updateCostItem(initiativeId, phase.id, item.id, { amount });
-                        }}
-                      />
-                    </div>
+                    <AmountInput
+                      label={`Amount for ${item.label}`}
+                      currencySymbol={currencySymbol}
+                      value={item.amount}
+                      refusal={AMOUNT_REFUSAL}
+                      errorClassName="mt-1 order-last w-full"
+                      changed={itemChanged('amount')}
+                      failure={itemFailure('amount')}
+                      conflict={inRow(conflicts.amount)}
+                      retryLabel={itemRetryLabel('amount')}
+                      onChange={(amount) => repository.updateCostItem(initiativeId, phase.id, item.id, { amount })}
+                    />
                   </td>
                   <td className="py-1.5 pr-2">
                     <div className="flex flex-col items-start gap-2">
@@ -238,18 +228,17 @@ function DraftRow({
   const month = pickedMonth === undefined ? defaultMonth(months) : (pickedMonth ?? undefined);
   const [refused, setRefused] = useState<{ label?: string; amount?: string; month?: string }>({});
   const labelErrorId = useId();
-  const amountErrorId = useId();
 
   const add = () => {
-    const parsed = parseAmount(amount);
+    const parsed = parseAmountExpression(amount);
     const text = label.trim();
     const next = {
       label: text === '' ? LABEL_REFUSAL : undefined,
-      amount: parsed === null ? AMOUNT_REFUSAL : undefined,
+      amount: parsed.ok ? undefined : amountRefusal(parsed.reason, AMOUNT_REFUSAL),
       month: timing === 'month' && month === undefined ? MONTH_REFUSAL : undefined,
     };
     setRefused(next);
-    if (parsed !== null && !next.label && !next.month) onAdd({ label: text, amount: parsed, timing, ...(timing === 'month' && { month }) });
+    if (parsed.ok && !next.label && !next.month) onAdd({ label: text, amount: parsed.value, timing, ...(timing === 'month' && { month }) });
   };
   const choose = (suggestion: CostItemSuggestion) => {
     setLabel(suggestion.label);
@@ -281,26 +270,18 @@ function DraftRow({
           />
           {refused.label && <Refusal id={labelErrorId}>{refused.label}</Refusal>}
         </div>
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-1">
-            <span className="text-caption text-text-secondary">{currencySymbol}</span>
-            <Input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step="any"
-              aria-label="Amount"
-              placeholder="Amount"
-              className="w-28"
-              value={amount}
-              aria-invalid={refused.amount ? true : undefined}
-              aria-describedby={refused.amount ? amountErrorId : undefined}
-              onChange={(e) => setAmount(e.target.value)}
-              onKeyDown={keys}
-            />
-          </div>
-          {refused.amount && <Refusal id={amountErrorId}>{refused.amount}</Refusal>}
-        </div>
+        <AmountDraftInput
+          aria-label="Amount"
+          placeholder="Amount"
+          currencySymbol={currencySymbol}
+          value={amount}
+          error={refused.amount}
+          onChange={(text) => {
+            setAmount(text);
+            setRefused((current) => ({ ...current, amount: undefined }));
+          }}
+          onKeyDown={keys}
+        />
         <TimingToggle value={timing} label="When" onChange={setTiming} />
         {timing === 'month' && (
           <div className="flex flex-col gap-1">

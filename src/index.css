@@ -48,6 +48,40 @@
   --font-weight-*: initial;
   --font-weight-normal: 400;
   --font-weight-medium: 500;
+
+  /*
+   * Motion (slice 059): brief and non-essential, every use behind motion-safe: so prefers-reduced-motion shows the
+   * end state at once (§9.5). fade-in: a screen arriving (150 ms); reveal: a phase opening (150 ms); draw: the gate
+   * pass tick (400 ms, on a path with pathLength 1); step-fill and recalc: the just-passed step (400 ms) and a figure
+   * that just recalculated (1200 ms), each tinted then cleared.
+   */
+  --animate-fade-in: fade-in 150ms ease-out;
+  --animate-reveal: reveal 150ms ease-out;
+  --animate-draw: draw 400ms ease-out;
+  --animate-step-fill: tint-out 400ms ease-out;
+  --animate-recalc: tint-out 1200ms ease-out;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      translate: 0 -4px;
+    }
+  }
+  @keyframes draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+  }
+  @keyframes tint-out {
+    from {
+      background-color: var(--met-tint);
+    }
+  }
 }
 
 @theme inline {

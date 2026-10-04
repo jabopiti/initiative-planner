@@ -767,7 +767,7 @@ Contents, top to bottom:
 show the lifetime grand estimate. With a year selected, they show only the
 cost falling in that year, deviation counts only months of that year, and
 initiatives with no cost in that year are hidden. The approval track badge
-is always based on the lifetime grand estimate.
+is always based on the lifetime grand estimate, and so is each card's bullet bar.
 
 ### 5.3 Initiatives overview
 
@@ -897,8 +897,20 @@ Its layout follows the design rules in §9.8.
   ranges, the approved-at figure as a tick and the recorded actuals to date
   as a thinner inner bar; a gap between bands stays unshaded), Deviation,
   the current
-  phase with its period, and the current gate's "X of Y complete". A **Copy**
-  button copies the cost summary and the phase costs (§9.2).
+  phase with its period, and the current gate's "X of Y complete". The
+  four are cards in one row. Every bullet bar, here and on the board, runs
+  from 0 to twice the highest finite band bound, so bars compare; a bar
+  past the end is clipped with an end mark. The bar and the difference
+  line ("+€24,000 since G2") are in Warning while the initiative is
+  escalated (§7.4). Beneath the figures: "Approved at <gate>: <amount>"
+  and "Unchanged since <gate>" or the signed difference, once a costed
+  gate has passed; "No actuals recorded yet", or "Over estimate", "Under
+  estimate" or "On estimate" with the number of months recorded; the
+  phase's period or "No period yet"; "<n> open", "Ready to pass" or
+  "Nothing to check". A Closed initiative reads "Closed after <final
+  gate>" and "All passed". A **Copy**
+  button in the Grand estimate tile copies the cost summary and the phase
+  costs (§9.2).
 - **Phases**: the process's phases in order, as a vertical sequence. The
   current phase is expanded with full editing controls (allocations, period,
   actuals), and the **Gate / Checklist panel** for the gate leaving it sits
@@ -965,8 +977,8 @@ The current phase shows its **period** as one
   missing one and moves focus to it. Its checklist items follow.
   Each item has a status icon at its left, a name, a description that opens
   on demand, and a status set with a labelled segmented control —
-  Incomplete, Tentative, Complete — the selected one in its colour role
-  (§9.8).
+  Incomplete, Tentative, Complete — the selected one tinted in its colour
+  role (§9.8), which the status icon takes too.
   Selecting Tentative opens a note field; the status is saved together with
   the note, and Esc cancels. Items carried forward from earlier gates sit
   under their own subheading with their notes visible.
@@ -1996,11 +2008,16 @@ operable by keyboard.
 
 **Amount input.** Every amount field (a cost item, an actual, a day rate)
 shows the currency symbol inside the field and accepts shorthand and simple
-sums: k and m (12k, 2.5m), and + − × / between numbers (3 × 4k). The
-decimal separator follows the user's format (§9.7). While the entry is not
+sums: k and m (12k, 2.5m), and + − × / between numbers (3 × 4k; x and *
+also multiply), with brackets. The decimal separator follows the user's
+format (§9.7); a separator that is neither the decimal nor a valid thousands
+group is read as the decimal. While the entry is not
 a plain number, the line under the field shows the amount it will save
 ("Saves as €12,000"); an entry that isn't a valid amount says so there and
-saves nothing. Amounts are computed with exact decimals.
+saves nothing: the reason shows when the entry is committed ("Can't read
+that as an amount. Try 12k or 3 × 4k.", "Can't divide by 0.", "An amount
+can't be below 0.", "That amount is too large."). Amounts are computed with
+exact decimals and the result is rounded to whole cents.
 
 **Amounts.** Cards, board headers and metrics show compact amounts (for
 example €4.2M and €210k, no space) with the full amount in a tooltip; tables, editors
