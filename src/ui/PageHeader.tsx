@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cn } from 'cn';
+import { cn } from '@/lib/utils';
 
 /** A page's title row (§9.8): the h1 at the display size, with the page's actions at the right. */
 export function PageHeader({ title, actions, className }: { title: ReactNode; actions?: ReactNode; className?: string }) {

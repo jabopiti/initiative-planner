@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react';
-import { cn } from 'cn';
+import { cn } from '@/lib/utils';
 import { PageHeader } from './PageHeader';
 
 /** The page container (§9.8): centred, at most 1280 px, 32 px gutters. The top bar's content uses it too, so the two line up. */
-const gutters = 'mx-auto w-full px-8';
-export const pageContainerClass = `${gutters} max-w-page`;
+export const pageContainerClass = 'mx-auto w-full max-w-page px-8';
 
 /**
  * The page shell (§9.8): every screen sits in one centred container, with its title row when it has a title. The
@@ -13,8 +12,7 @@ export const pageContainerClass = `${gutters} max-w-page`;
  */
 export function Page({ title, actions, width = 'page', className, children }: { title?: ReactNode; actions?: ReactNode; width?: 'page' | 'detail'; className?: string; children: ReactNode }) {
   return (
-    // One max width or the other: cn doesn't know the custom max-w-page, so it wouldn't drop it in favour of the detail width.
-    <div className={cn(gutters, width === 'detail' ? 'max-w-[calc(var(--container-detail)+4rem)]' : 'max-w-page', 'py-6', className)}>
+    <div className={cn(pageContainerClass, width === 'detail' && 'max-w-[calc(var(--container-detail)+4rem)]', 'py-6', className)}>
       {title !== undefined && <PageHeader title={title} actions={actions} />}
       {children}
     </div>
