@@ -59,6 +59,7 @@ function localeSeparators(locale: string): { decimal: string; group: string } {
 
 const isDigit = (c: string | undefined): c is string => c !== undefined && c >= '0' && c <= '9';
 const isSpace = (c: string) => /\s/.test(c);
+const isApostrophe = (c: string) => c === "'" || c === '’';
 
 /**
  * Reads one number's text (digits and the separators `.`, `,` and the locale's group mark) into a fraction. The
@@ -107,6 +108,8 @@ export function parseAmountExpression(text: string, locale = displayLocale()): A
   if (input.length > MAX_LENGTH) return { ok: false, reason: 'unreadable' };
   const { decimal, group } = localeSeparators(locale);
   const groupIsSpace = isSpace(group);
+  // ICU versions disagree on the Swiss group mark (U+2019 or U+0027), and people type either.
+  const groupIsApostrophe = isApostrophe(group);
   let at = 0;
   let operations = 0;
 
@@ -131,7 +134,7 @@ export function parseAmountExpression(text: string, locale = displayLocale()): A
       const thousands = at > start && isDigit(input[at - 1]) && /^\d{3}(?!\d)/.test(input.slice(at + 1));
       if (isDigit(c)) raw += c;
       else if ((c === '.' || c === ',') && (isDigit(input[at - 1]) || isDigit(input[at + 1]))) raw += c;
-      else if (c === group && thousands) raw += c;
+      else if ((c === group || (groupIsApostrophe && isApostrophe(c))) && thousands) raw += group;
       else if (groupIsSpace && isSpace(c) && thousands) raw += ' ';
       else break;
       at++;

@@ -103,6 +103,7 @@ describe('parseAmountExpression', () => {
 
   it('reads the apostrophe group of Swiss German', () => {
     expect(value('12’000', 'de-CH')).toBe(12_000);
+    expect(value("12'000", 'de-CH')).toBe(12_000);
   });
 });
 
