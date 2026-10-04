@@ -44,7 +44,7 @@ export function TeamInitiatives({ team }: { team: Team }) {
   const start = () => navigate(`/initiatives/new?team=${encodeURIComponent(team.id)}`);
 
   return (
-    <section aria-label="Initiatives" className="mt-8 max-w-3xl">
+    <section aria-label="Initiatives" className="mt-8">
       <SectionHeader
         title="Initiatives"
         actions={

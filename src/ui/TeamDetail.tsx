@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { CommitInput } from './CommitInput';
 import { FILE_PATHS } from '../data/types';
 import { TeamSwatch } from './TeamSwatch';
+import { Page } from './Page';
 import { PageHeader, SectionHeader } from './PageHeader';
 import { Badge } from '@/components/ui/badge';
 
@@ -70,10 +71,10 @@ export function TeamDetail({ id }: { id: string }) {
 
   if (!team) {
     return (
-      <div className="px-8 py-6">
+      <Page>
         <a href="#/teams">Back to Teams</a>
         <p className="text-text-secondary">That team doesn't exist.</p>
-      </div>
+      </Page>
     );
   }
 
@@ -135,7 +136,7 @@ export function TeamDetail({ id }: { id: string }) {
   }
 
   return (
-    <div className="px-8 py-6">
+    <Page>
       <a href="#/teams" className="text-caption text-text-secondary">
         Teams
       </a>
@@ -172,8 +173,8 @@ export function TeamDetail({ id }: { id: string }) {
         }
       />
 
-      <section aria-label="Members" className="max-w-3xl">
-        <SectionHeader title="Members" actions={members.length > 0 && <CopyButton getData={copyData} noun={['member', 'members']} />} />
+      <section aria-label="Members">
+        <SectionHeader title="Members" actions={members.length > 0 && <CopyButton getData={copyData} noun={['member', 'members']} section="Members" />} />
 
         <div className="relative mb-4 max-w-sm">
           <Input
@@ -316,6 +317,6 @@ export function TeamDetail({ id }: { id: string }) {
       <TeamInitiatives team={team} />
       <CapacityGrid team={team} />
       <PersonPanel person={people.find((p) => p.id === personId) ?? null} onClose={() => setPersonId(null)} />
-    </div>
+    </Page>
   );
 }

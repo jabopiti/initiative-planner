@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { FILE_PATHS } from '../data/types';
+import { Page, Toolbar } from './Page';
 import { PageHeader } from './PageHeader';
 import { TeamSwatch } from './TeamSwatch';
 
@@ -99,19 +100,19 @@ export function TeamsOverview() {
 
   if (teams.length === 0 && !creating) {
     return (
-      <div className="px-8 py-6">
+      <Page>
+        <PageHeader title="Teams" />
         <EmptyState line="No teams yet" actionLabel="Create a team" onAction={startCreating} />
-      </div>
+      </Page>
     );
   }
 
   return (
-    <div className="px-8 py-6">
+    <Page>
       <PageHeader
         title="Teams"
         actions={
           <>
-            {teams.length > 0 && <CopyButton getData={copyData} noun={['team', 'teams']} />}
             {creating ? (
               <form
                 className="flex gap-1.5"
@@ -145,6 +146,14 @@ export function TeamsOverview() {
         }
       />
       {creating && refusal && <Refusal className="mb-3 w-fit">{refusal}</Refusal>}
+      {teams.length > 0 && (
+        <Toolbar>
+          <p className="m-0">
+            {teams.length} {teams.length === 1 ? 'team' : 'teams'}
+          </p>
+          <CopyButton getData={copyData} noun={['team', 'teams']} />
+        </Toolbar>
+      )}
 
       <table className="tabular-nums w-full border-collapse text-body">
         <thead>
@@ -199,6 +208,6 @@ export function TeamsOverview() {
           ))}
         </tbody>
       </table>
-    </div>
+    </Page>
   );
 }

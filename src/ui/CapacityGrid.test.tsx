@@ -213,7 +213,7 @@ describe('the capacity grid on the team detail (§5.8)', () => {
     const user = setupUser();
     renderView(<TeamDetail id="t1" />);
     await grid();
-    await user.click(screen.getByRole('button', { name: 'Copy capacity' }));
+    await user.click(screen.getByRole('button', { name: 'Copy table: Capacity' }));
     expect(await screen.findByText('Copied 3 people')).toBeInTheDocument();
     const lines = written['text/plain'].split('\n');
     expect(lines[0]).toBe('Name\tTeam FTE %\tSept 26\tOct 26\tNov 26\tDec 26\tJan 27\tFeb 27\tMar 27');

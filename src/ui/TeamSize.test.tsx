@@ -158,7 +158,7 @@ describe('team size counts only active people (§5.7)', () => {
     vi.stubGlobal('ClipboardItem', class { constructor(public items: Record<string, Blob>) {} });
     renderView(<TeamsOverview />);
     await screen.findByText('Platform');
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await user.click(screen.getByRole('button', { name: 'Copy table' }));
     expect(await screen.findByText('Copied 2 teams')).toBeInTheDocument();
     expect(text.split('\n')[1]).toMatch(/^Payments\t2\t/);
   });

@@ -98,7 +98,9 @@
   --radius-xl: calc(var(--radius) + 4px);
   --radius-card: 10px;
 
-  --container-page: 720px;
+  /* The page shell (§9.8): one centred container on every screen, and the initiative page's single column inside it. */
+  --container-page: 1280px;
+  --container-detail: 960px;
   --container-connect: 560px;
   --spacing-check: 18px;
 

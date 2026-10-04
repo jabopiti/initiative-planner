@@ -58,7 +58,7 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
         </>
       )}
       <Stat label="Deviation" value={formatSignedAmount(deviation, currencySymbol)} warn={deviation > 0} />
-      <CopyButton getData={getData} noun={['line', 'lines']} label="Copy cost summary" />
+      <CopyButton getData={getData} noun={['line', 'lines']} section="Cost summary" />
     </section>
   );
 }

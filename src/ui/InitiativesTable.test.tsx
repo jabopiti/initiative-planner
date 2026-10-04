@@ -314,7 +314,7 @@ describe('Initiatives table copy (§9.2)', () => {
     await renderTable([overrun, ready, onHold, quiet]);
     await pick(user, 'Status', 'Active');
     await user.click(header('Name'));
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await user.click(screen.getByRole('button', { name: 'Copy table' }));
     expect(await screen.findByText('Copied 3 initiatives')).toBeInTheDocument();
 
     const lines = written['text/plain'].split('\n').map((l) => l.split('\t'));
@@ -332,7 +332,7 @@ describe('Initiatives table copy (§9.2)', () => {
   it('writes the status as the table shows it', async () => {
     const user = setupUser();
     await renderTable([onHold]);
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await user.click(screen.getByRole('button', { name: 'Copy table' }));
     await screen.findByText('Copied 1 initiative');
     expect(written['text/plain'].split('\n')[1].split('\t')[6]).toBe('On hold');
   });

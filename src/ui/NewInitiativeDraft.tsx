@@ -5,6 +5,7 @@ import { navigate } from '../router/useHashRoute';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TeamSelect } from './TeamSelect';
+import { Page } from './Page';
 import { Badge } from '@/components/ui/badge';
 
 const HIGHLIGHT = 'border-brand-accent bg-brand-accent-tint';
@@ -60,46 +61,48 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
   }
 
   return (
-    <div className="max-w-page p-8">
-      <h1 className="sr-only">New initiative</h1>
-      <div className="flex items-center gap-3">
-        <Input
-          autoFocus
-          className={`h-auto min-w-0 flex-1 px-3 py-1.5 text-display ${nextStep === 'name' ? HIGHLIGHT : ''}`}
-          aria-label="Initiative name"
-          aria-describedby={GUIDANCE_ID}
-          placeholder="Name this initiative"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter') return;
-            e.preventDefault();
-            if (teamId) void create();
-            else if (hasName) teamTrigger.current?.focus();
-          }}
-        />
-        <TeamSelect
-          ref={teamTrigger}
-          teams={teams}
-          value={teamId}
-          onValueChange={setPicked}
-          aria-describedby={GUIDANCE_ID}
-          className={nextStep === 'team' ? HIGHLIGHT : ''}
-        />
-        <Badge variant="subtle">Draft</Badge>
-        <Button
-          type="button"
-          size="sm"
-          disabled={nextStep !== 'create'}
-          className={nextStep === 'create' ? 'ring-2 ring-brand-accent ring-offset-2' : ''}
-          onClick={() => void create()}
-        >
-          Create initiative
-        </Button>
+    <Page>
+      <div className="mx-auto max-w-detail">
+        <h1 className="sr-only">New initiative</h1>
+        <div className="flex items-center gap-3">
+          <Input
+            autoFocus
+            className={`h-auto min-w-0 flex-1 px-3 py-1.5 text-display ${nextStep === 'name' ? HIGHLIGHT : ''}`}
+            aria-label="Initiative name"
+            aria-describedby={GUIDANCE_ID}
+            placeholder="Name this initiative"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter') return;
+              e.preventDefault();
+              if (teamId) void create();
+              else if (hasName) teamTrigger.current?.focus();
+            }}
+          />
+          <TeamSelect
+            ref={teamTrigger}
+            teams={teams}
+            value={teamId}
+            onValueChange={setPicked}
+            aria-describedby={GUIDANCE_ID}
+            className={nextStep === 'team' ? HIGHLIGHT : ''}
+          />
+          <Badge variant="subtle">Draft</Badge>
+          <Button
+            type="button"
+            size="sm"
+            disabled={nextStep !== 'create'}
+            className={nextStep === 'create' ? 'ring-2 ring-brand-accent ring-offset-2' : ''}
+            onClick={() => void create()}
+          >
+            Create initiative
+          </Button>
+        </div>
+        <p id={GUIDANCE_ID} role="status" className="mt-3 mb-0 text-caption text-text-secondary">
+          {guidance}
+        </p>
       </div>
-      <p id={GUIDANCE_ID} role="status" className="mt-3 mb-0 text-caption text-text-secondary">
-        {guidance}
-      </p>
-    </div>
+    </Page>
   );
 }

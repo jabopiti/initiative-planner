@@ -172,16 +172,35 @@ describe('Portfolio board cards (§5.2)', () => {
   });
 });
 
-describe('Portfolio board column headers (§5.2)', () => {
-  it('shows count and compact sum, with the full sum as a tooltip, and 0 · €0 for an empty column', async () => {
+describe('Portfolio board column headers (§5.2, §9.10)', () => {
+  it('shows the phase icon and label, the count as a pill and the compact sum, with the full sum as a tooltip', async () => {
     const user = userEvent.setup();
     await renderBoard([big, small]);
     const validation = process.find((p) => p.id === validationId)!;
-    expect(screen.getByText(validation.label)).toBeTruthy();
-    expect(screen.getByText('2 · €530k')).toBeTruthy();
-    expect(screen.getAllByText('0 · €0').length).toBeGreaterThan(0);
-    await user.hover(screen.getByText('2 · €530k'));
+    const column = screen.getByRole('group', { name: validation.label });
+    expect(within(column).getByText(validation.label).parentElement!.querySelector('svg')).toBeTruthy();
+    // The pill shows the bare number; screen readers hear it with its noun.
+    expect(within(column).getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '2 initiatives' && el.firstChild?.textContent === '2')).toBeTruthy();
+    await user.hover(within(column).getByText('€530k'));
     expect((await screen.findAllByText('€530,000')).length).toBeGreaterThan(0);
+  });
+
+  it('holds a dashed placeholder naming the phase in an empty column, which stays visible', async () => {
+    await renderBoard([big, small]);
+    const rollout = process[process.length - 1];
+    const column = screen.getByRole('group', { name: rollout.label });
+    expect(within(column).getByText(`No initiatives in ${rollout.label}`)).toBeTruthy();
+    expect(within(column).getByText('€0')).toBeTruthy();
+  });
+});
+
+describe('Portfolio page shell (§9.8)', () => {
+  it('opens with a visible "Portfolio" title, and the count and Copy table in the filter row', async () => {
+    await renderBoard([big, small]);
+    expect(screen.getByRole('heading', { level: 1, name: 'Portfolio' })).toBeVisible();
+    const row = screen.getByRole('button', { name: 'Status: Active' }).parentElement!.parentElement!;
+    expect(within(row).getByText('2 of 2 initiatives')).toBeTruthy();
+    expect(within(row).getByRole('button', { name: 'Copy table' })).toBeTruthy();
   });
 });
 
@@ -282,7 +301,7 @@ describe('Portfolio filters (§5.2, §9.11)', () => {
     expect(chipButton('Year: 2027')).toBeInTheDocument();
     expect(cardNames()).toHaveLength(1);
     expect(within(card(/Later One/)).getByText('€30k')).toBeInTheDocument();
-    expect(screen.getByText('1 · €30k')).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Validation' })).getAllByText('€30k')).toHaveLength(2); // column sum and card
     await pickYear(user, '2026');
     expect(within(card(/Big One/)).getByText('€412k')).toBeInTheDocument();
     expect(within(card(/Big One/)).getByText('Elevated')).toBeInTheDocument();
@@ -294,7 +313,7 @@ describe('Portfolio filters (§5.2, §9.11)', () => {
 
   it('states Total cost and a signed Deviation for what is shown, overspend in Warning', async () => {
     await renderBoard([small, over]);
-    expect(screen.getByText('€222k')).toBeInTheDocument();
+    expect(screen.getAllByText('€222k').length).toBeGreaterThan(0);
     const deviation = screen.getByText('+€4k');
     expect(deviation).toHaveClass('text-warning-text');
   });
@@ -305,10 +324,10 @@ describe('Portfolio filters (§5.2, §9.11)', () => {
     await pick(user, /^Team/, 'Growth');
     await pickYear(user, '2026');
     expect(screen.getByText('No initiatives match these filters.')).toBeInTheDocument();
-    expect(screen.getAllByText('0 · €0')).toHaveLength(process.length);
+    expect(screen.getAllByText(/^No initiatives in /)).toHaveLength(process.length);
     expect(screen.getByText('0 of 2 initiatives')).toBeInTheDocument();
     expect(screen.getAllByText('€0').length).toBeGreaterThanOrEqual(2);
-    expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy table' })).not.toBeInTheDocument();
     await user.click(screen.getAllByRole('button', { name: 'Clear filters' })[1]);
     expect(cardNames()).toHaveLength(2);
   });
@@ -351,7 +370,7 @@ describe('Portfolio Copy (§5.2, §9.2)', () => {
     });
     await renderBoard([small, over, later]);
     await pickYear(user, '2026');
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await user.click(screen.getByRole('button', { name: 'Copy table' }));
     await waitFor(() => expect(written['text/plain']).toBeDefined());
     const validation = process.find((p) => p.id === validationId)!.label;
     expect(written['text/plain'].split('\n')).toEqual([

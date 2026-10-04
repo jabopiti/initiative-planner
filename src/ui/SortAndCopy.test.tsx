@@ -174,7 +174,8 @@ describe('People overview sorting and copy (slice 004c)', () => {
     const user = setupUser();
     await renderView(<PeopleOverview />, 'Ada');
     await user.click(screen.getByRole('button', { name: 'Capacity' }));
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    expect(screen.getByText('3 people')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Copy table' }));
     // The confirmation appears once the async clipboard write has finished.
     expect(await screen.findByText('Copied 3 people')).toBeInTheDocument();
 
@@ -194,7 +195,7 @@ describe('People overview sorting and copy (slice 004c)', () => {
     const user = setupUser();
     clipboardFails = true;
     await renderView(<PeopleOverview />, 'Ada');
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await user.click(screen.getByRole('button', { name: 'Copy table' }));
     expect(await screen.findByText("Couldn't copy. Your browser blocked clipboard access.")).toBeInTheDocument();
   });
 
@@ -205,7 +206,7 @@ describe('People overview sorting and copy (slice 004c)', () => {
     await user.click(await screen.findByRole('option', { name: 'All' }));
     await screen.findByText('=RiskyName');
 
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await user.click(screen.getByRole('button', { name: 'Copy table' }));
     expect(await screen.findByText('Copied 5 people')).toBeInTheDocument();
     expect(written['text/plain']).toContain("'=RiskyName");
   });
@@ -216,11 +217,13 @@ describe('Teams overview and Members list (slice 004c)', () => {
     const user = setupUser();
     await renderView(<TeamsOverview />, 'Payments');
     expect(nameColumn()).toEqual(['Payments', 'Platform']);
+    // The toolbar row (§9.8): the count, then Copy table.
+    expect(screen.getByText('2 teams').nextElementSibling).toBe(screen.getByRole('button', { name: 'Copy table' }));
     await user.click(screen.getByRole('button', { name: 'Members' }));
     await user.click(screen.getByRole('button', { name: 'Members' }));
     expect(nameColumn()).toEqual(['Platform', 'Payments']);
 
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await user.click(screen.getByRole('button', { name: 'Copy table' }));
     expect(await screen.findByText('Copied 2 teams')).toBeInTheDocument();
     expect(written['text/plain'].split('\n')[1]).toMatch(/^Platform\t3\t/);
   });
@@ -234,7 +237,7 @@ describe('Teams overview and Members list (slice 004c)', () => {
     await user.click(screen.getByRole('button', { name: 'Team FTE %' }));
     expect(nameColumn()).toEqual(['Bea', 'Cleo', 'Ada']);
 
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
+    await user.click(screen.getByRole('button', { name: 'Copy table: Members' }));
     expect(await screen.findByText('Copied 3 members')).toBeInTheDocument();
     expect(written['text/plain']).toBe(
       ['Name\tRole\tTeam FTE %', `Bea\t${roleA.name}\t60%`, `Cleo\t${roleA.name}\t60%`, `Ada\t${roleB.name}\t40%`].join('\n'),

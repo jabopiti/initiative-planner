@@ -20,6 +20,7 @@ import { TruncatedText } from './TruncatedText';
 import { useTableSort } from './tableSort';
 import { useSessionFilters } from './sessionFilters';
 import { PageHeader } from './PageHeader';
+import { Page, Toolbar } from './Page';
 import { StatusLabel, statusText } from './StatusLabel';
 
 const CHIPS: [keyof InitiativeFilters, string][] = [
@@ -77,10 +78,10 @@ export function InitiativesTable() {
 
   if (initiatives.length === 0)
     return (
-      <>
-        <h1 className="sr-only">Initiatives</h1>
+      <Page>
+        <PageHeader title="Initiatives" />
         <NoInitiatives />
-      </>
+      </Page>
     );
 
   const filtering = activeFilterCount(filters) > 0;
@@ -104,23 +105,21 @@ export function InitiativesTable() {
   }
 
   return (
-    <div className="px-8 py-6">
-      <PageHeader title="Initiatives" actions={visible.length > 0 && <CopyButton getData={copyData} noun={['initiative', 'initiatives']} />} />
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
-          {CHIPS.map(([key, label]) => (
-            <FilterChip key={key} selectedFirst={key === 'team' || key === 'owner'} label={label} options={options[key]} selected={filters[key]} onChange={(next) => setFilters({ ...filters, [key]: next })} />
-          ))}
-        </div>
-        <p className="m-0 text-caption text-text-secondary">
-          {filtering ? `${visible.length} of ${noun(rows.length)}` : noun(rows.length)}
-          {filtering && (
-            <button type="button" className="ml-3 cursor-pointer border-0 bg-transparent p-0 text-brand-accent-text underline" onClick={() => setFilters(NO_FILTERS)}>
-              Clear filters
-            </button>
-          )}
-        </p>
-      </div>
+    <Page>
+      <PageHeader title="Initiatives" />
+      <Toolbar
+        filters={CHIPS.map(([key, label]) => (
+          <FilterChip key={key} selectedFirst={key === 'team' || key === 'owner'} label={label} options={options[key]} selected={filters[key]} onChange={(next) => setFilters({ ...filters, [key]: next })} />
+        ))}
+      >
+        <p className="m-0">{filtering ? `${visible.length} of ${noun(rows.length)}` : noun(rows.length)}</p>
+        {filtering && (
+          <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-brand-accent-text underline" onClick={() => setFilters(NO_FILTERS)}>
+            Clear filters
+          </button>
+        )}
+        {visible.length > 0 && <CopyButton getData={copyData} noun={['initiative', 'initiatives']} />}
+      </Toolbar>
       {visible.length === 0 ? (
         <EmptyState line="No initiatives match these filters." actionLabel="Clear filters" onAction={() => setFilters(NO_FILTERS)} />
       ) : (
@@ -171,6 +170,6 @@ export function InitiativesTable() {
           </tbody>
         </table>
       )}
-    </div>
+    </Page>
   );
 }

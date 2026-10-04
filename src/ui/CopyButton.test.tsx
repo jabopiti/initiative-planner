@@ -20,14 +20,19 @@ describe('Copy button (§9.2, §9.9)', () => {
 
   it('confirms in text beside the button, not in a toast', async () => {
     setup();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Copy' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Copy table' }));
     expect(await screen.findByRole('status')).toHaveTextContent('Copied 3 teams');
   });
 
   it('says so beside the button when the clipboard is blocked', async () => {
     vi.mocked(copyTable).mockRejectedValueOnce(new Error('blocked'));
     setup();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Copy' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Copy table' }));
     expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't copy. Your browser blocked clipboard access.");
+  });
+
+  it('is labelled "Copy table", and names its section when it sits in one (§9.2)', () => {
+    render(<CopyButton getData={() => data} noun={['member', 'members']} section="Members" />);
+    expect(screen.getByRole('button', { name: 'Copy table: Members' })).toHaveTextContent('Copy table');
   });
 });

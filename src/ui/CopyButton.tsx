@@ -1,7 +1,6 @@
 import { Copy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { copyTable, type CopyTableData } from './copyTable';
 
 interface Props {
@@ -9,12 +8,12 @@ interface Props {
   getData: () => CopyTableData;
   /** Singular and plural noun for the confirmation, e.g. ['person', 'people']. */
   noun: [string, string];
-  /** Accessible name, when a page has more than one Copy button. */
-  label?: string;
+  /** The section whose table it copies, when it sits in a section header rather than the page's toolbar row: named for screen readers as "Copy table: <section>". */
+  section?: string;
 }
 
-/** Icon-only Copy button (§9.2) with a "Copy" tooltip and text beside it on success or failure (§9.9). */
-export function CopyButton({ getData, noun, label = 'Copy' }: Props) {
+/** The Copy table button (§9.2): a labelled ghost button, with text beside it on success or failure (§9.9). */
+export function CopyButton({ getData, noun, section }: Props) {
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   // Success is confirmed for a few seconds; a failure stays until the next copy.
   useEffect(() => {
@@ -40,14 +39,11 @@ export function CopyButton({ getData, noun, label = 'Copy' }: Props) {
           {message.text}
         </span>
       )}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button type="button" variant="outline" size="icon" aria-label={label} onClick={() => void handleCopy()}>
-            <Copy size={18} aria-hidden="true" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{label}</TooltipContent>
-      </Tooltip>
+      {/* The accessible name starts with the visible label, so speech input can say what it sees (WCAG 2.5.3). */}
+      <Button type="button" variant="ghost" size="sm" aria-label={section ? `Copy table: ${section}` : undefined} onClick={() => void handleCopy()}>
+        <Copy size={16} aria-hidden="true" />
+        Copy table
+      </Button>
     </>
   );
 }
