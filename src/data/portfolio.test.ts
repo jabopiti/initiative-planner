@@ -27,7 +27,7 @@ const list = [
   initiative('unplanned'),
   initiative('held', { status: 'On Hold', phases: planned('2026-01-01', '2026-01-31') }),
 ];
-const rows = costedRows(initiativeRows(list, teams, people, process, approvalTracks, data, []), process, people, data);
+const rows = costedRows(initiativeRows(list, teams, people, process, approvalTracks, data, []), process, people, data, approvalTracks);
 const shown = (f: Partial<PortfolioFilters>) => portfolioRows(rows, { ...PORTFOLIO_DEFAULTS, ...f });
 const ids = (f: Partial<PortfolioFilters>) => shown(f).map((r) => r.initiative.id);
 

@@ -153,7 +153,7 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     expect(screen.queryByRole('button', { name: /Add cost item/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/start date/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Allocation % for/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: /Status of/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: /Status of/ })).not.toBeInTheDocument();
     expect(screen.getByText('Licences')).toBeInTheDocument();
     expect(screen.getByText('50%')).toBeInTheDocument();
   });

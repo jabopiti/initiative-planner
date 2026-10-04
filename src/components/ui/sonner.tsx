@@ -5,6 +5,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       className="toaster group"
+      // Toasts move in 150 ms, not Sonner's 400 (slice 059), and not at all under reduced motion (§9.5).
+      toastOptions={{ className: "duration-150! motion-reduce:transition-none!" }}
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         error: <OctagonXIcon className="size-4" />,
