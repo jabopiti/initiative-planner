@@ -1,5 +1,5 @@
 import type { PhaseDef } from '../brand/types';
-import { hasValidPeriod, phaseByMonth, phaseCoverage, phaseEffectiveTotal, phaseMonths, type RateData } from './cost';
+import { hasValidPeriod, phaseByMonth, phaseCoverage, phaseEffectiveTotal, phaseMonths, type Period, type RateData } from './cost';
 import { isPhaseFrozen } from './frozen';
 import type { FrozenPhaseSnapshot, Initiative, PhasePlan, Person } from './types';
 
@@ -54,7 +54,7 @@ export function phaseSummary(initiative: Initiative, phaseId: string, plan: Phas
 }
 
 /** The end date of the previous phase when this one starts on or before it (§5.4 overlap warning); null when they don't overlap. */
-export function overlapWithPrevious(previous: PhasePlan | undefined, plan: PhasePlan): string | null {
+export function overlapWithPrevious(previous: Period | undefined, plan: Period): string | null {
   const previousEnd = previous?.endDate;
   return previousEnd && plan.startDate && plan.startDate <= previousEnd ? previousEnd : null;
 }

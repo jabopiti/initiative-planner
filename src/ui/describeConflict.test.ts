@@ -35,7 +35,7 @@ const team: Required<Team> = { id: 't1', name: 'Platform', active: true };
 const membership: Required<Membership> = { id: 'm1', personId: 'ana', teamId: 't1', teamFtePct: 50, active: true };
 const role: Required<Role> = { id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true };
 
-const germany = { id: 'de', name: 'Germany', active: true, ratesByYear: [{ year: 2027, dayRate: 1050, workingDaysByMonth: Array(12).fill(20) }] };
+const germany = { id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [{ year: 2027, dayRate: 1050, workingDaysByMonth: Array(12).fill(20) }] };
 
 const context: ConflictContext = {
   process: defaultBrandPack.process,

@@ -94,7 +94,8 @@ export function daysBetween(fromIso: string, toIso: string): number {
 /** An ISO `YYYY-MM-DD` date as the date input shows it, in the display locale's pattern: "26/06/2026", "26.06.2026". */
 export function formatDateField(isoDate: string, locale = displayLocale()): string {
   const [y, m, d] = parseIso(isoDate);
-  return dateFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric' }).format(utc(y, m, d));
+  // Gregorian with Latin digits, whatever the locale's own calendar: what the field shows must read back (parseDateText).
+  return dateFormat(locale, { day: '2-digit', month: '2-digit', year: 'numeric', calendar: 'gregory', numberingSystem: 'latn' }).format(utc(y, m, d));
 }
 
 /** A period as a headline reads it: the year once when both dates share it ("7 Sep – 30 Sep 2026"), else on both. */
@@ -181,17 +182,24 @@ export function formatDateEn(isoDate: string): string {
 export const FIRST_YEAR = 2000;
 export const LAST_YEAR = 2100;
 
-/** "26.06.2026" (or "3 Sep 2026", a longer month name, or ISO) to ISO; null when it isn't a real date in 2000 to 2100. */
+/** "26.06.2026" (or "3 Sep 2026", a longer month name, ISO, or any shape formatDateField shows) to ISO; null when it isn't a real date in 2000 to 2100. */
 export function parseDateText(text: string): string | null {
-  const t = text.trim();
+  // Every date field's own shape reads back (formatDateField): "2026. 06. 26." (ko, hu), "26. 06. 2026." (cs, hr),
+  // "26.06.2026 г." (bg), "26‏/06‏/2026" (ar, with direction marks).
+  const t = text
+    .replace(/[\u200e\u200f\u061c]/g, '')
+    .trim()
+    .replace(/\s*г\.?$/, '')
+    .replace(/([./-])\s+/g, '$1')
+    .replace(/\.$/, '');
   const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
   if (isoMatch) {
     const [y, m, d] = isoMatch.slice(1).map(Number);
     return isRealDate(y, m, d) ? iso(y, m, d) : null;
   }
-  const yearFirst = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(t);
+  const yearFirst = /^(\d{4})([./-])(\d{1,2})\2(\d{1,2})$/.exec(t);
   if (yearFirst) {
-    const [y, m, d] = yearFirst.slice(1).map(Number);
+    const [y, m, d] = [yearFirst[1], yearFirst[3], yearFirst[4]].map(Number);
     return isRealDate(y, m, d) ? iso(y, m, d) : null;
   }
   const numeric = /^(\d{1,2})([./-])(\d{1,2})\2(\d{4})$/.exec(t);

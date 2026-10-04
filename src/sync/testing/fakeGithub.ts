@@ -240,7 +240,7 @@ export function holdNetwork(fake: Fake, only: (url: string, init?: RequestInit) 
 
 /** The role and country every `person()` refers to. */
 export const FIXTURE_ROLE: Role = { id: 'r1', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true };
-export const FIXTURE_COUNTRY: Country = { id: 'c1', name: 'Germany', active: true, ratesByYear: [] };
+export const FIXTURE_COUNTRY: Country = { id: 'c1', name: 'Germany', code: 'DE', active: true, ratesByYear: [] };
 
 /** A dataset with these teams, people and initiatives, served to `fetch`. */
 export function seedDataset(fake: Fake, seeded: { teams?: Team[]; people?: Person[]; initiatives?: Initiative[]; ratesReviewed?: boolean } = {}) {

@@ -1,10 +1,9 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { FieldConflict } from '../state/ConflictUi';
 import { useHoldWhileEditing, type FieldFailure } from '../state/DataContext';
-import { ConflictBlock } from './ConflictBlock';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover';
-import { FailedEdit } from './CommitInput';
+import { FieldMessages, fieldMessageId, focusIntoPicker } from './FieldMessages';
 import { CalendarIcon } from './icons';
 
 /**
@@ -26,7 +25,6 @@ export function PopoverTextField({
   format,
   parse,
   onChange,
-  onOpen,
   onTyped,
   pickerFocus,
   pickerClassName = 'w-auto p-0',
@@ -54,8 +52,6 @@ export function PopoverTextField({
   format: (value: string) => string;
   parse: (text: string) => string | null;
   onChange: (value: string | undefined) => void;
-  /** The popover is about to open with `draft` typed, so the picker can start where the field points. */
-  onOpen?: (draft: string) => void;
   /** The typed text now reads as `parsed`, so the picker follows it. */
   onTyped?: (parsed: string) => void;
   /** Selectors for the picker element ↓ moves into, the first that matches winning. */
@@ -99,11 +95,6 @@ export function PopoverTextField({
     if (parsed !== value) onChange(parsed);
   };
 
-  const openPicker = () => {
-    if (open) return;
-    onOpen?.(draft);
-    setOpen(true);
-  };
 
   return (
     <div className="flex flex-col gap-1">
@@ -116,15 +107,15 @@ export function PopoverTextField({
               className={`w-full pr-9 transition-colors duration-500 motion-reduce:transition-none ${highlight ? 'border-brand-accent bg-brand-accent-tint' : changed ? 'bg-met-tint' : ''}`}
               aria-label={label}
               aria-invalid={unreadable || undefined}
-              aria-describedby={unreadable ? errorId : showFailure !== null ? failureId : conflict?.id}
+              aria-describedby={fieldMessageId({ refusal: unreadable ? refusal : null, refusalId: errorId, failure: showFailure, failureId, conflict })}
               placeholder={placeholder}
               value={draft}
-              onClick={openPicker}
+              onClick={() => setOpen(true)}
               onChange={(e) => {
                 setDraft(e.target.value);
                 const parsed = parse(e.target.value);
                 if (parsed) onTyped?.(parsed);
-                openPicker();
+                setOpen(true);
               }}
               onBlur={(e) => {
                 // Focus moving into the picker is not leaving the control.
@@ -141,14 +132,8 @@ export function PopoverTextField({
                   setOpen(false);
                 } else if (e.key === 'ArrowDown') {
                   e.preventDefault();
-                  openPicker();
-                  // The picker mounts on the next frame; its selected element takes the focus.
-                  requestAnimationFrame(() => {
-                    for (const selector of pickerFocus) {
-                      const target = pickerRef.current?.querySelector<HTMLElement>(selector);
-                      if (target) return target.focus();
-                    }
-                  });
+                  setOpen(true);
+                  focusIntoPicker(pickerRef, pickerFocus);
                 }
               }}
             />
@@ -180,13 +165,15 @@ export function PopoverTextField({
           })}
         </PopoverContent>
       </Popover>
-      {unreadable && (
-        <p id={errorId} role="alert" className="m-0 text-caption text-warning-text">
-          {refusal}
-        </p>
-      )}
-      {showFailure && <FailedEdit id={failureId} failure={showFailure} retryLabel={retryLabel ?? `Retry saving ${label}`} />}
-      {conflict && !conflict.inRow && <ConflictBlock conflict={conflict} label={label} />}
+      <FieldMessages
+        refusal={unreadable ? refusal : null}
+        refusalId={errorId}
+        failure={showFailure}
+        failureId={failureId}
+        retryLabel={retryLabel ?? `Retry saving ${label}`}
+        conflict={conflict}
+        label={label}
+      />
     </div>
   );
 }

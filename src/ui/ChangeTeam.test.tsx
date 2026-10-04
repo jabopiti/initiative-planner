@@ -13,7 +13,7 @@ import { subjectOf } from '../sync/testing/commitMessage';
 
 // One country: €500/day, 20 working days every month of 2026. One role, factor 0.8: 100% for a month costs €8,000.
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
-const countries: Country[] = [{ id: 'de', name: 'Germany', active: true, ratesByYear: [{ year: 2026, dayRate: 500, workingDaysByMonth: Array(12).fill(20) }] }];
+const countries: Country[] = [{ id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [{ year: 2026, dayRate: 500, workingDaysByMonth: Array(12).fill(20) }] }];
 const teams: Team[] = [
   { id: 't1', name: 'Payments', active: true },
   { id: 't2', name: 'Growth', active: true },

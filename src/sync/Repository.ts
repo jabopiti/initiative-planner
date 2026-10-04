@@ -18,8 +18,9 @@ import {
   type Role,
   type Team,
 } from '../data/types';
-import { allocationRefusal, trackedYears } from '../data/cost';
+import { allocationRefusal, trackedYears, type Period } from '../data/cost';
 import { formatDateEn, formatMonthEn, monthKey } from '../data/dates';
+import { periodMonthsEn } from '../data/period';
 import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysByMonth } from '../data/rates';
 import { localToday } from '../data/dates';
 import { duplicateInitiative, type DuplicateResult } from '../data/duplicate';
@@ -1056,18 +1057,18 @@ export class Repository {
   }
 
   /** New country (§5.9): its one day rate copied to every tracked year, working days prefilled with weekdays. */
-  createCountry(input: { name: string; dayRate: number }, today: Date = new Date()): Country {
-    const country: Country = { id: newId(), name: input.name, active: true, ratesByYear: newCountryRates(input.dayRate, trackedYears(today)) };
+  createCountry(input: { name: string; code: string; dayRate: number }, today: Date = new Date()): Country {
+    const country: Country = { id: newId(), name: input.name, code: input.code, active: true, ratesByYear: newCountryRates(input.dayRate, trackedYears(today)) };
     this.commitCountries([...this.state.countries, country], this.note('country', country.id, 'record', undefined, country, (f, t) => this.describeCountry(f, t)));
     return country;
   }
 
-  /** Rename, deactivate or reactivate a country; countries are never deleted (§9.3). */
-  updateCountry(id: string, patch: Partial<Pick<Country, 'name' | 'active'>>): void {
+  /** Rename, recode, deactivate or reactivate a country; countries are never deleted (§9.3). */
+  updateCountry(id: string, patch: Partial<Pick<Country, 'name' | 'code' | 'active'>>): void {
     const current = this.state.countries.find((c) => c.id === id);
     if (!current) return;
     const next = { ...current, ...patch };
-    if (next.name === current.name && next.active === current.active) return;
+    if (next.name === current.name && next.code === current.code && next.active === current.active) return;
     this.commitCountries(
       this.state.countries.map((c) => (c.id === id ? next : c)),
       this.note('country', id, 'record', current, next, (f, t) => this.describeCountry(f, t)),
@@ -1079,6 +1080,7 @@ export class Repository {
     if (!to) return `Countries: ${from.name} removed`;
     const parts: string[] = [];
     if (to.name !== from.name) parts.push(`renamed to ${to.name}`);
+    if (to.code !== from.code) parts.push(`code set to ${to.code}`);
     if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
     return `Countries: ${from.name} ${parts.join(', ') || 'updated'}`;
   }
@@ -1512,24 +1514,38 @@ export class Repository {
     return true;
   }
 
-  /** Set or clear (`undefined`) one end of a phase's period. Any dates are accepted: an inverted period only warns (§7.2). */
-  setPhaseDate(initiativeId: string, phaseId: string, which: 'startDate' | 'endDate', value: string | undefined): void {
-    const word = which === 'startDate' ? 'start date' : 'end date';
-    const before = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.[which];
-    this.editPhase<string>(
+  /**
+   * Set a phase's whole period at once (§9.11 period picker, saved on Done): one write and one commit, "Payments API:
+   * Development period set to Apr–Sep". An `undefined` end clears it, and any dates are accepted: an inverted period
+   * only warns (§7.2). Nothing is written when neither date changes.
+   */
+  setPhasePeriod(initiativeId: string, phaseId: string, period: Period): void {
+    const plan = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId];
+    const before = { startDate: plan?.startDate, endDate: plan?.endDate };
+    if (before.startDate === period.startDate && before.endDate === period.endDate) return;
+    const to = { startDate: period.startDate, endDate: period.endDate };
+    this.editPhase<Period>(
       initiativeId,
       phaseId,
-      (plan) => {
-        const next = { ...plan };
-        if (value === undefined) delete next[which];
-        else next[which] = value;
+      (current) => {
+        const next = { ...current };
+        for (const which of ['startDate', 'endDate'] as const) {
+          if (to[which] === undefined) delete next[which];
+          else next[which] = to[which];
+        }
         return next;
       },
       {
-        field: which,
+        field: 'period',
         from: before,
-        to: value,
-        words: (_, to, name, phase) => `${name}: ${phase} ${word} ${to === undefined ? 'cleared' : `set to ${formatDateEn(to)}`}`,
+        to,
+        words: (_, after, name, phase) => {
+          const { startDate, endDate } = after ?? {};
+          if (startDate && endDate) return `${name}: ${phase} period set to ${periodMonthsEn(startDate, endDate)}`;
+          if (startDate) return `${name}: ${phase} start date set to ${formatDateEn(startDate)}, no end date`;
+          if (endDate) return `${name}: ${phase} end date set to ${formatDateEn(endDate)}, no start date`;
+          return `${name}: ${phase} period cleared`;
+        },
       },
     );
   }

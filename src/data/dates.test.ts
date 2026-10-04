@@ -33,6 +33,12 @@ describe('date text (§9.11 date input)', () => {
     }
   });
 
+  it('reads back what the date field shows in any day-first or year-first locale', () => {
+    for (const locale of ['ko', 'hu', 'cs', 'sk', 'hr', 'bg', 'sr', 'de', 'nl', 'sv', 'ja', 'zh-CN', 'fa', 'ar', 'th', 'en-GB']) {
+      expect(parseDateText(formatDateField('2026-06-26', locale))).toBe('2026-06-26');
+    }
+  });
+
   it('refuses years outside 2000 to 2100, so a typo is not stored or costed month by month', () => {
     for (const text of ['01.01.0999', '30.06.1026', '01.01.9999', '1999-12-31', '3 Sept 2101']) {
       expect(parseDateText(text)).toBeNull();

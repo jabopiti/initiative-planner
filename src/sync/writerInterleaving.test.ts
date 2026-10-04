@@ -131,7 +131,7 @@ describe('a 409 in the middle of a save (AC 2)', () => {
     const { repo } = await open(fake, { initiatives: [initiative()] });
     const release = fake.hold('initiatives/i1.json');
 
-    repo.setPhaseDate('i1', PHASE, 'startDate', '2026-03-02');
+    repo.setPhasePeriod('i1', PHASE, { startDate: '2026-03-02' });
     const firstFlush = repo.flushPending();
     await vi.waitFor(() => expect(fake.arrived('initiatives/i1.json')).toBe(1));
 
@@ -160,7 +160,7 @@ describe('a 409 in the middle of a save (AC 2)', () => {
     await vi.waitFor(() => expect(fake.arrived('initiatives/i1.json')).toBe(1));
 
     fake.seed('initiatives/i1.json', initiative({ name: 'Theirs', description: 'Added by a colleague' }));
-    repo.setPhaseDate('i1', PHASE, 'startDate', '2026-03-02'); // edited meanwhile
+    repo.setPhasePeriod('i1', PHASE, { startDate: '2026-03-02' }); // edited meanwhile
     const secondFlush = repo.flushPending();
     release();
     await Promise.all([firstFlush, secondFlush]);

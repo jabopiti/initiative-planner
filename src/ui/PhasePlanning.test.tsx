@@ -19,6 +19,7 @@ const countries: Country[] = [
   {
     id: 'de',
     name: 'Germany',
+    code: 'DE',
     active: true,
     ratesByYear: [
       { year: 2026, dayRate: 500, workingDaysByMonth: twenty },
@@ -274,46 +275,97 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     expect(screen.getByRole('textbox', { name: 'Validation start date' })).toHaveValue('soon');
   });
 
-  it('opens the calendar when the date field is clicked, follows what is typed, and fills the field from a picked day', async () => {
+  const footer = () => screen.getByRole('dialog', { name: 'Validation period' });
+  const day = (name: RegExp) => within(footer()).getByRole('button', { name });
+
+  it('takes a typed date in either half, and the calendar follows it (§9.11)', async () => {
     const user = userEvent.setup();
     renderPage();
-    const field = await screen.findByRole('textbox', { name: 'Validation start date' });
-    expect(field).toHaveAttribute('placeholder', 'dd.mm.yyyy');
-    await user.click(field);
-    expect(await screen.findByText('Or type a date, e.g. 26.06.2026')).toBeInTheDocument();
-    expect(field).toHaveFocus(); // the cursor stays in the field: typing still works
+    const start = await screen.findByRole('textbox', { name: 'Validation start date' });
+    await user.click(start);
+    expect(within(footer()).getByText('Pick a start date, or type one.')).toBeInTheDocument();
+    expect(start).toHaveFocus(); // the cursor stays in the field: typing still works
+    await user.type(start, '3 Sep 2026');
+    expect(within(footer()).getByText('September 2026')).toBeInTheDocument();
+    expect(within(footer()).getByText('From 3 Sept 2026 · pick an end date')).toBeInTheDocument();
 
-    await user.type(field, '01.10.2026'); // the calendar moves to October 2026
-    await user.click(within(await screen.findByRole('grid')).getByRole('button', { name: /October 15th/ }));
-    expect(field).toHaveValue('15/10/2026');
-    expect(screen.queryByText('Or type a date, e.g. 26.06.2026')).not.toBeInTheDocument();
-    expect(validationRow()).toHaveTextContent('Set period'); // only the start is set so far
+    const end = screen.getByRole('textbox', { name: 'Validation end date' });
+    await user.click(end);
+    await user.type(end, '30.10.2026');
+    expect(within(footer()).getByText('3 Sept – 30 Oct 2026 · 1 month 28 days · 38 working days (DE)')).toBeInTheDocument();
   });
 
-  it('closes the calendar with Escape and keeps what was typed', async () => {
+  it('previews the range as the pointer moves, with its length and working days, and saves it in one commit on Done', async () => {
     const user = userEvent.setup();
     renderPage();
-    const field = await screen.findByRole('textbox', { name: 'Validation start date' });
-    await user.click(field);
-    await screen.findByText('Or type a date, e.g. 26.06.2026');
+    await user.type(await screen.findByRole('textbox', { name: 'Validation start date' }), '01.09.2026');
+    await user.click(day(/September 1st/)); // picks the start; the end is next
+    await user.click(within(footer()).getByRole('button', { name: /Go to the Next Month/i }));
+    await user.hover(day(/October 31st/));
+    expect(within(footer()).getByText('1 Sept – 31 Oct 2026 · 2 months · 40 working days (DE)')).toBeInTheDocument();
+    await user.click(day(/October 31st/));
+    await user.click(within(footer()).getByRole('button', { name: 'Done' }));
+
+    // Picks write nothing of their own: the one write carries only the period's note.
+    const periodPuts = () => puts.filter((p) => p.message.includes('Validation period set to Sep'));
+    await vi.waitFor(() => expect(periodPuts()).toHaveLength(1), { timeout: 3000 });
+    expect(periodPuts()[0].message).toBe('Payments API: Validation period set to Sep–Oct');
+    expect(periodPuts()[0].content.phases?.validation).toMatchObject({ startDate: '2026-09-01', endDate: '2026-10-31' });
+    expect(screen.queryByRole('dialog', { name: 'Validation period' })).not.toBeInTheDocument();
+  });
+
+  it('sets whole months from the start with a length shortcut', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const start = await screen.findByRole('textbox', { name: 'Validation start date' });
+    await user.click(start);
+    expect(within(footer()).getByRole('button', { name: '3 months' })).toBeDisabled(); // no start yet
+    await user.type(start, '01.09.2026');
+    await user.click(within(footer()).getByRole('button', { name: '3 months' }));
+    expect(screen.getByRole('textbox', { name: 'Validation end date' })).toHaveValue('30/11/2026');
+    expect(within(footer()).getByText(/^1 Sept – 30 Nov 2026 · 3 months/)).toBeInTheDocument();
+  });
+
+  it('discards the change on Escape, a click outside or Tab out, and writes nothing', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const start = await screen.findByRole('textbox', { name: 'Validation start date' });
+    await user.type(start, '01.09.2026');
     await user.keyboard('{Escape}');
-    expect(screen.queryByText('Or type a date, e.g. 26.06.2026')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Validation period' })).not.toBeInTheDocument();
+    expect(start).toHaveValue('');
+
+    await user.type(start, '01.09.2026');
+    await user.click(screen.getByRole('heading', { name: 'Phases' }));
+    expect(screen.queryByRole('dialog', { name: 'Validation period' })).not.toBeInTheDocument();
+    expect(start).toHaveValue('');
+
+    await user.type(start, '01.09.2026');
+    await user.tab(); // into End: still the same control
+    expect(screen.getByRole('dialog', { name: 'Validation period' })).toBeInTheDocument();
+    await user.tab(); // out of it
+    expect(screen.queryByRole('dialog', { name: 'Validation period' })).not.toBeInTheDocument();
+    expect(start).toHaveValue('');
+
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(puts.filter((p) => p.message.includes('Sep'))).toEqual([]);
   });
 
-  it('moves into the calendar with the down arrow, and a day picked by keyboard fills the field', async () => {
+  it('moves into the calendar with the down arrow, and Enter there picks the day for the half being set', async () => {
     // Pinned so today falls outside the typed month; otherwise the calendar would give tabindex 0 to today's cell instead of the 1st.
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 8, 24, 12));
     try {
       const user = userEvent.setup();
       renderPage();
-      const field = await screen.findByRole('textbox', { name: 'Validation start date' });
-      await user.type(field, '01.10.2026');
+      const start = await screen.findByRole('textbox', { name: 'Validation start date' });
+      await user.type(start, '01.10.2026');
       await user.keyboard('{ArrowDown}');
-      await vi.waitFor(() => expect(within(screen.getByRole('grid')).getAllByRole('button').includes(document.activeElement as HTMLElement)).toBe(true));
-      await user.keyboard('{Enter}');
-      expect(field).toHaveValue('01/10/2026'); // the focused day was the typed date, now picked
-      expect(field).toHaveFocus();
+      await vi.waitFor(() => expect(within(screen.getByRole('grid', { name: 'October 2026' })).getAllByRole('button').includes(document.activeElement as HTMLElement)).toBe(true));
+      await user.keyboard('{ArrowRight}{Enter}');
+      expect(start).toHaveValue('02/10/2026');
+      await user.keyboard('{ArrowRight}{ArrowRight}{Enter}'); // the end is next
+      expect(screen.getByRole('textbox', { name: 'Validation end date' })).toHaveValue('04/10/2026');
     } finally {
       vi.useRealTimers();
     }
@@ -421,6 +473,11 @@ describe('Default plan (§5.11)', () => {
     expect(developmentRow()).toContainElement(screen.getByRole('img', { name: 'Overlaps Validation' }));
     await user.click(developmentRow());
     expect(screen.getByText('Starts before Validation ends (31 Dec 2026). The two phases overlap.')).toBeInTheDocument();
+    // The picker says so too, before anything is saved, and Done still saves.
+    await user.click(screen.getByRole('textbox', { name: 'Development start date' }));
+    const picker = screen.getByRole('dialog', { name: 'Development period' });
+    expect(within(picker).getByText('Starts before Validation ends (31 Dec 2026). The two phases overlap.')).toBeInTheDocument();
+    expect(within(picker).getByRole('button', { name: 'Right after Validation' })).toBeInTheDocument();
     expect(validationRow()).not.toContainElement(screen.queryByRole('img', { name: /Overlaps/ }));
     expect(developmentRow()).toHaveTextContent('24 Dec 2026 – 23 Jun 2027');
   });
