@@ -697,7 +697,7 @@ function ActualCell({
           label={`Override the actual for ${phase.label} ${formatMonth(month)}`}
           currencySymbol={currencySymbol}
           value={undefined}
-          placeholder="Enter amount"
+          placeholder="Actual"
           changed={changed}
           failure={failure}
           conflict={conflict}

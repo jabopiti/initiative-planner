@@ -91,7 +91,7 @@ describe('Record actuals for a closed month (§7.3, §5.4)', () => {
 
     const dec = monthRow(table, 'Dec 2026');
     expect(within(dec).getByText('not closed yet')).toBeInTheDocument();
-    expect(within(dec).queryByRole('spinbutton')).not.toBeInTheDocument();
+    expect(within(dec).queryByRole('textbox')).not.toBeInTheDocument();
     expect(within(dec).queryByRole('button')).not.toBeInTheDocument();
   });
 
@@ -104,7 +104,7 @@ describe('Record actuals for a closed month (§7.3, §5.4)', () => {
 
     expect(within(oct).queryByText('using the estimate')).not.toBeInTheDocument();
     expect(within(oct).queryByRole('button')).not.toBeInTheDocument();
-    expect(within(oct).getByLabelText('Actual for Validation Oct 2026')).toHaveValue(4000);
+    expect(within(oct).getByLabelText('Actual for Validation Oct 2026')).toHaveValue('4000');
   });
 
   it('records a typed amount instead of the estimate, overriding it', async () => {
@@ -116,7 +116,7 @@ describe('Record actuals for a closed month (§7.3, §5.4)', () => {
     await user.type(override, '5250{Enter}');
 
     expect(within(oct).queryByText('using the estimate')).not.toBeInTheDocument();
-    expect(within(oct).getByLabelText('Actual for Validation Oct 2026')).toHaveValue(5250);
+    expect(within(oct).getByLabelText('Actual for Validation Oct 2026')).toHaveValue('5250');
   });
 
   it('keeps a recorded actual editable', async () => {
@@ -129,7 +129,7 @@ describe('Record actuals for a closed month (§7.3, §5.4)', () => {
     const field = within(oct).getByLabelText('Actual for Validation Oct 2026');
     await user.clear(field);
     await user.type(field, '4800{Enter}');
-    expect(field).toHaveValue(4800);
+    expect(field).toHaveValue('4800');
   });
 
   it('shows "using the estimate" even when the estimate is exactly €0', async () => {

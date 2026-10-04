@@ -16,7 +16,7 @@ function dateFormat(locale: string, options: Intl.DateTimeFormatOptions, timeZon
 const utc = (year: number, month: number, day = 1) => new Date(Date.UTC(year, month - 1, day));
 
 /** Computed once per locale and kept. */
-function perLocale<T>(cache: Map<string, T>, locale: string, make: () => T): T {
+export function perLocale<T>(cache: Map<string, T>, locale: string, make: () => T): T {
   let value = cache.get(locale);
   if (value === undefined) cache.set(locale, (value = make()));
   return value;

@@ -104,16 +104,16 @@ describe('custom role in the person panel (slice 005b)', () => {
     const { user, panel } = await openPanel();
     await user.click(within(panel).getByRole('radio', { name: 'Custom role' }));
 
-    const current = within(panel).getByRole('spinbutton', { name: `Day rate ${thisYear}` });
+    const current = within(panel).getByRole('textbox', { name: `Day rate ${thisYear}` });
     await user.type(current, '1200');
     await user.keyboard('{Enter}');
     expect(within(panel).queryByText('No rate yet. Costed at 0.')).not.toBeInTheDocument();
     const hints = () => within(panel).queryAllByText(`uses ${thisYear}`, { selector: 'span' });
     expect(hints()).toHaveLength(2); // the next two years both take the current year's rate
-    expect(within(panel).getByRole('spinbutton', { name: `Day rate ${nextYear}` })).toHaveAttribute('placeholder', '1200');
+    expect(within(panel).getByRole('textbox', { name: `Day rate ${nextYear}` })).toHaveAttribute('placeholder', '1200');
 
     // An explicit zero is a rate of its own; clearing the field goes back to inheriting.
-    const next = within(panel).getByRole('spinbutton', { name: `Day rate ${nextYear}` });
+    const next = within(panel).getByRole('textbox', { name: `Day rate ${nextYear}` });
     await user.type(next, '0');
     await user.tab();
     expect(hints()).toHaveLength(0);
@@ -128,7 +128,7 @@ describe('custom role in the person panel (slice 005b)', () => {
     const { user, panel } = await openPanel();
     await user.click(within(panel).getByRole('radio', { name: 'Custom role' }));
     await user.type(within(panel).getByRole('textbox', { name: 'Custom role label' }), 'Fractional CTO');
-    await user.type(within(panel).getByRole('spinbutton', { name: `Day rate ${thisYear}` }), '900');
+    await user.type(within(panel).getByRole('textbox', { name: `Day rate ${thisYear}` }), '900');
     await user.tab();
 
     await user.click(within(panel).getByRole('radio', { name: 'Standard role' }));
@@ -137,25 +137,25 @@ describe('custom role in the person panel (slice 005b)', () => {
 
     await user.click(within(panel).getByRole('radio', { name: 'Custom role' }));
     expect(within(panel).getByRole('textbox', { name: 'Custom role label' })).toHaveValue('Fractional CTO');
-    expect(within(panel).getByRole('spinbutton', { name: `Day rate ${thisYear}` })).toHaveValue(900);
+    expect(within(panel).getByRole('textbox', { name: `Day rate ${thisYear}` })).toHaveValue('900');
   });
 
   it('rejects a negative rate inline and keeps the typed text until the field is fixed', async () => {
     const { user, panel } = await openPanel();
     await user.click(within(panel).getByRole('radio', { name: 'Custom role' }));
-    const current = within(panel).getByRole('spinbutton', { name: `Day rate ${thisYear}` });
+    const current = within(panel).getByRole('textbox', { name: `Day rate ${thisYear}` });
     await user.type(current, '800');
     await user.tab();
     await user.clear(current);
     await user.type(current, '-5');
     await user.tab();
-    expect(within(panel).getByText('Enter a day rate of 0 or more.')).toBeInTheDocument();
-    expect(current).toHaveValue(-5);
+    expect(within(panel).getByText('An amount can\'t be below 0.')).toBeInTheDocument();
+    expect(current).toHaveValue('-5');
     await user.clear(current);
     await user.type(current, '900');
     await user.tab();
-    expect(within(panel).queryByText('Enter a day rate of 0 or more.')).not.toBeInTheDocument();
-    expect(current).toHaveValue(900);
+    expect(within(panel).queryByText('An amount can\'t be below 0.')).not.toBeInTheDocument();
+    expect(current).toHaveValue('900');
   });
 
   it('refuses a cost factor of 0 and a bad day rate inline instead of reverting silently', async () => {
@@ -169,10 +169,10 @@ describe('custom role in the person panel (slice 005b)', () => {
     expect(within(panel).getByText('Enter a cost factor above 0.')).toBeInTheDocument();
     expect(factor).toHaveValue(0);
 
-    const rate = within(panel).getByRole('spinbutton', { name: `Day rate ${thisYear}` });
+    const rate = within(panel).getByRole('textbox', { name: `Day rate ${thisYear}` });
     await user.type(rate, '-5');
     await user.tab();
-    expect(within(panel).getByText('Enter a day rate of 0 or more.')).toBeInTheDocument();
+    expect(within(panel).getByText('An amount can\'t be below 0.')).toBeInTheDocument();
   });
 
   it('ties the Capacity label to its field', async () => {

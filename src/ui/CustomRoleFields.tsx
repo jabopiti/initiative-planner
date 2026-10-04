@@ -5,6 +5,7 @@ import { useBrand } from '../state/BrandContext';
 import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository } from '../state/DataContext';
 import { Label } from '@/components/ui/label';
+import { AmountInput } from './AmountInput';
 import { CommitInput } from './CommitInput';
 import { ConflictBlock } from './ConflictBlock';
 import { InlineWarning } from './InlineWarning';
@@ -33,15 +34,9 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
   const past = customRole.dayRatesByYear.map((r) => r.year).filter((y) => y < tracked[0]).sort();
   const rows = [...past, ...tracked];
 
-  const setRate = (year: number, text: string) => {
+  const setRate = (year: number, dayRate: number | null) => {
     const others = customRole.dayRatesByYear.filter((r) => r.year !== year);
-    if (text.trim() === '') {
-      save({ dayRatesByYear: others });
-      return;
-    }
-    const dayRate = parseAmount(text);
-    if (dayRate === null) return DAY_RATE_REFUSAL;
-    save({ dayRatesByYear: [...others, { year, dayRate }].sort((a, b) => a.year - b.year) });
+    save({ dayRatesByYear: dayRate === null ? others : [...others, { year, dayRate }].sort((a, b) => a.year - b.year) });
   };
 
   return (
@@ -94,21 +89,20 @@ export function CustomRoleFields({ person, customRole }: { person: Person; custo
           const entered = customRole.dayRatesByYear.find((r) => r.year === year);
           const inherited = entered ? undefined : yearRecord(customRole.dayRatesByYear, year);
           return (
-            <div key={year} className="flex items-center gap-2">
+            <div key={year} className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="w-10 text-body tabular-nums">{year}</span>
-              <span className="text-caption text-text-secondary">{currencySymbol}</span>
-              <CommitInput
-                type="number"
-                step="any"
-                min={0}
-                className="w-28"
-                aria-label={`Day rate ${year}`}
+              <AmountInput
+                currencySymbol={currencySymbol}
+                label={`Day rate ${year}`}
+                refusal={DAY_RATE_REFUSAL}
+                errorClassName="w-full"
                 changed={changed(FILE_PATHS.people, customPath('dayRatesByYear'))}
                 failure={failure(FILE_PATHS.people, customPath('dayRatesByYear'))}
                 disabled={year < tracked[0]}
                 placeholder={inherited ? String(inherited.dayRate) : undefined}
-                value={entered ? String(entered.dayRate) : ''}
-                onCommit={(text) => setRate(year, text)}
+                value={entered?.dayRate}
+                onClear={() => setRate(year, null)}
+                onChange={(dayRate) => setRate(year, dayRate)}
               />
               <span className="text-caption text-text-secondary">per day</span>
               {inherited && <span className="text-caption text-text-muted">uses {inherited.year}</span>}
