@@ -1,7 +1,7 @@
 import type { ApprovalTrackDef, PhaseDef } from '../brand/types';
 import { formatMonth, monthOf, nextMonth } from './dates';
 import { currentPhaseId, gateOverdue, gateProgress, gateProgressText, gateRequirements, overrunMessage, READY_MESSAGE, type GateRequirement } from './gate';
-import { phaseMonths, type RateData } from './cost';
+import { grandEstimate, phaseMonths, resolveApprovalTrack, type RateData } from './cost';
 import { escalation } from './keyFigures';
 import type { Initiative } from './types';
 import type { Person } from './types';
@@ -26,7 +26,7 @@ export type NeedsAttentionItem =
 
 /** Escalated (§7.4, §8.5), as the strip names it: the track it now needs and the one it was approved in. */
 function escalatedReason(initiative: Initiative, process: PhaseDef[], people: Person[], data: RateData, approvalTracks: ApprovalTrackDef[]): string | null {
-  const escalated = escalation(initiative, process, people, data, approvalTracks);
+  const escalated = escalation(initiative, process, resolveApprovalTrack(approvalTracks, grandEstimate(initiative, process, people, data)));
   return escalated && `Needs ${escalated.live.name} approval (was ${escalated.baseline.name})`;
 }
 

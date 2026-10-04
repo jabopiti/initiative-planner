@@ -52,13 +52,14 @@
   /*
    * Motion (slice 059): brief and non-essential, every use behind motion-safe: so prefers-reduced-motion shows the
    * end state at once (§9.5). fade-in: a screen arriving (150 ms); reveal: a phase opening (150 ms); draw: the gate
-   * pass tick (400 ms, on a path with pathLength 1); recalc: a figure that just recalculated, tinted then cleared.
+   * pass tick (400 ms, on a path with pathLength 1); step-fill and recalc: the just-passed step (400 ms) and a figure
+   * that just recalculated (1200 ms), each tinted then cleared.
    */
   --animate-fade-in: fade-in 150ms ease-out;
   --animate-reveal: reveal 150ms ease-out;
   --animate-draw: draw 400ms ease-out;
-  --animate-step-fill: step-fill 400ms ease-out;
-  --animate-recalc: recalc 1200ms ease-out;
+  --animate-step-fill: tint-out 400ms ease-out;
+  --animate-recalc: tint-out 1200ms ease-out;
 
   @keyframes fade-in {
     from {
@@ -76,12 +77,7 @@
       stroke-dashoffset: 1;
     }
   }
-  @keyframes step-fill {
-    from {
-      background-color: var(--met-tint);
-    }
-  }
-  @keyframes recalc {
+  @keyframes tint-out {
     from {
       background-color: var(--met-tint);
     }

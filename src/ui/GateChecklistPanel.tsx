@@ -15,16 +15,13 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cardClass } from './cardClass';
 
-const STATUS_LABEL: Record<ChecklistStatus, string> = { incomplete: 'Incomplete', tentative: 'Tentative', complete: 'Complete' };
-const STATUS_ICON: Record<ChecklistStatus, typeof IncompleteIcon> = { incomplete: IncompleteIcon, tentative: TentativeIcon, complete: CompleteIcon };
-/** Each status's colour role (§9.8): the icon at the row's left, and the selected segment's tint. */
-const STATUS_ICON_CLASS: Record<ChecklistStatus, string> = { incomplete: 'text-text-secondary', tentative: 'text-warning-text', complete: 'text-met-text' };
-const STATUS_SEGMENT_CLASS: Record<ChecklistStatus, string> = {
-  incomplete: 'data-[state=on]:bg-surface-subtle data-[state=on]:text-text-primary',
-  tentative: 'data-[state=on]:bg-warning-tint data-[state=on]:text-warning-text',
-  complete: 'data-[state=on]:bg-met-tint data-[state=on]:text-met-text',
+/** Each status's name, icon and colour role (§9.8): the icon at the row's left, and the selected segment's tint; in control order. */
+const STATUS: Record<ChecklistStatus, { label: string; Icon: typeof IncompleteIcon; iconClass: string; segmentClass: string }> = {
+  incomplete: { label: 'Incomplete', Icon: IncompleteIcon, iconClass: 'text-text-secondary', segmentClass: 'data-[state=on]:bg-surface-subtle data-[state=on]:text-text-primary' },
+  tentative: { label: 'Tentative', Icon: TentativeIcon, iconClass: 'text-warning-text', segmentClass: 'data-[state=on]:bg-warning-tint data-[state=on]:text-warning-text' },
+  complete: { label: 'Complete', Icon: CompleteIcon, iconClass: 'text-met-text', segmentClass: 'data-[state=on]:bg-met-tint data-[state=on]:text-met-text' },
 };
-const STATUSES: ChecklistStatus[] = ['incomplete', 'tentative', 'complete'];
+const STATUSES = Object.keys(STATUS) as ChecklistStatus[];
 
 /** The panel's row anchor, for the magic bar's "jump to the first open item" (§5.4). */
 export const checklistItemAnchor = (writePhaseId: string, itemId: string) => `checklist-${writePhaseId}-${itemId}`;
@@ -133,7 +130,7 @@ function ChecklistItemRow({
   const [refused, setRefused] = useState<string | null>(null);
   const noteErrorId = useId();
   const noteInputId = useId();
-  const StatusIcon = STATUS_ICON[item.status];
+  const StatusIcon = STATUS[item.status].Icon;
 
   const setStatus = (status: ChecklistStatus, note: string) => repository.setChecklistItem(initiativeId, writePhaseId, item.id, status, note);
 
@@ -165,7 +162,7 @@ function ChecklistItemRow({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           {/* The status icon at the left, in its colour role (§5.4, §9.8); the segmented control or the label names it. */}
-          <StatusIcon width={16} height={16} aria-hidden="true" className={`shrink-0 ${frozen ? 'text-text-muted' : STATUS_ICON_CLASS[item.status]}`} />
+          <StatusIcon width={16} height={16} aria-hidden="true" className={`shrink-0 ${frozen ? 'text-text-muted' : STATUS[item.status].iconClass}`} />
           <span className={`text-body ${frozen ? 'text-text-secondary' : ''}`}>{item.name}</span>
           {originGateLabel && <span className="text-caption text-warning-text">carried from {originGateLabel}</span>}
           {item.description && (
@@ -182,7 +179,7 @@ function ChecklistItemRow({
         <div className={`flex shrink-0 items-center gap-2 transition-colors duration-500 motion-reduce:transition-none ${changed(file, ['checklist', writePhaseId, item.id]) ? 'rounded-md bg-met-tint' : ''}`}>
           {frozen ? (
             <>
-              <span className="text-caption text-text-muted">{STATUS_LABEL[item.status]}</span>
+              <span className="text-caption text-text-muted">{STATUS[item.status].label}</span>
               <span className="text-caption text-text-muted" aria-hidden="true">
                 ·
               </span>
@@ -210,8 +207,8 @@ function ChecklistItemRow({
               }}
             >
               {STATUSES.map((value) => (
-                <ToggleGroupItem key={value} value={value} className={`px-2.5 text-caption font-normal text-text-secondary data-[state=on]:font-medium ${STATUS_SEGMENT_CLASS[value]}`}>
-                  {STATUS_LABEL[value]}
+                <ToggleGroupItem key={value} value={value} className={`px-2.5 text-caption font-normal text-text-secondary data-[state=on]:font-medium ${STATUS[value].segmentClass}`}>
+                  {STATUS[value].label}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>

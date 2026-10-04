@@ -21,7 +21,7 @@ import { ConflictRow, inRow } from './ConflictBlock';
 import { CostItemsTable } from './CostItemsTable';
 import { TIMING_LABELS } from './costItemTiming';
 import { DateInput } from './DateInput';
-import { useRecalculated } from './motion';
+import { RecalcTint } from './motion';
 import { formatAmount } from './formatAmount';
 import { GateChecklistPanel } from './GateChecklistPanel';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DismissIcon, FrozenIcon, InfoIcon, OverdueIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
@@ -189,8 +189,6 @@ function CostedPhase({
   // Closed months still owing an actual (§8.5 Overdue), named on the header row so a collapsed phase says so (§5.4).
   const overdueMonths = overdueActualMonths(initiative, phase, today);
   const coverageLabel = { frozen: 'Frozen', actual: 'Actual', forecast: 'Forecast', estimate: 'Estimate' }[coverage];
-  // The phase total tints briefly when it recalculates (slice 059).
-  const recalculated = useRecalculated(total);
 
   // Who can still be added, and what each has free for the phase's months (§5.11), most free first. Free capacity
   // is undefined without a valid period (the list is then by name) and while the phase is closed: only the open
@@ -289,9 +287,10 @@ function CostedPhase({
         {plan.allocations.length === 0 && !initiativeFrozen && (
           <span className={`font-medium ${isNextStep ? 'text-brand-accent-text' : 'text-text-secondary'}`}>· Add people</span>
         )}
-        <span key={recalculated} className={`ml-auto rounded-sm px-1 font-medium tabular-nums ${recalculated ? 'motion-safe:animate-recalc' : ''}`}>
+        {/* The phase total tints briefly when it recalculates (slice 059). */}
+        <RecalcTint value={total} className="ml-auto font-medium tabular-nums">
           {costed && hasCost ? formatAmount(total, currencySymbol) : '—'}
-        </span>
+        </RecalcTint>
         <Badge variant="subtle">{coverageLabel}</Badge>
       </button>
 

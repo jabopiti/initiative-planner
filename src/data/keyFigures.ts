@@ -1,7 +1,6 @@
 import type { ApprovalTrackDef, PhaseDef } from '../brand/types';
-import { grandEstimate, resolveApprovalTrack, type RateData } from './cost';
 import { lastCostedPassedGate } from './gate';
-import type { Initiative, Person, RecordedApprovalTrack } from './types';
+import type { Initiative, RecordedApprovalTrack } from './types';
 
 /** One shaded range of a bullet bar: an approval track's band, its open top end cut at the scale's end. */
 export interface BulletBand {
@@ -48,19 +47,16 @@ export function recordedActuals(initiative: Initiative, process: PhaseDef[]): { 
 }
 
 /**
- * Escalated (§7.4, §8.5): the live approval track is stricter than the one recorded at the last passed gate that
- * carried cost. `null` with no such baseline yet, when no band covers the live total, or when the baseline itself
- * carries no recorded track (a gap in the bands at the time it passed) — none of these give a severity to compare.
+ * Escalated (§7.4, §8.5): the live approval track — the one the grand estimate now falls in — is stricter than the
+ * one recorded at the last passed gate that carried cost. `null` with no such baseline yet, when no band covers the
+ * live total, or when the baseline itself carries no recorded track (a gap in the bands at the time it passed) — none
+ * of these give a severity to compare.
  */
 export function escalation(
   initiative: Initiative,
   process: PhaseDef[],
-  people: Person[],
-  data: RateData,
-  tracks: ApprovalTrackDef[],
+  live: ApprovalTrackDef | null,
 ): { live: ApprovalTrackDef; baseline: RecordedApprovalTrack } | null {
   const baseline = lastCostedPassedGate(process, initiative)?.record.recordedApprovalTrack;
-  if (!baseline) return null;
-  const live = resolveApprovalTrack(tracks, grandEstimate(initiative, process, people, data));
-  return live && live.severity > baseline.severity ? { live, baseline } : null;
+  return baseline && live && live.severity > baseline.severity ? { live, baseline } : null;
 }

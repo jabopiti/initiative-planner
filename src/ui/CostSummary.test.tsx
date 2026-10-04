@@ -154,7 +154,7 @@ describe('Key figure motion (slice 059, §9.5)', () => {
     await vi.waitFor(() => expect(figure().textContent).not.toBe('€394,800'));
   });
 
-  it('shows the new value at once, with no tint, under reduced motion', () => {
+  it('shows the new value at once under reduced motion, its tint motion-safe: only', () => {
     const checkout = named('Checkout Redesign');
     show(checkout);
     const next = structuredClone(checkout);
@@ -162,6 +162,7 @@ describe('Key figure motion (slice 059, §9.5)', () => {
     update(next);
     const deviation = within(tile('Deviation')).getByText(/€/);
     expect(deviation.textContent).not.toBe('€0');
-    expect(deviation).not.toHaveClass('motion-safe:animate-recalc');
+    // The tint is motion-safe:, which CSS skips under reduced motion (src/test/motion.test.ts holds every use to it).
+    expect(deviation.className).not.toMatch(/(?<!motion-safe:)animate-/);
   });
 });

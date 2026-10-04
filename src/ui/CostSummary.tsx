@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { grandDeviation, grandEstimate, hasValidPeriod, phaseEffectiveTotal } from '../data/cost';
+import { grandDeviation, grandEstimate, hasValidPeriod, phaseEffectiveTotal, resolveApprovalTrack } from '../data/cost';
 import { formatPeriod } from '../data/dates';
 import { currentPhaseId, gateBlockers, gateProgress, gateProgressText, gateRequirements, lastCostedPassedGate } from '../data/gate';
 import { escalation, recordedActuals } from '../data/keyFigures';
+import { plural } from '../data/plural';
 import { useBrand } from '../state/BrandContext';
 import { useRepositoryState } from '../state/DataContext';
 import type { Initiative } from '../data/types';
@@ -11,9 +12,10 @@ import { CopyButton } from './CopyButton';
 import type { CopyTableData } from './copyTable';
 import { formatAmount, formatSignedAmount } from './formatAmount';
 import { cardClass } from './cardClass';
+import { cn } from 'cn';
 import { PhaseIcon } from './icons';
 import { TruncatedText } from './TruncatedText';
-import { useRolledFigure } from './motion';
+import { RolledFigure } from './motion';
 
 /** A key figure's tile (§5.4): its label (with an action at the right, if any), the figure, and what's beneath it. */
 function Tile({ label, action, children }: { label: string; action?: ReactNode; children: ReactNode }) {
@@ -28,18 +30,17 @@ function Tile({ label, action, children }: { label: string; action?: ReactNode; 
   );
 }
 
-/** The figure itself, display size; a recalculated value gets a brief tint (keyed so a second change restarts it). */
-function Figure({ children, recalculated = 0, className = '' }: { children: ReactNode; recalculated?: number; className?: string }) {
-  return (
-    <div className={`mb-1.5 min-w-0 text-display tabular-nums break-words ${className}`}>
-      <span key={recalculated} className={`-mx-1 block rounded-sm px-1 ${recalculated ? 'motion-safe:animate-recalc' : ''}`}>
-        {children}
-      </span>
-    </div>
-  );
+/** The figure itself, display size. */
+function Figure({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`mb-1.5 min-w-0 text-display tabular-nums break-words ${className}`}>{children}</div>;
 }
 
-const Sub = ({ children, className = 'text-text-secondary' }: { children: ReactNode; className?: string }) => <p className={`m-0 mt-1 text-caption tabular-nums ${className}`}>{children}</p>;
+/** A key figure that rolls to a new value and tints briefly (slice 059), as a block so a long figure wraps in its tile. */
+const Rolled = (props: { value: number; format: (n: number) => string }) => <RolledFigure {...props} className="-mx-1 block" />;
+
+const Sub = ({ children, className }: { children: ReactNode; className?: string }) => (
+  <p className={cn('m-0 mt-1 text-caption tabular-nums text-text-secondary', className)}>{children}</p>
+);
 
 /**
  * The initiative's cost summary as four key figures under the header (§5.4): Grand estimate (with its bullet bar, and
@@ -59,10 +60,8 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
   const approvedFigure = approved?.record.recordedGrandEstimate;
   const deviation = grandDeviation(initiative, process, people, data);
   const difference = approvedFigure === undefined ? 0 : estimate - approvedFigure;
-  const escalated = escalation(initiative, process, people, data, approvalTracks) !== null;
+  const escalated = escalation(initiative, process, resolveApprovalTrack(approvalTracks, estimate)) !== null;
   const actuals = recordedActuals(initiative, process);
-  const rolledEstimate = useRolledFigure(estimate);
-  const rolledDeviation = useRolledFigure(deviation);
 
   const phase = process.find((p) => p.id === currentPhaseId(initiative, process))!;
   const plan = initiative.phases?.[phase.id];
@@ -70,7 +69,6 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
   const requirements = gateRequirements(process, initiative, phase.id);
   const progress = gateProgress(requirements);
   const open = gateBlockers(requirements).length;
-  const rolledComplete = useRolledFigure(progress.complete);
 
   const getData = (): CopyTableData => {
     const rows = [['Grand estimate', formatAmount(estimate, currencySymbol)]];
@@ -86,9 +84,8 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
   };
 
   const gateLabel = approved?.phase.exitGate.label;
-  const months = actuals.months === 1 ? '1 month recorded' : `${actuals.months} months recorded`;
   const deviationSub =
-    actuals.months === 0 ? 'No actuals recorded yet' : `${deviation > 0 ? 'Over estimate' : deviation < 0 ? 'Under estimate' : 'On estimate'} · ${months}`;
+    actuals.months === 0 ? 'No actuals recorded yet' : `${deviation > 0 ? 'Over estimate' : deviation < 0 ? 'Under estimate' : 'On estimate'} · ${plural(actuals.months, 'month', 'months')} recorded`;
   const finalGate = process[process.length - 1].exitGate.label;
 
   return (
@@ -99,7 +96,9 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
       {costedPhases.length > 0 && (
         <>
           <Tile label="Grand estimate" action={<CopyButton getData={getData} noun={['line', 'lines']} label="Copy cost summary" variant="ghost" />}>
-            <Figure recalculated={rolledEstimate.recalculated}>{formatAmount(Math.round(rolledEstimate.shown), currencySymbol)}</Figure>
+            <Figure>
+              <Rolled value={estimate} format={(n) => formatAmount(n, currencySymbol)} />
+            </Figure>
             <BulletBar
               size="tile"
               estimate={estimate}
@@ -116,18 +115,18 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
             />
             {approvedFigure !== undefined && (
               <>
-                <Sub className="mt-2 text-text-secondary">
+                <Sub className="mt-2">
                   Approved at {gateLabel}: {formatAmount(approvedFigure, currencySymbol)}
                 </Sub>
-                <Sub className={escalated ? 'text-warning-text' : 'text-text-secondary'}>
+                <Sub className={escalated ? 'text-warning-text' : undefined}>
                   {difference === 0 ? `Unchanged since ${gateLabel}` : `${formatSignedAmount(difference, currencySymbol)} since ${gateLabel}`}
                 </Sub>
               </>
             )}
           </Tile>
           <Tile label="Deviation">
-            <Figure recalculated={rolledDeviation.recalculated} className={deviation > 0 ? 'text-warning-text' : ''}>
-              {formatSignedAmount(Math.round(rolledDeviation.shown), currencySymbol)}
+            <Figure className={deviation > 0 ? 'text-warning-text' : ''}>
+              <Rolled value={deviation} format={(n) => formatSignedAmount(n, currencySymbol)} />
             </Figure>
             <Sub>{deviationSub}</Sub>
           </Tile>
@@ -165,7 +164,9 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
             <Figure>Nothing to check</Figure>
           ) : (
             <>
-              <Figure recalculated={rolledComplete.recalculated}>{gateProgressText({ ...progress, complete: Math.round(rolledComplete.shown) })}</Figure>
+              <Figure>
+                <Rolled value={progress.complete} format={(complete) => gateProgressText({ ...progress, complete })} />
+              </Figure>
               <Sub>{open === 0 ? 'Ready to pass' : `${open} open`}</Sub>
             </>
           )}

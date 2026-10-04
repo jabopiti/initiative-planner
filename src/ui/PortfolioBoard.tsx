@@ -5,8 +5,6 @@ import { inactiveLabel, initiativeRows, NONE } from '../data/initiativeList';
 import { costedRows, isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, portfolioRows, liveYear, portfolioYears, type PortfolioFilters, type PortfolioRow } from '../data/portfolio';
 import { FILE_PATHS, INITIATIVE_STATUSES, type InitiativeStatus } from '../data/types';
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
-import { lastCostedPassedGate } from '../data/gate';
-import { recordedActuals } from '../data/keyFigures';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
 import { BulletBar } from './BulletBar';
 import { AttentionMarker, IconMarker } from './AttentionMarker';
@@ -42,7 +40,6 @@ function StatusMarker({ status }: { status: InitiativeStatus }) {
 function BoardCard({ row }: { row: PortfolioRow }) {
   const attention = useNeedsAttentionItems();
   const changed = useIsChangedByOthers();
-  const { process } = useBrand();
   const { initiative } = row;
   const item = attention.find((i) => i.initiativeId === initiative.id);
   return (
@@ -63,13 +60,7 @@ function BoardCard({ row }: { row: PortfolioRow }) {
       <div className="flex items-center gap-2 text-caption">
         <CompactAmount value={row.cost} className="min-w-11" />
         <div className="min-w-0 flex-1 pr-1.5">
-          <BulletBar
-            size="card"
-            estimate={row.total}
-            approved={lastCostedPassedGate(process, initiative)?.record.recordedGrandEstimate}
-            actuals={recordedActuals(initiative, process).total}
-            escalated={item?.kind === 'escalated'}
-          />
+          <BulletBar size="card" estimate={row.total} approved={row.approved} actuals={row.actuals} escalated={row.escalated} />
         </div>
         <ApprovalTrackBadge initiative={initiative} />
       </div>
@@ -90,7 +81,7 @@ export function PortfolioBoard() {
 
   const rows = useMemo(
     // The board's cards look up their own attention item; the rows don't need it.
-    () => costedRows(initiativeRows(initiatives, teams, people, process, approvalTracks, data, []), process, people, data),
+    () => costedRows(initiativeRows(initiatives, teams, people, process, approvalTracks, data, []), process, people, data, approvalTracks),
     [initiatives, teams, people, process, approvalTracks, data],
   );
   const years = useMemo(() => portfolioYears(rows), [rows]);
