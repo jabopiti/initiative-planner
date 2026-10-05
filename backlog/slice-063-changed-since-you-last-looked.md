@@ -8,7 +8,7 @@ depends_on: ["058", "059"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Chosen by the user on 2 Oct 2026 from the research page 'Patterns worth borrowing' (pattern 12, collaborative editors). Marks what changed since the user last opened each initiative, never who changed it (§1 Non-goals). After 058 (board, shell) and 059 (key figures), so the markers go onto the final cards, rows and tiles once. §9.9 and §10.4 updated."
+change_summary: "Chosen by the user on 2 Oct 2026 from the research page 'Patterns worth borrowing' (pattern 12, collaborative editors). Marks what changed since the user last opened each initiative, never who changed it (§1 Non-goals). Settled in review on 5 Oct 2026: own edits never mark (the snapshot is also written while the page is open), the Portfolio line counts every changed initiative regardless of filters, accent dot, previous value struck before the new one, no nav count. After 058 (board, shell) and 059 (key figures), so the markers go onto the final cards, rows and tiles once. §9.9 and §10.4 updated."
 recommended_model: "Claude Sonnet 5"
 model_rationale: "A small per-repository store and a comparison of key figures; the visible parts are a dot, one line and a struck-through value."
 spec_sections: ["§9.9 Interface states", "§10.4 Browser storage", "§5.2 Portfolio overview (landing page)", "§5.3 Initiatives overview", "§5.4 Initiative detail view"]
@@ -67,6 +67,15 @@ value beside the new.
 - [ ] Given IndexedDB unavailable, then nothing is marked and nothing
       fails.
 - [ ] Given any mark, then no text names who made the change.
+- [ ] Given the user's own edit on the initiative page, then no dot appears
+      on its card or row afterwards and the edited figure shows no previous
+      value.
+- [ ] Given a changed initiative the filters hide, then the Portfolio line
+      still counts it, and **Mark as seen** clears it.
+- [ ] Given Settings → Danger zone → Reset, then the store is emptied and
+      nothing is marked.
+- [ ] Given the e2e axe scan, then the Portfolio line, a dot and a struck
+      figure pass in both themes.
 
 ## Flags and compromises
 
@@ -76,5 +85,33 @@ the dot but no struck-through value.
 
 ## Decided in review (pre-implementation)
 
-User picked research pattern 12 on 2 Oct 2026. Open for the next-slice
-session: whether the Initiatives nav item also shows the count.
+User picked research pattern 12 on 2 Oct 2026. Settled in the next-slice
+session on 5 Oct 2026:
+
+- **Own edits:** the snapshot (time, four figures, file version) is written
+  when the page opens and again whenever the open initiative changes, so a
+  user's own edits, and changes that arrive while the page is on screen,
+  never mark a dot. The strike-through baseline is the snapshot read once
+  at opening and stays fixed for the visit; a figure that did not differ at
+  opening shows no previous value, whatever happens later.
+- **Stored figures:** the four tile values: Grand estimate, Deviation,
+  current phase, and the current gate's "X of Y complete" (the "gate count").
+  The struck value is the previous primary value of the tile (previous phase
+  name, previous "X of Y").
+- **Portfolio line:** "N initiatives changed since you last looked, <day
+  date>" ("1 initiative", "today" or "yesterday" when it applies, otherwise
+  "Tuesday 29 Sep") with **Mark as seen**, under the strips and above the
+  filter row. It counts every changed initiative regardless of the filters;
+  **Mark as seen** rewrites all their snapshots to now. The dots show only on
+  what the filters show.
+- **Dot:** accent-coloured, top right of the card beside the markers, before
+  the name in the row; accessible name "Changed since you last looked".
+- **Struck value:** on the tile, struck through before the new value; screen
+  readers get "was <previous value>". The cost summary Copy and Copy table
+  copy current figures only, without marks.
+- **Nav:** the Initiatives nav item shows no count.
+- **Store:** new IndexedDB object store (`DB_VERSION` 4), keyed by
+  repository and branch scope plus initiative id, outside the cache budget,
+  never synced, emptied by Reset; records of removed initiatives are
+  ignored. An unnamed draft is recorded once it has a file. With IndexedDB
+  unreadable nothing is marked. Two tabs: last write wins.
