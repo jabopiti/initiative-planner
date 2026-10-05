@@ -1,10 +1,12 @@
 import { classicWarningCache, loginCache, tokenCache } from '../cache/db';
+import { isSharedOrigin } from './sharedOrigin';
 
 /**
  * Where the GitHub token lives (§3). By default it stays in this tab's
  * sessionStorage and is gone when the tab closes; only when the user ticks
  * "Remember on this device" is it also kept in IndexedDB. sessionStorage is
  * per-tab, so another page on the same origin cannot read it from its own tab.
+ * On a shared origin ({@link isSharedOrigin}) nothing is kept in IndexedDB at all.
  */
 const SESSION_KEY = 'github-token';
 const LOGIN_SESSION_KEY = 'github-login';
@@ -38,19 +40,50 @@ function devToken(): string | null {
   return import.meta.env.VITE_DEV_TOKEN || null;
 }
 
+/**
+ * On a shared origin, moves a token remembered there before Remember me was turned off — with its login and
+ * classic-token flag — into this tab's session storage and deletes it from IndexedDB (§3, Authentication).
+ * Safe to run concurrently: each value reaches session storage before anything is deleted.
+ */
+async function moveRememberedIntoTab(): Promise<void> {
+  if (!isSharedOrigin()) return;
+  const [token, login, classic] = await Promise.all([
+    tokenCache.get().catch(() => null),
+    loginCache.get().catch(() => null),
+    classicWarningCache.get().catch(() => null),
+  ]);
+  if (token == null) return;
+  if (readSession() == null) {
+    writeSession(token);
+    if (login) writeSession(login, LOGIN_SESSION_KEY);
+    if (classic) writeSession('1', CLASSIC_SESSION_KEY);
+  }
+  await Promise.all([tokenCache.clear(), loginCache.clear(), classicWarningCache.clear()]);
+}
+
 export const tokenStore = {
+  /** Whether Remember me is offered: not on a shared origin, where other sites could read what is kept (§5.10). */
+  canRemember(): boolean {
+    return !isSharedOrigin();
+  },
+
   async load(): Promise<string | null> {
-    return devToken() ?? readSession() ?? (await tokenCache.get());
+    const dev = devToken();
+    if (dev) return dev;
+    await moveRememberedIntoTab().catch(() => undefined);
+    return readSession() ?? (await tokenCache.get());
   },
 
   /** The GitHub login the stored token belongs to, or null when it was never recorded (a dev token, an older session). */
   async loadLogin(): Promise<string | null> {
+    await moveRememberedIntoTab().catch(() => undefined);
     return readSession(LOGIN_SESSION_KEY) ?? (await loginCache.get().catch(() => null)) ?? null;
   },
 
-  /** Keep the token for this tab only, or — with `remember` — on this device until it is removed. The login of the
-   * token it replaces goes with it; {@link saveLogin} records the new one. */
+  /** Keep the token for this tab only, or — with `remember`, where {@link canRemember} — on this device until it is
+   * removed. The login of the token it replaces goes with it; {@link saveLogin} records the new one. */
   async save(token: string, remember: boolean): Promise<void> {
+    remember &&= tokenStore.canRemember();
     writeSession(null, LOGIN_SESSION_KEY);
     writeSession(null, CLASSIC_SESSION_KEY);
     if (remember) {
@@ -70,6 +103,7 @@ export const tokenStore = {
 
   /** Whether the stored token is a classic one whose warning is still to be shown (§5.10). */
   async loadClassicWarning(): Promise<boolean> {
+    await moveRememberedIntoTab().catch(() => undefined);
     return readSession(CLASSIC_SESSION_KEY) === '1' || ((await classicWarningCache.get().catch(() => null)) ?? false);
   },
 

@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { tokenCache } from '../cache/db';
+import { classicWarningCache, loginCache, tokenCache } from '../cache/db';
 import { tokenStore } from './tokenStore';
+
+const origin = vi.hoisted(() => ({ shared: false }));
+vi.mock('./sharedOrigin', () => ({ isSharedOrigin: () => origin.shared }));
 
 describe('tokenStore (§3)', () => {
   beforeEach(async () => {
@@ -39,6 +42,55 @@ describe('tokenStore (§3)', () => {
     await tokenStore.clear();
 
     expect(await tokenStore.load()).toBeNull();
+  });
+});
+
+describe('tokenStore on a shared origin (§3, Authentication)', () => {
+  beforeEach(async () => {
+    sessionStorage.clear();
+    await tokenStore.clear();
+    origin.shared = true;
+  });
+  afterEach(async () => {
+    origin.shared = false;
+    await tokenStore.clear();
+  });
+
+  it('offers no Remember me and keeps a token asked to be remembered in this tab only', async () => {
+    expect(tokenStore.canRemember()).toBe(false);
+
+    await tokenStore.save('t4', true);
+    await tokenStore.saveLogin('bo');
+
+    expect(await tokenCache.get()).toBeNull();
+    expect(await loginCache.get()).toBeNull();
+    expect(sessionStorage.getItem('github-token')).toBe('t4');
+    expect(await tokenStore.remembered()).toBe(false);
+  });
+
+  it('moves a token remembered there earlier, with its login and classic warning, into this tab', async () => {
+    await Promise.all([tokenCache.set('old-remembered'), loginCache.set('bo'), classicWarningCache.set()]);
+
+    // As App loads them: all three at once.
+    const [token, login, classic] = await Promise.all([
+      tokenStore.load(),
+      tokenStore.loadLogin(),
+      tokenStore.loadClassicWarning(),
+    ]);
+
+    expect([token, login, classic]).toEqual(['old-remembered', 'bo', true]);
+    expect(await tokenCache.get()).toBeNull();
+    expect(await loginCache.get()).toBeNull();
+    expect(await classicWarningCache.get()).toBeNull();
+    expect(sessionStorage.getItem('github-token')).toBe('old-remembered');
+  });
+
+  it('a token already in this tab wins over one remembered earlier, which is still deleted', async () => {
+    await tokenStore.save('tab-token', false);
+    await tokenCache.set('old-remembered');
+
+    expect(await tokenStore.load()).toBe('tab-token');
+    expect(await tokenCache.get()).toBeNull();
   });
 });
 
