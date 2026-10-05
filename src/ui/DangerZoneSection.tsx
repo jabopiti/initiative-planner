@@ -2,7 +2,6 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { causeText } from '../github/errors';
 import { navigate } from '../router/useHashRoute';
 import { useRepository, useRepositoryState } from '../state/DataContext';
-import { useSeen } from '../state/SeenContext';
 import { ActionError } from './ActionError';
 import { LockableSectionHeader } from './LockedSection';
 import { resetLine } from './resetLine';
@@ -19,7 +18,6 @@ type Step = { busy: false; error: string | null } | { busy: true };
  */
 export function DangerZoneSection({ lock }: { lock: SectionLock }) {
   const repository = useRepository();
-  const seen = useSeen();
   const { teams, people, memberships, initiatives, readOnly } = useRepositoryState();
   const [load, setLoad] = useState<Step>({ busy: false, error: null });
   const [reset, setReset] = useState<Step>({ busy: false, error: null });
@@ -47,10 +45,7 @@ export function DangerZoneSection({ lock }: { lock: SectionLock }) {
   const confirmReset = async () => {
     setReset({ busy: true });
     const result = await repository.resetDataset();
-    if (result === 'reset') {
-      seen.clear();
-      return navigate('/portfolio');
-    }
+    if (result === 'reset') return navigate('/portfolio');
     setReset({ busy: false, error: causeText(result.failed) });
   };
 

@@ -1,6 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { cacheScope, SeenCache } from '../cache/db';
-import { hasChangedSince, keyFigureSnapshot, previousFigures, seenRecord, type KeyFigureSnapshot, type SeenRecord } from '../data/seen';
+import { changedInitiatives, hasChangedSince, keyFigureSnapshot, previousFigures, seenRecord, type ChangedEntry, type KeyFigureSnapshot, type SeenRecord } from '../data/seen';
 import type { Initiative } from '../data/types';
 import { useBrand } from './BrandContext';
 import { useRepositoryState } from './DataContext';
@@ -11,34 +11,50 @@ export interface ChangedInitiative {
   since: number;
 }
 
-interface Seen {
+/** What changes with the data: the changed set. */
+interface SeenState {
   /** The store was read and can be written; without it nothing is marked (§10.4). */
   available: boolean;
-  records: ReadonlyMap<string, SeenRecord>;
-  /** Every opened initiative that changed since, by id. */
+  /** Every opened initiative that changed since, by id, with when the user last looked. */
   changed: ReadonlyMap<string, number>;
+}
+
+/** What never changes identity, so a component that only acts does not render with the data. */
+interface SeenActions {
+  /** What was recorded for an initiative, as of now. */
+  recordOf: (initiativeId: string) => SeenRecord | undefined;
   record: (initiative: Initiative, figures: KeyFigureSnapshot) => void;
   /** Mark as seen (§9.9): every changed initiative's record is rewritten as of now. */
   markAllSeen: () => void;
-  /** Forgets everything, as Reset does (§5.9). */
-  clear: () => void;
 }
 
-const NOTHING: Seen = { available: false, records: new Map(), changed: new Map(), record: () => {}, markAllSeen: () => {}, clear: () => {} };
+const NOTHING_STATE: SeenState = { available: false, changed: new Map() };
+const NOTHING_ACTIONS: SeenActions = { recordOf: () => undefined, record: () => {}, markAllSeen: () => {} };
 
-const SeenContext = createContext<Seen>(NOTHING);
+const SeenStateContext = createContext<SeenState>(NOTHING_STATE);
+const SeenActionsContext = createContext<SeenActions>(NOTHING_ACTIONS);
+
+/** The same map again when nothing in it differs, so consumers do not render for a recomputation that found no change. */
+function sameEntries<T>(a: ReadonlyMap<string, T>, b: ReadonlyMap<string, T>, equal: (x: T, y: T) => boolean): boolean {
+  return a.size === b.size && [...a].every(([id, x]) => b.has(id) && equal(x, b.get(id)!));
+}
 
 /**
  * What the user last looked at, per initiative opened (§9.9, §10.4): read from IndexedDB once, kept in memory and
- * written through. An unreadable store leaves nothing marked and fails nothing. Without this provider (a screen
- * rendered alone) every hook below reads as "nothing changed".
+ * written through. An unreadable store leaves nothing marked and fails nothing. Reset empties it (the repository's
+ * `datasetResets`). Without this provider (a screen rendered alone) every hook below reads as "nothing changed".
  */
 export function SeenProvider({ children }: { children: ReactNode }) {
   const brand = useBrand();
-  const { initiatives, people, roles, countries } = useRepositoryState();
-  const cache = useMemo(() => new SeenCache(cacheScope(brand.github)), [brand]);
+  const { initiatives, people, roles, countries, datasetResets } = useRepositoryState();
+  const scope = cacheScope(brand.github);
+  const cache = useMemo(() => new SeenCache(scope), [scope]);
   const [records, setRecords] = useState<ReadonlyMap<string, SeenRecord>>(new Map());
   const [available, setAvailable] = useState(false);
+  // What the actions read, so they stay the same functions while it moves on.
+  const latest = useRef({ records, initiatives, changedEntries: new Map<string, ChangedEntry>() });
+  latest.current.records = records;
+  latest.current.initiatives = initiatives;
 
   useEffect(() => {
     let cancelled = false;
@@ -58,55 +74,57 @@ export function SeenProvider({ children }: { children: ReactNode }) {
     };
   }, [cache]);
 
-  const store = useCallback(
-    (entries: [string, SeenRecord][]) => {
+  // A reset (§5.9) forgets everything, here and in the store.
+  const resets = useRef(datasetResets);
+  useEffect(() => {
+    if (resets.current === datasetResets) return;
+    resets.current = datasetResets;
+    setRecords(new Map());
+    cache.clear().catch(() => {});
+  }, [datasetResets, cache]);
+
+  const changedEntries = useMemo(
+    () => (available ? changedInitiatives(records, initiatives, brand.process, people, { roles, countries }) : new Map<string, ChangedEntry>()),
+    [available, records, initiatives, people, roles, countries, brand.process],
+  );
+  latest.current.changedEntries = changedEntries;
+
+  const lastChanged = useRef<ReadonlyMap<string, number>>(new Map());
+  const changed = useMemo(() => {
+    const next = new Map([...changedEntries].map(([id, entry]) => [id, entry.since]));
+    if (!sameEntries(lastChanged.current, next, (x, y) => x === y)) lastChanged.current = next;
+    return lastChanged.current;
+  }, [changedEntries]);
+
+  const state = useMemo<SeenState>(() => ({ available, changed }), [available, changed]);
+
+  const actions = useMemo<SeenActions>(() => {
+    const store = (entries: [string, SeenRecord][]) => {
       setRecords((now) => new Map([...now, ...entries]));
       // A write that fails only means the next visit marks nothing for it.
       cache.putMany(entries).catch(() => {});
-    },
-    [cache],
-  );
-
-  const changed = useMemo(() => {
-    const found = new Map<string, number>();
-    if (!available) return found;
-    const data = { roles, countries };
-    for (const initiative of initiatives) {
-      const record = records.get(initiative.id);
-      if (record && hasChangedSince(record, initiative, keyFigureSnapshot(initiative, brand.process, people, data))) found.set(initiative.id, record.at);
-    }
-    return found;
-  }, [available, records, initiatives, people, roles, countries, brand.process]);
-
-  const value = useMemo<Seen>(
-    () => ({
-      available,
-      records,
-      changed,
-      record: (initiative, figures) => {
-        if (available) store([[initiative.id, seenRecord(initiative, figures, Date.now())]]);
-      },
+    };
+    return {
+      recordOf: (id) => latest.current.records.get(id),
+      record: (initiative, figures) => store([[initiative.id, seenRecord(initiative, figures, Date.now())]]),
       markAllSeen: () => {
-        const data = { roles, countries };
         const now = Date.now();
-        store(
-          initiatives
-            .filter((i) => changed.has(i.id))
-            .map((i): [string, SeenRecord] => [i.id, seenRecord(i, keyFigureSnapshot(i, brand.process, people, data), now)]),
-        );
+        const entries = [...latest.current.changedEntries];
+        const byId = new Map(latest.current.initiatives.map((i) => [i.id, i]));
+        store(entries.map(([id, { figures }]): [string, SeenRecord] => [id, seenRecord(byId.get(id)!, figures, now)]));
       },
-      clear: () => {
-        setRecords(new Map());
-        cache.clear().catch(() => {});
-      },
-    }),
-    [available, records, changed, store, initiatives, people, roles, countries, brand.process, cache],
-  );
+    };
+  }, [cache]);
 
-  return <SeenContext.Provider value={value}>{children}</SeenContext.Provider>;
+  return (
+    <SeenStateContext.Provider value={state}>
+      <SeenActionsContext.Provider value={actions}>{children}</SeenActionsContext.Provider>
+    </SeenStateContext.Provider>
+  );
 }
 
-export const useSeen = (): Seen => useContext(SeenContext);
+export const useSeen = (): SeenState => useContext(SeenStateContext);
+export const useSeenActions = (): SeenActions => useContext(SeenActionsContext);
 
 /** The changed initiatives, earliest last visit first (§9.9). */
 export function useChangedInitiatives(): ChangedInitiative[] {
@@ -122,23 +140,24 @@ export function useChangedInitiatives(): ChangedInitiative[] {
  */
 export function useInitiativeVisit(initiative: Initiative | undefined): Partial<KeyFigureSnapshot> | null {
   const brand = useBrand();
-  const seen = useSeen();
+  const { available } = useSeen();
+  const { recordOf, record } = useSeenActions();
   const { status, syncing, people, roles, countries } = useRepositoryState();
   const [previous, setPrevious] = useState<Partial<KeyFigureSnapshot> | null>(null);
   const opened = useRef(false);
 
   useEffect(() => {
-    if (!seen.available || status !== 'ready' || !initiative) return;
+    if (!available || status !== 'ready' || !initiative) return;
     // The first look waits for the pull of the day to land, so a change it brings is seen here, not recorded as seen.
     if (!opened.current && syncing) return;
     const figures = keyFigureSnapshot(initiative, brand.process, people, { roles, countries });
-    const recorded = seen.records.get(initiative.id);
+    const recorded = recordOf(initiative.id);
     if (!opened.current) {
       opened.current = true;
       setPrevious(recorded ? previousFigures(recorded, figures) : {});
     }
-    if (!recorded || hasChangedSince(recorded, initiative, figures)) seen.record(initiative, figures);
-  }, [seen, status, syncing, initiative, brand.process, people, roles, countries]);
+    if (!recorded || hasChangedSince(recorded, initiative, figures)) record(initiative, figures);
+  }, [available, recordOf, record, status, syncing, initiative, brand.process, people, roles, countries]);
 
   return previous;
 }

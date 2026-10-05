@@ -9,7 +9,7 @@ import { ApprovalTrackBadge } from './ApprovalTrackBadge';
 import { BulletBar } from './BulletBar';
 import { AttentionMarker, IconMarker } from './AttentionMarker';
 import { ChangedDot, ChangedMarker } from './ChangedMarker';
-import { useChangedInitiatives, useSeen } from '../state/SeenContext';
+import { useChangedInitiatives, useSeen, useSeenActions } from '../state/SeenContext';
 import { formatSince } from '../data/seen';
 import { CompactAmount } from './CompactAmount';
 import { Button } from '@/components/ui/button';
@@ -81,7 +81,7 @@ function BoardCard({ row }: { row: PortfolioRow }) {
 
 /** "N initiatives changed since you last looked, <day date>" with Mark as seen (§9.9): every changed initiative, whatever the filters. */
 function ChangedLine() {
-  const { markAllSeen } = useSeen();
+  const { markAllSeen } = useSeenActions();
   const changed = useChangedInitiatives();
   if (changed.length === 0) return null;
   return (

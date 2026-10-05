@@ -46,14 +46,24 @@ function stable(value: unknown): string {
   return JSON.stringify(value) ?? 'null';
 }
 
-/** A short fingerprint of an initiative's content (the file's version, §10.4): FNV-1a over its stable text. */
+const fingerprints = new WeakMap<Initiative, string>();
+
+/**
+ * A short fingerprint of an initiative's content (the file's version, §10.4): FNV-1a over its stable text. Kept per
+ * object: the repository replaces an initiative with a new object on every change and never edits one in place, so only
+ * an edited initiative is hashed again.
+ */
 export function fingerprint(initiative: Initiative): string {
+  const known = fingerprints.get(initiative);
+  if (known !== undefined) return known;
   let hash = 0x811c9dc5;
   for (const char of stable(initiative)) {
     hash ^= char.codePointAt(0)!;
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
-  return hash.toString(16);
+  const found = hash.toString(16);
+  fingerprints.set(initiative, found);
+  return found;
 }
 
 /** The record to keep for an initiative now. */
@@ -64,6 +74,30 @@ export function seenRecord(initiative: Initiative, figures: KeyFigureSnapshot, a
 /** Whether an initiative opened before has changed since: its file or its key figures differ from what was recorded (§9.9). */
 export function hasChangedSince(record: SeenRecord, initiative: Initiative, figures: KeyFigureSnapshot): boolean {
   return record.fingerprint !== fingerprint(initiative) || Object.keys(previousFigures(record, figures)).length > 0;
+}
+
+/** An opened initiative that changed since (§9.9): when it was last looked at, and its key figures now. */
+export interface ChangedEntry {
+  since: number;
+  figures: KeyFigureSnapshot;
+}
+
+/** Every initiative with a record that has changed since, by id. */
+export function changedInitiatives(
+  records: ReadonlyMap<string, SeenRecord>,
+  initiatives: Initiative[],
+  process: PhaseDef[],
+  people: Person[],
+  data: RateData,
+): Map<string, ChangedEntry> {
+  const found = new Map<string, ChangedEntry>();
+  for (const initiative of initiatives) {
+    const record = records.get(initiative.id);
+    if (!record) continue;
+    const figures = keyFigureSnapshot(initiative, process, people, data);
+    if (hasChangedSince(record, initiative, figures)) found.set(initiative.id, { since: record.at, figures });
+  }
+  return found;
 }
 
 /** The figures that differ from `record`, with their earlier values: the previous values the page shows struck through (§9.9). */
