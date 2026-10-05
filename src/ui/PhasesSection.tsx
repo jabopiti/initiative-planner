@@ -54,8 +54,6 @@ export const NOT_COSTED = 'not costed';
 /** A phase nobody has planned yet. One shared object, so the picker's memo isn't invalidated on every render. */
 const UNPLANNED: PhasePlan = { allocations: [] };
 
-export { actualCellAnchor } from './ActualsTable';
-
 /** The initiative page's Phases section (§5.4): every phase in order, costed ones expandable, with the current phase's Gate / Checklist panel directly beneath it. */
 export function PhasesSection({ initiative, team, reveal = null }: { initiative: Initiative; team: Team | undefined; reveal?: Jump | null }) {
   const { process } = useBrand();
