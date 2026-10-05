@@ -189,6 +189,39 @@ test('the populated screens and open panels have no accessibility violations', a
   expect(csp).toEqual([]);
 });
 
+// The heatmap and the split bar in both themes (slice 062): washes, team colours and the divider are held to §9.5.
+for (const colorScheme of ['light', 'dark'] as const) test(`the capacity heatmap and the split bar have no accessibility violations in ${colorScheme}`, async ({ page }) => {
+  await page.emulateMedia({ colorScheme });
+  const csp = watchCspViolations(page);
+  await fakeGithub(page).install();
+  await connect(page);
+  await loadExampleData(page);
+
+  await page.goto('/#/teams');
+  await page.getByRole('link', { name: 'Platform' }).first().click();
+  await expect(page.getByRole('region', { name: 'Capacity', exact: true }).getByRole('table')).toBeVisible();
+  await expectNoViolations(page); // the team page with its heatmap
+
+  // Lucía moves 40% of her time to Growth: the last divider releases it, then she joins Growth with it.
+  await page.goto('/#/people');
+  await page.getByRole('button', { name: 'Lucía Ramos', exact: true }).click();
+  const panel = page.getByRole('dialog', { name: 'Lucía Ramos' });
+  const after = panel.getByRole('slider', { name: 'Divider after Platform' });
+  await after.focus();
+  await page.keyboard.type('60');
+  await page.keyboard.press('Enter');
+  await expect(panel.getByText('60% of 100% claimed')).toBeVisible();
+  await panel.getByRole('combobox', { name: 'Add to team' }).click();
+  await page.getByRole('option', { name: 'Growth' }).click();
+  await expect(panel.getByRole('slider', { name: 'Divider between Platform and Growth' })).toHaveAttribute('aria-valuetext', 'Platform 60%, Growth 40%');
+  await expectNoViolations(page); // the person panel with a two-team split bar
+
+  await panel.getByRole('button', { name: 'Growth 40%' }).click();
+  await expect(page.getByRole('dialog', { name: 'Growth' })).toBeVisible();
+  await expectNoViolations(page); // a segment's popover
+  expect(csp).toEqual([]);
+});
+
 test('Cancelled and Closed initiatives and their frozen strip have no accessibility violations', async ({ page }) => {
   await fakeGithub(page).install();
   await connect(page);

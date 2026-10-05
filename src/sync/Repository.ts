@@ -1303,6 +1303,33 @@ export class Repository {
     );
   }
 
+  /**
+   * Set several of one person's Team FTE %s as one edit (§5.6): a split bar divider moves Team FTE % from one team to
+   * the next. One note names every team, "Lucía Ramos: Team FTE % Platform 70%, Growth 30%". The split bar keeps the
+   * total within the cap, so no value is capped here.
+   */
+  setTeamFteSplit(changes: { id: string; teamFtePct: number }[]): void {
+    const current = changes.map((c) => this.state.memberships.find((m) => m.id === c.id));
+    if (current.length === 0 || current.some((m) => !m)) return;
+    const members = current as Membership[];
+    const pctById = new Map(changes.map((c) => [c.id, c.teamFtePct]));
+    const who = this.personName(members[0].personId);
+    const where = members.map((m) => this.teamName(m.teamId));
+    const from = members.map((m) => m.teamFtePct);
+    const to = changes.map((c) => c.teamFtePct);
+    this.commitMemberships(
+      this.state.memberships.map((m) => (pctById.has(m.id) ? { ...m, teamFtePct: pctById.get(m.id)! } : m)),
+      {
+        entity: { kind: 'membership', id: members[0].id },
+        also: members.slice(1).map((m) => ({ kind: 'membership' as const, id: m.id })),
+        field: `split:${members.map((m) => m.id).join(',')}`,
+        from,
+        to,
+        words: (_f, t) => `${who}: Team FTE % ${where.map((name, i) => `${name} ${(t as number[])[i]}%`).join(', ')}`,
+      },
+    );
+  }
+
   /** A membership's note; the person and team are named as they are now, since a removal leaves no record to ask. */
   private membershipNote(id: string, from: Membership | undefined, to: Membership | undefined): CommitNote {
     const of = (m: Membership | undefined) => (m ? { who: this.personName(m.personId), where: this.teamName(m.teamId) } : undefined);

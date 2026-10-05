@@ -391,6 +391,41 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     expect(trailersFor(mock, 'memberships.json')).toEqual(Array(3).fill([`Entity: membership/${membership.id}`]));
   });
 
+  it('moves Team FTE % between two teams in one commit naming both (§5.6, slice 062)', async () => {
+    const mock = routingFetchMock();
+    vi.stubGlobal('fetch', mock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    await repo.initialize();
+    const platform = repo.createTeam('Platform');
+    const growth = repo.createTeam('Growth');
+    const lucia = repo.createPerson({ name: 'Lucía Ramos', countryId: 'c1', roleId: 'r1' });
+    const a = repo.addMembership(lucia.id, platform.id, 60)!;
+    const b = repo.addMembership(lucia.id, growth.id, 40)!;
+    await repo.flushPending();
+
+    repo.setTeamFteSplit([
+      { id: a.id, teamFtePct: 70 },
+      { id: b.id, teamFtePct: 30 },
+    ]);
+    await repo.flushPending();
+    expect(repo.getState().memberships.map((m) => m.teamFtePct)).toEqual([70, 30]);
+    expect(messagesFor(mock, 'memberships.json').at(-1)).toBe('Lucía Ramos: Team FTE % Platform 70%, Growth 30%');
+    expect(trailersFor(mock, 'memberships.json').at(-1)).toEqual([`Entity: membership/${a.id}`, `Entity: membership/${b.id}`]);
+
+    // Moved and moved back before the save: no commit.
+    const puts = messagesFor(mock, 'memberships.json').length;
+    repo.setTeamFteSplit([
+      { id: a.id, teamFtePct: 75 },
+      { id: b.id, teamFtePct: 25 },
+    ]);
+    repo.setTeamFteSplit([
+      { id: a.id, teamFtePct: 70 },
+      { id: b.id, teamFtePct: 30 },
+    ]);
+    await repo.flushPending();
+    expect(messagesFor(mock, 'memberships.json')).toHaveLength(puts);
+  });
+
   it('rejoins an inactive membership: same id, Team FTE % kept but capped at what is unclaimed, one record', async () => {
     const mock = routingFetchMock();
     vi.stubGlobal('fetch', mock);

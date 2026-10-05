@@ -144,6 +144,7 @@ export function CapacityGrid({ team }: { team: Team }) {
                         <CellButton
                           name={row.person.name}
                           cell={cell}
+                          teamFtePct={row.teamFtePct}
                           selected={selection?.personId === row.person.id && selection.month === cell.month}
                           onSelect={(from) => toggle({ personId: row.person.id, month: cell.month }, from)}
                         />
@@ -176,9 +177,15 @@ export function CapacityGrid({ team }: { team: Team }) {
   );
 }
 
-function CellButton({ name, cell, selected, onSelect }: { name: string; cell: CapacityCell; selected: boolean; onSelect: (from: HTMLElement) => void }) {
+/**
+ * A grid cell (§5.8): the number over a wash rising to its share of the Team FTE % (full at it), or, over either
+ * ceiling, a full Warning wash with that ceiling's icon. Provisional is a lighter figure beside it, never filled.
+ */
+function CellButton({ name, cell, teamFtePct, selected, onSelect }: { name: string; cell: CapacityCell; teamFtePct: number | null; selected: boolean; onSelect: (from: HTMLElement) => void }) {
   const { main, markers, provisional } = cellWords(cell);
   const warned = cell.overTeamFte || cell.overCapacity;
+  // A person no longer on the team has no Team FTE % to fill against.
+  const share = warned ? 100 : teamFtePct ? Math.min(100, (cell.teamPct / teamFtePct) * 100) : 0;
   const label = [`${name}, ${formatMonth(cell.month)}: ${cell.teamPct > 0 ? pct(cell.teamPct) : '0%'}`, ...markers, ...(provisional ? [provisional] : [])].join(', ');
   return (
     <button
@@ -186,15 +193,24 @@ function CellButton({ name, cell, selected, onSelect }: { name: string; cell: Ca
       aria-label={label}
       aria-pressed={selected}
       onClick={(e) => onSelect(e.currentTarget)}
-      className={`flex h-10 w-full min-w-20 cursor-pointer items-center justify-center gap-1 border-0 px-2 tabular-nums -outline-offset-2 ${
-        warned ? 'bg-warning-tint text-warning-text' : 'bg-transparent text-text-primary'
-      } ${selected ? 'ring-2 ring-brand-accent ring-inset' : ''}`}
+      className={`relative flex h-10 w-full min-w-20 cursor-pointer items-center justify-center gap-1 border-0 bg-transparent px-2 text-text-primary tabular-nums -outline-offset-2 ${
+        selected ? 'ring-2 ring-brand-accent ring-inset' : ''
+      }`}
     >
-      <span className={cell.teamPct > 0 ? 'font-medium' : 'text-text-muted'}>{main}</span>
-      {cell.overTeamFte && <OverTeamFteIcon width={14} height={14} data-testid="over-team-fte" />}
-      {cell.overCapacity && <OverCapacityIcon width={14} height={14} data-testid="over-capacity" />}
+      {share > 0 && (
+        <span
+          data-testid="heat-fill"
+          data-share={Math.round(share)}
+          aria-hidden="true"
+          className={`absolute inset-x-0 bottom-0 ${warned ? 'bg-heat-over' : 'bg-heat'}`}
+          style={{ height: `${share}%` }}
+        />
+      )}
+      <span className={`relative ${cell.teamPct > 0 ? 'font-medium' : warned ? 'text-text-secondary' : 'text-text-muted'}`}>{main}</span>
+      {cell.overTeamFte && <OverTeamFteIcon width={14} height={14} className="relative text-warning-text" data-testid="over-team-fte" />}
+      {cell.overCapacity && <OverCapacityIcon width={14} height={14} className="relative text-warning-text" data-testid="over-capacity" />}
       {cell.provisionalPct > 0 && (
-        <span className="text-caption font-normal text-text-muted" title="Provisional, not counted">
+        <span className="relative text-caption font-normal text-text-secondary" title="Provisional, not counted">
           +{pct(cell.provisionalPct)}
         </span>
       )}

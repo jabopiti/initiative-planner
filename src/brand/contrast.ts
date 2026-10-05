@@ -39,8 +39,10 @@ export function parseOklch(value: string): Oklch | null {
   return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
 }
 
-/** OKLCH → linear sRGB (Björn Ottosson's OKLab matrices), clipped to the sRGB gamut, → WCAG 2 relative luminance. */
-function luminance([l, c, h]: Oklch): number {
+type Rgb = [r: number, g: number, b: number];
+
+/** OKLCH → linear sRGB (Björn Ottosson's OKLab matrices), clipped to the sRGB gamut. */
+function linearRgb([l, c, h]: Oklch): Rgb {
   const rad = (h * Math.PI) / 180;
   const a = c * Math.cos(rad);
   const b = c * Math.sin(rad);
@@ -48,16 +50,39 @@ function luminance([l, c, h]: Oklch): number {
   const m3 = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3;
   const s3 = (l - 0.0894841775 * a - 1.291485548 * b) ** 3;
   const clip = (x: number) => Math.min(1, Math.max(0, x));
-  const r = clip(4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3);
-  const g = clip(-1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3);
-  const bl = clip(-0.0041960863 * l3 - 0.7034186147 * m3 + 1.707614701 * s3);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  return [
+    clip(4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3),
+    clip(-1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3),
+    clip(-0.0041960863 * l3 - 0.7034186147 * m3 + 1.707614701 * s3),
+  ];
 }
 
-export function contrastRatio(a: Oklch, b: Oklch): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
+const encode = (x: number) => (x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055);
+const decode = (x: number) => (x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
+
+/** WCAG 2 relative luminance of a linear sRGB colour. */
+const luminanceOf = ([r, g, b]: Rgb) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+/** `color-mix(in srgb, fg share, bg)`: mixed in gamma-encoded sRGB, as the browser does; linear sRGB back. */
+function mixSrgb(fg: Oklch, share: number, bg: Oklch): Rgb {
+  const [f, b] = [linearRgb(fg), linearRgb(bg)];
+  return f.map((x, i) => decode(encode(x) * share + encode(b[i]) * (1 - share))) as Rgb;
 }
+
+const wcagRatio = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+
+export function contrastRatio(a: Oklch, b: Oklch): number {
+  return wcagRatio(luminanceOf(linearRgb(a)), luminanceOf(linearRgb(b)));
+}
+
+/**
+ * The capacity heatmap's washes (§5.8): index.css's --color-heat and --color-heat-over, a share of a fill over the
+ * card. The cell's number, its Provisional figure and its icons sit on them.
+ */
+export const HEAT_WASHES: { name: string; fill: Role; share: number; on: [fg: Role, min: number][] }[] = [
+  { name: 'heat', fill: 'accent', share: 0.22, on: [['textPrimary', TEXT], ['textSecondary', TEXT]] },
+  { name: 'heat-over', fill: 'warning', share: 0.22, on: [['textPrimary', TEXT], ['textSecondary', TEXT], ['warningText', UI]] },
+];
 
 /** The number of team colours the pack defines (§2); index.css's --color-team-1..6 and src/ui/teamColors.ts match it. */
 const TEAM_COLOUR_COUNT = 6;
@@ -90,6 +115,18 @@ export function checkBrandColours(colours: BrandColours, teamColours: ColourRole
         if (!b) continue;
         const ratio = contrastRatio(f, b);
         if (ratio < min) failures.push(`${fg} (${theme}) on ${bg} is ${ratio.toFixed(2)}:1, needs ${min}:1`);
+      }
+    }
+    const card = parsed.get('surfaceCard');
+    for (const wash of HEAT_WASHES) {
+      const fill = parsed.get(wash.fill);
+      if (!fill || !card) continue;
+      const bg = luminanceOf(mixSrgb(fill, wash.share, card));
+      for (const [fg, min] of wash.on) {
+        const f = parsed.get(fg);
+        if (!f) continue;
+        const r = wcagRatio(luminanceOf(linearRgb(f)), bg);
+        if (r < min) failures.push(`${fg} (${theme}) on the ${wash.name} wash is ${r.toFixed(2)}:1, needs ${min}:1`);
       }
     }
   }

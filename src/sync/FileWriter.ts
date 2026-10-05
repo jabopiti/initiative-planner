@@ -68,6 +68,8 @@ function distinctEntities(entities: EntityRef[]): EntityRef[] {
  */
 export interface CommitNote {
   entity: EntityRef;
+  /** Further entities the one edit changes, each with its own trailer (a Team FTE % moved between two teams, §5.6). */
+  also?: EntityRef[];
   field: string;
   from: unknown;
   to: unknown;
@@ -364,7 +366,7 @@ export class FileWriter<D> {
 
   /** The entities with a note left, or an extra standing for one, in first-edit order. */
   private touched(): EntityRef[] {
-    return distinctEntities([...[...this.notes.values()].map((n) => n.entity), ...this.extraEntities]);
+    return distinctEntities([...[...this.notes.values()].flatMap((n) => [n.entity, ...(n.also ?? [])]), ...this.extraEntities]);
   }
 
   /** The edits so far are written into a commit: they start afresh. */

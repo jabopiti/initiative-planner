@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { cell, fixture, grid, member, person, renderView, setupUser, tinted, installCapacityFixture, written } from './capacityTestKit';
+import { cell, fillShare, fixture, grid, member, person, renderView, setupUser, tinted, installCapacityFixture, written } from './capacityTestKit';
 import { TeamDetail } from './TeamDetail';
 
 installCapacityFixture();
@@ -44,6 +44,32 @@ describe('the capacity grid on the team detail (§5.8)', () => {
     const dec = cell(g, 'Ana Ruiz', 'Dec 2026');
     expect(dec).toHaveTextContent('–');
     expect(tinted(dec)).toBe(false);
+  });
+
+  it('fills a cell with the accent wash up to its share of the Team FTE %, full at it (heatmap, slice 062)', async () => {
+    fixture.memberships = [member('ana', 't1', 70), member('bo', 't1', 40)];
+    fixture.initiatives = [fixture.initiatives[0]];
+    renderView(<TeamDetail id="t1" />);
+    const g = await grid();
+    const bo = cell(g, 'Bo Lind', 'Sept 2026');
+    expect(fillShare(bo)).toBe(100); // 40% of a 40% Team FTE
+    expect(tinted(bo)).toBe(false);
+    expect(bo.querySelector('[data-testid="heat-fill"]')).toHaveClass('bg-heat');
+    expect(fillShare(cell(g, 'Ana Ruiz', 'Sept 2026'))).toBe(100); // 70% of 70%
+    expect(fillShare(cell(g, 'Ana Ruiz', 'Dec 2026'))).toBe(0);
+    // Provisional is a figure beside the number, never filled.
+    expect(fillShare(cell(g, 'Ana Ruiz', 'Mar 2027'))).toBe(0);
+  });
+
+  it('fills an over cell to the top with the Warning wash, beside its number and icon, so colour is never the only cue', async () => {
+    renderView(<TeamDetail id="t1" />);
+    const g = await grid();
+    expect(fillShare(cell(g, 'Bo Lind', 'Sept 2026'))).toBe(80); // 40% of a 50% Team FTE
+    const sep = cell(g, 'Ana Ruiz', 'Sept 2026');
+    expect(fillShare(sep)).toBe(100);
+    expect(tinted(sep)).toBe(true);
+    expect(sep).toHaveTextContent('70%');
+    expect(within(sep).getByTestId('over-team-fte')).toBeInTheDocument();
   });
 
   it('tints no cell at all when nobody is over', async () => {

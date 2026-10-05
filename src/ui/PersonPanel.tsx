@@ -13,6 +13,9 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DeactivateIcon, PlusIcon, ReactivateIcon, RemoveFromTeamIcon, TeamsIcon } from './icons';
 import { RowActionsMenu } from './RowActionsMenu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { focusRing } from '@/components/ui/focus-ring';
+import { SplitBar } from './SplitBar';
 import { CommitInput } from './CommitInput';
 import { CustomRoleFields } from './CustomRoleFields';
 import { PercentInput } from './PercentInput';
@@ -56,6 +59,8 @@ function PersonDetails({ person }: { person: Person }) {
   const { roles, countries, teams, memberships } = useRepositoryState();
   const teamColor = useTeamColors();
   const [rejoinCap, setRejoinCap] = useState<{ id: string; pct: number } | null>(null);
+  /** The membership whose legend chip has its popover open. */
+  const [openChip, setOpenChip] = useState<string | null>(null);
   const customRole = person.customRole;
   const customActive = customRole?.active === true;
   const setMode = (mode: string) => {
@@ -74,9 +79,25 @@ function PersonDetails({ person }: { person: Person }) {
   const join = (teamId: string) => {
     const before = memberships.find((m) => m.personId === person.id && m.teamId === teamId);
     const joined = repository.addMembership(person.id, teamId);
-    if (before && joined && joined.teamFtePct < before.teamFtePct) setRejoinCap({ id: joined.id, pct: joined.teamFtePct });
+    if (before && joined && joined.teamFtePct < before.teamFtePct) {
+      setRejoinCap({ id: joined.id, pct: joined.teamFtePct });
+      // The cap note is in the team's popover, so it opens to show it.
+      setOpenChip(joined.id);
+    }
   };
-  const barPct = (pct: number) => `${Math.min(100, (pct / Math.max(person.capacityPct, 1)) * 100)}%`;
+  const teamName = (teamId: string) => teams.find((t) => t.id === teamId)?.name ?? 'Unknown team';
+  const fteField = (m: (typeof mine)[number]) => ({
+    changed: changed(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct']),
+    failure: failure(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct']),
+    conflict: conflict(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct']),
+  });
+  // Team FTE %s over Capacity % (raised on the team detail) don't fit one bar, so each team gets a field (§5.6); so
+  // does an unsaved or conflicting value, which stays in its field until it is resolved (§9.9).
+  const asRows = claimed > person.capacityPct || mine.some((m) => fteField(m).failure || fteField(m).conflict);
+  const move = (changes: { id: string; pct: number }[]) => {
+    if (changes.length === 1) repository.updateMembership(changes[0].id, { teamFtePct: changes[0].pct });
+    else repository.setTeamFteSplit(changes.map((c) => ({ id: c.id, teamFtePct: c.pct })));
+  };
 
   return (
     <>
@@ -175,44 +196,104 @@ function PersonDetails({ person }: { person: Person }) {
           <TeamsIcon width={16} height={16} />
           Teams
         </h3>
-        <div
-          className="flex h-2.5 overflow-hidden rounded-full border border-border-default bg-surface-subtle"
-          role="img"
-          aria-label={`${claimed}% of ${person.capacityPct}% claimed`}
-        >
-          {mine.map((m) => (
-            <div key={m.id} className={teamColor(m.teamId)} style={{ width: barPct(m.teamFtePct) }} />
-          ))}
-        </div>
-        <p className="m-0 mt-1 mb-2 text-caption text-text-secondary">
-          {claimed}% of {person.capacityPct}% claimed
-        </p>
-
-        {mine.map((m) => {
-          const team = teams.find((t) => t.id === m.teamId);
-          const max = unclaimedCapacityPct(person, memberships, m.id);
-          return (
-            <div key={m.id} className="flex flex-wrap items-center gap-x-2 gap-y-0 py-1">
-              <TeamSwatch teamId={m.teamId} />
-              <span className="min-w-0 flex-1 truncate text-body">{team?.name ?? 'Unknown team'}</span>
-              <PercentInput
-                flat
-                changed={changed(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
-                failure={failure(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
-                conflict={conflict(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct'])}
-                label={`Team FTE % for ${team?.name ?? 'team'}`}
-                value={m.teamFtePct}
-                max={max}
-                initialCappedAt={rejoinCap?.id === m.id ? rejoinCap.pct : null}
-                onChange={(teamFtePct) => repository.updateMembership(m.id, { teamFtePct })}
-              />
-              <RowActionsMenu
-                label={`Actions for ${team?.name ?? 'team'}`}
-                actions={[{ label: 'Remove from team', icon: RemoveFromTeamIcon, onSelect: () => removeMembershipWithUndo(repository, m.id) }]}
-              />
-            </div>
-          );
-        })}
+        {asRows ? (
+          <>
+            <p className="m-0 mb-2 text-caption text-text-secondary">
+              {claimed}% of {person.capacityPct}% claimed
+            </p>
+            {mine.map((m) => {
+              const name = teamName(m.teamId);
+              return (
+                <div key={m.id} className="flex flex-wrap items-center gap-x-2 gap-y-0 py-1">
+                  <TeamSwatch teamId={m.teamId} />
+                  <span className="min-w-0 flex-1 truncate text-body">{name}</span>
+                  <PercentInput
+                    flat
+                    {...fteField(m)}
+                    label={`Team FTE % for ${name}`}
+                    value={m.teamFtePct}
+                    max={unclaimedCapacityPct(person, memberships, m.id)}
+                    initialCappedAt={rejoinCap?.id === m.id ? rejoinCap.pct : null}
+                    onChange={(teamFtePct) => repository.updateMembership(m.id, { teamFtePct })}
+                  />
+                  <RowActionsMenu
+                    label={`Actions for ${name}`}
+                    actions={[{ label: 'Remove from team', icon: RemoveFromTeamIcon, onSelect: () => removeMembershipWithUndo(repository, m.id) }]}
+                  />
+                </div>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            <SplitBar
+              segments={mine.map((m) => ({ id: m.id, name: teamName(m.teamId), pct: m.teamFtePct, colorClass: teamColor(m.teamId) }))}
+              capacityPct={person.capacityPct}
+              disabled={!person.active}
+              onMove={move}
+            />
+            <p className="m-0 mt-1 mb-2 text-caption text-text-secondary">
+              {claimed}% of {person.capacityPct}% claimed
+            </p>
+            {mine.length > 0 && (
+              <ul className="m-0 mb-1 flex list-none flex-wrap gap-1.5 p-0" aria-label="Team FTE %s">
+                {mine.map((m) => {
+                  const name = teamName(m.teamId);
+                  return (
+                    <li key={m.id}>
+                      <Popover open={openChip === m.id} onOpenChange={(open) => setOpenChip(open ? m.id : null)}>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border-input bg-surface-card py-0.5 pr-2.5 pl-2 text-caption text-text-primary tabular-nums hover:bg-surface-subtle disabled:cursor-default disabled:hover:bg-surface-card data-[state=open]:border-brand-accent ${focusRing}`}
+                          >
+                            <TeamSwatch teamId={m.teamId} />
+                            {name} {m.teamFtePct}%
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-64 p-3" aria-label={name}>
+                          <p className="m-0 mb-2 flex items-center gap-1.5 text-body font-medium">
+                            <TeamSwatch teamId={m.teamId} />
+                            {name}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-x-2">
+                            <Label htmlFor={`team-fte-${m.id}`} className="flex-1 font-normal text-text-secondary">
+                              Team FTE %
+                            </Label>
+                            <PercentInput
+                              flat
+                              id={`team-fte-${m.id}`}
+                              {...fteField(m)}
+                              label={`Team FTE % for ${name}`}
+                              value={m.teamFtePct}
+                              max={unclaimedCapacityPct(person, memberships, m.id)}
+                              initialCappedAt={rejoinCap?.id === m.id ? rejoinCap.pct : null}
+                              onChange={(teamFtePct) => repository.updateMembership(m.id, { teamFtePct })}
+                            />
+                          </div>
+                          <div className="mt-2 border-t border-border-default pt-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setOpenChip(null);
+                                removeMembershipWithUndo(repository, m.id);
+                              }}
+                            >
+                              <RemoveFromTeamIcon />
+                              Remove from team
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
+        )}
 
         {unclaimed === 0 && mine.length > 0 && (
           <p className="m-0 mt-1 text-caption text-text-secondary">No capacity left to add to another team.</p>
