@@ -13,6 +13,8 @@ import { EmptyState } from './EmptyState';
 import { byLabel, FilterChip, type FilterOption } from './FilterChip';
 import { formatAmount } from './formatAmount';
 import { AttentionMarker } from './AttentionMarker';
+import { ChangedMarker } from './ChangedMarker';
+import { useSeen } from '../state/SeenContext';
 import { KIND_CONFIG } from './NeedsAttentionStrip';
 import { NoInitiatives } from './NoInitiatives';
 import { SortableHeader } from './SortableHeader';
@@ -37,6 +39,7 @@ export function InitiativesTable() {
   const { initiatives, teams, people, roles, countries } = useRepositoryState();
   const attention = useNeedsAttentionItems();
   const changed = useIsChangedByOthers();
+  const seen = useSeen();
   const [filters, setFilters] = useSessionFilters('initiatives', NO_FILTERS);
   const sort = useTableSort('attention');
 
@@ -143,9 +146,12 @@ export function InitiativesTable() {
                   {...openRowProps(() => navigate(`/initiatives/${r.initiative.id}`))}
                 >
                   <td className="px-3 py-2">
-                    <a href={href} className="font-medium text-inherit no-underline hover:underline">
-                      <TruncatedText text={r.initiative.name} />
-                    </a>
+                    <div className="flex items-center gap-1.5">
+                      {seen.changed.size > 0 && <span className="flex size-4 shrink-0 items-center justify-center">{seen.changed.has(r.initiative.id) && <ChangedMarker />}</span>}
+                      <a href={href} className="min-w-0 font-medium text-inherit no-underline hover:underline">
+                        <TruncatedText text={r.initiative.name} />
+                      </a>
+                    </div>
                   </td>
                   <td className="px-3 py-2">{r.teamName}</td>
                   <td className="px-3 py-2">{r.ownerName}</td>
