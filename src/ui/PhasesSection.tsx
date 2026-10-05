@@ -47,11 +47,11 @@ function overdueChipText(months: string[]): string {
   return months.length === 1 ? `No actual for ${formatMonth(months[0])}` : `${months.length} actuals overdue`;
 }
 
-/** A phase nobody has planned yet. One shared object, so the picker's memo isn't invalidated on every render. */
 /** A phase row's line: its marker, label and summary (§5.4). */
 export const PHASE_ROW_CLASS = 'flex items-center gap-2 px-3 py-2.5 text-body';
 export const NOT_COSTED = 'not costed';
 
+/** A phase nobody has planned yet. One shared object, so the picker's memo isn't invalidated on every render. */
 const UNPLANNED: PhasePlan = { allocations: [] };
 
 /** A phase's actuals-table row anchor (§5.2, §8.5), for the Portfolio's Needs attention strip jumping to an Overdue month. */

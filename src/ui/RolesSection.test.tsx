@@ -161,6 +161,19 @@ describe('RolesSection editing (§5.9)', () => {
     expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument();
   });
 
+  it('locking drops a refused edit, so unlocking shows the saved value again', async () => {
+    const user = userEvent.setup();
+    renderRoles();
+    await unlock(user);
+    await user.clear(screen.getByRole('textbox', { name: 'Name of Tech Lead' }));
+    await user.tab();
+    expect(await screen.findByText('Enter a name.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Lock' }));
+    await user.click(screen.getByRole('button', { name: 'Unlock to edit' }));
+    expect(screen.getByRole('textbox', { name: 'Name of Tech Lead' })).toHaveValue('Tech Lead');
+    expect(screen.queryByText('Enter a name.')).not.toBeInTheDocument();
+  });
+
   it('Add role: disabled without a name, saves once filled in', async () => {
     const user = userEvent.setup();
     renderRoles();
