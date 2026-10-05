@@ -61,18 +61,18 @@ using that definition wherever the size is shown or copied.
 
 ## Acceptance criteria
 
-- [ ] Given a team of three where one person is inactive, when the Teams
+- [x] Given a team of three where one person is inactive, when the Teams
       overview renders, then its Members shows 2, and the team detail lists
       three people with the inactive one greyed out.
-- [ ] Given a person is deactivated, when the Teams overview is sorted by
+- [x] Given a person is deactivated, when the Teams overview is sorted by
       Members, then the order uses the new counts.
-- [ ] Given the Teams overview is copied, when pasted, then the Members
+- [x] Given the Teams overview is copied, when pasted, then the Members
       column holds the active count.
-- [ ] Given a person is reactivated, when the Teams overview renders, then
+- [x] Given a person is reactivated, when the Teams overview renders, then
       the count includes them again with no other change.
-- [ ] Given an inactive membership of an active person, when the size is
+- [x] Given an inactive membership of an active person, when the size is
       counted, then it is not counted (as today).
-- [ ] Given the add-person picker of an initiative's phase, when it opens,
+- [x] Given the add-person picker of an initiative's phase, when it opens,
       then it lists the same people the size counts.
 
 ## Flags and compromises

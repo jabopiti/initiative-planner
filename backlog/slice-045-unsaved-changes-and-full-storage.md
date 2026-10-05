@@ -50,12 +50,12 @@ a full local cache is reported, not ignored.
 
 ## Acceptance criteria
 
-- [ ] Given one pending edit, when `beforeunload` fires, then it is prevented.
-- [ ] Given nothing pending, then it is not prevented.
-- [ ] Given a cache `set` that throws a quota error after a push, then the edit
+- [x] Given one pending edit, when `beforeunload` fires, then it is prevented.
+- [x] Given nothing pending, then it is not prevented.
+- [x] Given a cache `set` that throws a quota error after a push, then the edit
       stays saved, sync is not read-only, and the storage-full banner shows
       with Dismiss; a non-quota error shows nothing.
-- [ ] Given the cache budget, then it is computed from encoded byte length.
+- [x] Given the cache budget, then it is computed from encoded byte length.
 
 ## Flags and compromises
 

@@ -83,35 +83,35 @@ lookup; the Getting started strip itself (033).
 
 ## Acceptance criteria
 
-- [ ] Given Countries & rates, then each country shows name, the current
+- [x] Given Countries & rates, then each country shows name, the current
       year's day rate and Active; clicking one expands its year table and
       collapses any other.
-- [ ] Given the year table, then each tracked year has a day rate and 12
+- [x] Given the year table, then each tracked year has a day rate and 12
       working-day cells, prefilled with weekdays.
-- [ ] Given a working-day cell set to 19 where the month has 21 weekdays, then
+- [x] Given a working-day cell set to 19 where the month has 21 weekdays, then
       it is tinted and its accessible name says it differs from 21 weekdays;
       Reset to weekdays restores all 12 cells of that row.
-- [ ] Given years before the tracked window, then they appear in a collapsed,
+- [x] Given years before the tracked window, then they appear in a collapsed,
       read-only "Earlier years" row.
-- [ ] Given locked, then nothing is editable; unlocked, day rates and working
+- [x] Given locked, then nothing is editable; unlocked, day rates and working
       days are.
-- [ ] Given a working-day value of 32, -1 or 2.5, then it is refused inline.
-- [ ] Given Add country with name and €600, then every tracked year gets €600
+- [x] Given a working-day value of 32, -1 or 2.5, then it is refused inline.
+- [x] Given Add country with name and €600, then every tracked year gets €600
       and weekday working days.
-- [ ] Given a country is deactivated, then it is not offered for people and
+- [x] Given a country is deactivated, then it is not offered for people and
       people there keep it.
-- [ ] Given `ratesReviewed` is false, then Rates are correct shows and works
+- [x] Given `ratesReviewed` is false, then Rates are correct shows and works
       while locked; afterwards the header reads "Rates reviewed".
-- [ ] Given any day-rate or working-days edit, then `ratesReviewed` is set.
-- [ ] Given a day-rate change for a year, then the impact note counts
+- [x] Given any day-rate or working-days edit, then `ratesReviewed` is set.
+- [x] Given a day-rate change for a year, then the impact note counts
       initiatives with an unfrozen allocation, in a phase with a month
       resolving to that year's entry, of someone in that country without an
       active custom role; given a working-days change for a month, those
       with such an allocation in that month, custom-role people included;
       frozen figures are unchanged.
-- [ ] Given unlocked, then a country's name can be edited; an empty name is
+- [x] Given unlocked, then a country's name can be edited; an empty name is
       refused with "Enter a name.".
-- [ ] Given a tracked year with no entry for a country or a custom role,
+- [x] Given a tracked year with no entry for a country or a custom role,
       then one system write adds it (day rate from the preceding year,
       working days = weekdays), and a second client doing the same makes no
       duplicate and no conflict.
