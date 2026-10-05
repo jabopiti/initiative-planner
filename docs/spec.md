@@ -2116,7 +2116,10 @@ lives in the browser (§3). It is delivered as a `<meta>` tag, because
 GitHub Pages supports no custom response headers; this means
 `frame-ancestors` cannot be enforced by the policy itself (browsers ignore it
 in a `<meta>` policy, so the policy leaves it out), and the app instead refuses to render when it detects it is running inside a
-frame (`window.self !== window.top`). Icons come from the Lucide icon
+frame (`window.self !== window.top`). Styles may be inline: the UI
+libraries add `<style>` elements at run time whose content varies by device,
+so neither a hash nor (on a static host) a nonce can allow them; inline
+styles cannot run code. Icons come from the Lucide icon
 set (§9.10), shadcn/ui's default.
 
 ### 10.2 Data layout
