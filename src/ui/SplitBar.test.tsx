@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SplitBar, type SplitSegment } from './SplitBar';
@@ -97,6 +97,45 @@ describe('SplitBar (§5.6, §9.5)', () => {
     expect(between).toHaveAttribute('aria-valuetext', 'Platform 60%, Growth 40%');
     await user.tab();
     expect(onMove).not.toHaveBeenCalled();
+  });
+
+  it('never pushes a team already under 5% further under, nor pulls its neighbour past it', async () => {
+    const user = userEvent.setup();
+    const { between, after, onMove } = renderBar(lucia(97, 3)); // Growth joined with the 3% that was free
+    between.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(between).toHaveAttribute('aria-valuetext', 'Platform 97%, Growth 3%');
+    await user.keyboard('{ArrowLeft}');
+    expect(between).toHaveAttribute('aria-valuetext', 'Platform 95%, Growth 5%'); // back on the 5% steps
+    await user.keyboard('{Escape}');
+    after.focus();
+    await user.keyboard('{End}');
+    expect(after).toHaveAttribute('aria-valuetext', 'Growth 3%, 0% unclaimed');
+    await user.keyboard('9{Enter}');
+    expect(after).toHaveAttribute('aria-valuetext', 'Growth 3%, 0% unclaimed');
+    expect(onMove).not.toHaveBeenCalled();
+  });
+
+  it('holds a divider dragged past its neighbour at the minimum, and keeps moving that divider', () => {
+    const { after, onMove } = renderBar(lucia(30, 30));
+    const root = after.closest<HTMLElement>('[data-slot="slider"]')!;
+    // jsdom lays nothing out: the bar is 100px wide, a pixel per percent.
+    root.getBoundingClientRect = () => ({ left: 0, right: 100, width: 100, top: 0, bottom: 28, height: 28, x: 0, y: 0, toJSON: () => ({}) });
+    root.setPointerCapture = () => {};
+    root.hasPointerCapture = () => true;
+    root.releasePointerCapture = () => {};
+    const drag = (type: 'pointerDown' | 'pointerMove' | 'pointerUp', x: number) =>
+      fireEvent[type](root, { pointerId: 1, button: 0, clientX: x, pointerType: 'mouse' });
+    drag('pointerDown', 60); // Growth's divider
+    drag('pointerMove', 20); // past Platform's
+    expect(pcts('split-segment')).toEqual([30, 5]);
+    drag('pointerMove', 50);
+    expect(pcts('split-segment')).toEqual([30, 20]);
+    expect(onMove).not.toHaveBeenCalled();
+    drag('pointerUp', 50);
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onMove).toHaveBeenCalledWith([{ id: 'm-growth', teamFtePct: 20 }]);
+    expect(after).toHaveFocus();
   });
 
   it('shows a fully hatched bar and no divider for a person on no team', () => {

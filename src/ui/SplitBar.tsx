@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import { useRef, type KeyboardEvent, type PointerEvent } from 'react';
 import { scalePct } from '../data/keyFigures';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -51,11 +51,15 @@ export function SplitBar({
   const scale = Math.max(capacityPct, 1);
   const at = (pct: number) => `${scalePct(pct, scale)}%`;
 
-  /** The range divider `i` can move in: each team it borders keeps at least the minimum. */
+  /**
+   * The range divider `i` can move in: each team it borders keeps at least the minimum. A team already under it (a
+   * join or rejoin capped to what was free) is never pushed further under, nor its neighbour pulled past it: the range
+   * always takes in where the divider is.
+   */
   const limits = (i: number) => {
     const lo = (i === 0 ? 0 : dividers[i - 1]) + MIN_SEGMENT;
     const hi = i === dividers.length - 1 ? capacityPct : dividers[i + 1] - MIN_SEGMENT;
-    return { lo, hi: Math.max(lo, hi) };
+    return { lo: Math.min(lo, dividers[i]), hi: Math.max(hi, dividers[i]) };
   };
 
   const moveTo = (i: number, value: number) => {
@@ -75,11 +79,38 @@ export function SplitBar({
     }
   };
 
-  /** Radix moves one divider at a time, within the bar; each team keeps the minimum, so a move past it is held there. */
+  /** The divider the current drag or key presses move, from its first change until the pointer goes down again or it loses focus. */
+  const active = useRef<number | null>(null);
+  /** A pointer is down: Radix moves focus to whichever thumb it drives, which isn't the user leaving the divider. */
+  const dragging = useRef(false);
+  const onBlur = () => {
+    if (dragging.current) return;
+    active.current = null;
+    commit();
+  };
+  /** Saves the drag and leaves focus on the divider that moved, for the arrow keys to carry on from. */
+  const onPointerUp = (e: PointerEvent<HTMLElement>) => {
+    dragging.current = false;
+    const moved = active.current;
+    commit();
+    if (moved !== null) e.currentTarget.querySelectorAll<HTMLElement>('[role="slider"]')[moved]?.focus();
+  };
+
+  /**
+   * Radix moves one divider at a time, within the bar, but sorts its values: a divider dragged past another comes back
+   * at the other's index, and Radix drives that index from then on. So the move is read as the one value Radix added,
+   * applied to the divider that started the move; each team keeps the minimum, so a move past it is held there.
+   */
   const onValueChange = (next: number[]) => {
-    const i = next.findIndex((v, j) => v !== dividers[j]);
-    if (i < 0) return;
-    moveTo(i, next[i]);
+    const added = [...next];
+    const gone = dividers.filter((v) => {
+      const k = added.indexOf(v);
+      if (k >= 0) added.splice(k, 1);
+      return k < 0;
+    });
+    if (added.length !== 1) return;
+    active.current ??= dividers.indexOf(gone[0]);
+    moveTo(active.current, added[0]);
   };
 
   const last = teams.length - 1;
@@ -114,13 +145,18 @@ export function SplitBar({
           value={dividers}
           onValueChange={onValueChange}
           // Keys and typing save on Enter or blur; a drag or a click on the bar saves on release.
-          onPointerUp={commit}
+          onPointerDown={() => {
+            active.current = null;
+            dragging.current = true;
+          }}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
           thumbsProps={teams.map((t, i) => ({
             className: 'h-8',
             'aria-label': i === last ? `Divider after ${t.name}` : `Divider between ${t.name} and ${teams[i + 1].name}`,
             'aria-valuetext': valueText(i),
             onKeyDown: onKeyDown(i),
-            onBlur: commit,
+            onBlur,
           }))}
         />
       )}
