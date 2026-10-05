@@ -1044,8 +1044,10 @@ focus to the row (§9.5). It shows and allows editing of all person details:
   %: a segment per team in its team colour, the unclaimed rest hatched.
   Dragging the divider between two teams moves Team FTE % from one to the
   other in one edit; the divider after the last team claims or releases
-  unclaimed capacity, never past the cap. Each segment's label opens its
-  exact value (same cap rule) and **Remove from team**. A person whose Team
+  unclaimed capacity, never past the cap. A drag or arrow keys stop a
+  segment at 5%, so removing a team is always **Remove from team**. Under
+  the bar, a legend chip per team ("Platform 60%") opens its exact value
+  (same cap rule) and **Remove from team**. A person whose Team
   FTE %s already add up to more than their Capacity % (raised on the team
   detail) is shown with one field per team instead of the bar.
 - Actions: Deactivate / Reactivate (§9.3).
@@ -1086,7 +1088,8 @@ A full page showing all detail information for a team:
 
   Team FTE % under the name; each cell shows the member's Allocation % on
   this team's Active initiatives as a number over a fill whose height is
-  that share of their Team FTE % (a heatmap: solid at the Team FTE %). A
+  that share of their Team FTE % (a heatmap: an accent wash, full at the
+  Team FTE %). A
   cell is filled with the Warning colour and carries an icon when it
   exceeds the Team FTE % or when the member's total across all teams
   exceeds their Capacity % (§7.2); the two cases have
@@ -1812,7 +1815,10 @@ The built-in UI targets **WCAG 2.2 Level AA**.
   - Sliders (the allocation load bar, §5.4, and the split bar, §5.6): the
     arrow keys step 5%, Home and End go to 0% and the maximum, digits type
     a value, and the value is announced with its context ("60%, total load
-    80% of 100%").
+    80% of 100%"); on the split bar, digits set the team to the divider's left, Home
+    and End go to the divider's limits, and the value names both sides:
+    "Platform 70%, Growth 30%", or "Growth 30%, 10% unclaimed" for the last
+    divider.
   - No other global shortcuts are defined.
   - Animations (a tinted field, the "Passed — Reopen" fade, §9.9) are brief
     and non-essential; under `prefers-reduced-motion` they are skipped and
