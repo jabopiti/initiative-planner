@@ -281,3 +281,56 @@ test('the read-only banner and a same-field conflict have no accessibility viola
   await expect(page.getByRole('link', { name: /Create a new token/ })).toBeVisible();
   await expectNoViolations(page);
 });
+
+for (const colorScheme of ['light', 'dark'] as const) test(`changed-since-you-last-looked marks have no accessibility violations in ${colorScheme}`, async ({ page }) => {
+  await page.emulateMedia({ colorScheme });
+  await fakeGithub(page).install();
+  await connect(page);
+  await loadExampleData(page);
+
+  // Open one initiative, so there is something recorded; then make what was recorded older, as another user's change would.
+  await page.goto('/#/initiatives');
+  await page.getByRole('link', { name: 'Checkout Redesign' }).click();
+  await expect(page.getByRole('heading', { name: 'Checkout Redesign', level: 1 })).toBeVisible();
+  await page.goto('/#/portfolio');
+  await expect(page.getByRole('button', { name: 'Status: Active' })).toBeVisible();
+  await page.waitForTimeout(300); // the record is written behind the page
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('initiative-planner');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const tx = db.transaction('seen', 'readwrite');
+          const store = tx.objectStore('seen');
+          store.openCursor().onsuccess = (event) => {
+            const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+            if (!cursor) return;
+            cursor.update({ ...cursor.value, figures: { ...cursor.value.figures, estimate: 1 } });
+            cursor.continue();
+          };
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+        };
+      }),
+  );
+  await page.reload();
+
+  await expect(page.getByText(/^1 initiative changed since you last looked, /)).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Changed since you last looked' })).toBeVisible();
+  await expectNoViolations(page); // the Portfolio line and the dot on a card
+
+  await page.goto('/#/initiatives');
+  await expect(page.getByRole('img', { name: 'Changed since you last looked' })).toBeVisible();
+  await expectNoViolations(page); // the dot in a table row
+
+  await page.getByRole('link', { name: 'Checkout Redesign' }).click();
+  await expect(page.locator('s').first()).toBeVisible();
+  await expectNoViolations(page); // the struck-through previous figure
+
+  await page.goto('/#/portfolio');
+  await expect(page.getByText(/changed since you last looked/)).toBeHidden();
+});

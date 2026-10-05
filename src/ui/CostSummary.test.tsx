@@ -5,6 +5,7 @@ import type { BrandPack } from '../brand/types';
 import { buildBaselineDataset } from '../data/baseline';
 import { formatPeriod } from '../data/dates';
 import { buildExampleData } from '../data/exampleDataset';
+import type { KeyFigureSnapshot } from '../data/seen';
 import type { Initiative } from '../data/types';
 import type { RepositoryState } from '../sync/Repository';
 import { BrandProvider } from '../state/BrandContext';
@@ -26,17 +27,17 @@ const named = (name: string) => structuredClone(example.initiatives.find((i) => 
 const process = defaultBrandPack.process;
 const [, validation, development] = process;
 
-const page = (initiative: Initiative, brand: BrandPack) => (
+const page = (initiative: Initiative, brand: BrandPack, previous?: Partial<KeyFigureSnapshot>) => (
   <BrandProvider brand={brand}>
     <TooltipProvider>
-      <CostSummary initiative={initiative} />
+      <CostSummary initiative={initiative} previous={previous} />
     </TooltipProvider>
   </BrandProvider>
 );
 let rerender: (ui: React.ReactNode) => void;
-function show(initiative: Initiative, brand: BrandPack = defaultBrandPack) {
+function show(initiative: Initiative, brand: BrandPack = defaultBrandPack, previous?: Partial<KeyFigureSnapshot>) {
   state = { ...example, roles, countries, initiatives: [initiative] };
-  ({ rerender } = render(page(initiative, brand)));
+  ({ rerender } = render(page(initiative, brand, previous)));
 }
 /** A change to the initiative while the page is open, as the page receives it: new data and a new prop. */
 const update = (initiative: Initiative) => {
@@ -137,6 +138,23 @@ describe('Key figures (§5.4, slice 059)', () => {
     expect(within(tile('Current phase')).getByText('after G4')).toBeInTheDocument();
     expect(within(tile('Gates')).getByText('All passed')).toBeInTheDocument();
     expect(within(tile('Gates')).getByText('G1 – G4')).toBeInTheDocument();
+  });
+});
+
+describe('Previous figures (§9.9, slice 063)', () => {
+  it('shows a changed figure\'s previous value struck through before the new one, named for screen readers', () => {
+    show(named('Onboarding Flow v2'), defaultBrandPack, { estimate: 40_000, gate: '1 of 4 complete' });
+    const estimate = tile('Grand estimate');
+    expect(within(estimate).getByText('€40,000', { selector: 's' })).toBeInTheDocument();
+    expect(within(estimate).getByText('was €40,000, now')).toBeInTheDocument();
+    expect(within(estimate).getByText('€59,008')).toBeInTheDocument();
+    expect(within(tile('Gate G2')).getByText('1 of 4 complete', { selector: 's' })).toBeInTheDocument();
+    expect(tile('Deviation').querySelector('s')).toBeNull();
+  });
+
+  it('shows no previous value without one', () => {
+    show(named('Onboarding Flow v2'));
+    expect(document.querySelector('s')).toBeNull();
   });
 });
 

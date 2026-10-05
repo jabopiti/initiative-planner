@@ -1931,9 +1931,16 @@ delay. Critical information is never only in a tooltip.
   user last opened it carries a dot on its card (§5.2) and its row (§5.3),
   and the Portfolio says how many
   changed and since when ("2 initiatives changed since you last looked,
-  Tuesday 29 Sep") with **Mark as seen**. On the initiative page, a key
-  figure that changed shows its previous value struck through beside the
-  new one until the page is left. It never says who made a change (§1,
+  Tuesday 29 Sep"; "1 initiative", "today" or "yesterday" when it applies)
+  with **Mark as seen**, between the strips and the filters. The line counts
+  every changed initiative whatever the filters, and **Mark as seen** clears
+  them all; the dots show on what the filters show. The dot is Accent, top
+  right of the card beside its markers and before the name in the row, named
+  "Changed since you last looked". On the initiative page, a key
+  figure that changed shows its previous value struck through before the
+  new one until the page is left (read once when the page opens; screen
+  readers get "was <value>"). The user's own edits never mark: what the
+  user sees on the page counts as seen. It never says who made a change (§1,
   Non-goals). Initiatives the user has never opened are not marked.
 - **Changed by others:** a value that another user's change updates while it
   is on screen is tinted for a few seconds, and the sync indicator's tooltip
@@ -2160,9 +2167,12 @@ room. The cache holds at most half the storage quota; over that, the oldest
 files are dropped first, initiative files before master files. The size rule in
 §3 (at most half the storage quota) is checked by an automated test.
 For **Changed since you last looked** (§9.9), the time the user last opened
-each initiative and its key figures at that moment are kept in IndexedDB
-for that repository, never synced; if they cannot be read, nothing is
-marked.
+each initiative, its key figures (grand estimate, deviation, current phase,
+the gate's "X of Y complete") and the file's version at that moment are kept
+in IndexedDB for that repository and branch, never synced, outside the cache
+budget; they are written when the page opens and whenever the open
+initiative changes, and emptied by Reset (§5.9). If they cannot be read,
+nothing is marked.
 The Portfolio's **Dismiss for now** on the Getting started strip (§5.2) is kept in
 session storage, never synced; if session storage cannot be used, the
 dismissal lasts for the page's lifetime.

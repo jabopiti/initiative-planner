@@ -61,6 +61,8 @@ export interface RepositoryState {
   people: Person[];
   memberships: Membership[];
   initiatives: Initiative[];
+  /** How many times this client reset the dataset (§5.9): what is kept per user about it, such as what was last looked at, is forgotten on a change. */
+  datasetResets: number;
   conflicts: FileConflict[];
   /** Files with a failed, unsaved edit (§3, §9.9), by path: the read-only banner's cause is `readOnly`, but a
    * field needs its own file's cause, since more than one file can be failing for different reasons at once. */
@@ -219,6 +221,7 @@ export class Repository {
     people: [],
     memberships: [],
     initiatives: [],
+    datasetResets: 0,
     conflicts: [],
     fileFailures: new Map(),
     failedFields: new Set(),
@@ -2118,7 +2121,9 @@ export class Repository {
         deletes: listed.filter((entry) => entry.type === 'file').map((entry) => entry.path),
       };
     });
-    return typeof result === 'object' ? result : 'reset';
+    if (typeof result === 'object') return result;
+    this.setState({ datasetResets: this.state.datasetResets + 1 });
+    return 'reset';
   }
 
   /** One many-file commit on the data branch through the write queue (§10.3), then this client pulls it in. */

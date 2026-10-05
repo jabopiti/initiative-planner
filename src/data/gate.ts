@@ -162,6 +162,10 @@ export function gateProgressText(progress: { complete: number; total: number }):
   return `${progress.complete} of ${progress.total} complete`;
 }
 
+/** What the gate tile reads with nothing to check, and once the initiative is Closed (§5.4); the seen record compares the same text (§9.9). */
+export const GATE_NOTHING_TO_CHECK = 'Nothing to check';
+export const GATE_ALL_PASSED = 'All passed';
+
 /** Nothing left blocking the gate (§8.1, §8.5) — a warning-only gate (Tentative items) reads as this too, since only Incomplete ever blocks. */
 export const READY_MESSAGE = 'All requirements met';
 

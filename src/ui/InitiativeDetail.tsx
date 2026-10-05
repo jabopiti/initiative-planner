@@ -7,6 +7,7 @@ import { FILE_PATHS } from '../data/types';
 import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { CommitTextarea } from './CommitTextarea';
+import { useInitiativeVisit } from '../state/SeenContext';
 import { CostSummary } from './CostSummary';
 import { headerFieldClass } from './headerFieldClass';
 import { InitiativeTeamRow } from './InitiativeTeamRow';
@@ -29,6 +30,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
   const { initiatives, teams, deletedWithLostEdit } = useRepositoryState();
   const initiative = initiatives.find((i) => i.id === id);
   const team = initiative ? teams.find((t) => t.id === initiative.teamId) : undefined;
+  const previous = useInitiativeVisit(initiative);
 
   // The latest jump: the Phases section opens its phase while rendering, so once committed its place is in the DOM.
   const arrival = (): Jump | null => (focus ? { id: focus, phaseId: openPhaseId ?? undefined } : null);
@@ -101,7 +103,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
           </div>
           <InitiativeTeamRow initiative={initiative} />
           <TimeStrip initiative={initiative} />
-          <CostSummary initiative={initiative} />
+          <CostSummary initiative={initiative} previous={previous ?? undefined} />
           <PhasesSection initiative={initiative} team={team} reveal={jump} />
         </Page>
         {/* Keyed so its own state (a selected Pass gate, "Passed <gate>") never carries over when the route moves to another initiative. */}
