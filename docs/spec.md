@@ -330,7 +330,13 @@ token stays in the browser, is never written to the dataset, and is used
 only to talk to GitHub. By default it is kept for the current tab only
 (session storage) and is gone when the tab closes; only when the user ticks
 "Remember me on this device" on the Connect screen is it also kept in the
-browser's IndexedDB until removed. When it expires or is revoked, the tool shows the
+browser's IndexedDB until removed. Browser storage is shared by
+every page on the same origin, so where the app is served from a shared
+origin (a `*.github.io` address, which every Pages site of that account or
+organisation shares) Remember me is unavailable, and a token remembered there
+earlier is moved into the tab's session storage and deleted from IndexedDB
+on the next load. A deployment should therefore be served from an origin of
+its own, such as a custom domain (§10.7). When it expires or is revoked, the tool shows the
 access state (Sync failures) and asks for a new one. Commits are made under
 the user's own identity, so every change is committed under the name of the
 person who made it.
@@ -1180,7 +1186,9 @@ Authentication). In read-only mode with the cause "Access denied", the
 banner replaces the token in place instead (§3, Sync failures), reusing
 this screen's check and messages. It is one screen: a **token field** at the top
 with a Connect button and a **Remember me on this device** checkbox (off by
-default), because pasting is the fastest path. It is three stacked cards, so
+default; on a shared origin (§3, Authentication) shown disabled, with the line
+"Not available here: this copy runs on github.io, where other sites can read
+what it saves. It's kept for this tab only." under it), because pasting is the fastest path. It is three stacked cards, so
 the one required action stands apart from the help: the **input card**
 (headed "Connect to <product>", with the line "Paste your GitHub token to
 continue.", and an accent border), the **guide card**, and the **protection
@@ -1207,13 +1215,16 @@ The protection card is collapsed by default: a shield icon and **How we
 protect your token** with a chevron, which opens the details on click or
 keyboard (a native disclosure, so it works without scripts). Opened, it states
 each measure with a bold lead-in, all of which the build actually does: the token stays in
-the browser, in this tab only unless Remember me is ticked, with no server in
-between; it goes only to the GitHub API host, enforced by the content security
+the browser, in this tab only unless Remember me is ticked (on a shared
+origin: in this tab only), with no server in between; it goes only to the GitHub API host, enforced by the content security
 policy, which also blocks inline scripts and `eval`, and the app refuses to
 load inside a frame (§10.1); it is never written to the repository, the dataset
 or a commit; it is limited to the one repository with Contents access and
 expires after a year, with a link to revoke it in GitHub; and, plainly, the
-browser keeps it unencrypted, so Remember me is for trusted devices only. The
+browser keeps it unencrypted, so Remember me is for trusted devices only. On a
+shared origin that last
+measure is replaced by **Why there is no Remember me here**: the address is
+shared with other sites, which could read a token saved on the device. The
 card's text uses the primary text colour on its tint, not the tint's own text
 colour, to keep contrast at AA.
 
@@ -2103,8 +2114,8 @@ app's own origin and connections to the configured GitHub API host, and
 forbids `eval`, `new Function` and inline scripts, because the token
 lives in the browser (§3). It is delivered as a `<meta>` tag, because
 GitHub Pages supports no custom response headers; this means
-`frame-ancestors` cannot be enforced by the policy itself, so the app
-additionally refuses to render when it detects it is running inside a
+`frame-ancestors` cannot be enforced by the policy itself (browsers ignore it
+in a `<meta>` policy, so the policy leaves it out), and the app instead refuses to render when it detects it is running inside a
 frame (`window.self !== window.top`). Icons come from the Lucide icon
 set (§9.10), shadcn/ui's default.
 
@@ -2233,7 +2244,11 @@ continuing. Dataset migrations run automatically on first use of a new version
 (§3, Versioning and migration).
 
 **Build and deploy.** A GitHub Actions workflow on the app branch builds the
-SPA from the brand pack folder and deploys it to GitHub Pages (§3, Setup). The
+SPA from the brand pack folder and deploys it to GitHub Pages (§3, Setup).
+A deployment should be served from an origin of its own (a custom domain or
+subdomain set on GitHub Pages), not a shared `*.github.io` address, where every
+other Pages site of the same account or organisation can read the app's
+browser storage; there the app offers no Remember me (§3, Authentication). The
 build fails, and nothing is deployed, when the brand pack has a problem: a
 colour role or team colour that is missing or fails the contrast rule
 (§9.5), a typeface whose font files are missing, overlapping
