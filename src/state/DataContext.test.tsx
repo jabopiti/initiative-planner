@@ -15,8 +15,11 @@ function closeTab(): boolean {
   return event.defaultPrevented;
 }
 
+let github: ReturnType<typeof fakeGithub>;
+
 async function renderProvider(): Promise<Repository> {
-  seedDataset(fakeGithub());
+  github = fakeGithub();
+  seedDataset(github);
   let repository: Repository | undefined;
   function Capture() {
     repository = useRepository();
@@ -52,15 +55,17 @@ describe('Closing the tab (§10.3)', () => {
   });
 });
 
-describe('Unmounting the app (§10.3)', () => {
-  it('sends a save still waiting on its debounce instead of dropping it', async () => {
+describe('Disconnecting (§3)', () => {
+  it('drops a save still waiting on its debounce instead of sending it later under the removed token', async () => {
     const repository = await renderProvider();
     act(() => {
       repository.createTeam('Platform');
     });
-    expect(repository.hasUnsavedWork()).toBe(true);
+    expect(repository.unsavedChangeCount()).toBe(1);
 
-    cleanup();
-    await waitFor(() => expect(repository.hasUnsavedWork()).toBe(false));
+    cleanup(); // the provider unmounts on Disconnect
+    expect(repository.unsavedChangeCount()).toBe(0);
+    await new Promise((resolve) => setTimeout(resolve, 1200)); // past the save's debounce
+    expect(github.puts).toEqual([]);
   });
 });

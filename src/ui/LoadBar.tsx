@@ -33,6 +33,7 @@ export function LoadBar({
   value,
   model,
   changed = false,
+  describedBy,
   onChange,
   ref,
 }: {
@@ -42,6 +43,8 @@ export function LoadBar({
   model: LoadBarModel;
   /** Another user's change just updated this value (§9.9). */
   changed?: boolean;
+  /** The ids of the row's messages about this value: a failed save, a same-field conflict (§9.9). */
+  describedBy?: string;
   onChange: (value: number) => void;
   ref?: Ref<{ focus: () => void }>;
 }) {
@@ -164,7 +167,7 @@ export function LoadBar({
               onValueChange={([next]) => setDraft(next)}
               // Keys and typing save on Enter or blur; a drag or a click on the bar saves on release.
               onPointerUp={() => commit(latest.current)}
-              thumbProps={{ ref: thumb, 'aria-label': `Allocation % for ${name}`, 'aria-valuetext': valueText, onKeyDown, onBlur: () => commit(latest.current) }}
+              thumbProps={{ ref: thumb, 'aria-label': `Allocation % for ${name}`, 'aria-valuetext': valueText, 'aria-describedby': describedBy, onKeyDown, onBlur: () => commit(latest.current) }}
             />
           </div>
         </div>

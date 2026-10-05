@@ -2139,6 +2139,14 @@ export class Repository {
     }
   }
 
+  /**
+   * Disconnect (§3, §5.10): every edit not saved yet is dropped, so no debounced save goes out later under the
+   * removed token. The Disconnect button has already offered to keep them.
+   */
+  discardUnsaved(): void {
+    for (const [, writer] of this.allWriters()) writer.discardUnsaved();
+  }
+
   /** Flush any pending debounced write immediately (page unload). */
   async flushPending(): Promise<void> {
     await Promise.all([

@@ -594,6 +594,11 @@ export class FileWriter<D> {
     this.reportIdle();
   }
 
+  /** The app let go of the repository (Disconnect, §3): edits not saved yet are dropped, never sent later. */
+  discardUnsaved(): void {
+    this.discardLocal();
+  }
+
   /** Nothing of this file is saved any more: its edits, open choices and failure go with it. */
   private dispose(): void {
     this.discardLocal();

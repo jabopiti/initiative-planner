@@ -397,6 +397,7 @@ function CostedPhase({
                       const pctPath = ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct'];
                       const pctConflict = conflict(file, pctPath);
                       const pctFailure = failure(file, pctPath);
+                      const failureId = `allocation-failure-${allocation.id}`;
                       const messages = [
                         warnings.notMember && <InlineWarning key="member">No longer a member of {team?.name ?? 'the team'}</InlineWarning>,
                         warnings.overTeamFteMonths.length > 0 && (
@@ -422,7 +423,7 @@ function CostedPhase({
                             }}
                           />
                         ),
-                        pctFailure && <FailedEdit key="failure" className="w-full" retryLabel={`Retry Allocation % for ${name}`} failure={pctFailure} />,
+                        pctFailure && <FailedEdit key="failure" id={failureId} className="w-full" retryLabel={`Retry Allocation % for ${name}`} failure={pctFailure} />,
                       ].filter(Boolean);
                       return (
                         <Fragment key={allocation.id}>
@@ -443,6 +444,7 @@ function CostedPhase({
                                 };
                               }}
                               changed={changed(file, pctPath)}
+                              describedBy={[pctFailure && failureId, pctConflict?.id].filter(Boolean).join(' ') || undefined}
                               onChange={(pct) => repository.updateAllocation(initiative.id, phase.id, allocation.id, pct)}
                             />
                           </td>
