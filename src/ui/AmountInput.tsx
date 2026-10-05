@@ -36,6 +36,7 @@ export function AmountInput({
   className = 'w-28',
   errorClassName,
   disabled,
+  autoFocus,
   onClear,
   onChange,
 }: {
@@ -56,6 +57,7 @@ export function AmountInput({
   className?: string;
   errorClassName?: string;
   disabled?: boolean;
+  autoFocus?: boolean;
   /** Committing an empty field clears the value (a day rate falling back to the year before) instead of being refused. */
   onClear?: () => void;
   onChange: (value: number) => void;
@@ -77,6 +79,7 @@ export function AmountInput({
         aria-label={label}
         placeholder={placeholder}
         disabled={disabled}
+        autoFocus={autoFocus}
         value={value === undefined ? '' : String(value)}
         onCommit={(text) => {
           if (onClear && text.trim() === '') return value === undefined ? false : onClear();

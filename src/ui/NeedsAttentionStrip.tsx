@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { NeedsAttentionItem, NeedsAttentionKind } from '../data/needsAttention';
 import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
-import { actualCellAnchor } from './PhasesSection';
+import { actualCellAnchor } from './ActualsTable';
 import { DueIcon, EscalatedIcon, OverdueIcon, OverrunIcon, ReadyIcon } from './icons';
 import { requirementJump, type Jump } from './jumpTo';
 import { PASS_GATE_ANCHOR } from './MagicBar';

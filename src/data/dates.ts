@@ -141,6 +141,11 @@ export function formatClock(time: Date | number): string {
   return dateFormat(displayLocale(), { hour: '2-digit', minute: '2-digit' }, Intl.DateTimeFormat().resolvedOptions().timeZone).format(time);
 }
 
+/** "Sep", the month's name alone. */
+export function formatMonthName(key: string): string {
+  return shortMonths()[parseMonth(key)[1] - 1];
+}
+
 /** "Sep 26", for a grid column. */
 export function formatMonthShort(key: string): string {
   const [y, m] = parseMonth(key);

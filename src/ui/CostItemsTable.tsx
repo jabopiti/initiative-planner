@@ -4,7 +4,7 @@ import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { amountRefusal, parseAmountExpression } from '../data/amountExpression';
-import { isOutsidePeriod, periodMonths } from '../data/cost';
+import { isOutsidePeriod, periodMonths, spreadItem } from '../data/cost';
 import { AmountDraftInput, AmountInput } from './AmountInput';
 import { formatMonth, localToday, monthOf } from '../data/dates';
 import type { CostItemSuggestion } from '../data/costItemSuggestions';
@@ -14,6 +14,7 @@ import { CostItemLabelInput } from './CostItemLabelInput';
 import { ConflictRow, inRow } from './ConflictBlock';
 import { InlineWarning } from './InlineWarning';
 import { MonthInput } from './MonthInput';
+import { MonthStrip, SPREAD } from './MonthStrip';
 import { PlusIcon, RemoveIcon } from './icons';
 import { TIMING_LABELS } from './costItemTiming';
 import { undoToast } from './undoToast';
@@ -26,6 +27,54 @@ const MONTH_REFUSAL = 'Enter a month.';
 
 /** The month a new one-month item starts on: the phase's first month, or this month while the period is unset. */
 const defaultMonth = (months: string[]): string => months[0] ?? monthOf(localToday());
+
+/**
+ * A cost item's timing control (§5.4): the period's months as a strip with the month input beside it, or, while the
+ * phase has no valid period, the One month / Spread toggle with the month input under it.
+ */
+function Timing({
+  label,
+  months,
+  timing,
+  month,
+  amount,
+  monthInput,
+  onTiming,
+  onMonth,
+}: {
+  label: string;
+  months: string[];
+  timing: CostItem['timing'];
+  month: string | undefined;
+  amount: number | undefined;
+  /** The month input, supplied by the caller for its conflict and failure wiring; beside the strip, or under the toggle while One month is chosen. */
+  monthInput: React.ReactNode;
+  onTiming: (timing: CostItem['timing']) => void;
+  onMonth: (month: string) => void;
+}) {
+  const { currencySymbol } = useBrand();
+  if (months.length === 0) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <TimingToggle value={timing} label={label} onChange={onTiming} />
+        {timing === 'month' && monthInput}
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-start gap-2">
+      <MonthStrip
+        months={months}
+        label={label}
+        currencySymbol={currencySymbol}
+        value={timing === 'spread' ? SPREAD : month && months.includes(month) ? month : undefined}
+        amountByMonth={amount === undefined ? {} : spreadItem(months, { timing, month, amount })}
+        onChange={(next) => (next === SPREAD ? onTiming('spread') : onMonth(next))}
+      />
+      {monthInput}
+    </div>
+  );
+}
 
 function TimingToggle({ value, label, onChange }: { value: CostItem['timing']; label: string; onChange: (timing: CostItem['timing']) => void }) {
   return (
@@ -85,6 +134,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
               // Position, not the item's own (freely re-typed, possibly duplicate) label: two cost items named
               // alike must still get their own Retry, distinguishable to a screen reader (§9.5, §9.9).
               const itemRetryLabel = (field: string) => `Retry saving the ${field} of cost item ${index + 1}`;
+              const pickMonth = (month: string) => repository.updateCostItem(initiativeId, phase.id, item.id, { timing: 'month', month });
               const conflicts = {
                 label: conflict(file, ['phases', phase.id, 'costItems', { id: item.id }, 'label']),
                 amount: conflict(file, ['phases', phase.id, 'costItems', { id: item.id }, 'amount']),
@@ -128,27 +178,29 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                     />
                   </td>
                   <td className="py-1.5 pr-2">
-                    <div className="flex flex-col items-start gap-2">
-                      <TimingToggle
-                        value={item.timing}
-                        label={`When for ${item.label}`}
-                        onChange={(timing) =>
-                          repository.updateCostItem(initiativeId, phase.id, item.id, timing === 'month' ? { timing, month: item.month ?? defaultMonth(months) } : { timing })
-                        }
-                      />
-                      {item.timing === 'month' && (
+                    <Timing
+                      label={`When for ${item.label}`}
+                      months={months}
+                      timing={item.timing}
+                      month={item.month}
+                      amount={item.amount}
+                      onTiming={(timing) =>
+                        repository.updateCostItem(initiativeId, phase.id, item.id, timing === 'month' ? { timing, month: item.month ?? defaultMonth(months) } : { timing })
+                      }
+                      onMonth={pickMonth}
+                      monthInput={
                         <MonthInput
-                          required
+                          required={item.timing === 'month'}
                           label={`Month for ${item.label}`}
-                          value={item.month}
+                          value={item.timing === 'month' ? item.month : undefined}
                           changed={itemChanged('month')}
                           failure={itemFailure('month')}
                           conflict={inRow(conflicts.month)}
                           retryLabel={itemRetryLabel('month')}
-                          onChange={(month) => month && repository.updateCostItem(initiativeId, phase.id, item.id, { month })}
+                          onChange={(month) => month && pickMonth(month)}
                         />
-                      )}
-                    </div>
+                      }
+                    />
                   </td>
                   <td className="py-1.5 text-right">
                     <Button
@@ -228,9 +280,14 @@ function DraftRow({
   const month = pickedMonth === undefined ? defaultMonth(months) : (pickedMonth ?? undefined);
   const [refused, setRefused] = useState<{ label?: string; amount?: string; month?: string }>({});
   const labelErrorId = useId();
+  const parsed = parseAmountExpression(amount);
+  const pickMonth = (next: string) => {
+    setTiming('month');
+    setMonth(next);
+    setRefused((current) => ({ ...current, month: undefined }));
+  };
 
   const add = () => {
-    const parsed = parseAmountExpression(amount);
     const text = label.trim();
     const next = {
       label: text === '' ? LABEL_REFUSAL : undefined,
@@ -282,22 +339,26 @@ function DraftRow({
           }}
           onKeyDown={keys}
         />
-        <TimingToggle value={timing} label="When" onChange={setTiming} />
-        {timing === 'month' && (
-          <div className="flex flex-col gap-1">
-            <MonthInput
-              required
-              label="Month"
-              value={month}
-              onChange={(next) => {
-                if (!next) return;
-                setMonth(next);
-                setRefused((current) => ({ ...current, month: undefined }));
-              }}
-            />
-            {refused.month && <Refusal>{refused.month}</Refusal>}
-          </div>
-        )}
+        <Timing
+          label="When"
+          months={months}
+          timing={timing}
+          month={month}
+          amount={parsed.ok ? parsed.value : undefined}
+          onTiming={setTiming}
+          onMonth={pickMonth}
+          monthInput={
+            <div className="flex flex-col gap-1">
+              <MonthInput
+                required={timing === 'month'}
+                label="Month"
+                value={timing === 'month' ? month : undefined}
+                onChange={(next) => next && pickMonth(next)}
+              />
+              {refused.month && <Refusal>{refused.month}</Refusal>}
+            </div>
+          }
+        />
       </div>
       <div className="flex gap-2">
         <Button type="button" size="sm" onClick={add}>

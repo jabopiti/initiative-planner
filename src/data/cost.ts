@@ -186,7 +186,7 @@ export function periodMonths(period: Period): string[] {
  * of every calendar month the period touches (the partial first and last months are not prorated). Empty without a
  * valid period, so an item counts only once its phase is costed; a one-month item outside the period still counts.
  */
-function spreadItem(months: string[], item: CostItem): Record<string, number> {
+export function spreadItem(months: string[], item: Pick<CostItem, 'timing' | 'month' | 'amount'>): Record<string, number> {
   if (months.length === 0) return {};
   if (item.timing === 'month') return item.month ? { [item.month]: item.amount } : {};
   return Object.fromEntries(months.map((key) => [key, item.amount / months.length]));
