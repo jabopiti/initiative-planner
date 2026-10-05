@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { navigate } from '../router/useHashRoute';
+import { Page } from './Page';
 import { Button } from '@/components/ui/button';
 import { isInitiativeFrozen } from '../data/frozen';
 import { FILE_PATHS } from '../data/types';
@@ -12,9 +13,10 @@ import { InitiativeTeamRow } from './InitiativeTeamRow';
 import { JumpContext, jumpTo, type Jump } from './jumpTo';
 import { MagicBar } from './MagicBar';
 import { PhasesSection } from './PhasesSection';
+import { TimeStrip } from './TimeStrip';
 
 /**
- * The initiative page (§5.4): header, cost summary, Phases (with the current gate's checklist panel beneath
+ * The initiative page (§5.4): header, time strip, cost summary, Phases (with the current gate's checklist panel beneath
  * the current phase) and the sticky magic bar. A Closed or Cancelled initiative shows it all read-only (§8.4). `focus`/`openPhaseId` arrive from a Needs attention strip link
  * (§5.2, §8.5): the place to scroll and focus on arrival, and, for a link into a collapsed phase, the phase to open
  * first so that place exists in the DOM. A jump from the page itself (Go to <phase>, a blocker) works the same way.
@@ -43,7 +45,7 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
 
   if (!initiative) {
     return (
-      <div className="max-w-page p-8">
+      <Page>
         <p>This initiative couldn&apos;t be found.</p>
         {/* Deleted by someone else while an edit here waited to be saved (§3): the edit is not lost silently. */}
         {deletedWithLostEdit.has(id) && (
@@ -52,14 +54,15 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
         <Button type="button" className="mt-3" onClick={() => navigate('/portfolio')}>
           Back to Portfolio
         </Button>
-      </div>
+      </Page>
     );
   }
 
   return (
     <JumpContext.Provider value={setJump}>
       <div className="flex min-h-full flex-col">
-        <div className="max-w-page flex-1 p-8 pb-24">
+        {/* One centred column of at most 960 px inside the page container (§5.4, §9.8); the bottom padding clears the magic bar. */}
+        <Page width="detail" className="flex-1 pb-24">
           {/* Pulled back by the fields' own padding, so their text lines up with the cards below (§5.4). */}
           <div className="-mx-3">
             {isInitiativeFrozen(initiative) ? (
@@ -97,9 +100,10 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
             )}
           </div>
           <InitiativeTeamRow initiative={initiative} />
+          <TimeStrip initiative={initiative} />
           <CostSummary initiative={initiative} />
           <PhasesSection initiative={initiative} team={team} reveal={jump} />
-        </div>
+        </Page>
         {/* Keyed so its own state (a selected Pass gate, "Passed <gate>") never carries over when the route moves to another initiative. */}
         <MagicBar key={initiative.id} initiative={initiative} />
       </div>

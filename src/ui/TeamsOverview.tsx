@@ -19,8 +19,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { FILE_PATHS } from '../data/types';
-import { PageHeader } from './PageHeader';
+import { Page, Toolbar } from './Page';
+import { plural } from '../data/plural';
 import { TeamSwatch } from './TeamSwatch';
+import { useArrival } from './arrival';
 
 /** Teams overview (§5.7): name, size, per-phase initiative counts, and New team. */
 export function TeamsOverview() {
@@ -31,6 +33,8 @@ export function TeamsOverview() {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  // New team, or Create a team in the empty state: where Getting started's Create a team arrives (§5.2).
+  const newTeam = useArrival<HTMLButtonElement>('team', { fill: false });
   const sort = useTableSort('name');
   const [refusal, setRefusal] = useState<string | null>(null);
 
@@ -99,52 +103,56 @@ export function TeamsOverview() {
 
   if (teams.length === 0 && !creating) {
     return (
-      <div className="px-8 py-6">
-        <EmptyState line="No teams yet" actionLabel="Create a team" onAction={startCreating} />
-      </div>
+      <Page title="Teams">
+        <EmptyState line="No teams yet" actionLabel="Create a team" onAction={startCreating} actionProps={newTeam} />
+      </Page>
     );
   }
 
   return (
-    <div className="px-8 py-6">
-      <PageHeader
-        title="Teams"
-        actions={
-          <>
-            {teams.length > 0 && <CopyButton getData={copyData} noun={['team', 'teams']} />}
-            {creating ? (
-              <form
-                className="flex gap-1.5"
-                onSubmit={handleSubmit}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') setCreating(false);
+    <Page
+      title="Teams"
+      actions={
+        <>
+          {creating ? (
+            <form
+              className="flex gap-1.5"
+              onSubmit={handleSubmit}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setCreating(false);
+              }}
+            >
+              <Input
+                ref={inputRef}
+                aria-label="Team name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setRefusal(null);
                 }}
-              >
-                <Input
-                  ref={inputRef}
-                  aria-label="Team name"
-                  value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setRefusal(null);
-                  }}
-                  aria-invalid={refusal ? true : undefined}
-                  placeholder="Team name"
-                />
-                <Button type="submit" disabled={!name.trim()}>
-                  Create
-                </Button>
-              </form>
-            ) : (
-              <Button type="button" onClick={startCreating}>
-                <PlusIcon />
-                New team
+                aria-invalid={refusal ? true : undefined}
+                placeholder="Team name"
+              />
+              <Button type="submit" disabled={!name.trim()}>
+                Create
               </Button>
-            )}
-          </>
-        }
-      />
+            </form>
+          ) : (
+            <Button {...newTeam} type="button" onClick={startCreating}>
+              <PlusIcon />
+              New team
+            </Button>
+          )}
+        </>
+      }
+    >
       {creating && refusal && <Refusal className="mb-3 w-fit">{refusal}</Refusal>}
+      {teams.length > 0 && (
+        <Toolbar>
+          <p className="m-0">{plural(teams.length, 'team', 'teams')}</p>
+          <CopyButton getData={copyData} noun={['team', 'teams']} />
+        </Toolbar>
+      )}
 
       <table className="tabular-nums w-full border-collapse text-body">
         <thead>
@@ -199,6 +207,6 @@ export function TeamsOverview() {
           ))}
         </tbody>
       </table>
-    </div>
+    </Page>
   );
 }

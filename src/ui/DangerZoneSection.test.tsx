@@ -38,7 +38,7 @@ function renderDangerZone(seeded: Parameters<typeof seedDataset>[1] = {}) {
 }
 
 async function unlock(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: 'Locked' }));
+  await user.click(await screen.findByRole('button', { name: 'Unlock to edit' }));
 }
 
 beforeEach(() => navigate.mockReset());
@@ -48,12 +48,17 @@ afterEach(() => {
 });
 
 describe('Danger zone (§5.9)', () => {
-  it('starts locked, with both actions disabled', async () => {
-    renderDangerZone();
+  it('starts locked: each action’s heading and description, no buttons until unlocked', async () => {
+    const user = renderDangerZone();
     expect(await screen.findByRole('heading', { name: 'Danger zone', level: 2 })).toBeInTheDocument();
-    expect(screen.getByText('Locked. Unlock to edit.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Load example data' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled();
+    expect(screen.getByRole('heading', { name: 'Load example data', level: 3 })).toBeInTheDocument();
+    expect(screen.getByText('Returns the dataset to a fresh install.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Load example data' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument();
+
+    await unlock(user);
+    expect(screen.getByRole('button', { name: 'Load example data' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument();
   });
 
   it('loads example data into an empty dataset in one commit and opens the Portfolio', async () => {

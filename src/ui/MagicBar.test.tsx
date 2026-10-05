@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { Initiative, GateRecord } from '../data/types';
 import { discoveryId, validationId, developmentId, g1, discoveryPassed, initiativePageHarness } from './testing/initiativePage';
+import { findPhases } from '../test/phases';
 
 let initiative: Initiative;
 const { puts, renderPage } = initiativePageHarness(() => initiative);
@@ -183,7 +184,7 @@ describe('A skipped phase on the Phases list (§8.2)', () => {
     };
     renderPage();
 
-    const discovery = (await screen.findByText('Discovery')).parentElement!;
+    const discovery = (await findPhases()).getByText('Discovery').parentElement!;
     expect(within(discovery).getByRole('img', { name: 'Skipped' })).toBeInTheDocument();
     expect(within(discovery).getByText('· Skipped G1')).toBeInTheDocument();
     expect(within(discovery).getByText('· Validated in an earlier pilot.')).toBeInTheDocument();

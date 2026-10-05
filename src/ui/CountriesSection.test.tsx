@@ -90,7 +90,7 @@ async function renderSection({ unlock = false } = {}) {
     </BrandProvider>,
   );
   await screen.findByText('€1,000 / day (2026)');
-  if (unlock) await user.click(screen.getByRole('button', { name: 'Locked' }));
+  if (unlock) await user.click(screen.getByRole('button', { name: 'Unlock to edit' }));
   return user;
 }
 
@@ -150,16 +150,19 @@ describe('Countries & rates list (§5.9)', () => {
 
   it('is read-only while locked, and editable once unlocked', async () => {
     const user = await renderSection();
-    expect(screen.getByText('Locked. Unlock to edit.')).toBeInTheDocument();
+    expect(screen.queryByText('Editing')).not.toBeInTheDocument();
     await user.click(screen.getByText('Germany'));
     expect(screen.getByRole('table', { name: 'Germany rates by year' })).toBeInTheDocument();
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Reset to weekdays/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add country' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Actions for Germany' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Add country' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Actions for Germany' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole('button', { name: 'Locked' }));
+    await user.click(screen.getByRole('button', { name: 'Unlock to edit' }));
+    expect(screen.getByText('Editing')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add country' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Day rate 2026, Germany' })).toBeEnabled();
     expect(screen.getByRole('textbox', { name: 'Name of Germany' })).toBeEnabled();
   });
@@ -230,9 +233,9 @@ describe('Countries & rates list (§5.9)', () => {
     const user = await renderSection({ unlock: true });
     await user.click(screen.getByRole('button', { name: 'Add country' }));
     await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Portugal');
-    await user.click(screen.getByRole('button', { name: 'Unlocked' }));
+    await user.click(screen.getByRole('button', { name: 'Lock' }));
     expect(screen.queryByRole('group', { name: 'New country' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Locked' }));
+    await user.click(screen.getByRole('button', { name: 'Unlock to edit' }));
     expect(screen.queryByRole('group', { name: 'New country' })).not.toBeInTheDocument();
   });
 

@@ -10,10 +10,9 @@ import { DraftField } from './DraftField';
 import { initiativeCount } from './impactNote';
 import { PlusIcon } from './icons';
 import { activeToggleAction, RowActionsMenu } from './RowActionsMenu';
-import { LockToggle } from './LockToggle';
+import { LockableSectionHeader, LockedActive } from './LockedSection';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
-import { SectionHeader } from './PageHeader';
 
 const NAME_REFUSAL = 'Enter a name.';
 const ABBREVIATION_REFUSAL = 'Enter an abbreviation.';
@@ -41,10 +40,9 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
 
   return (
     <section aria-labelledby="settings-roles-title" className="flex flex-col gap-1">
-      <SectionHeader id="settings-roles-title" title="Roles" actions={<LockToggle lock={lock} />} className="mb-0" />
-      {lock.locked && <p className="m-0 text-caption text-text-secondary">Locked. Unlock to edit.</p>}
+      <LockableSectionHeader id="settings-roles-title" title="Roles" lock={lock} />
 
-      <table className="tabular-nums mt-3 w-full border-collapse text-body">
+      <table className="tabular-nums w-full border-collapse text-body">
         <caption className="sr-only">Roles</caption>
         <thead>
           <tr className="text-left text-label text-text-secondary">
@@ -70,9 +68,9 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
               <tr className={`border-t border-border-default align-top ${role.active ? '' : 'text-text-secondary'}`}>
                 <td className="py-1.5 pr-2">
                   <CommitInput
+                    locked={lock.locked}
                     aria-label={`Name of ${role.name}`}
                     className="w-full min-w-32"
-                    disabled={lock.locked}
                     value={role.name}
                     changed={roleChanged('name')}
                     failure={roleFailure('name')}
@@ -88,9 +86,9 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                 </td>
                 <td className="py-1.5 pr-2">
                   <CommitInput
+                    locked={lock.locked}
                     aria-label={`Abbreviation of ${role.name}`}
                     className="w-24"
-                    disabled={lock.locked}
                     value={role.abbreviation}
                     changed={roleChanged('abbreviation')}
                     failure={roleFailure('abbreviation')}
@@ -106,6 +104,7 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                 </td>
                 <td className="py-1.5 pr-2 text-right">
                   <CommitInput
+                    locked={lock.locked}
                     type="number"
                     inputMode="decimal"
                     min={0}
@@ -113,7 +112,6 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                     aria-label={`Cost factor for ${role.name}`}
                     className="w-20 text-right"
                     errorClassName="mt-1 text-left"
-                    disabled={lock.locked}
                     value={String(role.costFactor)}
                     changed={roleChanged('costFactor')}
                     failure={roleFailure('costFactor')}
@@ -132,13 +130,14 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                   )}
                 </td>
                 <td className="py-1.5 text-right">
-                  <RowActionsMenu
-                    label={`Actions for ${role.name}`}
-                    disabled={lock.locked}
-                    actions={[
-                      activeToggleAction('role', role.active, (active) => repository.updateRole(role.id, { active })),
-                    ]}
-                  />
+                  {lock.locked ? (
+                    <LockedActive active={role.active} />
+                  ) : (
+                    <RowActionsMenu
+                      label={`Actions for ${role.name}`}
+                      actions={[activeToggleAction('role', role.active, (active) => repository.updateRole(role.id, { active }))]}
+                    />
+                  )}
                 </td>
               </tr>
               <ConflictRow conflict={conflicts.name} label={`Name of ${role.name}`} colSpan={4} />
@@ -159,10 +158,12 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
           }}
         />
       ) : (
-        <Button type="button" variant="outline" size="sm" className="mt-3 self-start" disabled={lock.locked} onClick={() => setDrafting(true)}>
-          <PlusIcon width={16} height={16} />
-          Add role
-        </Button>
+        !lock.locked && (
+          <Button type="button" variant="outline" size="sm" className="mt-3 self-start" onClick={() => setDrafting(true)}>
+            <PlusIcon width={16} height={16} />
+            Add role
+          </Button>
+        )
       )}
     </section>
   );

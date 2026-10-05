@@ -17,11 +17,11 @@ import { formatAmount } from './formatAmount';
 import { initiativeCount } from './impactNote';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon } from './icons';
 import { activeToggleAction, RowActionsMenu } from './RowActionsMenu';
-import { LockToggle } from './LockToggle';
+import { LockableSectionHeader, LockedActive } from './LockedSection';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { SectionHeader } from './PageHeader';
+import { useArrival } from './arrival';
 
 const NAME_REFUSAL = 'Enter a name.';
 const CODE_REFUSAL = 'Enter a code.';
@@ -50,6 +50,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
   const { currencySymbol } = useBrand();
   const failure = useFieldFailure();
   const conflict = useFieldConflict();
+  const ratesCorrect = useArrival<HTMLButtonElement>('rates');
   const changed = useIsChangedByOthers();
   const [openId, setOpenId] = useState<string | null>(null);
   // The banner's Show opens the country whose rates are in conflict (§9.9).
@@ -75,31 +76,27 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
 
   return (
     <section aria-labelledby="settings-countries-title" className="flex flex-col gap-1">
-      <SectionHeader
+      <LockableSectionHeader
         id="settings-countries-title"
         title="Countries & rates"
-        className="mb-0"
+        lock={lock}
         actions={
-          <>
-            {datasetFlags?.ratesReviewed ? (
-              <span className="inline-flex items-center gap-1 text-caption text-text-secondary">
-                <CheckIcon width={16} height={16} />
-                Rates reviewed
-              </span>
-            ) : (
-              // Usable while locked: it confirms the rates, it doesn't edit them (§5.9).
-              <Button type="button" variant="outline" size="sm" onClick={() => repository.confirmRates()}>
-                <CheckIcon width={16} height={16} />
-                Rates are correct
-              </Button>
-            )}
-            <LockToggle lock={lock} />
-          </>
+          datasetFlags?.ratesReviewed ? (
+            <span className="inline-flex items-center gap-1 text-caption text-text-secondary">
+              <CheckIcon width={16} height={16} />
+              Rates reviewed
+            </span>
+          ) : (
+            // Usable while locked: it confirms the rates, it doesn't edit them (§5.9).
+            <Button {...ratesCorrect} type="button" variant="outline" size="sm" onClick={() => repository.confirmRates()}>
+              <CheckIcon width={16} height={16} />
+              Rates are correct
+            </Button>
+          )
         }
       />
-      {lock.locked && <p className="m-0 text-caption text-text-secondary">Locked. Unlock to edit.</p>}
 
-      <table className="tabular-nums mt-3 w-full border-collapse text-body">
+      <table className="tabular-nums w-full border-collapse text-body">
         <caption className="sr-only">Countries</caption>
         <thead>
           <tr className="text-left text-label text-text-secondary">
@@ -144,59 +141,54 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                       >
                         {open ? <ChevronDownIcon width={16} height={16} /> : <ChevronRightIcon width={16} height={16} />}
                       </Button>
-                      {lock.locked ? (
-                        <span className="font-medium">{country.name}</span>
-                      ) : (
-                        <CommitInput
-                          aria-label={`Name of ${country.name}`}
-                          className="w-48"
-                          value={country.name}
-                          changed={changed(FILE_PATHS.countries, [{ id: country.id }, 'name'])}
-                          failure={failure(FILE_PATHS.countries, [{ id: country.id }, 'name'])}
-                          conflict={inRow(nameConflict)}
-                          retryLabel={`Retry saving the name of ${country.name}`}
-                          onCommit={(text) => {
-                            const name = text.trim();
-                            if (name === '') return NAME_REFUSAL;
-                            if (name === country.name) return false;
-                            repository.updateCountry(country.id, { name });
-                          }}
-                        />
-                      )}
+                      <CommitInput
+                        locked={lock.locked}
+                        aria-label={`Name of ${country.name}`}
+                        className="w-48"
+                        value={country.name}
+                        changed={changed(FILE_PATHS.countries, [{ id: country.id }, 'name'])}
+                        failure={failure(FILE_PATHS.countries, [{ id: country.id }, 'name'])}
+                        conflict={inRow(nameConflict)}
+                        retryLabel={`Retry saving the name of ${country.name}`}
+                        onCommit={(text) => {
+                          const name = text.trim();
+                          if (name === '') return NAME_REFUSAL;
+                          if (name === country.name) return false;
+                          repository.updateCountry(country.id, { name });
+                        }}
+                      />
                     </div>
                   </td>
                   <td className="py-1.5 pr-2">
-                    {lock.locked ? (
-                      country.code
-                    ) : (
-                      <CommitInput
-                        aria-label={`Code of ${country.name}`}
-                        className="w-20"
-                        value={country.code}
-                        changed={changed(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
-                        failure={failure(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
-                        conflict={inRow(codeConflict)}
-                        retryLabel={`Retry saving the code of ${country.name}`}
-                        onCommit={(text) => {
-                          const code = text.trim();
-                          if (code === '') return CODE_REFUSAL;
-                          if (code === country.code) return false;
-                          repository.updateCountry(country.id, { code });
-                        }}
-                      />
-                    )}
+                    <CommitInput
+                      locked={lock.locked}
+                      aria-label={`Code of ${country.name}`}
+                      className="w-20"
+                      value={country.code}
+                      changed={changed(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
+                      failure={failure(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
+                      conflict={inRow(codeConflict)}
+                      retryLabel={`Retry saving the code of ${country.name}`}
+                      onCommit={(text) => {
+                        const code = text.trim();
+                        if (code === '') return CODE_REFUSAL;
+                        if (code === country.code) return false;
+                        repository.updateCountry(country.id, { code });
+                      }}
+                    />
                   </td>
                   <td className="py-1.5 pr-2 text-right">
                     {current ? `${formatAmount(current.dayRate, currencySymbol)} / day (${tracked[0]})` : '—'}
                   </td>
                   <td className="py-1.5 text-right">
-                    <RowActionsMenu
-                      label={`Actions for ${country.name}`}
-                      disabled={lock.locked}
-                      actions={[
-                        activeToggleAction('country', country.active, (active) => repository.updateCountry(country.id, { active })),
-                      ]}
-                    />
+                    {lock.locked ? (
+                      <LockedActive active={country.active} />
+                    ) : (
+                      <RowActionsMenu
+                        label={`Actions for ${country.name}`}
+                        actions={[activeToggleAction('country', country.active, (active) => repository.updateCountry(country.id, { active }))]}
+                      />
+                    )}
                   </td>
                 </tr>
                 <ConflictRow conflict={nameConflict} label={`Name of ${country.name}`} colSpan={4} />
@@ -245,10 +237,12 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
           }}
         />
       ) : (
-        <Button type="button" variant="outline" size="sm" className="mt-3 self-start" disabled={lock.locked} onClick={() => setDrafting(true)}>
-          <PlusIcon width={16} height={16} />
-          Add country
-        </Button>
+        !lock.locked && (
+          <Button type="button" variant="outline" size="sm" className="mt-3 self-start" onClick={() => setDrafting(true)}>
+            <PlusIcon width={16} height={16} />
+            Add country
+          </Button>
+        )
       )}
     </section>
   );

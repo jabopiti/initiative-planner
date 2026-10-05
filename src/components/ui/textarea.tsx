@@ -1,5 +1,5 @@
 import * as React from "react"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 import { focusRing } from "./focus-ring"
 
 function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {

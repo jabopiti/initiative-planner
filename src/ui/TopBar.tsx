@@ -5,6 +5,7 @@ import { NewInitiativeControl } from './NewInitiativeControl';
 import { SyncIndicator } from './SyncIndicator';
 import { ThemeControl } from './ThemeControl';
 import { LogoMark } from './icons';
+import { pageContainerClass } from './Page';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const NAV_ITEMS: { label: string; path: string }[] = [
@@ -21,47 +22,50 @@ export function TopBar({ route }: { route: string }) {
   const needsAttentionCount = useNeedsAttentionItems().length;
   const attentionLabel = `${needsAttentionCount} ${needsAttentionCount === 1 ? 'needs' : 'need'} attention`;
   return (
-    <header className="sticky top-0 z-10 flex items-center gap-6 border-b border-border-default bg-surface-card px-5 py-2.5">
-      <a href="#/portfolio" className="flex shrink-0 items-center gap-2 font-medium text-text-primary no-underline">
-        <LogoMark />
-        {brand.productName}
-      </a>
+    <header className="sticky top-0 z-10 border-b border-border-default bg-surface-card">
+      {/* The bar spans the window; its content lines up with the page container below (§9.8). */}
+      <div className={`${pageContainerClass} flex items-center gap-6 py-2.5`}>
+        <a href="#/portfolio" className="flex shrink-0 items-center gap-2 font-medium text-text-primary no-underline">
+          <LogoMark />
+          {brand.productName}
+        </a>
 
-      <nav className="flex flex-1 gap-1" aria-label="Primary">
-        {NAV_ITEMS.map((item) => {
-          const active = route === item.path || route.startsWith(`${item.path}/`);
-          return (
-            <a
-              key={item.path}
-              href={`#${item.path}`}
-              aria-current={active ? 'page' : undefined}
-              className={
-                active
-                  ? 'flex items-center gap-1.5 rounded-lg bg-brand-accent-tint px-3 py-1.5 font-medium text-brand-accent-text no-underline'
-                  : 'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium text-text-secondary no-underline'
-              }
-            >
-              {item.label}
-              {item.path === '/initiatives' && needsAttentionCount > 0 && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-label font-medium text-text-secondary" aria-label={attentionLabel}>
-                      {needsAttentionCount}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>{attentionLabel}</TooltipContent>
-                </Tooltip>
-              )}
-            </a>
-          );
-        })}
-      </nav>
+        <nav className="flex flex-1 gap-1" aria-label="Primary">
+          {NAV_ITEMS.map((item) => {
+            const active = route === item.path || route.startsWith(`${item.path}/`);
+            return (
+              <a
+                key={item.path}
+                href={`#${item.path}`}
+                aria-current={active ? 'page' : undefined}
+                className={
+                  active
+                    ? 'flex items-center gap-1.5 rounded-lg bg-brand-accent-tint px-3 py-1.5 font-medium text-brand-accent-text no-underline'
+                    : 'flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium text-text-secondary no-underline'
+                }
+              >
+                {item.label}
+                {item.path === '/initiatives' && needsAttentionCount > 0 && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="rounded-full bg-surface-subtle px-1.5 py-0.5 text-label font-medium text-text-secondary" aria-label={attentionLabel}>
+                        {needsAttentionCount}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>{attentionLabel}</TooltipContent>
+                  </Tooltip>
+                )}
+              </a>
+            );
+          })}
+        </nav>
 
-      <div className="flex items-center gap-3">
-        <NewInitiativeControl />
-        <GlobalSearch />
-        <SyncIndicator />
-        <ThemeControl />
+        <div className="flex items-center gap-3">
+          <NewInitiativeControl onPortfolio={route === '/portfolio'} />
+          <GlobalSearch />
+          <SyncIndicator />
+          <ThemeControl />
+        </div>
       </div>
     </header>
   );

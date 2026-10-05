@@ -54,12 +54,13 @@ function renderWith(ui: React.ReactNode) {
 }
 
 describe('Portfolio empty state names the missing prerequisite (§9.4)', () => {
-  it('no team: says so and offers Create a team, which opens Teams', async () => {
+  it('no team: the welcome card instead, its one action Create a team, which opens Teams', async () => {
     const user = userEvent.setup();
     renderWith(<PortfolioBoard />);
-    expect(await screen.findByText('No teams yet.')).toBeInTheDocument();
-    expect(screen.getByText('No initiatives yet')).toBeInTheDocument();
-    expect(screen.getAllByRole('button')).toHaveLength(2); // the empty state's one primary action, and the strip's Dismiss for now
+    expect(await screen.findByRole('heading', { name: /^Welcome to/ })).toBeInTheDocument();
+    expect(screen.queryByText('No initiatives yet')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Getting started' })).toBeNull();
+    expect(screen.getAllByRole('button')).toHaveLength(1); // no Dismiss for now: the card is the empty state
     await user.click(screen.getByRole('button', { name: 'Create a team' }));
     expect(window.location.hash).toBe('#/teams');
   });

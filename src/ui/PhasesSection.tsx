@@ -35,6 +35,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { cardClass } from './cardClass';
+import { cn } from '@/lib/utils';
 
 /** The phase that opens with the page (§5.4): the current one, or without cost of its own the next costed phase ahead. */
 function phaseToOpen(process: PhaseDef[], currentId: string): string | undefined {
@@ -45,6 +46,10 @@ function phaseToOpen(process: PhaseDef[], currentId: string): string | undefined
 function overdueChipText(months: string[]): string {
   return months.length === 1 ? `No actual for ${formatMonth(months[0])}` : `${months.length} actuals overdue`;
 }
+
+/** A phase row's line: its marker, label and summary (§5.4). */
+export const PHASE_ROW_CLASS = 'flex items-center gap-2 px-3 py-2.5 text-body';
+export const NOT_COSTED = 'not costed';
 
 /** A phase nobody has planned yet. One shared object, so the picker's memo isn't invalidated on every render. */
 const UNPLANNED: PhasePlan = { allocations: [] };
@@ -108,7 +113,8 @@ export function PhasesSection({ initiative, team, reveal = null }: { initiative:
         {process.map((phase) => {
           const index = costedPhases.indexOf(phase);
           return (
-            <li key={phase.id} id={`phase-row-${phase.id}`} className="flex flex-col gap-2">
+            // A phase that isn't costed has no control of its own, so its row takes focus when the time strip jumps to it (§5.4).
+            <li key={phase.id} id={`phase-row-${phase.id}`} tabIndex={phase.costed ? undefined : -1} className="flex flex-col gap-2">
               <div className={cardClass}>
                 {phase.costed ? (
                   <CostedPhase
@@ -124,10 +130,10 @@ export function PhasesSection({ initiative, team, reveal = null }: { initiative:
                     onToggle={() => toggle(phase.id)}
                   />
                 ) : (
-                  <div className="flex items-center gap-2 px-3 py-2.5 text-body">
+                  <div className={PHASE_ROW_CLASS}>
                     <GateMarker frozen={isPhaseFrozen(initiative, phase.id)} skipped={skipReason(initiative, phase.id) !== undefined} />
                     <span className="font-medium">{phase.label}</span>
-                    <span className="text-text-muted">· not costed</span>
+                    <span className="text-text-muted">· {NOT_COSTED}</span>
                     <SkippedLabel gateLabel={phase.exitGate.label} reason={skipReason(initiative, phase.id)} withReason />
                   </div>
                 )}
@@ -277,7 +283,7 @@ function CostedPhase({
     <>
       <button
         type="button"
-        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-body text-text-primary"
+        className={cn(PHASE_ROW_CLASS, 'w-full cursor-pointer rounded-lg border-0 bg-transparent text-left text-text-primary')}
         aria-expanded={expanded}
         aria-controls={bodyId}
         onClick={onToggle}

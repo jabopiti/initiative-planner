@@ -283,10 +283,11 @@ Users change two kinds of data:
 The two dataset actions, loading example data and resetting, sit in the
 Settings Danger zone (§5.9).
 
-A **lock/unlock toggle** on Roles, Countries & rates and the Danger zone
-renders each section read-only (for the Danger zone: its actions disabled).
+An **Unlock to edit** / **Lock** button on Roles, Countries & rates and the
+Danger zone renders each section read-only (for the Danger zone: its actions
+hidden until unlocked).
 Every section starts locked, and the lock state is local to the browser and
-never synced. A section re-locks when its lock icon is clicked again or when
+never synced. A section re-locks when **Lock** is chosen or when
 the user leaves Settings entirely; moving between sections within Settings
 does not re-lock. This is a deterrent against casual or accidental changes,
 not access control.
@@ -655,7 +656,10 @@ team on its own. The one exception is the draft opened from a team's page
 to fill in is highlighted: the name, then the team, then, once both are
 filled, the Create initiative button, which is disabled until then. A line
 under the header names the next step in text, so the highlight never
-carries it by colour alone. No phases appear on the draft. Nothing is
+carries it by colour alone. Under the header, greyed previews show what the
+page will hold — the time strip with every phase hatched, the four key
+figures reading "—" and one row per phase ("Not costed" or "No period yet ·
+—") — hidden from screen readers and not interactive. Nothing is
 saved until Create initiative is chosen (Enter in the name field does the
 same once a team is selected); leaving a field saves nothing. Creating the
 initiative saves it and its detail page replaces the draft, so Back skips the
@@ -704,8 +708,14 @@ Contents, top to bottom:
   shows it is done; the strip disappears when none remain. Cleared items
   stay in the strip, ticked and struck through, beside a count ("2 of 4
   done") and a small progress bar. With three of four done the strip
-  collapses to a chip in the filter row ("Getting started · 3 of 4 done")
-  that opens the remaining step in a popover. While no team exists the strip
+  collapses to a chip at the start of the filter row ("Getting started · 3
+  of 4 done") that opens the remaining step in a popover ("One step left",
+  the step as a link, the progress bar and Dismiss for now); without
+  initiatives there is no filter row, so the strip stays expanded above the
+  empty state. Arriving from an item moves focus to where it is done, marked
+  with an Accent ring and tint for 3 seconds: **Rates are correct** in
+  Countries & rates, **New team** on the Teams overview, the add-member
+  field on the team's page, and the draft page's name field. While no team exists the strip
   is shown instead as the Portfolio's welcome card (§9.4). A **Dismiss for
   now** on the strip hides it for the browser session; it reappears on the
   next visit if items are still outstanding. It never blocks anything. The
@@ -727,16 +737,20 @@ Contents, top to bottom:
   Closed and Cancelled initiatives appear only when the filter is widened;
   Clear filters returns Status to Active. The year chip is single-select:
   All years, or one year any initiative has cost in.
+- **Toolbar row**: the filters at its left; the count ("3 of 3
+  initiatives"), Clear filters and **Copy table** at its right (§9.2).
 - **Key metrics** for the initiatives shown, on one line under the
-  filters, with the count, Clear filters and Copy at its right:
+  toolbar row:
   - **Total cost** — the grand estimate (§4) summed over the initiatives
     shown.
   - **Deviation** — recorded actuals minus their estimates, over the months
     that have a recorded actual.
 - **The board** — one column per phase, in process order, holding the
   initiatives currently in that phase; columns without initiatives stay
-  visible, so the process is always shown in full. Each column header shows
-  the number of initiatives and the sum of their grand estimates. Each
+  visible, so the process is always shown in full, an empty one holding a
+  dashed placeholder "No initiatives in <phase>". Each column header shows
+  the phase's icon beside its label, the number of initiatives as a small
+  pill and the sum of their grand estimates. Each
   initiative is a compact **card**: its name, team and owner, its grand
   estimate with a thin bullet bar against the approval tracks (§5.4 Cost
   summary), the approval track badge (including "No approval track", §7.4) and
@@ -858,8 +872,16 @@ Its layout follows the design rules in §9.8.
   one segment per phase, sized by its period and labelled with its name and
   cost, past and current phases filled, a phase without a period hatched,
   month labels beneath and a **Today** marker; selecting a segment scrolls
-  to that phase. It adds time to the magic bar's status stepper and is not
-  interactive otherwise. Changing the team while
+  to that phase, expanding it when collapsed. Phases with a period sit on
+  one month axis, so gaps and overlaps show as they are; a phase without
+  one is a fixed-width hatched block at its place in phase order, outside
+  the axis, reading "Not costed" (a phase the process doesn't cost) or "No
+  period yet". Past phases are filled neutral with a tick, the current one
+  in Accent, future ones outlined. Today sits on the axis, on the current
+  phase's block when that phase has no period, or at the axis end as
+  "Today ›" once every period has passed. Each segment's tooltip and
+  accessible name carry its name, state, period and full cost. It adds
+  time to the magic bar's status stepper and is not interactive otherwise. Changing the team while
   allocations exist asks for an inline confirmation first, naming the people
   who are not on the new team and will be removed from the phases that are
   still open (§7.2); it is not possible on a Closed or Cancelled initiative.
@@ -1086,8 +1108,11 @@ Contains the following sections:
   person in that country — for a day rate, excluding a person whose active
   custom role replaces it. A locked section shows its
   values as plain text, not disabled fields, with **Unlock to edit** in the
-  section header; unlocked, the fields appear, the header shows an
-  "Editing" tag and the button reads **Lock**. A **Rates are correct**
+  section header, and its add and reset actions (Add role, Add country,
+  Reset to weekdays) hidden; unlocked, the fields appear, the header shows
+  an Accent "Editing" tag and the button reads **Lock**. A locked Danger
+  zone shows each action's heading and description, its buttons appearing
+  on unlock. A **Rates are correct**
   confirmation clears the Getting started item (§5.2).
 - **Process** (read-only): a vertical timeline of the phases in order, each
   with its label, description and, for costed phases, its default duration.
@@ -1670,7 +1695,9 @@ for both the light and the dark theme (§2).
 
 ### 9.2 Copy
 
-A **Copy** button is offered on the Portfolio board (§5.2), the Initiatives
+A **Copy table** button (a ghost button with the copy icon, at the right end
+of the page's toolbar row after the count, or in the section header for a
+section's table) is offered on the Portfolio board (§5.2), the Initiatives
 table (§5.3), the People table (§5.5), the team's capacity grid (§5.8), and,
 on an initiative, its cost summary and phase costs (§5.4). It copies what is
 currently shown, with the active filters and sort applied, as both plain
@@ -1713,7 +1740,8 @@ initiative"). The Portfolio with no initiatives shows the same instead of an
 empty board. While no team exists, that empty state is a **welcome card**
 instead: "Welcome to <product>", the line "Four steps to your first costed
 initiative." and the four Getting started items (§5.2) as rows, cleared ones
-ticked, with the next item's action as the card's only primary button; the
+ticked, with **Create a team** as the card's only primary button (Review
+rates keeps a text link in its row; later items are plain text); the
 top bar's create button is hidden meanwhile, so "Create a team" appears
 once. Otherwise its action is
 **Reactivate a team** (opening the Teams overview) while teams exist but none
@@ -1826,7 +1854,12 @@ started) are neutral tinted bands.
 State is always carried by an icon or text as well (§9.5).
 
 **Window width.** The UI is desktop-first with a minimum supported width of
-1200 px; below it the page scrolls horizontally. The board and the capacity
+1200 px; below it the page scrolls horizontally. Every screen sits in one
+shell: a centred container of at most 1280 px with 32 px gutters, the top
+bar's content aligned to it, a page header (the title at the display size,
+with the page's actions at its right) and, on a screen with a table, a
+toolbar row under it (filters left; count and Copy table right, §9.2). The
+initiative page is one centred column of at most 960 px (§5.4). The board and the capacity
 grid always scroll horizontally.
 
 **Tooltips.** They appear on hover and on keyboard focus, after a short
@@ -1851,8 +1884,8 @@ delay. Critical information is never only in a tooltip.
   page and brings the field into view. A conflict on a select or toggle,
   or on a list item removed on one side and changed on the other, is
   resolved in that banner, which names the thing and both values.
-- **Locked sections:** values are read-only with the hint "Locked. Unlock to
-  edit." (§2).
+- **Locked sections:** values read as plain text, with **Unlock to edit**
+  in the section header (§2, §5.9).
 - **Using the estimate:** a closed month without a recorded actual shows the
   estimate in a muted style with the label "using the estimate" (§7.3).
 - **Frozen:** frozen phases, and Closed or Cancelled initiatives, show a

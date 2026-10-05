@@ -90,7 +90,7 @@ export function CapacityGrid({ team }: { team: Team }) {
     <section aria-label="Capacity" className="mt-8">
       <SectionHeader
         title="Capacity"
-        actions={team.active && capacity.months.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} label="Copy capacity" />}
+        actions={team.active && capacity.months.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} section="Capacity" />}
       />
 
       {!team.active ? (

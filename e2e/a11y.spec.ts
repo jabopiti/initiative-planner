@@ -39,9 +39,8 @@ for (const colorScheme of ['light', 'dark'] as const) test(`the app screens have
   await connect(page);
   if (colorScheme === 'dark') await expect(page.locator('html')).toHaveClass(/dark/);
 
-  await expect(page.getByText('No initiatives yet')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Getting started' })).toBeVisible();
-  await expectNoViolations(page); // portfolio, empty, with the Getting started strip
+  await expect(page.getByRole('heading', { name: /^Welcome to/ })).toBeVisible();
+  await expectNoViolations(page); // portfolio, empty, with the welcome card (no team yet)
 
   await createTeam(page, 'Platform');
   await expectNoViolations(page); // teams overview
@@ -80,7 +79,7 @@ for (const colorScheme of ['light', 'dark'] as const) test(`the app screens have
   const screens: [route: string, ready: () => Locator][] = [
     ['/#/initiatives', () => page.getByRole('heading', { level: 1, name: 'Initiatives' })],
     // The portfolio has no nav item of its own: it is the screen where Initiatives is no longer the current page.
-    // Rates are never confirmed in this flow, so the Getting started strip is still up, with three steps done.
+    // Rates are never confirmed in this flow, so Getting started is still up, three steps done: the chip in the toolbar row.
     ['/#/portfolio', () => page.getByRole('navigation', { name: 'Primary' }).locator('a:not([aria-current])', { hasText: 'Initiatives' })],
     ['/#/settings/roles', section('Roles')],
     ['/#/settings/countries', section('Countries & rates')],
@@ -174,7 +173,7 @@ test('the populated screens and open panels have no accessibility violations', a
 
   await page.goto('/#/settings/countries');
   await unlockSettings(page);
-  await expect(page.getByRole('button', { name: 'Unlocked' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Lock', exact: true })).toBeVisible();
   await expectNoViolations(page); // the unlocked Countries section
   expect(csp).toEqual([]);
 });

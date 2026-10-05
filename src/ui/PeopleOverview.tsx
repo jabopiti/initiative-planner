@@ -19,7 +19,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FILE_PATHS } from '../data/types';
-import { PageHeader } from './PageHeader';
+import { Page, Toolbar } from './Page';
+import { plural } from '../data/plural';
 
 type StatusFilter = 'active' | 'inactive' | 'all';
 
@@ -108,25 +109,24 @@ export function PeopleOverview() {
   }
 
   return (
-    <div className="px-8 py-6">
-      <PageHeader
-        title="People"
-        actions={
-          <>
-            <Select value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
-              <SelectTrigger aria-label="Show people">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-                <SelectItem value="all">All</SelectItem>
-              </SelectContent>
-            </Select>
-            {visible.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} />}
-          </>
+    <Page title="People">
+      <Toolbar
+        filters={
+          <Select value={filter} onValueChange={(v) => setFilter(v as StatusFilter)}>
+            <SelectTrigger aria-label="Show people">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
         }
-      />
+      >
+        <p className="m-0">{plural(visible.length, 'person', 'people')}</p>
+        {visible.length > 0 && <CopyButton getData={copyData} noun={['person', 'people']} />}
+      </Toolbar>
 
       <form
         className="mb-4 flex flex-wrap items-center gap-2 rounded-card bg-surface-subtle p-3"
@@ -242,6 +242,6 @@ export function PeopleOverview() {
         </div>
         <PersonPanel person={selected} onClose={() => setSelectedId(null)} />
       </div>
-    </div>
+    </Page>
   );
 }

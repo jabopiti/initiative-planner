@@ -86,33 +86,7 @@ export function CommitFieldMessages({
   );
 }
 
-/**
- * A text or number field that commits when it loses focus or Enter is pressed, never on each keystroke
- * (§10.3), so typing a value is one edit and one commit. `onCommit` returns `false` to reject the text,
- * which puts the last committed value back in the field, or a string to refuse it with that message (§9.9):
- * the field then stays in edit with what was typed, marked invalid, and the message sits under it, linked
- * to the field and announced. Enter or leaving the field repeats the refusal until the text is fixed.
- * Esc cancels an edit in progress (§9.5), clears the message and, having used the key, keeps it from also
- * closing a panel around the field; with nothing typed it passes on. While text is typed and not yet committed,
- * a change another user made is held back from the page (§3), and `changed` tints the field for a few seconds
- * when another user's change just updated its value (§9.9).
- */
-export function CommitInput({
-  value,
-  onCommit,
-  onDraftChange,
-  errorClassName = '',
-  changed = false,
-  failure = null,
-  conflict = null,
-  conflictLabel,
-  retryLabel,
-  className,
-  suffix,
-  prefix,
-  note,
-  ...props
-}: Omit<ComponentProps<typeof Input>, 'value' | 'defaultValue' | 'onChange' | 'onBlur'> & {
+type CommitInputProps = Omit<ComponentProps<typeof Input>, 'value' | 'defaultValue' | 'onChange' | 'onBlur'> & {
   value: string;
   onCommit: (text: string) => boolean | string | void;
   /** Every keystroke, for feedback that must not wait for the commit (a limit warning). */
@@ -135,7 +109,41 @@ export function CommitInput({
   prefix?: string;
   /** A line under the field about the draft being typed ("Saves as €12,000", §9.11), until a refusal or failed save takes its place. */
   note?: (draft: string) => string | null;
-}) {
+};
+
+/**
+ * A text or number field that commits when it loses focus or Enter is pressed, never on each keystroke
+ * (§10.3), so typing a value is one edit and one commit. `onCommit` returns `false` to reject the text,
+ * which puts the last committed value back in the field, or a string to refuse it with that message (§9.9):
+ * the field then stays in edit with what was typed, marked invalid, and the message sits under it, linked
+ * to the field and announced. Enter or leaving the field repeats the refusal until the text is fixed.
+ * Esc cancels an edit in progress (§9.5), clears the message and, having used the key, keeps it from also
+ * closing a panel around the field; with nothing typed it passes on. While text is typed and not yet committed,
+ * a change another user made is held back from the page (§3), and `changed` tints the field for a few seconds
+ * when another user's change just updated its value (§9.9). `locked` shows the value as plain text instead, not a
+ * disabled field (§5.9, §9.9), at a field's height so rows keep their size.
+ */
+export function CommitInput({ locked = false, ...props }: CommitInputProps & { locked?: boolean }) {
+  // Not just hidden: unmounting the field drops an unsaved edit, which would otherwise keep holding back others' changes (§3).
+  return locked ? <span className="inline-flex h-9 items-center">{props.value}</span> : <EditableCommitInput {...props} />;
+}
+
+function EditableCommitInput({
+  value,
+  onCommit,
+  onDraftChange,
+  errorClassName = '',
+  changed = false,
+  failure = null,
+  conflict = null,
+  conflictLabel,
+  retryLabel,
+  className,
+  suffix,
+  prefix,
+  note,
+  ...props
+}: CommitInputProps) {
   const { draft, setDraft, error, errorId, failureId, commit, cancel } = useCommitField(value, onCommit);
 
   // Not while actively drafting something else: a fresh, uncommitted edit takes over the field's message slot.

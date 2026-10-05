@@ -10,13 +10,18 @@ import { BulletBar } from './BulletBar';
 import { AttentionMarker, IconMarker } from './AttentionMarker';
 import { CompactAmount } from './CompactAmount';
 import { CopyButton } from './CopyButton';
+import { PhaseIcon } from './icons';
+import { ClearFilters, Page, Toolbar } from './Page';
+import { plural } from '../data/plural';
 import type { CopyTableData } from './copyTable';
 import { byLabel, FilterChip, type FilterOption } from './FilterChip';
 import { formatAmount, formatSignedAmount } from './formatAmount';
 import { STATUS_GLYPH, statusText } from './StatusLabel';
 import { TruncatedText } from './TruncatedText';
 import { NoInitiatives } from './NoInitiatives';
-import { GettingStartedStrip } from './GettingStartedStrip';
+import { GettingStartedChip, GettingStartedStrip } from './GettingStartedStrip';
+import { WelcomeCard } from './WelcomeCard';
+import { showsWelcome } from '../data/gettingStarted';
 import { NeedsAttentionStrip } from './NeedsAttentionStrip';
 import { useSessionFilters } from './sessionFilters';
 import { YearChip } from './YearChip';
@@ -112,13 +117,19 @@ export function PortfolioBoard() {
 
   if (initiatives.length === 0) {
     return (
-      <>
-        <h1 className="sr-only">Portfolio</h1>
-        <div className="px-8 pt-6 empty:hidden [&>section]:mb-0">
-          <GettingStartedStrip />
-        </div>
-        <NoInitiatives />
-      </>
+      <Page title="Portfolio">
+        {showsWelcome({ teams, initiatives }) ? (
+          <WelcomeCard />
+        ) : (
+          <>
+            {/* No toolbar row without initiatives, so the strip stays expanded at three of four (§5.2). */}
+            <div className="empty:hidden [&>section]:mb-0">
+              <GettingStartedStrip />
+            </div>
+            <NoInitiatives />
+          </>
+        )}
+      </Page>
     );
   }
 
@@ -144,42 +155,40 @@ export function PortfolioBoard() {
   }
 
   return (
-    <div className="px-8 py-6">
-      <h1 className="sr-only">Portfolio</h1>
-      <GettingStartedStrip />
+    <Page title="Portfolio">
+      <GettingStartedStrip collapsible />
       <NeedsAttentionStrip />
-      <div className="mb-3 flex flex-wrap gap-2">
-        {chip('team', 'Team')}
-        {chip('phase', 'Phase')}
-        <YearChip years={years} selected={filters.year} onChange={(year) => setFilters({ ...filters, year })} />
-        {chip('initiative', 'Initiatives')}
-        {chip('track', 'Approval track')}
-        {chip('status', 'Status')}
-      </div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-body">
+      <Toolbar
+        className="mb-2"
+        filters={
+          <>
+            <GettingStartedChip />
+            {chip('team', 'Team')}
+            {chip('phase', 'Phase')}
+            <YearChip years={years} selected={filters.year} onChange={(year) => setFilters({ ...filters, year })} />
+            {chip('initiative', 'Initiatives')}
+            {chip('track', 'Approval track')}
+            {chip('status', 'Status')}
+          </>
+        }
+      >
         <p className="m-0">
-          Total cost <CompactAmount value={totalCost} className="font-medium" />
-          <span className="mx-2 text-text-secondary">·</span>
-          Deviation <CompactAmount value={deviation} signed className={`font-medium ${deviation > 0 ? 'text-warning-text' : ''}`} />
+          {shown.length} of {plural(initiatives.length, 'initiative', 'initiatives')}
         </p>
-        <div className="flex items-center gap-3">
-          <p className="m-0 text-text-secondary">
-            {shown.length} of {initiatives.length} {initiatives.length === 1 ? 'initiative' : 'initiatives'}
-          </p>
-          {clearable && (
-            <button type="button" className="cursor-pointer border-0 bg-transparent p-0 text-brand-accent-text underline" onClick={clear}>
-              Clear filters
-            </button>
-          )}
-          {shown.length > 0 && <CopyButton getData={copyData} noun={['initiative', 'initiatives']} />}
-        </div>
-      </div>
+        {clearable && (
+          <ClearFilters onClick={clear} />
+        )}
+        {shown.length > 0 && <CopyButton getData={copyData} noun={['initiative', 'initiatives']} />}
+      </Toolbar>
+      <p className="m-0 mb-3 text-body">
+        Total cost <CompactAmount value={totalCost} className="font-medium" />
+        <span className="mx-2 text-text-secondary">·</span>
+        Deviation <CompactAmount value={deviation} signed className={`font-medium ${deviation > 0 ? 'text-warning-text' : ''}`} />
+      </p>
       {shown.length === 0 && (
         <p className="m-0 mb-3 rounded-lg border border-dashed border-border-strong bg-surface-card p-3.5 text-center text-body text-text-secondary">
           No initiatives match these filters.
-          <button type="button" className="ml-2 cursor-pointer border-0 bg-transparent p-0 text-body text-brand-accent-text underline" onClick={clear}>
-            Clear filters
-          </button>
+          <span className="ml-2"><ClearFilters onClick={clear} /></span>
         </p>
       )}
       <div className="flex items-start gap-4 overflow-x-auto">
@@ -187,20 +196,30 @@ export function PortfolioBoard() {
           const phaseRows = byPhase.get(phase.id) ?? [];
           const columnSum = phaseRows.reduce((sum, r) => sum + r.cost, 0);
           return (
-            <div key={phase.id} className="min-w-55 flex-[1_0_220px] py-1">
-              <div className="mb-2.5 flex items-center justify-between px-0.5 text-body font-medium">
-                <span>{phase.label}</span>
-                <CompactAmount value={columnSum} prefix={`${phaseRows.length} · `} className="font-medium text-text-secondary" />
+            <div key={phase.id} role="group" aria-label={phase.label} className="min-w-55 flex-[1_0_220px] py-1">
+              {/* The phase's icon beside its label, the count as a pill and the sum (§5.2, §9.10). */}
+              <div className="mb-2.5 flex items-center justify-between gap-2 px-0.5 text-body font-medium">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <PhaseIcon name={phase.icon} width={16} height={16} className="shrink-0 text-text-secondary" aria-hidden="true" />
+                  <span className="truncate">{phase.label}</span>
+                  <span className="rounded-full border border-border-default bg-surface-subtle px-1.5 text-label font-medium text-text-secondary">
+                    {phaseRows.length}
+                    <span className="sr-only"> {phaseRows.length === 1 ? 'initiative' : 'initiatives'}</span>
+                  </span>
+                </span>
+                <CompactAmount value={columnSum} className="font-medium text-text-secondary" />
               </div>
               <div className="flex flex-col gap-2">
-                {phaseRows.map((row) => (
-                  <BoardCard key={row.initiative.id} row={row} />
-                ))}
+                {phaseRows.length === 0 ? (
+                  <p className="m-0 rounded-card border border-dashed border-border-strong p-3.5 text-center text-caption text-text-secondary">No initiatives in {phase.label}</p>
+                ) : (
+                  phaseRows.map((row) => <BoardCard key={row.initiative.id} row={row} />)
+                )}
               </div>
             </div>
           );
         })}
       </div>
-    </div>
+    </Page>
   );
 }

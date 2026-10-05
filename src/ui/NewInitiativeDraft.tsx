@@ -5,16 +5,20 @@ import { navigate } from '../router/useHashRoute';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TeamSelect } from './TeamSelect';
+import { Page } from './Page';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { ACCENT_FILL, ACCENT_RING, useArrival } from './arrival';
+import { DraftPreview } from './DraftPreview';
 
-const HIGHLIGHT = 'border-brand-accent bg-brand-accent-tint';
 const GUIDANCE_ID = 'new-initiative-guidance';
 
 /**
  * The New initiative draft page (§5.1, §5.4): the name is typed where the initiative's page will be.
  * Nothing is written until Create initiative is chosen, which needs a name and a team; then the
  * initiative is created and its page replaces this one. Esc discards. The next thing to fill in is
- * highlighted and also named in the guidance line, so colour never carries it alone.
+ * highlighted and also named in the guidance line, so colour never carries it alone. Greyed previews of the page to
+ * come sit under the header.
  */
 export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } = {}) {
   const repository = useRepository();
@@ -34,6 +38,7 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
   const [draftId] = useState(newId); // kept across retries, so a failed creation is the same file when tried again
   const creating = useRef(false); // set on the first create, so a double click or Enter makes one commit
   const teamTrigger = useRef<HTMLButtonElement>(null);
+  const nameField = useArrival<HTMLInputElement>('initiative');
 
   // Leaving the draft after a failed creation ends that failure: nothing will retry it (a saved one is left alone).
   useEffect(() => {
@@ -60,12 +65,13 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
   }
 
   return (
-    <div className="max-w-page p-8">
+    <Page width="detail">
       <h1 className="sr-only">New initiative</h1>
       <div className="flex items-center gap-3">
         <Input
+          ref={nameField.ref}
           autoFocus
-          className={`h-auto min-w-0 flex-1 px-3 py-1.5 text-display ${nextStep === 'name' ? HIGHLIGHT : ''}`}
+          className={cn('h-auto min-w-0 flex-1 px-3 py-1.5 text-display', nameField.className, nextStep === 'name' && ACCENT_FILL)}
           aria-label="Initiative name"
           aria-describedby={GUIDANCE_ID}
           placeholder="Name this initiative"
@@ -84,14 +90,14 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
           value={teamId}
           onValueChange={setPicked}
           aria-describedby={GUIDANCE_ID}
-          className={nextStep === 'team' ? HIGHLIGHT : ''}
+          className={nextStep === 'team' ? ACCENT_FILL : ''}
         />
         <Badge variant="subtle">Draft</Badge>
         <Button
           type="button"
           size="sm"
           disabled={nextStep !== 'create'}
-          className={nextStep === 'create' ? 'ring-2 ring-brand-accent ring-offset-2' : ''}
+          className={nextStep === 'create' ? ACCENT_RING : ''}
           onClick={() => void create()}
         >
           Create initiative
@@ -100,6 +106,7 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
       <p id={GUIDANCE_ID} role="status" className="mt-3 mb-0 text-caption text-text-secondary">
         {guidance}
       </p>
-    </div>
+      <DraftPreview />
+    </Page>
   );
 }

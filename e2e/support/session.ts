@@ -20,9 +20,10 @@ export async function connect(page: Page, options: { remember?: boolean } = {}) 
 /** Adds a team through the Teams overview and waits until it is listed. */
 export async function createTeam(page: Page, name: string) {
   await page.goto('/#/teams');
-  // Until the dataset has loaded the top bar's button reads "Create a team" too, so wait for the page itself.
+  // Until the dataset has loaded the top bar's button reads "Create a team" too, so wait for the page itself: its
+  // title shows once it has, empty or not (§9.8).
   const empty = page.getByText('No teams yet');
-  await empty.or(page.getByRole('heading', { name: 'Teams', level: 1 })).waitFor();
+  await page.getByRole('heading', { name: 'Teams', level: 1 }).waitFor();
   if (await empty.isVisible()) await page.getByRole('button', { name: 'Create a team' }).last().click();
   else await page.getByRole('button', { name: 'New team' }).click();
   await page.getByPlaceholder('Team name').fill(name);
@@ -50,7 +51,7 @@ export async function createInitiative(page: Page, name: string, team: string) {
 
 /** Unlocks the Settings section that is open (Settings sections with destructive or rarely-changed fields start locked). */
 export async function unlockSettings(page: Page) {
-  await page.getByRole('button', { name: 'Locked' }).click();
+  await page.getByRole('button', { name: 'Unlock to edit' }).click();
 }
 
 /** Fills the empty dataset with the brand pack's example teams, people and initiatives (Settings → Danger zone). */

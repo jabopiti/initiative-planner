@@ -8,7 +8,7 @@ depends_on: ["056", "057"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Layout update' plus the lens items page shell and process visuals: F11, F16, F17, F25, F26, F27, F30. Layout options are shown as mockups before implementation (AGENTS.md Order of work, step 2); may be split in two when picked up. Backlog reshuffle (3 Oct 2026): F26 (Connect) moved to 049, which changes the same screen and message table; F13 (Copy button placement) joined from 055 and the board column header icons from 050, since the shared toolbar row here is where the button ends up."
+change_summary: "From the October 2026 UX review (docs/ux-review-2026-10.md), roadmap group 'Layout update' plus the lens items page shell and process visuals: F11, F16, F17, F25, F26, F27, F30. Layout options are shown as mockups before implementation (AGENTS.md Order of work, step 2); may be split in two when picked up. Backlog reshuffle (3 Oct 2026): F26 (Connect) moved to 049, which changes the same screen and message table; F13 (Copy button placement) joined from 055 and the board column header icons from 050, since the shared toolbar row here is where the button ends up. Review 4 Oct 2026 (mockups 058-M1 to M8): kept as one slice, delivered in four reviewed sub-slices; container, toolbar rows, time strip layout, welcome card action, Getting started edge states, locked Settings and draft previews settled and recorded in §2, §5.1, §5.2, §5.4, §5.9, §9.2, §9.4, §9.8 and §9.9."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Layout across every screen, a time strip on the busiest page, and first-run and settings states."
 spec_sections: ["§5.1 Navigation", "§5.2 Portfolio overview", "§5.4 Initiative detail view", "§5.9 Settings", "§9.4 Empty states", "§9.8 Visual design", "§9.9 Interface states", "§9.10 Icons"]
@@ -76,13 +76,25 @@ time strip; first-run and empty states each have one clear action.
 
 - [ ] Given any screen, then it uses the shared container, PageHeader and
       toolbar row.
-- [ ] Given the detail page at any width, then it is one column of at most
-      960 px with the four key figures in a row under the header.
+- [ ] Given the detail page at any width, then it is one centred column of
+      at most 960 px with the time strip and then the cost summary (059's
+      key figures row) under the header.
 - [ ] Given an initiative with periods, then the header's time strip sizes
-      each phase by its period, hatches a phase without one, marks Today,
-      and selecting a segment scrolls to that phase.
-- [ ] Given first run, then the welcome card is shown and exactly one
-      "Create a team" action is visible.
+      each phase by its period on one month axis, shows a phase without one
+      as a hatched block reading "Not costed" or "No period yet", marks
+      Today, and selecting a segment scrolls to that phase.
+- [ ] Given a screen at 1440 px, then its content sits in a centred
+      container of at most 1280 px and the top bar's content lines up with it.
+- [ ] Given first run, then the welcome card is shown, "Create a team" is
+      its only primary button, and exactly one "Create a team" action is
+      visible (the top bar's create button hidden on the Portfolio).
+- [ ] Given three of four steps done and no initiatives, then the strip
+      stays expanded above the empty state.
+- [ ] Given arrival from a Getting started step, then its target has focus
+      and the Accent highlight.
+- [ ] Given the new-initiative draft, then greyed previews of the time
+      strip, key figures and phase rows show under the header, hidden from
+      screen readers.
 - [ ] Given two of four Getting started steps done, then the strip shows
       them ticked and "2 of 4 done"; given three, it collapses to a chip
       reading "Getting started · 3 of 4 done".
@@ -92,7 +104,7 @@ time strip; first-run and empty states each have one clear action.
       <phase>".
 - [ ] Given locked Settings, then values render as text, not disabled
       fields, with "Unlock to edit" in the section header; unlocked, the
-      button reads "Lock".
+      button reads "Lock"; a locked Danger zone shows no action buttons.
 - [ ] Given each screen with a table, then "Copy table" is a ghost button
       at the right end of the toolbar row, after the count.
 - [ ] Given the e2e axe scan in both themes, then every changed screen passes.
@@ -103,6 +115,63 @@ If the session finds it too large, split as 058 (shell, detail column,
 time strip) and 058b (first-run, empty and settings states).
 
 ## Decided in review (pre-implementation)
+
+Review of 4 October 2026, mockups 058-M1 to M8 (all recommended options
+picked):
+
+- **Delivery.** One slice, four sub-slices, each reviewed, committed and
+  pushed before the next: (1) shell — container, top bar alignment,
+  PageHeader and toolbar row on every screen, Copy table, board column
+  headers and empty column; (2) detail column and time strip; (3) welcome
+  card, Getting started progress, chip and arrival highlights; (4) locked
+  Settings and draft previews. The `Slice 058:` commit comes with the last.
+- **Container (M1 A).** Centred, at most 1280 px, 32 px gutters; the top
+  bar's content aligned to the same container.
+- **Page titles (M1).** The Portfolio gets a visible "Portfolio" title;
+  Settings a visible "Settings" title above its nav and section.
+- **Portfolio toolbar (M2 A).** One row: filters left; count, Clear
+  filters and Copy table right; "Total cost · Deviation" on the line under
+  it. §5.2 updated.
+- **Other screens (M3).** Initiatives: filters left, count and Copy table
+  right. People: the status select moves into the toolbar row, count "9
+  people" added, the add-person form stays below. Teams: New team stays
+  in the header; the row holds "2 teams" and Copy table. Team page:
+  section tables keep Copy table in their section header, without a
+  count. Every Copy table is the same ghost button; one in a section is
+  named "Copy table: <section>" for screen readers.
+- **Time strip (M4 A).** Dated phases on one month axis; a phase without
+  a period is a fixed-width hatched block at its place in phase order,
+  "Not costed" or "No period yet". Past neutral with a tick, current in
+  Accent, future outlined. Today on the axis, on the current phase's block
+  when it has no period, or "Today ›" at the axis end once every period
+  has passed. A segment is a button (name, state, period and full cost in
+  its tooltip and accessible name) that scrolls to its phase, expanding
+  it. Shown on Closed and Cancelled initiatives too. Key figures stay
+  059's; this slice places today's cost summary under the strip.
+- **Welcome card (M5 B).** "Create a team" is the only primary button
+  while no team exists; Review rates keeps a text link in its row; later
+  rows plain text. No Dismiss for now on the card.
+- **Getting started (M6).** Strip "2 of 4 done" with a progress bar; at
+  three of four a dashed chip with a circle-check icon first in the
+  toolbar row, "Getting started · 3 of 4 done", whose popover reads "One
+  step left" with the step link, the bar and Dismiss for now. With no
+  initiatives (no toolbar row) the strip stays expanded (A). Arrival
+  highlight: focus plus an Accent ring and tint for 3 s (static under
+  reduced motion) on Rates are correct, New team, the add-member field,
+  and the draft's name field.
+- **Empty column.** Dashed placeholder "No initiatives in <phase>", shown
+  whenever a column is empty, filters or not.
+- **Locked Settings (M7).** Values as text; "Unlock to edit" (lock icon)
+  in the section header; Add role, Add country and Reset to weekdays
+  hidden while locked; unlocked, an Accent "Editing" tag (pencil) and
+  "Lock". The "Locked. Unlock to edit." line goes (§9.9). Danger zone
+  locked (A): headings and today's descriptions only, buttons on unlock.
+  Rates are correct stays usable while locked.
+- **Draft previews (M8 A).** Greyed, aria-hidden previews of the hatched
+  time strip, four key-figure tiles reading "—" and one row per phase.
+  The placeholder already uses the muted colour.
+
+Earlier review (2 October 2026):
 
 Mockups 045-1 to 045-7 (2 October 2026, when this slice was numbered 045):
 

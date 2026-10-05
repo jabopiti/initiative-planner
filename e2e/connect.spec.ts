@@ -8,7 +8,7 @@ test('connecting to an empty repository sets up the dataset and opens the app', 
 
   await connect(page);
 
-  await expect(page.getByText('No initiatives yet')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Welcome to/ })).toBeVisible();
   // First write-capable client creates the baseline (§3): flags, roles, countries and the empty lists.
   expect(github.paths()).toEqual(['dataset.json', 'roles.json', 'countries.json', 'teams.json', 'people.json', 'memberships.json']);
   expect(github.read<unknown[]>('roles.json')?.length).toBeGreaterThan(0);

@@ -9,6 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
 import { rootListing } from '../sync/testing/rootListing';
+import { phases } from '../test/phases';
 
 // One country: €500/day, 20 working days every month of 2026. One role, factor 0.8.
 const twenty = Array(12).fill(20);
@@ -77,7 +78,7 @@ function renderPage() {
   );
 }
 
-const validationRow = () => screen.getByRole('button', { name: /^Validation/ });
+const validationRow = () => phases().getByRole('button', { name: /^Validation/ });
 const actualsTable = async () => within(await screen.findByRole('table', { name: 'Validation actuals' }));
 const monthRow = (table: ReturnType<typeof within>, month: string) => table.getByRole('row', { name: new RegExp(`^${month}`) });
 
