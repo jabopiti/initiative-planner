@@ -151,4 +151,7 @@ export function renderView(view: React.ReactNode) {
 
 export const grid = async () => within(await screen.findByRole('region', { name: 'Capacity' }));
 export const cell = (g: ReturnType<typeof within>, name: string, month: string) => g.getByRole('button', { name: new RegExp(`^${name}, ${month}`) });
-export const tinted = (el: HTMLElement) => el.classList.contains('bg-warning-tint');
+/** A cell with the full Warning wash (§5.8). */
+export const tinted = (el: HTMLElement) => el.querySelector('[data-testid="heat-fill"]')?.classList.contains('bg-heat-over') === true;
+/** How far up a cell's accent or Warning wash rises, in % of the cell; 0 without one. */
+export const fillShare = (el: HTMLElement) => Number(el.querySelector<HTMLElement>('[data-testid="heat-fill"]')?.dataset.share ?? 0);

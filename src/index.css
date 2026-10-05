@@ -114,6 +114,9 @@
   --color-met-text: var(--met-text);
 
   --color-focus-ring: var(--focus-ring);
+  /* Capacity heatmap washes (§5.8): a share of the accent or Warning over the card; src/brand/contrast.ts checks text on them. */
+  --color-heat: color-mix(in srgb, var(--accent) 22%, var(--surface-card));
+  --color-heat-over: color-mix(in srgb, var(--warning) 22%, var(--surface-card));
 
   /* Team colours (§9.8), shown only as a swatch: bg-team-1 … bg-team-6. */
   --color-team-1: var(--team-1);

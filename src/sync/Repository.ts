@@ -1290,36 +1290,45 @@ export class Repository {
 
   /** Edit a membership's Team FTE %; `allowOver` is set only by the team detail (§5.6). */
   updateMembership(id: string, patch: Partial<Pick<Membership, 'teamFtePct' | 'active'>>, allowOver = false): void {
-    const current = this.state.memberships.find((m) => m.id === id);
-    if (!current) return;
-    const next = { ...current, ...patch };
-    if (patch.teamFtePct !== undefined && !allowOver) {
-      const person = this.state.people.find((p) => p.id === current.personId);
-      if (person) {
-        const cap = unclaimedCapacityPct(person, this.state.memberships, id);
-        next.teamFtePct = Math.min(patch.teamFtePct, cap);
-      }
+    this.updateMemberships([{ id, ...patch }], allowOver);
+  }
+
+  /**
+   * Edit several memberships as one edit, a note each (§10.3): a split bar divider moves Team FTE % from one team to
+   * the next (§5.6). Unless `allowOver`, each Team FTE % is capped at what the person has unclaimed; lowered values go
+   * first, so the room they free counts for the raised ones.
+   */
+  updateMemberships(changes: ({ id: string } & Partial<Pick<Membership, 'teamFtePct' | 'active'>>)[], allowOver = false): void {
+    const before = new Map(this.state.memberships.map((m) => [m.id, m]));
+    const rise = (c: (typeof changes)[number]) => (c.teamFtePct ?? 0) - (before.get(c.id)?.teamFtePct ?? 0);
+    let next = this.state.memberships;
+    for (const { id, ...patch } of [...changes].sort((x, y) => rise(x) - rise(y))) {
+      next = next.map((m) => {
+        if (m.id !== id) return m;
+        const person = this.state.people.find((p) => p.id === m.personId);
+        const capped = patch.teamFtePct === undefined || allowOver || !person ? patch : { ...patch, teamFtePct: Math.min(patch.teamFtePct, unclaimedCapacityPct(person, next, id)) };
+        return { ...m, ...capped };
+      });
     }
-    this.commitMemberships(
-      this.state.memberships.map((m) => (m.id === id ? next : m)),
-      this.membershipNote(id, current, next),
-    );
+    const notes = this.state.memberships.flatMap((m, i) => (next[i] !== m ? [this.membershipNote(m.id, m, next[i])] : []));
+    if (notes.length > 0) this.commitMemberships(next, notes);
   }
 
   /** A membership's note; the person and team are named as they are now, since a removal leaves no record to ask. */
   private membershipNote(id: string, from: Membership | undefined, to: Membership | undefined): CommitNote {
     const of = (m: Membership | undefined) => (m ? { who: this.personName(m.personId), where: this.teamName(m.teamId) } : undefined);
     const names = of(from ?? to) as { who: string; where: string };
-    return this.note('membership', id, 'record', from, to, (f, t) => {
-      if (!f) return `${names.who}: added to ${names.where} at ${t?.teamFtePct}%`;
-      if (!t) return `${names.who}: removed from ${names.where}`;
+    const note = this.note('membership', id, 'record', from, to, (f, t) => {
+      if (!f) return `added to ${names.where} at ${t?.teamFtePct}%`;
+      if (!t) return `removed from ${names.where}`;
       const parts: string[] = [];
       const rejoined = !f.active && t.active;
       if (rejoined) parts.push(`rejoined ${names.where}`);
       if (t.teamFtePct !== f.teamFtePct) parts.push(rejoined ? `Team FTE % set to ${t.teamFtePct}%` : `Team FTE % on ${names.where} set to ${t.teamFtePct}%`);
       if (f.active && !t.active) parts.push(`deactivated on ${names.where}`);
-      return `${names.who}: ${parts.join(', ') || 'updated'}`;
+      return parts.join(', ') || 'updated';
     });
+    return { ...note, subject: names.who };
   }
 
   private personName(id: string): string {
@@ -1371,7 +1380,7 @@ export class Repository {
     this.peopleWriter?.schedule(next, note);
   }
 
-  private commitMemberships(next: Membership[], note?: CommitNote): void {
+  private commitMemberships(next: Membership[], note?: CommitNote | CommitNote[]): void {
     this.setState({ memberships: next });
     this.membershipsWriter?.schedule(next, note);
   }

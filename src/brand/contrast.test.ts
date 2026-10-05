@@ -40,6 +40,13 @@ describe('checkBrandColours (§9.5, §10.7)', () => {
     expect(checkBrandColours(withRole('textSecondary', 'light', 'oklch(0.622 0.022 167.2)'), teams).some((f) => f.startsWith('textSecondary (light) on warningTint'))).toBe(true);
   });
 
+  it('checks text on the capacity heatmap washes, mixed from the accent and Warning over the card (§5.8)', () => {
+    // Secondary text light enough for every plain surface, but not for the accent wash under a cell's Provisional figure.
+    expect(checkBrandColours(withRole('textSecondary', 'light', 'oklch(0.49 0.017 286)'), teams)).toEqual([
+      'textSecondary (light) on the heat wash is 4.38:1, needs 4.5:1',
+    ]);
+  });
+
   it('holds the input border to 3:1, not 4.5:1', () => {
     expect(checkBrandColours(withRole('borderInput', 'dark', 'oklch(0.395 0.027 159.1)'), teams)).toContain(
       'borderInput (dark) on surfaceCard is 1.90:1, needs 3:1',

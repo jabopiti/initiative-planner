@@ -140,20 +140,23 @@ describe('People overview and team members (slice 004)', () => {
     await user.click(await screen.findByRole('button', { name: 'Linus Torvalds' }));
     const panel = await screen.findByRole('dialog', { name: 'Linus Torvalds' });
     expect(within(panel).getByText('100% of 100% claimed')).toBeInTheDocument();
-    const second = within(panel).getByRole('spinbutton', { name: 'Team FTE % for Platform' });
+    // The exact value is in the team's legend chip (§5.6, slice 062).
+    await user.click(within(panel).getByRole('button', { name: 'Platform 40%' }));
+    const second = await screen.findByRole('spinbutton', { name: 'Team FTE % for Platform' });
     await user.clear(second);
     await user.type(second, '90');
-    expect(within(panel).getByText('Max 40%. Other teams hold the rest.')).toBeInTheDocument();
+    expect(screen.getByText('Max 40%. Other teams hold the rest.')).toBeInTheDocument();
     await user.tab();
     expect(second).toHaveValue(40);
     // The cap is deliberate, so its message stays after the save, until the field is edited again.
-    expect(within(panel).getByText('Set to 40%, the most left. Other teams hold the rest.')).toBeInTheDocument();
+    expect(screen.getByText('Set to 40%, the most left. Other teams hold the rest.')).toBeInTheDocument();
     expect(second).not.toBeInvalid();
     await user.type(second, '5');
-    expect(within(panel).queryByText(/Set to 40%/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Set to 40%/)).not.toBeInTheDocument();
     await user.clear(second);
     await user.type(second, '40');
-    await user.tab();
+    await user.keyboard('{Enter}');
+    await user.keyboard('{Escape}'); // closes the popover, not the panel
     expect(within(panel).getByText('No capacity left to add to another team.')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('row', { name: /Linus Torvalds/, hidden: true })).toHaveTextContent('Payments, Platform'));
   });
@@ -254,17 +257,21 @@ describe('People overview and team members (slice 004)', () => {
     const panel = await screen.findByRole('dialog', { name: 'Lucía Ramos' });
     expect(within(panel).queryByRole('combobox', { name: 'Add to team' })).not.toBeInTheDocument(); // nothing free
 
-    const only = within(panel).getByRole('spinbutton', { name: 'Team FTE % for Payments' });
+    await user.click(within(panel).getByRole('button', { name: 'Payments 100%' }));
+    const only = await screen.findByRole('spinbutton', { name: 'Team FTE % for Payments' });
     await user.clear(only);
     await user.type(only, '60');
-    await user.tab();
+    await user.keyboard('{Enter}');
+    await user.keyboard('{Escape}');
     within(panel).getByRole('combobox', { name: 'Add to team' }).focus();
     await user.keyboard('{Enter}');
     await user.click(await screen.findByRole('option', { name: 'Platform' }));
 
-    const back = await within(panel).findByRole('spinbutton', { name: 'Team FTE % for Platform' });
+    // The rejoined team's popover opens by itself, so its cap note is seen (slice 062).
+    const back = await screen.findByRole('spinbutton', { name: 'Team FTE % for Platform' });
     expect(back).toHaveValue(40);
-    expect(within(panel).getByText('Set to 40%, the most left. Other teams hold the rest.')).toBeInTheDocument();
+    expect(screen.getByText('Set to 40%, the most left. Other teams hold the rest.')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
     goTo('t2');
     await screen.findByRole('heading', { name: 'Platform' });
     expect(screen.getAllByRole('row', { name: /Lucía Ramos/ })).toHaveLength(1);
