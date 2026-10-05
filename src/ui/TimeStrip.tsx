@@ -18,12 +18,12 @@ const AXIS_CLASS = {
 } as const;
 // Hatched and dashed for a phase without a period, the current one in Accent.
 const HATCH = 'border-dashed bg-[repeating-linear-gradient(135deg,var(--surface-subtle)_0_5px,var(--surface-card)_5px_10px)]';
-const BLOCK_CLASS = {
+export const BLOCK_CLASS = {
   done: `${HATCH} border-border-strong text-text-secondary`,
   current: 'border-dashed border-brand-accent bg-[repeating-linear-gradient(135deg,var(--accent-tint)_0_5px,var(--surface-card)_5px_10px)] text-brand-accent-text',
   ahead: `${HATCH} border-border-input text-text-primary`,
 } as const;
-const BLOCK_TEXT = { 'not-costed': 'Not costed', 'no-period': 'No period yet' } as const;
+export const BLOCK_TEXT = { 'not-costed': 'Not costed', 'no-period': 'No period yet' } as const;
 
 /**
  * The initiative header's time strip (§5.4): each phase over time, dated phases on one month axis and the others as

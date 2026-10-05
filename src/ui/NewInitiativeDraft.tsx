@@ -9,6 +9,7 @@ import { Page } from './Page';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ACCENT_FILL, ACCENT_RING, useArrival } from './arrival';
+import { DraftPreview } from './DraftPreview';
 
 const GUIDANCE_ID = 'new-initiative-guidance';
 
@@ -16,7 +17,8 @@ const GUIDANCE_ID = 'new-initiative-guidance';
  * The New initiative draft page (§5.1, §5.4): the name is typed where the initiative's page will be.
  * Nothing is written until Create initiative is chosen, which needs a name and a team; then the
  * initiative is created and its page replaces this one. Esc discards. The next thing to fill in is
- * highlighted and also named in the guidance line, so colour never carries it alone.
+ * highlighted and also named in the guidance line, so colour never carries it alone. Greyed previews of the page to
+ * come sit under the header.
  */
 export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } = {}) {
   const repository = useRepository();
@@ -104,6 +106,7 @@ export function NewInitiativeDraft({ presetTeamId }: { presetTeamId?: string } =
       <p id={GUIDANCE_ID} role="status" className="mt-3 mb-0 text-caption text-text-secondary">
         {guidance}
       </p>
+      <DraftPreview />
     </Page>
   );
 }

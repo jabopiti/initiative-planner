@@ -18,9 +18,9 @@ import { TruncatedText } from './TruncatedText';
 import { RolledFigure } from './motion';
 
 /** A key figure's tile (§5.4): its label (with an action at the right, if any), the figure, and what's beneath it. */
-function Tile({ label, action, children }: { label: string; action?: ReactNode; children: ReactNode }) {
+export function Tile({ label, action, className, children }: { label: string; action?: ReactNode; className?: string; children: ReactNode }) {
   return (
-    <div className={`${cardClass} flex min-w-0 flex-1 flex-col px-3.5 py-3`}>
+    <div className={cn(cardClass, 'flex min-w-0 flex-1 flex-col px-3.5 py-3', className)}>
       <div className="flex h-6 items-center justify-between gap-2">
         <span className="text-label text-text-secondary">{label}</span>
         {action && <div className="-mr-1.5 flex items-center gap-2">{action}</div>}
@@ -31,7 +31,7 @@ function Tile({ label, action, children }: { label: string; action?: ReactNode; 
 }
 
 /** The figure itself, display size. */
-function Figure({ children, className = '' }: { children: ReactNode; className?: string }) {
+export function Figure({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`mb-1.5 min-w-0 text-display tabular-nums break-words ${className}`}>{children}</div>;
 }
 

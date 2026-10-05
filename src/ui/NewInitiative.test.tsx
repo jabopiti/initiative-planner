@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
@@ -97,6 +97,17 @@ describe('New initiative: name it on the page (§5.1, §5.4)', () => {
     expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Select team');
     expect(screen.getByRole('button', { name: 'Create initiative' })).toBeDisabled();
     expect(screen.getByRole('status')).toHaveTextContent('Next: name the initiative.');
+    expect(screen.queryByRole('heading', { name: 'Phases' })).not.toBeInTheDocument();
+  });
+
+  it('shows greyed previews of the strip, key figures and phase rows, hidden from screen readers', async () => {
+    renderWith(<NewInitiativeDraft />);
+    await nameField();
+    const preview = screen.getByTestId('draft-preview');
+    expect(preview).toHaveAttribute('aria-hidden', 'true');
+    for (const phase of defaultBrandPack.process) expect(within(preview).getAllByText(phase.label)).toHaveLength(2);
+    expect(within(preview).getAllByText('—')).toHaveLength(4);
+    expect(within(preview).getByText(`Gate ${defaultBrandPack.process[0].exitGate.label}`)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Phases' })).not.toBeInTheDocument();
   });
 
