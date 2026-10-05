@@ -4,8 +4,10 @@ import { fakeGithub } from './support/fakeGithub';
 import { addPerson, connect, createInitiative, createTeam, enterToken, FAKE_TOKEN, loadExampleData, unlockSettings, watchCspViolations } from './support/session';
 
 // WCAG 2.1 A and AA rules, the level the app aims for. Each screen is scanned in the state a user meets it.
-// A scan that lands mid-transition (a button fading back from disabled) measures a blended colour, so it is
-// retried until the screen settles; a real violation is still there on every attempt and fails the test.
+// A scan that lands mid-transition (a button fading back from disabled, a range end fading in) measures a blended
+// colour, so it is retried until the screen settles; a real violation is still there on every attempt and fails the
+// test. One scan of a busy screen (the two-month period picker) takes seconds on a CI runner, so the retry budget
+// leaves room for several.
 async function expectNoViolations(page: Page) {
   await expect(async () => {
     // The best-practice landmark rules too: routed content sits in <main>, and nothing is left outside a landmark.
@@ -16,7 +18,7 @@ async function expectNoViolations(page: Page) {
     expect(
       violations.map((v) => ({ rule: v.id, impact: v.impact, targets: v.nodes.map((n) => n.target.join(' ')) })),
     ).toEqual([]);
-  }).toPass({ timeout: 5_000 });
+  }).toPass({ timeout: 20_000 });
 }
 
 test('the Connect screen has no accessibility violations', async ({ page }) => {
