@@ -4,7 +4,7 @@ import { allocatablePeople, freeCapacityByPerson } from './personLoad';
 import type { Initiative, Membership, Person } from './types';
 
 const process = defaultBrandPack.process;
-const [current, later] = [process[0].id, process[1].id]; // no gate records yet: the first phase is current
+const later = process[1].id;
 const TODAY = '2026-09-24';
 
 const person: Person = { id: 'ana', name: 'Ana', countryId: 'de', roleId: 'dev', capacityPct: 100, active: true };
@@ -58,7 +58,25 @@ describe('freeCapacityByPerson (§5.11, §7.2)', () => {
   });
 
   it('counts the current phase even when it starts far ahead', () => {
-    expect(free([initiative('cur', 't2', current, 90, '2027-03-01', '2027-04-30')], { startDate: '2027-03-01', endDate: '2027-03-31' })).toBe(10);
+    // A costed phase first in the process is the current one; only costed phases carry load, as in the grid.
+    const costedFirst = [process[1], process[0], ...process.slice(2)];
+    const result = freeCapacityByPerson({
+      people: [person],
+      teamId: 't1',
+      teams,
+      memberships: [membership(60)],
+      period: { startDate: '2027-03-01', endDate: '2027-03-31' },
+      initiatives: [initiative('cur', 't2', process[1].id, 90, '2027-03-01', '2027-04-30')],
+      process: costedFirst,
+      today: TODAY,
+    });
+    expect(result?.get('ana')).toBe(10);
+  });
+
+  it('looks at the months from the current month on, like the warnings', () => {
+    const inAugust = initiative('aug', 't1', later, 50, '2026-08-01', '2026-08-31');
+    expect(free([inAugust], { startDate: '2026-08-01', endDate: '2026-10-31' })).toBe(60);
+    expect(free([], { startDate: '2026-07-01', endDate: '2026-08-31' })).toBeUndefined(); // nothing left to check
   });
 
   it('leaves out initiatives that are not Active', () => {
