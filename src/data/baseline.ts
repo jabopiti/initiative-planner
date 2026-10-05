@@ -35,6 +35,7 @@ export function buildBaselineDataset(brand: BrandPack): BaselineDataset {
   const countries: Country[] = brand.freshInstallBaseline.countries.map((country) => ({
     id: newId(),
     name: country.name,
+    code: country.code,
     active: true,
     ratesByYear: country.ratesByYear.map((r) => ({
       year: r.year,

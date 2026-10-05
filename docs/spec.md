@@ -1099,7 +1099,8 @@ Contains the following sections:
   weekdays of each month; a cell that differs from the weekday count is
   tinted, and each row has **Reset to weekdays**. Years that have left the
   tracked window sit in a collapsed, read-only row (§7.2). A country can be
-  added, renamed and deactivated (§9.3); a new country's day rate is entered once
+  added, renamed, given a code and deactivated (§9.3); a new country needs a
+  name, a code and a day rate, and its day rate is entered once
   and copied to all years of the tracked window. After a day-rate or
   working-days edit, a note at the top of the open country states how many
   initiatives it changes the estimate of: those with an unfrozen allocation
@@ -1420,6 +1421,7 @@ Created when a gate is passed or skipped; cleared when it is reopened
 |---|---|---|
 | Id | UUID | Assigned when the country is created (§6) |
 | Name | Text | |
+| Code | Text | Required. A short code such as DE, shown where space is short (the period picker's working days, §9.11) |
 | Day rate | Currency, per year | Rate for the given year; one entry per year, tracked-window years editable, past years read-only (§7.2) |
 | Working days | Days, per month per year | Working days in each month of the year, prefilled with the weekdays (Monday to Friday) of that month. The user edits only the number; no holiday calendar is kept. Same window rules as day rate (§7.2) |
 | Active | Boolean | Auto; see §9.3 for deactivation rules |
@@ -1999,11 +2001,16 @@ year stepper and the twelve months. It is fully operable by keyboard.
 End; each half can be typed into ("3 Sep 2026") and opens a two-month
 calendar popover, where the half being set is outlined, the range shades
 as the pointer moves, the previous and next phases' periods are marked
-faintly, and a footer names the period, its length and the working days
-per team country, with the overlap warning (§5.4) when the start falls on
+faintly (with a legend naming them, and today marked), and a footer names
+the period, its length ("2 months", "1 month 28 days", "19 days") and the
+working days per country of the team's current members by code, prorated
+as in §7.1 and rounded to whole days ("44 working days (DE) / 43 (ES)"),
+with the overlap warning (§5.4) when the start falls on
 or before the previous phase's end. Shortcuts set the start right after
 the previous phase, or a length of 1, 2, 3 or 6 whole months. A change
-saves only on **Done**; Esc or clicking outside discards it. It is fully
+saves only on **Done** (or Enter in either half), as one commit
+("Onboarding Flow v2: Validation period set to Sep–Oct"); Esc, clicking
+outside or tabbing out of it discards it. It is fully
 operable by keyboard.
 
 **Amount input.** Every amount field (a cost item, an actual, a day rate)

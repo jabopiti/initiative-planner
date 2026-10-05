@@ -64,8 +64,8 @@ beforeEach(() => {
   ratesReviewed = false;
   countriesUnreachable = false;
   countries = [
-    { id: 'de', name: 'Germany', active: true, ratesByYear: [year(2026, 1000), year(2027, 1000), year(2028, 1000)] },
-    { id: 'es', name: 'Spain', active: true, ratesByYear: [year(2026, 800), year(2027, 800), year(2028, 800)] },
+    { id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [year(2026, 1000), year(2027, 1000), year(2028, 1000)] },
+    { id: 'es', name: 'Spain', code: 'ES', active: true, ratesByYear: [year(2026, 800), year(2027, 800), year(2028, 800)] },
   ];
   people = [{ id: 'ana', name: 'Ana Ruiz', countryId: 'de', roleId: 'dev', capacityPct: 100, active: true }];
   initiatives = [];
@@ -190,19 +190,43 @@ describe('Countries & rates list (§5.9)', () => {
     const user = await renderSection({ unlock: true });
     await user.click(screen.getByRole('button', { name: 'Add country' }));
     expect(screen.getByText('Used for 2026, 2027 and 2028. Working days start as the weekdays of each month.')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Code' })).toHaveAccessibleDescription('Code: e.g. DE. Shown where space is short, such as the period picker.');
     await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Portugal');
+    await user.type(screen.getByRole('textbox', { name: 'Code' }), 'PT');
     await user.type(screen.getByRole('textbox', { name: 'Day rate' }), '600');
     await user.click(screen.getByRole('button', { name: 'Add' }));
 
     const [put] = await saved('countries.json');
     expect(put.message).toBe('Countries: Portugal added');
     const portugal = (put.content as Country[]).find((c) => c.name === 'Portugal')!;
+    expect(portugal.code).toBe('PT');
     expect(portugal.ratesByYear.map((r) => [r.year, r.dayRate])).toEqual([
       [2026, 600],
       [2027, 600],
       [2028, 600],
     ]);
     expect(portugal.ratesByYear[2].workingDaysByMonth).toEqual(weekdaysByMonth(2028));
+  });
+
+  it('refuses a new country without a code (§6)', async () => {
+    const user = await renderSection({ unlock: true });
+    await user.click(screen.getByRole('button', { name: 'Add country' }));
+    await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Portugal');
+    await user.type(screen.getByRole('textbox', { name: 'Day rate' }), '600');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    expect(screen.getByText('Enter a code.')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'New country' })).toBeInTheDocument();
+  });
+
+  it("edits a country's code beside its name, and shows it as text while locked", async () => {
+    const user = await renderSection({ unlock: true });
+    const code = screen.getByRole('textbox', { name: 'Code of Spain' });
+    expect(code).toHaveValue('ES');
+    await user.clear(code);
+    await user.type(code, 'ESP{Enter}');
+    const [put] = await saved('countries.json');
+    expect(put.message).toBe('Countries: Spain code set to ESP');
+    expect((put.content as Country[]).find((c) => c.name === 'Spain')!.code).toBe('ESP');
   });
 
   it('locking closes an unsaved new country, so nothing is added while locked', async () => {

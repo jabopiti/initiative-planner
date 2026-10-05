@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useArrival } from './arrival';
 
 const NAME_REFUSAL = 'Enter a name.';
+const CODE_REFUSAL = 'Enter a code.';
 const DAY_RATE_REFUSAL = 'Enter a day rate of 0 or more.';
 
 /** Whole days from 0 to the month's calendar days, or null (§5.9). */
@@ -100,6 +101,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
         <thead>
           <tr className="text-left text-label text-text-secondary">
             <th className="py-1 pr-2 font-medium">Name</th>
+            <th className="py-1 pr-2 font-medium">Code</th>
             <th className="py-1 pr-2 text-right font-medium">Day rate</th>
             <th className="w-10 py-1">
               <span className="sr-only">Active</span>
@@ -115,6 +117,7 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
             const ratesFailure = failure(FILE_PATHS.countries, [{ id: country.id }, 'ratesByYear']);
             const ratesConflict = conflict(FILE_PATHS.countries, [{ id: country.id }, 'ratesByYear']);
             const nameConflict = conflict(FILE_PATHS.countries, [{ id: country.id }, 'name']);
+            const codeConflict = conflict(FILE_PATHS.countries, [{ id: country.id }, 'code']);
             return (
               <Fragment key={country.id}>
                 <tr
@@ -159,6 +162,27 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                       )}
                     </div>
                   </td>
+                  <td className="py-1.5 pr-2">
+                    {lock.locked ? (
+                      country.code
+                    ) : (
+                      <CommitInput
+                        aria-label={`Code of ${country.name}`}
+                        className="w-20"
+                        value={country.code}
+                        changed={changed(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
+                        failure={failure(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
+                        conflict={inRow(codeConflict)}
+                        retryLabel={`Retry saving the code of ${country.name}`}
+                        onCommit={(text) => {
+                          const code = text.trim();
+                          if (code === '') return CODE_REFUSAL;
+                          if (code === country.code) return false;
+                          repository.updateCountry(country.id, { code });
+                        }}
+                      />
+                    )}
+                  </td>
                   <td className="py-1.5 pr-2 text-right">
                     {current ? `${formatAmount(current.dayRate, currencySymbol)} / day (${tracked[0]})` : '—'}
                   </td>
@@ -173,10 +197,11 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                     )}
                   </td>
                 </tr>
-                <ConflictRow conflict={nameConflict} label={`Name of ${country.name}`} colSpan={3} />
+                <ConflictRow conflict={nameConflict} label={`Name of ${country.name}`} colSpan={4} />
+                <ConflictRow conflict={codeConflict} label={`Code of ${country.name}`} colSpan={4} />
                 {open && (
                   <tr>
-                    <td id={tableId} colSpan={3} className="border-t border-border-default bg-surface-card px-4 pt-2 pb-3">
+                    <td id={tableId} colSpan={4} className="border-t border-border-default bg-surface-card px-4 pt-2 pb-3">
                       {impact?.countryId === country.id && <p className="m-0 mb-2 text-caption text-text-secondary">{impact.text}</p>}
                       {ratesFailure && <FailedEdit className="mb-2" failure={ratesFailure} retryLabel={`Retry saving ${country.name}’s rates`} />}
                       {ratesConflict && <ConflictBlock className="mb-2" conflict={ratesConflict} label={`${country.name}’s rates`} />}
@@ -458,7 +483,7 @@ function Dot() {
   return <span aria-hidden="true" className="pointer-events-none absolute top-0.5 right-0.5 size-1.5 rounded-full bg-text-secondary" />;
 }
 
-/** The unsaved country row: nothing is committed until Add, which needs a name and a day rate of 0 or more. */
+/** The unsaved country row: nothing is committed until Add, which needs a name, a code and a day rate of 0 or more. */
 function DraftCountryRow({
   years,
   currencySymbol,
@@ -467,20 +492,28 @@ function DraftCountryRow({
 }: {
   years: number[];
   currencySymbol: string;
-  onAdd: (draft: { name: string; dayRate: number }) => void;
+  onAdd: (draft: { name: string; code: string; dayRate: number }) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState('');
+  const [code, setCode] = useState('');
   const [dayRate, setDayRate] = useState('');
-  const [refused, setRefused] = useState<{ name?: string; dayRate?: string }>({});
+  const [refused, setRefused] = useState<{ name?: string; code?: string; dayRate?: string }>({});
   const nameErrorId = useId();
+  const codeErrorId = useId();
+  const codeHintId = useId();
   const hintId = useId();
 
   const add = () => {
     const trimmed = name.trim();
     const parsed = parseAmountExpression(dayRate);
-    setRefused({ name: trimmed === '' ? NAME_REFUSAL : undefined, dayRate: parsed.ok ? undefined : amountRefusal(parsed.reason, DAY_RATE_REFUSAL) });
-    if (trimmed !== '' && parsed.ok) onAdd({ name: trimmed, dayRate: parsed.value });
+    const trimmedCode = code.trim();
+    setRefused({
+      name: trimmed === '' ? NAME_REFUSAL : undefined,
+      code: trimmedCode === '' ? CODE_REFUSAL : undefined,
+      dayRate: parsed.ok ? undefined : amountRefusal(parsed.reason, DAY_RATE_REFUSAL),
+    });
+    if (trimmed !== '' && trimmedCode !== '' && parsed.ok) onAdd({ name: trimmed, code: trimmedCode, dayRate: parsed.value });
   };
   const keys = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') add();
@@ -501,6 +534,17 @@ function DraftCountryRow({
           onChange={(e) => setName(e.target.value)}
           onKeyDown={keys}
         />
+        <DraftField
+          aria-label="Code"
+          hintId={codeHintId}
+          placeholder="Code"
+          className="w-20"
+          value={code}
+          errorId={codeErrorId}
+          error={refused.code}
+          onChange={(e) => setCode(e.target.value)}
+          onKeyDown={keys}
+        />
         <AmountDraftInput
           aria-label="Day rate"
           aria-describedby={hintId}
@@ -518,6 +562,9 @@ function DraftCountryRow({
       </div>
       <p id={hintId} className="m-0 text-caption text-text-secondary">
         Used for {joinList(years.map(String))}. Working days start as the weekdays of each month.
+      </p>
+      <p id={codeHintId} className="m-0 text-caption text-text-secondary">
+        Code: e.g. DE. Shown where space is short, such as the period picker.
       </p>
       <div className="flex gap-2">
         <Button type="button" size="sm" disabled={!name.trim()} onClick={add}>

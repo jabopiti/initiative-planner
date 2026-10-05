@@ -50,7 +50,7 @@ describe('Conflict banner (§3 Conflict edge cases, §9.9)', () => {
     const plan = { startDate: '2026-10-01', endDate: '2026-11-30', allocations: [] };
     const { repo } = await open(fake, { initiatives: [initiative({ phases: { validation: plan } })] });
     fake.seed('initiatives/i1.json', initiative({ phases: { validation: { ...plan, endDate: '2026-12-15' } } }));
-    repo.setPhaseDate('i1', 'validation', 'endDate', '2026-12-01');
+    repo.setPhasePeriod('i1', 'validation', { startDate: plan.startDate, endDate: '2026-12-01' });
     await repo.flushPending();
     renderBanner(repo);
 

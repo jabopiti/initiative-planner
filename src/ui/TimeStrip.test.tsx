@@ -10,7 +10,7 @@ import { InitiativeDetail } from './InitiativeDetail';
 import { rootListing } from '../sync/testing/rootListing';
 
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }];
-const countries: Country[] = [{ id: 'de', name: 'Germany', active: true, ratesByYear: [2026, 2027].map((year) => ({ year, dayRate: 500, workingDaysByMonth: Array(12).fill(20) })) }];
+const countries: Country[] = [{ id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [2026, 2027].map((year) => ({ year, dayRate: 500, workingDaysByMonth: Array(12).fill(20) })) }];
 const teams: Team[] = [{ id: 't1', name: 'Platform', active: true }];
 const mara: Person = { id: 'mara', name: 'Mara Voss', countryId: 'de', roleId: 'dev', capacityPct: 100, active: true };
 const passed: GateRecord = { outcome: 'passed', passedOn: '2026-07-01', checklist: [] };

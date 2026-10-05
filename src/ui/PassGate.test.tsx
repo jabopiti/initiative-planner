@@ -15,7 +15,7 @@ import { findPhases, phases } from '../test/phases';
 const twenty = Array(12).fill(20);
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
 const countries: Country[] = [
-  { id: 'de', name: 'Germany', active: true, ratesByYear: [{ year: 2026, dayRate: 500, workingDaysByMonth: twenty }] },
+  { id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [{ year: 2026, dayRate: 500, workingDaysByMonth: twenty }] },
 ];
 const ana: Person = { id: 'ana', name: 'Ana Ruiz', countryId: 'de', roleId: 'dev', capacityPct: 100, active: true };
 const membership = (id: string, personId: string, teamFtePct: number): Membership => ({ id, personId, teamId: 't1', teamFtePct, active: true });
@@ -290,7 +290,7 @@ describe('a frozen phase refuses what the page no longer offers (§5.11, §8.1)'
     renderPage();
     await (await findPhases()).findByRole('button', { name: /^Validation/ });
 
-    act(() => repository.setPhaseDate('i1', validationId, 'endDate', '2026-12-31'));
+    act(() => repository.setPhasePeriod('i1', validationId, { startDate: '2026-10-01', endDate: '2026-12-31' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent("G2 was passed while you were editing, so your last change to Validation wasn't saved.");
     await user.click(screen.getByRole('button', { name: 'Dismiss' }));

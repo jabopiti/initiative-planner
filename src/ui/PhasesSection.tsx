@@ -14,14 +14,15 @@ import { isInitiativeFrozen, isPhaseFrozen, skipReason } from '../data/frozen';
 import { overdueActualMonths } from '../data/needsAttention';
 import { allocatablePeople } from '../data/personLoad';
 import { nextStepPhase, overlapWithPrevious, phaseSummary, planningGap } from '../data/phaseSummary';
+import { teamCountries, workingDaysByCountry } from '../data/period';
 import { roleLabel } from '../data/roleLabel';
 import { FILE_PATHS, type FrozenAllocation, type FrozenPhaseSnapshot, type Initiative, type PhasePlan, type Person, type Role, type Team } from '../data/types';
 import { AmountInput } from './AmountInput';
 import { ConflictRow, inRow } from './ConflictBlock';
 import { CostItemsTable } from './CostItemsTable';
 import { TIMING_LABELS } from './costItemTiming';
-import { DateInput } from './DateInput';
 import { RecalcTint } from './motion';
+import { overlapWarning, PeriodPicker, type NeighbourPhase } from './PeriodPicker';
 import { formatAmount } from './formatAmount';
 import { GateChecklistPanel } from './GateChecklistPanel';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DismissIcon, FrozenIcon, InfoIcon, OverdueIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
@@ -104,35 +105,39 @@ export function PhasesSection({ initiative, team, reveal = null }: { initiative:
         </p>
       )}
       <ol className="m-0 flex list-none flex-col gap-2 p-0">
-        {process.map((phase) => (
-          // A phase that isn't costed has no control of its own, so its row takes focus when the time strip jumps to it (§5.4).
-          <li key={phase.id} id={`phase-row-${phase.id}`} tabIndex={phase.costed ? undefined : -1} className="flex flex-col gap-2">
-            <div className={cardClass}>
-              {phase.costed ? (
-                <CostedPhase
-                  phase={phase}
-                  previous={costedPhases[costedPhases.indexOf(phase) - 1]}
-                  isNextStep={phase.id === nextStepId}
-                  initiative={initiative}
-                  team={team}
-                  loads={loads}
-                  today={today}
-                  expanded={open.has(phase.id)}
-                  onToggle={() => toggle(phase.id)}
-                />
-              ) : (
-                <div className="flex items-center gap-2 px-3 py-2.5 text-body">
-                  <GateMarker frozen={isPhaseFrozen(initiative, phase.id)} skipped={skipReason(initiative, phase.id) !== undefined} />
-                  <span className="font-medium">{phase.label}</span>
-                  <span className="text-text-muted">· not costed</span>
-                  <SkippedLabel gateLabel={phase.exitGate.label} reason={skipReason(initiative, phase.id)} withReason />
-                </div>
-              )}
-            </div>
-            {/* The gate leaving the current phase sits directly beneath it (§5.4). */}
-            {phase.id === currentId && <GateChecklistPanel initiative={initiative} phase={phase} />}
-          </li>
-        ))}
+        {process.map((phase) => {
+          const index = costedPhases.indexOf(phase);
+          return (
+            // A phase that isn't costed has no control of its own, so its row takes focus when the time strip jumps to it (§5.4).
+            <li key={phase.id} id={`phase-row-${phase.id}`} tabIndex={phase.costed ? undefined : -1} className="flex flex-col gap-2">
+              <div className={cardClass}>
+                {phase.costed ? (
+                  <CostedPhase
+                    phase={phase}
+                    previous={costedPhases[index - 1]}
+                    next={costedPhases[index + 1]}
+                    isNextStep={phase.id === nextStepId}
+                    initiative={initiative}
+                    team={team}
+                    loads={loads}
+                    today={today}
+                    expanded={open.has(phase.id)}
+                    onToggle={() => toggle(phase.id)}
+                  />
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2.5 text-body">
+                    <GateMarker frozen={isPhaseFrozen(initiative, phase.id)} skipped={skipReason(initiative, phase.id) !== undefined} />
+                    <span className="font-medium">{phase.label}</span>
+                    <span className="text-text-muted">· not costed</span>
+                    <SkippedLabel gateLabel={phase.exitGate.label} reason={skipReason(initiative, phase.id)} withReason />
+                  </div>
+                )}
+              </div>
+              {/* The gate leaving the current phase sits directly beneath it (§5.4). */}
+              {phase.id === currentId && <GateChecklistPanel initiative={initiative} phase={phase} />}
+            </li>
+          );
+        })}
       </ol>
     </section>
   );
@@ -141,6 +146,7 @@ export function PhasesSection({ initiative, team, reveal = null }: { initiative:
 function CostedPhase({
   phase,
   previous,
+  next,
   isNextStep,
   initiative,
   team,
@@ -152,6 +158,8 @@ function CostedPhase({
   phase: PhaseDef;
   /** The costed phase before this one, for the overlap warning. */
   previous: PhaseDef | undefined;
+  /** The costed phase after this one, marked faintly in the period picker (§9.11). */
+  next: PhaseDef | undefined;
   /** This is the phase whose missing period or people is the highlighted next step. */
   isNextStep: boolean;
   initiative: Initiative;
@@ -184,7 +192,13 @@ function CostedPhase({
   const needsPeriod = gap === 'period';
   const needsPeople = gap === 'people';
   const overlapEnd = previous ? overlapWithPrevious(initiative.phases?.[previous.id], plan) : null;
-  const overlap = previous && overlapEnd ? `Starts before ${previous.label} ends (${formatDate(overlapEnd)}). The two phases overlap.` : null;
+  const overlap = previous && overlapEnd ? overlapWarning(previous.label, overlapEnd) : null;
+  // The period picker's neighbours and the countries its footer counts working days in (§9.11).
+  const neighbour = (p: PhaseDef | undefined): NeighbourPhase | undefined =>
+    p && { label: p.label, startDate: initiative.phases?.[p.id]?.startDate, endDate: initiative.phases?.[p.id]?.endDate };
+  const countriesOfTeam = useMemo(() => (team ? teamCountries(team.id, { memberships, people, countries }) : []), [team, memberships, people, countries]);
+  // The period is one control over two stored dates: either date's change, failure or conflict is the period's.
+  const periodPaths = (['startDate', 'endDate'] as const).map((which) => ['phases', phase.id, which]);
   // A phase behind a skipped gate stays editable, and says so with its reason (§8.2).
   const skipped = skipReason(initiative, phase.id);
   // Closed months still owing an actual (§8.5 Overdue), named on the header row so a collapsed phase says so (§5.4).
@@ -325,32 +339,20 @@ function CostedPhase({
                 data-highlight={needsPeriod || undefined}
               >
                 {needsPeriod && <p className="m-0 text-body font-medium text-brand-accent-text">Set the period to calculate cost.</p>}
-                <div className="flex flex-wrap items-start gap-4">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-caption text-text-secondary">Start date</span>
-                    <DateInput
-                      label={`${phase.label} start date`}
-                      value={plan.startDate}
-                      changed={changed(file, ['phases', phase.id, 'startDate'])}
-                      failure={failure(file, ['phases', phase.id, 'startDate'])}
-                      conflict={conflict(file, ['phases', phase.id, 'startDate'])}
-                      highlight={needsPeriod}
-                      onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'startDate', v)}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-caption text-text-secondary">End date</span>
-                    <DateInput
-                      label={`${phase.label} end date`}
-                      value={plan.endDate}
-                      changed={changed(file, ['phases', phase.id, 'endDate'])}
-                      failure={failure(file, ['phases', phase.id, 'endDate'])}
-                      conflict={conflict(file, ['phases', phase.id, 'endDate'])}
-                      openOn={plan.startDate}
-                      highlight={needsPeriod}
-                      onChange={(v) => repository.setPhaseDate(initiative.id, phase.id, 'endDate', v)}
-                    />
-                  </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-caption text-text-secondary">Period</span>
+                  <PeriodPicker
+                    phaseLabel={phase.label}
+                    value={{ startDate: plan.startDate, endDate: plan.endDate }}
+                    previous={neighbour(previous)}
+                    next={neighbour(next)}
+                    workingDays={(startIso, endIso) => workingDaysByCountry(startIso, endIso, countriesOfTeam)}
+                    highlight={needsPeriod}
+                    changed={periodPaths.some((path) => changed(file, path))}
+                    failure={periodPaths.map((path) => failure(file, path)).find(Boolean) ?? null}
+                    conflict={periodPaths.map((path) => conflict(file, path)).find(Boolean) ?? null}
+                    onSave={(period) => repository.setPhasePeriod(initiative.id, phase.id, period)}
+                  />
                 </div>
               </div>
               {overlap && (

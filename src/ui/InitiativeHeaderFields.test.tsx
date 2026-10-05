@@ -13,7 +13,7 @@ import { rootListing } from '../sync/testing/rootListing';
 import { subjectOf } from '../sync/testing/commitMessage';
 
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
-const countries: Country[] = [{ id: 'de', name: 'Germany', active: true, ratesByYear: [{ year: 2026, dayRate: 500, workingDaysByMonth: Array(12).fill(20) }] }];
+const countries: Country[] = [{ id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [{ year: 2026, dayRate: 500, workingDaysByMonth: Array(12).fill(20) }] }];
 const teams: Team[] = [{ id: 't1', name: 'Platform', active: true }];
 const person = (id: string, name: string, extra: Partial<Person> = {}): Person => ({ id, name, countryId: 'de', roleId: 'dev', capacityPct: 100, active: true, ...extra });
 // Mara and Felix are on Platform; Carla is not on any team; Sofia has since been deactivated.

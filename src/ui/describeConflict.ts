@@ -188,6 +188,7 @@ const masterFiles: Record<string, MasterFile> = {
     fields: (ctx) => ({
       '': { label: 'Country', format: (c) => (c as Country).name, unset: 'removed' },
       name: nameField,
+      code: { label: 'Code', format: text },
       active: statusField,
       // The year entries have no ids, so they merge as one value (§5.9 review): the conflict names the rates as a whole.
       ratesByYear: {

@@ -12,7 +12,7 @@ const teams: Team[] = [
 ];
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }];
 const twenty = Array(12).fill(20);
-const countries: Country[] = [{ id: 'de', name: 'Germany', active: true, ratesByYear: [2026, 2027].map((year) => ({ year, dayRate: 100, workingDaysByMonth: twenty })) }];
+const countries: Country[] = [{ id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [2026, 2027].map((year) => ({ year, dayRate: 100, workingDaysByMonth: twenty })) }];
 const data = { roles, countries };
 const people: Person[] = [{ id: 'p1', name: 'Mara Voss', roleId: 'dev', countryId: 'de', capacityPct: 100, active: true }];
 // 20 days × 100 = 2000 a month.

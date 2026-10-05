@@ -34,6 +34,7 @@ const countries: Country[] = [
   {
     id: 'de',
     name: 'Germany',
+    code: 'DE',
     active: true,
     ratesByYear: [
       { year: 2026, dayRate: 500, workingDaysByMonth: twenty },

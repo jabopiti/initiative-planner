@@ -61,6 +61,18 @@ for (const colorScheme of ['light', 'dark'] as const) test(`the app screens have
   await createInitiative(page, 'Checkout Redesign', 'Platform');
   await expectNoViolations(page); // initiative detail
 
+  // The period picker open, with a range previewed (§9.11).
+  const start = page.getByRole('textbox', { name: / start date$/ }).first();
+  await start.click();
+  await start.fill('01.09.2026');
+  const picker = page.getByRole('dialog', { name: / period$/ });
+  await expect(picker).toBeVisible();
+  await picker.getByRole('button', { name: '2 months' }).click();
+  await expect(picker.getByText(/· 2 months/)).toBeVisible();
+  await expectNoViolations(page); // period picker
+  await page.keyboard.press('Escape');
+  await expect(picker).toBeHidden();
+
   // A hash navigation is same-document, so wait for something only the target screen shows before scanning.
   const section = (label: string) => () =>
     page.getByRole('navigation', { name: 'Settings sections' }).locator('[aria-current="page"]', { hasText: label });

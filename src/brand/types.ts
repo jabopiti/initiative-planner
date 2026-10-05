@@ -131,6 +131,8 @@ export interface CountryYearRates {
 
 export interface CountryBaseline {
   name: string;
+  /** A short code such as DE (§6). */
+  code: string;
   ratesByYear: CountryYearRates[];
 }
 

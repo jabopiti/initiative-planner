@@ -7,7 +7,7 @@ const process = defaultBrandPack.process;
 const [discovery, validation, development, rollout] = process.map((p) => p.id);
 
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }];
-const countries: Country[] = [{ id: 'de', name: 'Germany', active: true, ratesByYear: [2026, 2027].map((year) => ({ year, dayRate: 800, workingDaysByMonth: Array(12).fill(20) })) }];
+const countries: Country[] = [{ id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [2026, 2027].map((year) => ({ year, dayRate: 800, workingDaysByMonth: Array(12).fill(20) })) }];
 const ana: Person = { id: 'ana', name: 'Ana', countryId: 'de', roleId: 'dev', capacityPct: 100, active: true };
 const data = { roles, countries };
 

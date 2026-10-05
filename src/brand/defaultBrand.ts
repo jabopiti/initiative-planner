@@ -157,8 +157,8 @@ export const defaultBrandPack: BrandPack = {
       { name: 'Developer', abbreviation: 'Dev', costFactor: 1.0 },
     ],
     countries: [
-      { name: 'Germany', ratesByYear: germanyRates },
-      { name: 'Spain', ratesByYear: spainRates },
+      { name: 'Germany', code: 'DE', ratesByYear: germanyRates },
+      { name: 'Spain', code: 'ES', ratesByYear: spainRates },
     ],
   },
 
