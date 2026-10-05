@@ -161,7 +161,7 @@ test('the populated screens and open panels have no accessibility violations', a
 
   await page.goto('/#/settings/countries');
   await unlockSettings(page);
-  await expect(page.getByRole('button', { name: 'Unlocked' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Lock', exact: true })).toBeVisible();
   await expectNoViolations(page); // the unlocked Countries section
   expect(csp).toEqual([]);
 });

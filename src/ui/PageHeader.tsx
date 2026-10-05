@@ -11,13 +11,38 @@ export function PageHeader({ title, actions, className }: { title: ReactNode; ac
   );
 }
 
-/** A section's heading row (§9.8): the h2 at the title size, with the section's actions at the right. Sections are told apart by heading and spacing, not a box. */
-export function SectionHeader({ id, title, actions, className }: { id?: string; title: ReactNode; actions?: ReactNode; className?: string }) {
+/**
+ * A section's heading row (§9.8): the h2 at the title size, an optional `tag` beside it (outside the heading, so not
+ * part of the section's name), and the section's actions at the right. Sections are told apart by heading and spacing, not a box.
+ */
+export function SectionHeader({
+  id,
+  title,
+  tag,
+  actions,
+  className,
+}: {
+  id?: string;
+  title: ReactNode;
+  tag?: ReactNode;
+  actions?: ReactNode;
+  className?: string;
+}) {
+  const heading = (
+    <h2 id={id} className="m-0 flex min-w-0 items-center gap-2 text-title">
+      {title}
+    </h2>
+  );
   return (
     <div className={cn('mb-3 flex items-center justify-between gap-4', className)}>
-      <h2 id={id} className="m-0 flex min-w-0 items-center gap-2 text-title">
-        {title}
-      </h2>
+      {tag ? (
+        <div className="flex min-w-0 items-center gap-2">
+          {heading}
+          {tag}
+        </div>
+      ) : (
+        heading
+      )}
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>
   );

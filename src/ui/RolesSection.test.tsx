@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
@@ -73,36 +73,41 @@ function renderRoles() {
   );
 }
 
-describe('RolesSection lock (§2, §9.9)', () => {
-  it('starts locked: fields disabled, hint shown, button reads Locked', async () => {
+describe('RolesSection lock (§2, §5.9, §9.9)', () => {
+  it('starts locked: values as plain text, Unlock to edit, no Add role or row actions', async () => {
     renderRoles();
-    expect(await screen.findByRole('textbox', { name: 'Name of Tech Lead' })).toBeDisabled();
-    expect(screen.getByText('Locked. Unlock to edit.')).toBeInTheDocument();
-    const button = screen.getByRole('button', { name: 'Locked' });
-    expect(button).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: 'Add role' })).toBeDisabled();
+    const row = (await screen.findByText('Tech Lead')).closest('tr')!;
+    expect(within(row).getByText('TL')).toBeInTheDocument();
+    expect(within(row).getByText('Active')).toBeInTheDocument();
+    expect(within(row).queryByRole('textbox')).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Unlock to edit' })).toBeInTheDocument();
+    expect(screen.queryByText('Editing')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add role' })).not.toBeInTheDocument();
   });
 
-  it('unlocking enables fields and flips the button; clicking again re-locks', async () => {
+  it('unlocking shows the fields, an Editing tag and Lock; Lock re-locks', async () => {
     const user = userEvent.setup();
     renderRoles();
-    await screen.findByRole('textbox', { name: 'Name of Tech Lead' });
+    await screen.findByText('Tech Lead');
 
-    await user.click(screen.getByRole('button', { name: 'Locked' }));
-    expect(screen.getByRole('button', { name: 'Unlocked' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.queryByText('Locked. Unlock to edit.')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Unlock to edit' }));
     expect(screen.getByRole('textbox', { name: 'Name of Tech Lead' })).toBeEnabled();
+    expect(screen.getByText('Editing')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Roles' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add role' })).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Unlocked' }));
-    expect(screen.getByRole('button', { name: 'Locked' })).toBeInTheDocument();
-    expect(screen.getByText('Locked. Unlock to edit.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Lock' }));
+    expect(screen.getByRole('button', { name: 'Unlock to edit' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Name of Tech Lead' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Editing')).not.toBeInTheDocument();
   });
 });
 
 describe('RolesSection editing (§5.9)', () => {
   async function unlock(user: ReturnType<typeof userEvent.setup>) {
-    await screen.findByRole('textbox', { name: 'Name of Tech Lead' });
-    await user.click(screen.getByRole('button', { name: 'Locked' }));
+    await screen.findByText('Tech Lead');
+    await user.click(screen.getByRole('button', { name: 'Unlock to edit' }));
   }
 
   it('refuses a cost factor of 0, negative or text, saving nothing', async () => {
@@ -150,9 +155,9 @@ describe('RolesSection editing (§5.9)', () => {
     await unlock(user);
     await user.click(screen.getByRole('button', { name: 'Add role' }));
     await user.type(screen.getByRole('textbox', { name: 'Name' }), 'Designer');
-    await user.click(screen.getByRole('button', { name: 'Unlocked' }));
+    await user.click(screen.getByRole('button', { name: 'Lock' }));
     expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Locked' }));
+    await user.click(screen.getByRole('button', { name: 'Unlock to edit' }));
     expect(screen.queryByRole('textbox', { name: 'Name' })).not.toBeInTheDocument();
   });
 
@@ -235,8 +240,8 @@ describe('RolesSection impact note (§5.9, §8.1)', () => {
 
     const user = userEvent.setup();
     renderRoles();
-    await screen.findByRole('textbox', { name: 'Name of Tech Lead' });
-    await user.click(screen.getByRole('button', { name: 'Locked' }));
+    await screen.findByText('Tech Lead');
+    await user.click(screen.getByRole('button', { name: 'Unlock to edit' }));
 
     const field = screen.getByRole('spinbutton', { name: 'Cost factor for Tech Lead' });
     await user.clear(field);

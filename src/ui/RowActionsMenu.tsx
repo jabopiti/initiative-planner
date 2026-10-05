@@ -22,11 +22,11 @@ export function activeToggleAction(noun: string, active: boolean, set: (active: 
  * action is an icon alone. `label` names the row for screen readers ("Actions for Mara Voss"). Clicks stop here so
  * a row that opens a panel on click doesn't open it.
  */
-export function RowActionsMenu({ label, actions, disabled }: { label: string; actions: RowAction[]; disabled?: boolean }) {
+export function RowActionsMenu({ label, actions }: { label: string; actions: RowAction[] }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-sm" aria-label={label} disabled={disabled} className="text-text-secondary" onClick={(e) => e.stopPropagation()}>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={label} className="text-text-secondary" onClick={(e) => e.stopPropagation()}>
           <ActionsIcon />
         </Button>
       </DropdownMenuTrigger>

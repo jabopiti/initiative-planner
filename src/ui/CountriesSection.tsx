@@ -17,11 +17,10 @@ import { formatAmount } from './formatAmount';
 import { initiativeCount } from './impactNote';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, PlusIcon } from './icons';
 import { activeToggleAction, RowActionsMenu } from './RowActionsMenu';
-import { LockToggle } from './LockToggle';
+import { LockableSectionHeader, LockedActive } from './LockedSection';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { SectionHeader } from './PageHeader';
 import { useArrival } from './arrival';
 
 const NAME_REFUSAL = 'Enter a name.';
@@ -76,31 +75,27 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
 
   return (
     <section aria-labelledby="settings-countries-title" className="flex flex-col gap-1">
-      <SectionHeader
+      <LockableSectionHeader
         id="settings-countries-title"
         title="Countries & rates"
-        className="mb-0"
+        lock={lock}
         actions={
-          <>
-            {datasetFlags?.ratesReviewed ? (
-              <span className="inline-flex items-center gap-1 text-caption text-text-secondary">
-                <CheckIcon width={16} height={16} />
-                Rates reviewed
-              </span>
-            ) : (
-              // Usable while locked: it confirms the rates, it doesn't edit them (§5.9).
-              <Button {...ratesCorrect} type="button" variant="outline" size="sm" onClick={() => repository.confirmRates()}>
-                <CheckIcon width={16} height={16} />
-                Rates are correct
-              </Button>
-            )}
-            <LockToggle lock={lock} />
-          </>
+          datasetFlags?.ratesReviewed ? (
+            <span className="inline-flex items-center gap-1 text-caption text-text-secondary">
+              <CheckIcon width={16} height={16} />
+              Rates reviewed
+            </span>
+          ) : (
+            // Usable while locked: it confirms the rates, it doesn't edit them (§5.9).
+            <Button {...ratesCorrect} type="button" variant="outline" size="sm" onClick={() => repository.confirmRates()}>
+              <CheckIcon width={16} height={16} />
+              Rates are correct
+            </Button>
+          )
         }
       />
-      {lock.locked && <p className="m-0 text-caption text-text-secondary">Locked. Unlock to edit.</p>}
 
-      <table className="tabular-nums mt-3 w-full border-collapse text-body">
+      <table className="tabular-nums w-full border-collapse text-body">
         <caption className="sr-only">Countries</caption>
         <thead>
           <tr className="text-left text-label text-text-secondary">
@@ -168,13 +163,14 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                     {current ? `${formatAmount(current.dayRate, currencySymbol)} / day (${tracked[0]})` : '—'}
                   </td>
                   <td className="py-1.5 text-right">
-                    <RowActionsMenu
-                      label={`Actions for ${country.name}`}
-                      disabled={lock.locked}
-                      actions={[
-                        activeToggleAction('country', country.active, (active) => repository.updateCountry(country.id, { active })),
-                      ]}
-                    />
+                    {lock.locked ? (
+                      <LockedActive active={country.active} />
+                    ) : (
+                      <RowActionsMenu
+                        label={`Actions for ${country.name}`}
+                        actions={[activeToggleAction('country', country.active, (active) => repository.updateCountry(country.id, { active }))]}
+                      />
+                    )}
                   </td>
                 </tr>
                 <ConflictRow conflict={nameConflict} label={`Name of ${country.name}`} colSpan={3} />
@@ -222,10 +218,12 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
           }}
         />
       ) : (
-        <Button type="button" variant="outline" size="sm" className="mt-3 self-start" disabled={lock.locked} onClick={() => setDrafting(true)}>
-          <PlusIcon width={16} height={16} />
-          Add country
-        </Button>
+        !lock.locked && (
+          <Button type="button" variant="outline" size="sm" className="mt-3 self-start" onClick={() => setDrafting(true)}>
+            <PlusIcon width={16} height={16} />
+            Add country
+          </Button>
+        )
       )}
     </section>
   );

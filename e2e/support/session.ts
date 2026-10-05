@@ -51,7 +51,7 @@ export async function createInitiative(page: Page, name: string, team: string) {
 
 /** Unlocks the Settings section that is open (Settings sections with destructive or rarely-changed fields start locked). */
 export async function unlockSettings(page: Page) {
-  await page.getByRole('button', { name: 'Locked' }).click();
+  await page.getByRole('button', { name: 'Unlock to edit' }).click();
 }
 
 /** Fills the empty dataset with the brand pack's example teams, people and initiatives (Settings → Danger zone). */

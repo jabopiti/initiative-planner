@@ -72,11 +72,11 @@ describe('Leaving Settings re-locks a section (§2)', () => {
     const { unmount } = renderSettings('roles');
     await screen.findByRole('heading', { name: 'Roles', level: 2 });
 
-    await user.click(screen.getByRole('button', { name: 'Locked' }));
-    expect(screen.getByRole('button', { name: 'Unlocked' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Unlock to edit' }));
+    expect(screen.getByRole('button', { name: 'Lock' })).toBeInTheDocument();
 
     unmount(); // leaving Settings entirely
     renderSettings('roles'); // coming back
-    expect(await screen.findByRole('button', { name: 'Locked' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Unlock to edit' })).toBeInTheDocument();
   });
 });

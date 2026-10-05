@@ -3,7 +3,7 @@
  * default), sized to match the app's 18px icon convention. LogoMark is the
  * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
  */
-import { Archive, ArchiveRestore, Ban, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, Copy, CirclePause, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Play, Plus, RefreshCw, Rocket, RotateCcw, Search, SkipForward, Trash2, TrendingUp, TriangleAlert, Unlock, User, UserMinus, Users, X, type LucideIcon } from 'lucide-react';
+import { Archive, ArchiveRestore, Ban, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, Copy, CirclePause, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Pencil, Play, Plus, RefreshCw, Rocket, RotateCcw, Search, SkipForward, Trash2, TrendingUp, TriangleAlert, User, UserMinus, Users, X, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
 import type { PhaseIconName } from '../brand/types';
 
@@ -44,9 +44,9 @@ export const CompleteIcon = iconWrapper(CircleCheck);
 export const FrozenIcon = iconWrapper(Lock);
 /** A phase whose exit gate was skipped (§8.2): it stays editable, so it carries no lock. */
 export const SkippedIcon = iconWrapper(SkipForward);
-/** A locked Settings section's toggle (§2, §9.9, §9.10), and its unlocked counterpart. */
+/** A lockable Settings section's Unlock to edit and Lock button (§2, §9.9, §9.10), and its "Editing" tag while unlocked. */
 export const LockedIcon = iconWrapper(Lock);
-export const UnlockedIcon = iconWrapper(Unlock);
+export const EditingIcon = iconWrapper(Pencil);
 /** On Hold (§8.4, §9.10): the status chip, the Put on hold action and the magic bar's on-hold line; Resume is its counterpart. */
 export const OnHoldIcon = iconWrapper(Pause);
 export const ResumeIcon = iconWrapper(Play);
