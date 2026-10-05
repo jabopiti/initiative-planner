@@ -297,11 +297,11 @@ export class SeenCache {
   }
 
   async putMany(records: Iterable<[string, SeenRecord]>): Promise<void> {
-    for (const [id, record] of records) await this.put(id, record);
+    await Promise.all([...records].map(([id, record]) => this.put(id, record)));
   }
 
   async clear(): Promise<void> {
-    for (const id of (await this.all()).keys()) await del(SEEN_STORE, `${this.prefix}${id}`);
+    await Promise.all([...(await this.all()).keys()].map((id) => del(SEEN_STORE, `${this.prefix}${id}`)));
   }
 }
 

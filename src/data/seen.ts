@@ -1,6 +1,7 @@
 import type { PhaseDef } from '../brand/types';
 import { grandDeviation, grandEstimate, type RateData } from './cost';
-import { currentPhaseId, gateProgress, gateProgressText, gateRequirements } from './gate';
+import { daysBetween, localIso } from './dates';
+import { currentPhaseId, GATE_ALL_PASSED, GATE_NOTHING_TO_CHECK, gateProgress, gateProgressText, gateRequirements } from './gate';
 import type { Initiative, Person } from './types';
 
 /** The four key figures of §5.4 as the user last saw them, in the form that is compared (§9.9, §10.4). */
@@ -29,7 +30,7 @@ export function keyFigureSnapshot(initiative: Initiative, process: PhaseDef[], p
     estimate: grandEstimate(initiative, process, people, data),
     deviation: grandDeviation(initiative, process, people, data),
     phase: closed ? 'Closed' : phase.label,
-    gate: closed ? 'All passed' : requirements.length === 0 ? 'Nothing to check' : gateProgressText(gateProgress(requirements)),
+    gate: closed ? GATE_ALL_PASSED : requirements.length === 0 ? GATE_NOTHING_TO_CHECK : gateProgressText(gateProgress(requirements)),
   };
 }
 
@@ -62,7 +63,7 @@ export function seenRecord(initiative: Initiative, figures: KeyFigureSnapshot, a
 
 /** Whether an initiative opened before has changed since: its file or its key figures differ from what was recorded (§9.9). */
 export function hasChangedSince(record: SeenRecord, initiative: Initiative, figures: KeyFigureSnapshot): boolean {
-  return record.fingerprint !== fingerprint(initiative) || (Object.keys(figures) as (keyof KeyFigureSnapshot)[]).some((key) => record.figures[key] !== figures[key]);
+  return record.fingerprint !== fingerprint(initiative) || Object.keys(previousFigures(record, figures)).length > 0;
 }
 
 /** The figures that differ from `record`, with their earlier values: the previous values the page shows struck through (§9.9). */
@@ -80,8 +81,7 @@ const WEEKDAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fr
 /** The day the Portfolio line names (§9.9): "today", "yesterday", else "Tuesday 29 Sep". */
 export function formatSince(at: number, now: Date): string {
   const day = new Date(at);
-  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((startOf(now) - startOf(day)) / 86_400_000);
+  const days = daysBetween(localIso(day), localIso(now));
   if (days === 0) return 'today';
   if (days === 1) return 'yesterday';
   return `${WEEKDAYS_EN[day.getDay()]} ${day.getDate()} ${MONTHS_SHORT_EN[day.getMonth()]}`;

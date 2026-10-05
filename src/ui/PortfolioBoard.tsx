@@ -8,7 +8,7 @@ import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
 import { BulletBar } from './BulletBar';
 import { AttentionMarker, IconMarker } from './AttentionMarker';
-import { ChangedMarker } from './ChangedMarker';
+import { ChangedDot, ChangedMarker } from './ChangedMarker';
 import { useChangedInitiatives, useSeen } from '../state/SeenContext';
 import { formatSince } from '../data/seen';
 import { CompactAmount } from './CompactAmount';
@@ -87,7 +87,7 @@ function ChangedLine() {
   return (
     <div className="mb-3 flex items-center justify-between gap-3 rounded-card bg-surface-card px-3.5 py-2 text-body shadow-card">
       <p className="m-0 flex items-center gap-2">
-        <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-brand-accent" />
+        <ChangedDot />
         {plural(changed.length, 'initiative', 'initiatives')} changed since you last looked, {formatSince(changed[0].since, new Date())}
       </p>
       <Button type="button" variant="outline" size="sm" onClick={markAllSeen}>

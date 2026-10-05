@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { grandDeviation, grandEstimate, hasValidPeriod, phaseEffectiveTotal, resolveApprovalTrack } from '../data/cost';
 import { formatPeriod } from '../data/dates';
-import { currentPhaseId, gateBlockers, gateProgress, gateProgressText, gateRequirements, lastCostedPassedGate } from '../data/gate';
+import { currentPhaseId, GATE_ALL_PASSED, GATE_NOTHING_TO_CHECK, gateBlockers, gateProgress, gateProgressText, gateRequirements, lastCostedPassedGate } from '../data/gate';
 import { escalation, recordedActuals } from '../data/keyFigures';
 import { plural } from '../data/plural';
 import { useBrand } from '../state/BrandContext';
@@ -48,15 +48,13 @@ function WithPrevious({ previous, children }: { previous: string | undefined; ch
         {previous}
       </s>
       <span className="sr-only">was {previous}, now </span>
-      {children}
+      <span className="inline-block">{children}</span>
     </>
   );
 }
 
 /** A key figure that rolls to a new value and tints briefly (slice 059), as a block so a long figure wraps in its tile. */
-const Rolled = (props: { value: number; format: (n: number) => string; inline?: boolean }) => (
-  <RolledFigure value={props.value} format={props.format} className={props.inline ? '-mx-1' : '-mx-1 block'} />
-);
+const Rolled = (props: { value: number; format: (n: number) => string }) => <RolledFigure value={props.value} format={props.format} className="-mx-1 block" />;
 
 const Sub = ({ children, className }: { children: ReactNode; className?: string }) => (
   <p className={cn('m-0 mt-1 text-caption tabular-nums text-text-secondary', className)}>{children}</p>
@@ -118,7 +116,7 @@ export function CostSummary({ initiative, previous = {} }: { initiative: Initiat
           <Tile label="Grand estimate" action={<CopyButton getData={getData} noun={['line', 'lines']} iconLabel="Copy cost summary" />}>
             <Figure>
               <WithPrevious previous={previous.estimate === undefined ? undefined : formatAmount(previous.estimate, currencySymbol)}>
-                <Rolled inline={previous.estimate !== undefined} value={estimate} format={(n) => formatAmount(n, currencySymbol)} />
+                <Rolled value={estimate} format={(n) => formatAmount(n, currencySymbol)} />
               </WithPrevious>
             </Figure>
             <BulletBar
@@ -149,7 +147,7 @@ export function CostSummary({ initiative, previous = {} }: { initiative: Initiat
           <Tile label="Deviation">
             <Figure className={deviation > 0 ? 'text-warning-text' : ''}>
               <WithPrevious previous={previous.deviation === undefined ? undefined : formatSignedAmount(previous.deviation, currencySymbol)}>
-                <Rolled inline={previous.deviation !== undefined} value={deviation} format={(n) => formatSignedAmount(n, currencySymbol)} />
+                <Rolled value={deviation} format={(n) => formatSignedAmount(n, currencySymbol)} />
               </WithPrevious>
             </Figure>
             <Sub>{deviationSub}</Sub>
@@ -182,7 +180,7 @@ export function CostSummary({ initiative, previous = {} }: { initiative: Initiat
       {closed ? (
         <Tile label="Gates">
           <Figure>
-            <WithPrevious previous={previous.gate}>All passed</WithPrevious>
+            <WithPrevious previous={previous.gate}>{GATE_ALL_PASSED}</WithPrevious>
           </Figure>
           <Sub>
             {process[0].exitGate.label} – {finalGate}
@@ -192,13 +190,13 @@ export function CostSummary({ initiative, previous = {} }: { initiative: Initiat
         <Tile label={`Gate ${phase.exitGate.label}`}>
           {requirements.length === 0 ? (
             <Figure>
-              <WithPrevious previous={previous.gate}>Nothing to check</WithPrevious>
+              <WithPrevious previous={previous.gate}>{GATE_NOTHING_TO_CHECK}</WithPrevious>
             </Figure>
           ) : (
             <>
               <Figure>
                 <WithPrevious previous={previous.gate}>
-                  <Rolled inline={previous.gate !== undefined} value={progress.complete} format={(complete) => gateProgressText({ ...progress, complete })} />
+                  <Rolled value={progress.complete} format={(complete) => gateProgressText({ ...progress, complete })} />
                 </WithPrevious>
               </Figure>
               <Sub>{open === 0 ? 'Ready to pass' : `${open} open`}</Sub>
