@@ -56,10 +56,16 @@ for (const colorScheme of ['light', 'dark'] as const) test(`the app screens have
   await add.press('ArrowDown');
   await expect(page.getByRole('option', { name: /Mara Voss/ })).toHaveAttribute('aria-selected', 'true');
   await expectNoViolations(page); // team detail
-  await add.press('Escape');
+  await add.press('Enter'); // Mara joins, so the initiative below has someone to allocate
+  await expect(page.getByRole('row', { name: /Mara Voss/ })).toBeVisible();
 
   await createInitiative(page, 'Checkout Redesign', 'Platform');
-  await expectNoViolations(page); // initiative detail
+  await expectNoViolations(page); // initiative detail, with the team roster's chip
+
+  // An allocation row with its load bar (§5.4, §9.5), added from the roster.
+  await page.getByRole('button', { name: /^Add Mara Voss/ }).first().click();
+  await expect(page.getByRole('slider', { name: 'Allocation % for Mara Voss' }).first()).toBeVisible();
+  await expectNoViolations(page); // allocation load bar
 
   // The period picker open, with a range previewed (§9.11).
   const start = page.getByRole('textbox', { name: / start date$/ }).first();

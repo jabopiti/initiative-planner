@@ -110,10 +110,11 @@ async function typeDate(user: ReturnType<typeof userEvent.setup>, label: string,
   await user.type(field, `${text}{Enter}`);
 }
 
+/** Adds a person from the roster under the table: their chip, named "Add <name>, <n>% free. <role> …" (§5.4). */
 async function addPerson(user: ReturnType<typeof userEvent.setup>, optionName: string) {
-  await user.click(await screen.findByRole('combobox', { name: 'Add person to Validation' }));
-  // With a period set the option also carries "N% free" after the name.
-  await user.click(await screen.findByRole('option', { name: (name) => name.startsWith(optionName) }));
+  const person = optionName.split(' · ')[0];
+  const roster = await screen.findByRole('group', { name: 'Add people to Validation' });
+  await user.click(within(roster).getByRole('button', { name: (name) => name.startsWith(`Add ${person}`) }));
 }
 
 const validationRow = () => phases().getByRole('button', { name: /^Validation/ });
@@ -134,7 +135,7 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     renderPage();
     await addPerson(user, 'Ana Ruiz · Developer'); // before the period: no cost yet
     const row = screen.getByRole('row', { name: /Ana Ruiz/ });
-    expect(within(row).getByLabelText('Allocation % for Ana Ruiz')).toHaveValue(60); // her Team FTE %
+    expect(within(row).getByRole('slider', { name: 'Allocation % for Ana Ruiz' })).toHaveAttribute('aria-valuenow', '60'); // her Team FTE %
     expect(within(row).getAllByText('—')).toHaveLength(2);
     expect(validationRow()).toHaveTextContent('—');
 
@@ -146,68 +147,68 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     expect(validationRow()).toHaveTextContent('1 Oct – 30 Nov 2026');
     expect(validationRow()).toHaveTextContent('€9,600');
 
-    const pct = within(row).getByLabelText('Allocation % for Ana Ruiz');
-    await user.clear(pct);
-    await user.type(pct, '50');
-    await user.keyboard('{Enter}');
+    within(row).getByRole('slider', { name: 'Allocation % for Ana Ruiz' }).focus();
+    await user.keyboard('50{Enter}');
     expect(within(row).getByText('€8,000')).toBeInTheDocument();
     expect(validationRow()).toHaveTextContent('€8,000');
   });
 
-  describe('Allocation % refuses out-of-range entries inline (§9.9)', () => {
-    async function allocationField(user: ReturnType<typeof userEvent.setup>) {
+  describe('Allocation % on the load bar (§5.4, §9.5)', () => {
+    async function allocationBar(user: ReturnType<typeof userEvent.setup>) {
       renderPage();
-      await addPerson(user, 'Ana Ruiz · Developer');
+      await addPerson(user, 'Ana Ruiz · Developer'); // at her Team FTE %, 60
+      await vi.waitFor(() => expect(puts.map((p) => p.message)).toEqual(['Payments API: Ana Ruiz added to Validation at 60%']), { timeout: 3000 }); // the add, saved on its own
       const row = screen.getByRole('row', { name: /Ana Ruiz/ });
-      return { row, pct: within(row).getByLabelText('Allocation % for Ana Ruiz') };
+      return { row, bar: within(row).getByRole('slider', { name: 'Allocation % for Ana Ruiz' }) };
     }
+    /** Writes after the add. */
+    const allocationPuts = () => puts.slice(1);
 
-    it.each([['120'], ['-5'], ['abc'], ['']])('refuses %j: nothing is saved, the field stays invalid with the message', async (typed) => {
+    it('steps by 5% with the arrow keys, Home gives 0% and End 100%, and saves once on Enter', async () => {
       const user = userEvent.setup();
-      const { row, pct } = await allocationField(user);
-      await user.clear(pct);
-      if (typed) await user.type(pct, typed);
-      await user.keyboard('{Enter}');
+      const { bar } = await allocationBar(user);
+      bar.focus();
+      await user.keyboard('{ArrowRight}');
+      expect(bar).toHaveAttribute('aria-valuenow', '65');
+      await user.keyboard('{Home}');
+      expect(bar).toHaveAttribute('aria-valuenow', '0');
+      await user.keyboard('{End}');
+      expect(bar).toHaveAttribute('aria-valuenow', '100');
+      expect(allocationPuts()).toEqual([]); // nothing saved while stepping
+      await user.keyboard('{ArrowLeft}{Enter}');
+      await vi.waitFor(() => expect(allocationPuts()).toHaveLength(1), { timeout: 3000 });
+      expect(Object.values(allocationPuts()[0].content.phases ?? {})[0]?.allocations[0].allocationPct).toBe(95);
+    });
 
-      const message = within(row).getByRole('alert');
-      expect(message).toHaveTextContent('Enter a percentage from 0 to 100.');
-      expect(pct).toBeInvalid();
-      expect(pct).toHaveAccessibleDescription('Enter a percentage from 0 to 100.');
-      if (typed === '120' || typed === '-5') expect(pct).toHaveValue(Number(typed));
-
-      // Leaving the field repeats the refusal rather than reverting.
+    it('takes typed digits, ignores one that would pass 100, and saves on blur', async () => {
+      const user = userEvent.setup();
+      const { bar } = await allocationBar(user);
+      bar.focus();
+      await user.keyboard('4');
+      expect(bar).toHaveAttribute('aria-valuenow', '4');
+      await user.keyboard('09'); // 409 would pass 100: the 9 is ignored
+      expect(bar).toHaveAttribute('aria-valuenow', '40');
       await user.tab();
-      expect(within(row).getByRole('alert')).toBeInTheDocument();
-      expect(pct).toBeInvalid();
+      expect(bar).toHaveAttribute('aria-valuenow', '40');
+      await vi.waitFor(() => expect(allocationPuts()).toHaveLength(1), { timeout: 3000 });
     });
 
-    it('puts the last saved value back on Esc and clears the message', async () => {
+    it('puts the saved value back on Esc', async () => {
       const user = userEvent.setup();
-      const { row, pct } = await allocationField(user);
-      await user.clear(pct);
-      await user.type(pct, '120');
-      await user.keyboard('{Enter}');
-      expect(within(row).getByRole('alert')).toBeInTheDocument();
-
-      await user.keyboard('{Escape}');
-      expect(pct).toHaveValue(60);
-      expect(pct).not.toBeInvalid();
-      expect(within(row).queryByRole('alert')).not.toBeInTheDocument();
+      const { bar } = await allocationBar(user);
+      bar.focus();
+      await user.keyboard('{ArrowRight}{ArrowRight}{Escape}');
+      expect(bar).toHaveAttribute('aria-valuenow', '60');
+      await user.tab();
+      expect(allocationPuts()).toEqual([]);
     });
 
-    it('saves a corrected value and clears the message', async () => {
+    it('sets a stop in one click', async () => {
       const user = userEvent.setup();
-      const { row, pct } = await allocationField(user);
-      await user.clear(pct);
-      await user.type(pct, '120');
-      await user.keyboard('{Enter}');
-      await user.clear(pct);
-      await user.type(pct, '50');
-      await user.keyboard('{Enter}');
-
-      expect(within(row).queryByRole('alert')).not.toBeInTheDocument();
-      expect(pct).not.toBeInvalid();
-      expect(pct).toHaveValue(50);
+      const { bar, row } = await allocationBar(user);
+      await user.click(within(row).getByRole('button', { name: 'Set Ana Ruiz to 25%' }));
+      expect(bar).toHaveAttribute('aria-valuenow', '25');
+      await vi.waitFor(() => expect(allocationPuts()).toHaveLength(1), { timeout: 3000 });
     });
   });
 
@@ -232,12 +233,10 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
   });
 
   it('only offers the initiative team’s members, and says so', async () => {
-    const user = userEvent.setup();
     renderPage();
-    await user.click(await screen.findByRole('combobox', { name: 'Add person to Validation' }));
-    expect(await screen.findByRole('option', { name: 'Ana Ruiz · Developer' })).toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: /Olga Nord/ })).not.toBeInTheDocument();
-    await user.keyboard('{Escape}');
+    const roster = await screen.findByRole('group', { name: 'Add people to Validation' });
+    expect(within(roster).getByRole('button', { name: /^Add Ana Ruiz/ })).toBeInTheDocument();
+    expect(within(roster).queryByRole('button', { name: /Olga Nord/ })).not.toBeInTheDocument();
     expect(screen.getByText('Only members of Payments can be allocated.')).toBeInTheDocument();
   });
 
@@ -418,7 +417,7 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     };
     renderPage();
     const row = await screen.findByRole('row', { name: /Ana Ruiz/ });
-    expect(within(row).getByLabelText('Allocation % for Ana Ruiz')).toHaveValue(50);
+    expect(within(row).getByRole('slider', { name: 'Allocation % for Ana Ruiz' })).toHaveAttribute('aria-valuenow', '50');
     expect(screen.getByRole('textbox', { name: 'Validation start date' })).toHaveValue('01/10/2026');
     expect(validationRow()).toHaveTextContent('€8,000');
   });
@@ -548,7 +547,12 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
     status: 'Active',
     phases: { [validationId]: { startDate: start, endDate: end, allocations: [{ id: 'x', personId, allocationPct: pct }] } },
   });
-  const optionTexts = () => screen.getAllByRole('option').map((o) => o.textContent);
+  /** The roster's chips, as their accessible names up to the detail: "Add Ana Ruiz, 30% free". */
+  const optionTexts = () =>
+    within(screen.getByRole('group', { name: 'Add people to Validation' }))
+      .getAllByRole('button', { name: /^Add / })
+      .map((chip) => chip.getAttribute('aria-label')!.split('. ')[0]);
+  const chip = (name: string) => screen.getByRole('button', { name: (n) => n.startsWith(`Add ${name}`) });
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -557,8 +561,8 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
   });
   afterEach(() => vi.useRealTimers());
 
-  async function openPicker(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(await screen.findByRole('combobox', { name: 'Add person to Validation' }));
+  async function openPicker(_user: ReturnType<typeof userEvent.setup>) {
+    await screen.findByRole('group', { name: 'Add people to Validation' });
   }
 
   it('lists members with their free capacity, the most free first', async () => {
@@ -566,7 +570,7 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
     const user = userEvent.setup();
     renderPage();
     await openPicker(user);
-    expect(optionTexts()).toEqual(['Cai Wu · Fractional CTO50% free', 'Ana Ruiz · Developer30% free']);
+    expect(optionTexts()).toEqual(['Add Cai Wu, 50% free', 'Add Ana Ruiz, 30% free']);
   });
 
   it('breaks a tie by name', async () => {
@@ -574,7 +578,7 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
     const user = userEvent.setup();
     renderPage();
     await openPicker(user);
-    expect(optionTexts()).toEqual(['Ana Ruiz · Developer50% free', 'Cai Wu · Fractional CTO50% free']);
+    expect(optionTexts()).toEqual(['Add Ana Ruiz, 50% free', 'Add Cai Wu, 50% free']);
   });
 
   it('keeps someone fully committed elsewhere in the list, at 0% free', async () => {
@@ -582,9 +586,9 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
     const user = userEvent.setup();
     renderPage();
     await openPicker(user);
-    expect(optionTexts()).toEqual(['Cai Wu · Fractional CTO50% free', 'Ana Ruiz · Developer0% free']);
-    await user.click(screen.getByRole('option', { name: /^Ana Ruiz/ }));
-    expect(within(screen.getByRole('row', { name: /Ana Ruiz/ })).getByLabelText('Allocation % for Ana Ruiz')).toHaveValue(0);
+    expect(optionTexts()).toEqual(['Add Cai Wu, 50% free', 'Add Ana Ruiz, 0% free']);
+    await user.click(chip('Ana Ruiz'));
+    expect(within(screen.getByRole('row', { name: /Ana Ruiz/ })).getByRole('slider', { name: 'Allocation % for Ana Ruiz' })).toHaveAttribute('aria-valuenow', '0');
   });
 
   it('prefills Allocation % with the free capacity, and it stays editable', async () => {
@@ -592,12 +596,12 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
     const user = userEvent.setup();
     renderPage();
     await openPicker(user);
-    await user.click(screen.getByRole('option', { name: /^Ana Ruiz/ }));
-    const pct = within(screen.getByRole('row', { name: /Ana Ruiz/ })).getByLabelText('Allocation % for Ana Ruiz');
-    expect(pct).toHaveValue(30);
-    await user.clear(pct);
-    await user.type(pct, '45{Enter}');
-    expect(pct).toHaveValue(45);
+    await user.click(chip('Ana Ruiz'));
+    const pct = within(screen.getByRole('row', { name: /Ana Ruiz/ })).getByRole('slider', { name: 'Allocation % for Ana Ruiz' });
+    expect(pct).toHaveAttribute('aria-valuenow', '30');
+    pct.focus();
+    await user.keyboard('45{Enter}');
+    expect(pct).toHaveAttribute('aria-valuenow', '45');
   });
 
   it('leaves out a Provisional phase: one that starts more than a month ahead', async () => {
@@ -605,7 +609,7 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
     const user = userEvent.setup();
     renderPage();
     await openPicker(user);
-    expect(optionTexts()[0]).toBe('Ana Ruiz · Developer60% free');
+    expect(optionTexts()[0]).toBe('Add Ana Ruiz, 60% free');
   });
 
   it('asks for a fixed period when the end date is before the start date', async () => {
@@ -614,7 +618,7 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
     renderPage();
     await openPicker(user);
     expect(screen.getByText('Fix the period to see who has room.')).toBeInTheDocument();
-    expect(optionTexts()).toEqual(['Ana Ruiz · Developer', 'Cai Wu · Fractional CTO']);
+    expect(optionTexts()).toEqual(['Add Ana Ruiz', 'Add Cai Wu']);
   });
 
   it('asks for the period, and lists members by name with no figures, when there is none', async () => {
@@ -623,7 +627,7 @@ describe('Add person lists free capacity, most free first (§5.11, §7.2)', () =
     renderPage();
     await openPicker(user);
     expect(screen.getByText('Set the period to see who has room.')).toBeInTheDocument();
-    expect(optionTexts()).toEqual(['Ana Ruiz · Developer', 'Cai Wu · Fractional CTO']);
+    expect(optionTexts()).toEqual(['Add Ana Ruiz', 'Add Cai Wu']);
   });
 });
 
@@ -1003,13 +1007,13 @@ describe('Copy allocations from the previous costed phase (§5.11)', () => {
     await openDevelopment(user);
     await user.click(await screen.findByRole('button', { name: 'Copy from Validation' }));
 
-    expect(within(await developmentBody().findByRole('row', { name: /Ana Ruiz/ })).getByLabelText('Allocation % for Ana Ruiz')).toHaveValue(45);
+    expect(within(await developmentBody().findByRole('row', { name: /Ana Ruiz/ })).getByRole('slider', { name: 'Allocation % for Ana Ruiz' })).toHaveAttribute('aria-valuenow', '45');
     expect(screen.getByText('Not copied: Cai Wu, no longer on Payments.')).toBeInTheDocument();
     expect(copyButton()).not.toBeInTheDocument();
 
-    const pct = developmentBody().getByLabelText('Allocation % for Ana Ruiz');
-    await user.clear(pct);
-    await user.type(pct, '50{Enter}');
+    const pct = developmentBody().getByRole('slider', { name: 'Allocation % for Ana Ruiz' });
+    pct.focus();
+    await user.keyboard('50{Enter}');
     expect(screen.queryByText(/Not copied/)).not.toBeInTheDocument();
   });
 

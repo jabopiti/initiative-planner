@@ -3,10 +3,14 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import {
   allocationWarnings,
   claimedFtePct,
+  freeCapacity,
   isPhaseConfirmed,
+  loadBarModel,
   loadsIn,
+  overflowSpans,
   raiseFix,
   reduceFix,
+  shownLoadMonth,
   teamCapacity,
   teamHasCapacityWarning,
   unclaimedCapacityPct,
@@ -393,5 +397,68 @@ describe('fix suggestions (§5.11)', () => {
     const d = data([checkout(120)], []);
     expect(raiseFix('ana', 't1', d)).toBeNull();
     expect(reduceFix(d.initiatives[0], 'validation', 'ana', d)?.allocationPct ?? null).toBe(100);
+  });
+});
+
+describe('the allocation load bar (§5.4, §5.11)', () => {
+  // 50% here, 60% on another of the team's initiatives in October and 20% on another team's from mid-October.
+  const here = initiative('here', 't1', { validation: plan('2026-10-01', '2026-11-30', ['ana', 50]) });
+  const busy = initiative('busy', 't1', { validation: plan('2026-10-01', '2026-10-31', ['ana', 60]) });
+  const elsewhere = initiative('else', 't2', { validation: plan('2026-10-15', '2026-11-30', ['ana', 20]) });
+  const all = [here, busy, elsewhere];
+  const d = data(all, [mem('ana', 't1', 100), mem('ana', 't2', 20)]);
+
+  it('splits the other counted work per month into this team and other teams, leaving this allocation out', () => {
+    const model = loadBarModel(here, 'validation', 'ana', d);
+    expect(model.months.map(({ month, onTeam, otherTeams }) => ({ month, onTeam, otherTeams }))).toEqual([
+      { month: '2026-10', onTeam: 60, otherTeams: 20 },
+      { month: '2026-11', onTeam: 0, otherTeams: 20 },
+    ]);
+    expect(model).toMatchObject({ teamFtePct: 100, capacityPct: 100, notCounted: undefined });
+  });
+
+  it('shows the month with the largest overflow, else the highest load', () => {
+    const model = loadBarModel(here, 'validation', 'ana', d);
+    expect(shownLoadMonth(model, 50)?.month).toBe('2026-10'); // 130% of 100%
+    expect(shownLoadMonth(model, 10)?.month).toBe('2026-10'); // 90% vs 30%: highest load
+  });
+
+  it('fills free to the value that clears every warning, the same as the reduce fix', () => {
+    const model = loadBarModel(here, 'validation', 'ana', d);
+    expect(freeCapacity(model.months, model)).toMatchObject({ pct: 20, limiting: { month: '2026-10' } }); // October: Capacity 100 - 60 - 20
+    expect(reduceFix(here, 'validation', 'ana', d)?.allocationPct).toBe(20);
+  });
+
+  it('marks an allocation that does not count, and why', () => {
+    const provisional = initiative('far', 't1', { validation: plan('2027-01-01', '2027-02-28', ['ana', 50]) });
+    expect(loadBarModel(provisional, 'validation', 'ana', data([provisional], [mem('ana', 't1', 100)])).notCounted).toBe('provisional');
+    const held = { ...here, status: 'On Hold' as const };
+    expect(loadBarModel(held, 'validation', 'ana', data([held], [mem('ana', 't1', 100)])).notCounted).toBe('onHold');
+    expect(loadBarModel(here, 'validation', 'ana', data([here], [mem('ana', 't1', 100)], [ana, bo], ['t1'])).notCounted).toBe('teamInactive');
+    const gone = loadBarModel(here, 'validation', 'ana', data([here], [mem('ana', 't1', 100)], [{ ...ana, active: false }]));
+    expect(gone).toMatchObject({ notCounted: 'personInactive', teamFtePct: undefined, capacityPct: undefined });
+  });
+
+  it('has no Team FTE ceiling for a non-member, and no months without a period', () => {
+    expect(loadBarModel(here, 'validation', 'ana', data(all, [])).teamFtePct).toBeUndefined();
+    const unplanned = initiative('u', 't1', { validation: { allocations: [{ id: 'x', personId: 'ana', allocationPct: 50 }] } });
+    expect(loadBarModel(unplanned, 'validation', 'ana', data([unplanned], [mem('ana', 't1', 100)])).months).toEqual([]);
+    expect(freeCapacity([], { teamFtePct: 100 })).toBeUndefined();
+  });
+
+  it('names the month that sets the free capacity, the busiest on a tie', () => {
+    const month = (m: string, onTeam: number, otherTeams: number) => ({ month: m, onTeam, otherTeams, loads: [] });
+    // Team FTE 50 binds both months at 50 free; December carries other teams' work too.
+    expect(freeCapacity([month('2026-11', 0, 0), month('2026-12', 0, 40)], { teamFtePct: 50, capacityPct: 100 })).toMatchObject({ pct: 50, limiting: { month: '2026-12' } });
+    expect(freeCapacity([month('2026-11', 0, 0)], {})).toBeUndefined();
+  });
+
+  it('hatches the stretch past each ceiling, once where they overlap', () => {
+    const model = loadBarModel(here, 'validation', 'ana', d);
+    const october = model.months[0];
+    expect(overflowSpans(model, october, 50)).toEqual([[100, 130]]); // past Team FTE (110) and Capacity (130) from 100
+    expect(overflowSpans({ ...model, teamFtePct: 60 }, october, 50)).toEqual([[60, 130]]);
+    expect(overflowSpans(model, october, 20)).toEqual([]);
+    expect(overflowSpans({ ...model, notCounted: 'provisional' }, october, 50)).toEqual([]);
   });
 });

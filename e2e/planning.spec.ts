@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { fakeGithub } from './support/fakeGithub';
-import { addPerson, connect, createInitiative, createTeam, watchCspViolations } from './support/session';
+import { addPerson, connect, createInitiative, createTeam, loadExampleData, watchCspViolations } from './support/session';
 
 interface StoredInitiative {
   name: string;
@@ -68,5 +68,33 @@ test('renaming an initiative and describing it are committed to its file', async
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Checkout Rebuild', level: 1 })).toBeVisible();
   await expect(page.getByLabel('Description')).toHaveValue('Cut abandonment in the payment step.');
+  expect(csp).toEqual([]);
+});
+
+test('dragging an allocation on its load bar commits once, on release (§5.4)', async ({ page }) => {
+  const github = fakeGithub(page);
+  const csp = watchCspViolations(page);
+  await github.install();
+  await connect(page);
+  await loadExampleData(page);
+  await page.getByRole('link', { name: 'Checkout Redesign' }).first().click();
+  const bar = page.getByRole('slider', { name: 'Allocation % for Jonas Keller' });
+  await expect(bar).toHaveAttribute('aria-valuenow', '50');
+  const before = github.writes.length;
+
+  // The control spans 0–100% of the track; drag the thumb 20% of that to the right.
+  await bar.scrollIntoViewIfNeeded();
+  const box = (await bar.boundingBox())!;
+  const track = (await page.locator('[data-slot="slider"]').filter({ has: bar }).boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  for (let step = 1; step <= 10; step++) await page.mouse.move(box.x + box.width / 2 + (track.width * 0.2 * step) / 10, box.y + box.height / 2);
+  await expect(bar).toHaveAttribute('aria-valuenow', '70');
+  await page.waitForTimeout(500);
+  expect(github.writes.length).toBe(before); // nothing saved mid-drag
+  await page.mouse.up();
+
+  await expect.poll(() => github.writes.length).toBe(before + 1);
+  expect(github.writes.at(-1)?.message).toMatch(/^Checkout Redesign: Jonas Keller set to 70% in Development/);
   expect(csp).toEqual([]);
 });
