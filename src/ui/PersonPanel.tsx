@@ -5,6 +5,7 @@ import { claimedFtePct, unclaimedCapacityPct } from '../data/capacity';
 import { joinableTeams } from '../data/teamMembers';
 import type { Person } from '../data/types';
 import { FILE_PATHS } from '../data/types';
+import type { Path } from '../sync/merge';
 import { removeMembershipWithUndo } from './undoToast';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -86,14 +87,26 @@ function PersonDetails({ person }: { person: Person }) {
     }
   };
   const teamName = (teamId: string) => teams.find((t) => t.id === teamId)?.name ?? 'Unknown team';
-  const fteField = (m: (typeof mine)[number]) => ({
-    changed: changed(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct']),
-    failure: failure(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct']),
-    conflict: conflict(FILE_PATHS.memberships, [{ id: m.id }, 'teamFtePct']),
-  });
+  const ftePath = (m: (typeof mine)[number]): Path => [{ id: m.id }, 'teamFtePct'];
+  /** A membership's Team FTE % field, in its row or its chip's popover. */
+  const fteInput = (m: (typeof mine)[number], name: string, id?: string) => (
+    <PercentInput
+      flat
+      id={id}
+      changed={changed(FILE_PATHS.memberships, ftePath(m))}
+      failure={failure(FILE_PATHS.memberships, ftePath(m))}
+      conflict={conflict(FILE_PATHS.memberships, ftePath(m))}
+      label={`Team FTE % for ${name}`}
+      value={m.teamFtePct}
+      max={unclaimedCapacityPct(person, memberships, m.id)}
+      initialCappedAt={rejoinCap?.id === m.id ? rejoinCap.pct : null}
+      onChange={(teamFtePct) => repository.updateMembership(m.id, { teamFtePct })}
+    />
+  );
   // Team FTE %s over Capacity % (raised on the team detail) don't fit one bar, so each team gets a field (§5.6); so
   // does an unsaved or conflicting value, which stays in its field until it is resolved (§9.9).
-  const asRows = claimed > person.capacityPct || mine.some((m) => fteField(m).failure || fteField(m).conflict);
+  const asRows =
+    claimed > person.capacityPct || mine.some((m) => failure(FILE_PATHS.memberships, ftePath(m)) || conflict(FILE_PATHS.memberships, ftePath(m)));
   const move = (changes: { id: string; pct: number }[]) => {
     if (changes.length === 1) repository.updateMembership(changes[0].id, { teamFtePct: changes[0].pct });
     else repository.setTeamFteSplit(changes.map((c) => ({ id: c.id, teamFtePct: c.pct })));
@@ -207,15 +220,7 @@ function PersonDetails({ person }: { person: Person }) {
                 <div key={m.id} className="flex flex-wrap items-center gap-x-2 gap-y-0 py-1">
                   <TeamSwatch teamId={m.teamId} />
                   <span className="min-w-0 flex-1 truncate text-body">{name}</span>
-                  <PercentInput
-                    flat
-                    {...fteField(m)}
-                    label={`Team FTE % for ${name}`}
-                    value={m.teamFtePct}
-                    max={unclaimedCapacityPct(person, memberships, m.id)}
-                    initialCappedAt={rejoinCap?.id === m.id ? rejoinCap.pct : null}
-                    onChange={(teamFtePct) => repository.updateMembership(m.id, { teamFtePct })}
-                  />
+                  {fteInput(m, name)}
                   <RowActionsMenu
                     label={`Actions for ${name}`}
                     actions={[{ label: 'Remove from team', icon: RemoveFromTeamIcon, onSelect: () => removeMembershipWithUndo(repository, m.id) }]}
@@ -260,16 +265,7 @@ function PersonDetails({ person }: { person: Person }) {
                             <Label htmlFor={`team-fte-${m.id}`} className="flex-1 font-normal text-text-secondary">
                               Team FTE %
                             </Label>
-                            <PercentInput
-                              flat
-                              id={`team-fte-${m.id}`}
-                              {...fteField(m)}
-                              label={`Team FTE % for ${name}`}
-                              value={m.teamFtePct}
-                              max={unclaimedCapacityPct(person, memberships, m.id)}
-                              initialCappedAt={rejoinCap?.id === m.id ? rejoinCap.pct : null}
-                              onChange={(teamFtePct) => repository.updateMembership(m.id, { teamFtePct })}
-                            />
+                            {fteInput(m, name, `team-fte-${m.id}`)}
                           </div>
                           <div className="mt-2 border-t border-border-default pt-2">
                             <Button

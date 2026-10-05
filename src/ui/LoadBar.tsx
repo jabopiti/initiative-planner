@@ -1,10 +1,10 @@
-import { useImperativeHandle, useRef, useState, type KeyboardEvent, type Ref } from 'react';
+import { useImperativeHandle, useRef, type KeyboardEvent, type Ref } from 'react';
 import { freeCapacity, overflowSpans, shownLoadMonth, type LoadBarModel, type NotCountedReason } from '../data/capacity';
 import { formatMonth } from '../data/dates';
 import { scalePct } from '../data/keyFigures';
-import { useHoldWhileEditing } from '../state/DataContext';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
+import { useBarDraft } from './useBarDraft';
 
 /** The bar's scale runs past 100% so overflow shows (§5.4); load past it is clipped with an end mark. */
 const SCALE = 150;
@@ -48,19 +48,12 @@ export function LoadBar({
   onChange: (value: number) => void;
   ref?: Ref<{ focus: () => void }>;
 }) {
-  const [draft, setDraftState] = useState<number | null>(null);
-  /** The draft as of the latest event, for a release that comes before the re-render. */
-  const latest = useRef<number | null>(null);
   const thumb = useRef<HTMLSpanElement>(null);
-  /** Digits typed since focus or the last commit (§9.5), or null when not typing. */
-  const typed = useRef<string | null>(null);
   useImperativeHandle(ref, () => ({ focus: () => thumb.current?.focus() }), []);
-  useHoldWhileEditing(draft !== null);
+  const { draft, setDraft, commit, typingKeyDown } = useBarDraft<number>((next) => {
+    if (next !== value) onChange(next);
+  });
 
-  const setDraft = (next: number | null) => {
-    latest.current = next;
-    setDraftState(next);
-  };
   const shown = draft ?? value;
   const month = shownLoadMonth(model, shown);
   const onTeam = month?.onTeam ?? 0;
@@ -71,33 +64,13 @@ export function LoadBar({
   const showFill = fill !== undefined && fill !== shown;
   const { teamFtePct: fte, capacityPct: cap } = model;
 
-  const commit = (next: number | null) => {
-    typed.current = null;
-    setDraft(null);
-    if (next !== null && next !== value) onChange(next);
+  /** A stop or Fill free saves at once, over any draft. */
+  const save = (next: number) => {
+    setDraft(next);
+    commit();
   };
 
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (/^[0-9]$/.test(e.key)) {
-      e.preventDefault();
-      const text = (typed.current ?? '') + e.key;
-      if (Number(text) > 100) return; // a digit that would pass 100 is ignored
-      typed.current = text;
-      setDraft(Number(text));
-    } else if (e.key === 'Backspace' && typed.current !== null) {
-      e.preventDefault();
-      typed.current = typed.current.slice(0, -1);
-      setDraft(Number(typed.current || '0'));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      commit(latest.current);
-    } else if (e.key === 'Escape') {
-      typed.current = null;
-      setDraft(null);
-    } else {
-      typed.current = null;
-    }
-  };
+  const onKeyDown = (e: KeyboardEvent) => typingKeyDown(e, setDraft);
 
   const valueText = reason
     ? `${shown}%, ${reason.toLowerCase()}, not counted`
@@ -166,8 +139,8 @@ export function LoadBar({
               value={[shown]}
               onValueChange={([next]) => setDraft(next)}
               // Keys and typing save on Enter or blur; a drag or a click on the bar saves on release.
-              onPointerUp={() => commit(latest.current)}
-              thumbProps={{ ref: thumb, 'aria-label': `Allocation % for ${name}`, 'aria-valuetext': valueText, 'aria-describedby': describedBy, onKeyDown, onBlur: () => commit(latest.current) }}
+              onPointerUp={commit}
+              thumbsProps={[{ ref: thumb, 'aria-label': `Allocation % for ${name}`, 'aria-valuetext': valueText, 'aria-describedby': describedBy, onKeyDown, onBlur: commit }]}
             />
           </div>
         </div>
@@ -182,7 +155,7 @@ export function LoadBar({
             className="absolute top-0 -translate-x-1/2 cursor-pointer border-0 bg-transparent p-0 text-label text-text-secondary tabular-nums hover:text-text-primary"
             style={{ left: at(stop) }}
             aria-label={`Set ${name} to ${stop}%`}
-            onClick={() => commit(stop)}
+            onClick={() => save(stop)}
           >
             {stop}
           </button>
@@ -208,7 +181,7 @@ export function LoadBar({
               className="cursor-pointer border-0 bg-transparent p-0 font-medium text-brand-accent-text hover:underline"
               aria-label={`Fill free ${fill}% for ${name}`}
               onClick={() => {
-                commit(fill);
+                save(fill);
                 // The button goes once the value fills, so focus stays on the row's bar.
                 thumb.current?.focus();
               }}

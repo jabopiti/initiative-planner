@@ -3,6 +3,7 @@ import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { loadsIn, raiseFix, reduceFix, teamCapacity, type CapacityCell, type CapacityData, type CapacityRow, type Load, type TeamCapacity } from '../data/capacity';
 import { formatMonth, formatMonthRanges, formatMonthShort, formatPeriod, localToday } from '../data/dates';
+import { scalePct } from '../data/keyFigures';
 import type { Team } from '../data/types';
 import { RaiseFixButton, ReduceFixButton } from './CapacityFixButtons';
 import { CopyButton } from './CopyButton';
@@ -185,7 +186,7 @@ function CellButton({ name, cell, teamFtePct, selected, onSelect }: { name: stri
   const { main, markers, provisional } = cellWords(cell);
   const warned = cell.overTeamFte || cell.overCapacity;
   // A person no longer on the team has no Team FTE % to fill against.
-  const share = warned ? 100 : teamFtePct ? Math.min(100, (cell.teamPct / teamFtePct) * 100) : 0;
+  const share = warned ? 100 : teamFtePct ? scalePct(cell.teamPct, teamFtePct) : 0;
   const label = [`${name}, ${formatMonth(cell.month)}: ${cell.teamPct > 0 ? pct(cell.teamPct) : '0%'}`, ...markers, ...(provisional ? [provisional] : [])].join(', ');
   return (
     <button

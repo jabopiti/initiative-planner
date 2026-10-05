@@ -8,8 +8,17 @@ import type { BrandColours, ColourRole } from './types';
 
 type Role = keyof BrandColours;
 type Oklch = [l: number, c: number, h: number];
-/** A foreground (a role, or a team colour as `teamColours[i]`), the roles it sits on, and the ratio it needs. */
-type Pair = [fg: string, bgs: Role[], min: number];
+/**
+ * The capacity heatmap's washes (§5.8): index.css's --color-heat and --color-heat-over, a share of a fill mixed over the
+ * card. The cell's number, its Provisional figure and its icons sit on them.
+ */
+const WASHES = {
+  'the heat wash': { fill: 'accent', share: 0.22 },
+  'the heat-over wash': { fill: 'warning', share: 0.22 },
+} as const satisfies Record<string, { fill: Role; share: number }>;
+type Wash = keyof typeof WASHES;
+/** A foreground (a role, or a team colour as `teamColours[i]`), the roles or washes it sits on, and the ratio it needs. */
+type Pair = [fg: string, bgs: (Role | Wash)[], min: number];
 
 const TEXT = 4.5;
 const UI = 3;
@@ -29,6 +38,9 @@ const PAIRS: Pair[] = [
   ['surfacePage', ['textPrimary'], TEXT],
   // Non-text contrast (WCAG 1.4.11): focus indicator, status fills and form-control outlines.
   ...(['focusRing', 'accent', 'met', 'warning', 'alarm', 'borderInput'] as const).map((fg): Pair => [fg, PAGE_CARD, UI]),
+  // Heatmap cells: the number and Provisional figure on either wash, the warning icons on the over wash.
+  ...(['textPrimary', 'textSecondary'] as const).map((fg): Pair => [fg, ['the heat wash', 'the heat-over wash'], TEXT]),
+  ['warningText', ['the heat-over wash'], UI],
 ];
 
 const NUM = String.raw`(\d+(?:\.\d+)?|\.\d+)`;
@@ -69,20 +81,12 @@ function mixSrgb(fg: Oklch, share: number, bg: Oklch): Rgb {
   return f.map((x, i) => decode(encode(x) * share + encode(b[i]) * (1 - share))) as Rgb;
 }
 
+const luminance = (c: Oklch) => luminanceOf(linearRgb(c));
 const wcagRatio = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 
 export function contrastRatio(a: Oklch, b: Oklch): number {
-  return wcagRatio(luminanceOf(linearRgb(a)), luminanceOf(linearRgb(b)));
+  return wcagRatio(luminance(a), luminance(b));
 }
-
-/**
- * The capacity heatmap's washes (§5.8): index.css's --color-heat and --color-heat-over, a share of a fill over the
- * card. The cell's number, its Provisional figure and its icons sit on them.
- */
-export const HEAT_WASHES: { name: string; fill: Role; share: number; on: [fg: Role, min: number][] }[] = [
-  { name: 'heat', fill: 'accent', share: 0.22, on: [['textPrimary', TEXT], ['textSecondary', TEXT]] },
-  { name: 'heat-over', fill: 'warning', share: 0.22, on: [['textPrimary', TEXT], ['textSecondary', TEXT], ['warningText', UI]] },
-];
 
 /** The number of team colours the pack defines (§2); index.css's --color-team-1..6 and src/ui/teamColors.ts match it. */
 const TEAM_COLOUR_COUNT = 6;
@@ -107,26 +111,24 @@ export function checkBrandColours(colours: BrandColours, teamColours: ColourRole
       if (p) parsed.set(name, p);
       else failures.push(`${name} (${theme}) is not an oklch(L C H) colour: "${value}"`);
     }
+    /** A background's luminance: a role's own, or a wash mixed over the card; undefined if a colour failed to parse. */
+    const bgLuminance = (bg: Role | Wash): number | undefined => {
+      if (!(bg in WASHES)) {
+        const b = parsed.get(bg);
+        return b && luminance(b);
+      }
+      const { fill, share } = WASHES[bg as Wash];
+      const [f, card] = [parsed.get(fill), parsed.get('surfaceCard')];
+      return f && card && luminanceOf(mixSrgb(f, share, card));
+    };
     for (const [fg, bgs, min] of pairs) {
       const f = parsed.get(fg);
       if (!f) continue;
       for (const bg of bgs) {
-        const b = parsed.get(bg);
-        if (!b) continue;
-        const ratio = contrastRatio(f, b);
+        const b = bgLuminance(bg);
+        if (b === undefined) continue;
+        const ratio = wcagRatio(luminance(f), b);
         if (ratio < min) failures.push(`${fg} (${theme}) on ${bg} is ${ratio.toFixed(2)}:1, needs ${min}:1`);
-      }
-    }
-    const card = parsed.get('surfaceCard');
-    for (const wash of HEAT_WASHES) {
-      const fill = parsed.get(wash.fill);
-      if (!fill || !card) continue;
-      const bg = luminanceOf(mixSrgb(fill, wash.share, card));
-      for (const [fg, min] of wash.on) {
-        const f = parsed.get(fg);
-        if (!f) continue;
-        const r = wcagRatio(luminanceOf(linearRgb(f)), bg);
-        if (r < min) failures.push(`${fg} (${theme}) on the ${wash.name} wash is ${r.toFixed(2)}:1, needs ${min}:1`);
       }
     }
   }
