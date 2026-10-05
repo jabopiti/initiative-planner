@@ -68,8 +68,11 @@ function distinctEntities(entities: EntityRef[]): EntityRef[] {
  */
 export interface CommitNote {
   entity: EntityRef;
-  /** Further entities the one edit changes, each with its own trailer (a Team FTE % moved between two teams, §5.6). */
-  also?: EntityRef[];
+  /**
+   * Who the note is about, when `words` leaves them out: notes with the same subject share it, "Lucía Ramos: Team FTE %
+   * on Platform set to 70%, Team FTE % on Growth set to 30%" (a split bar move, §5.6).
+   */
+  subject?: string;
   field: string;
   from: unknown;
   to: unknown;
@@ -174,14 +177,15 @@ export class FileWriter<D> {
 
   /**
    * Apply an edit to the on-screen document now and save it once edits settle. `note` describes the change
-   * in plain words naming the entity (§10.3); edits within one window are combined into their net effect.
+   * in plain words naming the entity (§10.3), one note per entity it changes; edits within one window are combined
+   * into their net effect.
    */
-  schedule(next: D, note?: CommitNote): void {
+  schedule(next: D, note?: CommitNote | CommitNote[]): void {
     this.replaceConflicts(next);
     this.screen = next;
     this.pending = next;
     this.clearFailure();
-    if (note) this.note(note);
+    for (const n of note === undefined ? [] : [note].flat()) this.note(n);
     this.options.onStatus('syncing');
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(() => {
@@ -355,7 +359,14 @@ export class FileWriter<D> {
 
   /** The net effect of the edits since the last save, in plain words; null when none remains. */
   private describe(): string | null {
-    const parts = [...[...this.notes.values()].map((n) => n.words(n.from, n.to)), ...this.extras.values()];
+    const groups: { subject?: string; words: string[] }[] = [];
+    for (const n of this.notes.values()) {
+      const words = n.words(n.from, n.to);
+      const same = n.subject !== undefined && groups.find((g) => g.subject === n.subject);
+      if (same) same.words.push(words);
+      else groups.push({ subject: n.subject, words: [words] });
+    }
+    const parts = [...groups.map((g) => (g.subject === undefined ? g.words[0] : `${g.subject}: ${g.words.join(', ')}`)), ...this.extras.values()];
     if (parts.length === 0) return null;
     return this.replaced ? `${parts.join('; ')} (conflict: replaced)` : parts.join('; ');
   }
@@ -366,7 +377,7 @@ export class FileWriter<D> {
 
   /** The entities with a note left, or an extra standing for one, in first-edit order. */
   private touched(): EntityRef[] {
-    return distinctEntities([...[...this.notes.values()].flatMap((n) => [n.entity, ...(n.also ?? [])]), ...this.extraEntities]);
+    return distinctEntities([...[...this.notes.values()].map((n) => n.entity), ...this.extraEntities]);
   }
 
   /** The edits so far are written into a commit: they start afresh. */

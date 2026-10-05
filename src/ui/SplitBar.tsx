@@ -26,7 +26,7 @@ const segments = (dividers: number[]) => dividers.map((d, i) => d - (i === 0 ? 0
  * unclaimed rest hatched. The divider after each team moves Team FTE % to the next team, or, after the last, claims
  * or releases unclaimed capacity up to Capacity %; no segment goes below {@link MIN_SEGMENT}. Dragged (saved on
  * release), stepped with the arrow keys, Home and End, or typed into (the team to the divider's left; saved on Enter
- * or blur, Esc reverts). While a move is unsaved, other users' changes wait (§3). `onMove` gets the changed segments.
+ * or blur, Esc reverts). While a move is unsaved, other users' changes wait (§3). `onMove` gets the changed memberships' new Team FTE %s.
  */
 export function SplitBar({
   segments: teams,
@@ -37,12 +37,12 @@ export function SplitBar({
   segments: SplitSegment[];
   capacityPct: number;
   disabled?: boolean;
-  onMove: (changes: { id: string; pct: number }[]) => void;
+  onMove: (changes: { id: string; teamFtePct: number }[]) => void;
 }) {
   const saved = cumulative(teams.map((t) => t.pct));
   const { draft, setDraft, commit, typingKeyDown } = useBarDraft<number[]>((next) => {
     const after = segments(next);
-    const changes = teams.flatMap((t, i) => (after[i] !== t.pct ? [{ id: t.id, pct: after[i] }] : []));
+    const changes = teams.flatMap((t, i) => (after[i] !== t.pct ? [{ id: t.id, teamFtePct: after[i] }] : []));
     if (changes.length > 0) onMove(changes);
   });
   const dividers = draft ?? saved;

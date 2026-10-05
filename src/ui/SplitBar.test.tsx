@@ -48,8 +48,8 @@ describe('SplitBar (§5.6, §9.5)', () => {
     await user.keyboard('{Enter}');
     expect(onMove).toHaveBeenCalledTimes(1);
     expect(onMove).toHaveBeenCalledWith([
-      { id: 'm-platform', pct: 70 },
-      { id: 'm-growth', pct: 30 },
+      { id: 'm-platform', teamFtePct: 70 },
+      { id: 'm-growth', teamFtePct: 30 },
     ]);
   });
 
@@ -63,7 +63,7 @@ describe('SplitBar (§5.6, §9.5)', () => {
     await user.keyboard('{ArrowRight}');
     expect(after).toHaveAttribute('aria-valuetext', 'Growth 30%, 0% unclaimed');
     await user.tab(); // leaving the divider saves
-    expect(onMove).toHaveBeenCalledWith([{ id: 'm-growth', pct: 30 }]);
+    expect(onMove).toHaveBeenCalledWith([{ id: 'm-growth', teamFtePct: 30 }]);
   });
 
   it('leaves every team at least 5%: Home and End go to the divider’s limits', async () => {
@@ -84,8 +84,8 @@ describe('SplitBar (§5.6, §9.5)', () => {
     between.focus();
     await user.keyboard('75{Enter}');
     expect(onMove).toHaveBeenCalledWith([
-      { id: 'm-platform', pct: 75 },
-      { id: 'm-growth', pct: 25 },
+      { id: 'm-platform', teamFtePct: 75 },
+      { id: 'm-growth', teamFtePct: 25 },
     ]);
   });
 

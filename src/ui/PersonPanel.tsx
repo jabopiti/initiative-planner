@@ -107,10 +107,6 @@ function PersonDetails({ person }: { person: Person }) {
   // does an unsaved or conflicting value, which stays in its field until it is resolved (§9.9).
   const asRows =
     claimed > person.capacityPct || mine.some((m) => failure(FILE_PATHS.memberships, ftePath(m)) || conflict(FILE_PATHS.memberships, ftePath(m)));
-  const move = (changes: { id: string; pct: number }[]) => {
-    if (changes.length === 1) repository.updateMembership(changes[0].id, { teamFtePct: changes[0].pct });
-    else repository.setTeamFteSplit(changes.map((c) => ({ id: c.id, teamFtePct: c.pct })));
-  };
 
   return (
     <>
@@ -235,7 +231,7 @@ function PersonDetails({ person }: { person: Person }) {
               segments={mine.map((m) => ({ id: m.id, name: teamName(m.teamId), pct: m.teamFtePct, colorClass: teamColor(m.teamId) }))}
               capacityPct={person.capacityPct}
               disabled={!person.active}
-              onMove={move}
+              onMove={(changes) => repository.updateMemberships(changes)}
             />
             <p className="m-0 mt-1 mb-2 text-caption text-text-secondary">
               {claimed}% of {person.capacityPct}% claimed
