@@ -935,15 +935,32 @@ The current phase shows its **period** as one
   total in the phase header covering both, and an **actuals table** with a
   row per month: the estimate, and the actual.
   Each Allocation % is set on a **load bar**: the person's load over the
-  phase's months (their highest month, the months the warnings check), with
-  this allocation, their other counted allocations (§7.2) and any overflow
-  past a ceiling as separate segments and a line at each ceiling. It is
-  dragged, stepped with the arrow keys (5%; Home 0%, End 100%), typed into
-  once focused, or set from stops at 25, 50, 75 and 100% and **Fill free
-  <n>%** (the free capacity of §5.11). A row's warnings and fix buttons sit
+  phase's months (their highest month, the months the warnings check; when
+  a ceiling is exceeded, the month with the largest overflow), with this
+  allocation in Accent, their other counted allocations (§7.2) on this team
+  and on other teams in two neutral shades, in that order, and any overflow
+  past a ceiling hatched in Warning. A labelled line marks each ceiling:
+  Team FTE % against the end of this team's work, Capacity % against the
+  whole bar, one line ("Capacity and Team FTE 100%") when they are equal.
+  The bar runs from 0 to 150%; load past that is clipped with an end mark.
+  Beside it the value shows as text ("50%"), and under it the load
+  ("110% of 100% in Nov 2026"). It is dragged, stepped with the arrow keys
+  (5%; Home 0%, End 100%), typed into once focused, or set from stops at
+  25, 50, 75 and 100% under the bar and **Fill free <n>%** (the free
+  capacity of §5.11, this allocation left out) after the load line, all
+  always visible. A drag saves on release; keys and typing save on Enter or
+  blur and Esc reverts; a stop or Fill free saves on click. An allocation
+  that doesn't count toward the ceilings (a Provisional phase, an
+  initiative or team that doesn't count, an inactive person, §7.2) shows
+  this allocation as an Accent outline, never hatched, and its reason in
+  place of the ceiling ("Provisional, not counted · 60% elsewhere in Apr
+  2027"). A row's warnings and fix buttons sit
   in a full-width row under it, so no column moves. Under the table, the
   team's active members not yet on the phase show as chips with their free
-  capacity, most free first (§5.11); a chip adds the person at that free
+  capacity, most free first (§5.11), "Sofia Molina · 50% free", with
+  "0% free" in Warning; the chip's tooltip and accessible name add the
+  person's role and where their load is ("Developer · 100% on Checkout
+  Redesign (Platform) in Oct 2026"). A chip adds the person at that free
   capacity, a member with none stays shown as "0% free", and **Copy from
   <previous costed phase>** sits in the same row. With more than 12 such
   members the chips give way to the searchable **Add person** picker.
@@ -1233,7 +1250,8 @@ local time, determined the same way as Confirmed vs. Provisional in §4.
   active members with their free capacity for the phase's months, most free
   first. Free capacity is the lower of the person's unused Team FTE % on
   this team and their unused Capacity % across all teams, taken as the
-  minimum over the months of the phase; Provisional phases and initiatives
+  minimum over the phase's months from the current month on (the months
+  the warnings and fixes check); Provisional phases and initiatives
   that do not count (§7.2) are left out. Allocation % is prefilled with the
   free capacity, so the default never causes a warning. The allocation
   table shows this list as chips under the table (§5.4).
@@ -1258,8 +1276,9 @@ local time, determined the same way as Confirmed vs. Provisional in §4.
   clears every Team FTE % warning on that team at once, offered only when
   it is within their Capacity % minus their other teams' Team FTE %s. Each
   fix is a small button naming the result ("Set to 60%", "Raise Team FTE %
-  to 80%") and one edit. On an allocation row the fixes sit on one line
-  under its warnings. In the grid's cell or row detail the raise shows once
+  to 80%") and one edit. On an allocation row the reduce is the load bar's
+  **Fill free <n>%** (the same value, §5.4), and the raise sits on one
+  line under its warnings. In the grid's cell or row detail the raise shows once
   under the warnings and the reduce beside each of this team's counted
   allocations; other teams' allocations are named, not fixed from there.
   A frozen allocation offers no reduce.
