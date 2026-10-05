@@ -219,7 +219,7 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     initiative = initiativeWith({ status: 'Cancelled' });
     renderPage();
 
-    await user.click(await screen.findByRole('button', { name: 'Record the estimate as the actual for Validation Jul 2026' }));
+    await user.click(await screen.findByRole('button', { name: /^Record €.* as the actual for Validation Jul 2026$/ }));
     await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
     expect(puts[0].message).toMatch(/^Fraud Detection Upgrade: Validation actual for Jul 2026 recorded/);
   });

@@ -5,7 +5,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, Initiative, Membership, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
-import { RepositoryProvider } from '../state/DataContext';
+import { RepositoryProvider, useRepository } from '../state/DataContext';
+import type { Repository } from '../sync/Repository';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
@@ -83,7 +84,11 @@ beforeAll(() => {
   );
 });
 afterAll(() => vi.unstubAllGlobals());
-afterEach(cleanup);
+// A debounced save still pending when a test ends lands in that test, not in the next one's `puts`.
+afterEach(async () => {
+  await repository?.flushPending();
+  cleanup();
+});
 beforeEach(() => {
   initiative = { id: 'i1', name: 'Payments API', teamId: 't1', status: 'Active' };
   members = [membership('m1', 'ana', 60), membership('m2', 'cai', 50)];
@@ -91,11 +96,19 @@ beforeEach(() => {
   puts = [];
 });
 
+/** The page's repository, so pending saves can be flushed after each test. */
+let repository: Repository | undefined;
+function GrabRepository() {
+  repository = useRepository();
+  return null;
+}
+
 function renderPage() {
   return render(
     <BrandProvider brand={defaultBrandPack}>
       <TooltipProvider>
         <RepositoryProvider token="token">
+          <GrabRepository />
           <InitiativeDetail id="i1" />
           <Toaster />
         </RepositoryProvider>
@@ -157,7 +170,7 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     async function allocationBar(user: ReturnType<typeof userEvent.setup>) {
       renderPage();
       await addPerson(user, 'Ana Ruiz · Developer'); // at her Team FTE %, 60
-      await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 }); // the add, saved on its own
+      await vi.waitFor(() => expect(puts.map((p) => p.message)).toEqual(['Payments API: Ana Ruiz added to Validation at 60%']), { timeout: 3000 }); // the add, saved on its own
       const row = screen.getByRole('row', { name: /Ana Ruiz/ });
       return { row, bar: within(row).getByRole('slider', { name: 'Allocation % for Ana Ruiz' }) };
     }
@@ -697,17 +710,14 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     const draft = await openDraft(user);
     await user.type(within(draft).getByRole('combobox', { name: 'Label' }), 'Penetration test');
     await user.type(within(draft).getByRole('textbox', { name: 'Amount' }), '12000');
-    await user.click(within(draft).getByRole('radio', { name: 'One month' }));
-    const month = within(draft).getByRole('textbox', { name: 'Month' });
-    expect(month).toHaveValue('Oct 2026'); // the phase's first month
-    await user.clear(month);
-    await user.type(month, 'Nov 2026{Enter}');
+    await user.click(within(draft).getByRole('radio', { name: /^Nov 2026,/ }));
+    expect(within(draft).getByRole('textbox', { name: 'Month' })).toHaveValue('Nov 2026');
     expect(puts.some((p) => p.message.includes(' added to Validation at €'))).toBe(false); // nothing saved before Add
     await user.click(within(draft).getByRole('button', { name: 'Add' }));
 
     const row = screen.getByRole('row', { name: /Penetration test/ });
     expect(within(row).getByLabelText('Amount for Penetration test')).toHaveValue('12000');
-    expect(within(row).getByRole('radio', { name: 'One month' })).toBeChecked();
+    expect(within(row).getByRole('radio', { name: /^Nov 2026,/ })).toBeChecked();
     expect(within(row).getByLabelText('Month for Penetration test')).toHaveValue('Nov 2026');
     expect(screen.queryByRole('group', { name: 'New cost item for Validation' })).not.toBeInTheDocument();
     expect(validationRow()).toHaveTextContent('€20,000'); // 8,000 people + 12,000 item
@@ -717,13 +727,44 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     expect(added()!.content.phases![id].costItems).toEqual([{ id: expect.any(String), label: 'Penetration test', amount: 12000, timing: 'month', month: '2026-11' }]);
   });
 
+  it('times a cost on the period\'s months: each month shows what it receives, a month alone takes all of it', async () => {
+    const user = userEvent.setup();
+    planned([], { startDate: '2026-10-01', endDate: '2027-03-31' });
+    renderPage();
+    const draft = await openDraft(user);
+    await user.type(within(draft).getByRole('combobox', { name: 'Label' }), 'Load-testing licences');
+    const strip = within(draft).getByRole('radiogroup', { name: 'When' });
+    expect(within(strip).getByRole('radio', { name: 'Oct 2026, receives nothing' })).toHaveTextContent('—');
+    await user.type(within(draft).getByRole('textbox', { name: 'Amount' }), '12k');
+    expect(within(strip).getAllByRole('radio', { name: /receives €2,000$/ })).toHaveLength(6);
+    expect(within(strip).getByRole('radio', { name: 'Oct 2026, receives €2,000' })).toHaveTextContent('€2k');
+
+    await user.click(within(strip).getByRole('radio', { name: /^Nov 2026,/ }));
+    expect(within(strip).getByRole('radio', { name: 'Nov 2026, receives €12,000' })).toHaveTextContent('€12k');
+    expect(within(strip).getByRole('radio', { name: 'Dec 2026, receives nothing' })).toHaveTextContent('—');
+    await user.click(within(draft).getByRole('button', { name: 'Add' }));
+    await vi.waitFor(() => expect(added()).toBeDefined(), { timeout: 3000 });
+    expect(added()!.content.phases![id].costItems).toEqual([{ id: expect.any(String), label: 'Load-testing licences', amount: 12000, timing: 'month', month: '2026-11' }]);
+  });
+
+  it('keeps the One month / Spread toggle while the phase has no valid period', async () => {
+    const user = userEvent.setup();
+    planned([], {});
+    renderPage();
+    const draft = await openDraft(user);
+    expect(within(draft).getByRole('radio', { name: 'Spread over the phase' })).toBeChecked();
+    expect(within(draft).queryByRole('radio', { name: /receives/ })).not.toBeInTheDocument();
+    await user.click(within(draft).getByRole('radio', { name: 'One month' }));
+    expect(within(draft).getByRole('textbox', { name: 'Month' })).toBeInTheDocument();
+  });
+
   it('adds a spread item by default, needing only a label and an amount', async () => {
     const user = userEvent.setup();
     planned();
     renderPage();
     const draft = await openDraft(user);
     expect(within(draft).getByRole('radio', { name: 'Spread over the phase' })).toBeChecked();
-    expect(within(draft).queryByRole('textbox', { name: 'Month' })).not.toBeInTheDocument();
+    expect(within(draft).getByRole('textbox', { name: 'Month' })).toHaveValue(''); // the month input waits beside the strip
     await user.type(within(draft).getByRole('combobox', { name: 'Label' }), 'Load-testing licence');
     await user.type(within(draft).getByRole('textbox', { name: 'Amount' }), '6000{Enter}');
     expect(screen.getByRole('row', { name: /Load-testing licence/ })).toBeInTheDocument();
@@ -800,7 +841,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
       await user.click(await screen.findByRole('option', { name: /Penetration test/ }));
       expect(draftLabel(draft)).toHaveValue('Penetration test');
       expect(within(draft).getByRole('textbox', { name: 'Amount' })).toHaveValue('12000');
-      expect(within(draft).getByRole('radio', { name: 'One month' })).toBeChecked();
+      expect(within(draft).getByRole('radio', { name: 'Spread over the phase' })).not.toBeChecked();
       expect(within(draft).getByRole('textbox', { name: 'Month' })).toHaveValue('');
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
 
@@ -884,15 +925,17 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     expect(puts.some((p) => p.message.includes('renamed'))).toBe(false);
   });
 
-  it('switches an item between one month and spread, keeping its month', async () => {
+  it('switches an item between one month and spread on the month strip', async () => {
     const user = userEvent.setup();
     planned([pen]);
     renderPage();
     const row = await screen.findByRole('row', { name: /Penetration test/ });
+    expect(within(row).getByRole('radio', { name: /^Oct 2026,/ })).toBeChecked();
     await user.click(within(row).getByRole('radio', { name: 'Spread over the phase' }));
-    expect(within(row).queryByRole('textbox', { name: /^Month for/ })).not.toBeInTheDocument();
-    await user.click(within(row).getByRole('radio', { name: 'One month' }));
-    expect(within(row).getByLabelText('Month for Penetration test')).toHaveValue('Oct 2026');
+    expect(within(row).getByLabelText('Month for Penetration test')).toHaveValue('');
+    await user.click(within(row).getByRole('radio', { name: /^Nov 2026,/ }));
+    expect(within(row).getByLabelText('Month for Penetration test')).toHaveValue('Nov 2026');
+    expect(within(row).getByRole('radio', { name: 'Spread over the phase' })).not.toBeChecked();
   });
 
   it('picks a month from the popover and refuses text that is not a month', async () => {

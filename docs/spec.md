@@ -968,7 +968,9 @@ The current phase shows its **period** as one
   unsaved row with a label, an amount and the timing, chosen on a strip of
   the period's months: **Spread over the phase** (the default) selects them
   all, a month selects that month alone, and each month shows the amount it
-  receives. A month outside the period is entered with the month input
+  receives as a compact amount (€2k, full amount in its tooltip; a dash while
+  the amount isn't valid yet), so the strip stays in one row and scrolls
+  sideways past twelve months. A month outside the period is entered with the month input
   (§9.11) beside the strip; a phase without a valid period offers the
   toggle One month / Spread with the month input instead. Nothing is saved
   until **Add**, which needs a label and an amount of 0 or more. A one-month
@@ -980,10 +982,13 @@ The current phase shows its **period** as one
   recorded actual shows the estimate in the "using the estimate" style with a
   **Record <estimate>** button, which records it as the actual in one act,
   and **Different amount**, which opens the amount field to record another
-  figure instead (§7.3). A recorded month shows its actual, its difference
-  from the estimate, and **Change**. Months not yet closed fold into one
+  figure instead (§7.3). The table's columns are Month, Estimate, Actual, Difference and a
+  last one for the buttons. A recorded month shows its actual, its signed
+  difference from the estimate ("+€580", "On estimate" when equal; "—" while
+  unrecorded) and **Change**, which opens the amount field with the
+  recorded figure. Months not yet closed fold into one
   line under the table ("Oct 2026 – Mar 2027 · 6 months not closed yet",
-  with their estimated total). Actuals are recorded one month at a time
+  with their estimated total: "… · €154,560 estimated"). Actuals are recorded one month at a time
   (§1, Non-goals).
 - **Gate / Checklist panel** (beneath the current phase): the current gate's
   requirements, read as "X of Y complete" (§8.1), one row per requirement.
