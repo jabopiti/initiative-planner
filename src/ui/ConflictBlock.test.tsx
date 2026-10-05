@@ -208,7 +208,7 @@ describe('In a table, and reached from the banner (§9.9)', () => {
     const block = keep.closest('[role="alert"]') as HTMLElement;
     expect(block.textContent).toContain('Theirs: 60% · Yours: 80%');
     expect(block.closest('td')?.colSpan).toBe(5);
-    expect(screen.getByRole('spinbutton', { name: 'Allocation % for Felix Brandt' }).closest('td')?.contains(block)).toBe(false);
+    expect(screen.getByRole('slider', { name: 'Allocation % for Felix Brandt' }).closest('td')?.contains(block)).toBe(false);
     await vi.waitFor(() => expect(document.activeElement).toBe(keep));
     expect(screen.queryByText(/unresolved change/)).toBeNull();
   });

@@ -180,10 +180,9 @@ describe('team size counts only active people (§5.7)', () => {
 
 describe('the phase picker lists the people the size counts (§7.2)', () => {
   it('offers active members of an active membership only, not the deactivated person', async () => {
-    const user = userEvent.setup();
     renderView(<InitiativeDetail id="i1" />);
-    await user.click(await screen.findByRole('combobox', { name: 'Add person to Validation' }));
-    const options = (await screen.findAllByRole('option')).map((o) => o.textContent);
-    expect(options).toEqual([expect.stringContaining('Ana Ruiz'), expect.stringContaining('Cai Wu')]);
+    const roster = await screen.findByRole('group', { name: 'Add people to Validation' });
+    const chips = within(roster).getAllByRole('button', { name: /^Add / }).map((chip) => chip.getAttribute('aria-label'));
+    expect(chips).toEqual([expect.stringContaining('Ana Ruiz'), expect.stringContaining('Cai Wu')]);
   });
 });

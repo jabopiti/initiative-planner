@@ -4,9 +4,9 @@ import { useFieldConflict, useRevealTarget, type FieldConflict } from '../state/
 import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState, type FieldFailure } from '../state/DataContext';
 import { lostEditKey } from '../sync/Repository';
 import type { PhaseDef } from '../brand/types';
-import { activeLoads, allocationWarnings, raiseFix, reduceFix, type Load } from '../data/capacity';
+import { activeLoads, allocationWarnings, loadBarModel, raiseFix, type Load } from '../data/capacity';
 import { actualOrEstimate, allocationFigures } from '../data/cost';
-import { RaiseFixButton, ReduceFixButton } from './CapacityFixButtons';
+import { RaiseFixButton } from './CapacityFixButtons';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { allocationsWithCost, costedPhasesFrom, currentPhaseId } from '../data/gate';
 import { copySource, skippedNote } from '../data/copyAllocations';
@@ -19,20 +19,21 @@ import { roleLabel } from '../data/roleLabel';
 import { FILE_PATHS, type FrozenAllocation, type FrozenPhaseSnapshot, type Initiative, type PhasePlan, type Person, type Role, type Team } from '../data/types';
 import { AmountInput } from './AmountInput';
 import { ConflictRow, inRow } from './ConflictBlock';
+import { FailedEdit } from './CommitInput';
 import { CostItemsTable } from './CostItemsTable';
 import { TIMING_LABELS } from './costItemTiming';
 import { RecalcTint } from './motion';
 import { overlapWarning, PeriodPicker, type NeighbourPhase } from './PeriodPicker';
 import { formatAmount } from './formatAmount';
 import { GateChecklistPanel } from './GateChecklistPanel';
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DismissIcon, FrozenIcon, InfoIcon, OverdueIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DismissIcon, FrozenIcon, InfoIcon, OverdueIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
-import { PercentInput } from './PercentInput';
+import { LoadBar } from './LoadBar';
+import { rosterDetail, TeamRoster } from './TeamRoster';
 import { TruncatedText } from './TruncatedText';
 import type { Jump } from './jumpTo';
 import { undoToast } from './undoToast';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { cardClass } from './cardClass';
 import { cn } from '@/lib/utils';
@@ -214,8 +215,8 @@ function CostedPhase({
   // is undefined without a valid period (the list is then by name) and while the phase is closed: only the open
   // phase's picker shows it. It rescans every initiative, so it is kept across renders that don't change its inputs.
   const { teamMembers, addable, free } = useMemo(
-    () => allocatablePeople({ plan, team, withFree: expanded && !frozen, people, teams, memberships, initiatives, process, today }),
-    [expanded, team, teams, memberships, people, plan, initiatives, process, frozen, today],
+    () => allocatablePeople({ plan, team, withFree: expanded && !frozen, people, teams, memberships, initiatives, process, today, loads }),
+    [expanded, team, teams, memberships, people, plan, initiatives, process, frozen, today, loads],
   );
   const capacityData = { initiatives, teams, people, memberships, process, today };
 
@@ -235,44 +236,31 @@ function CostedPhase({
     </Button>
   );
 
+  const add = (personId: string) => {
+    const result = repository.addAllocation(initiative.id, phase.id, personId, free?.get(personId));
+    setRefusal(result.ok ? null : (result.reason ?? null));
+  };
   const picker =
     team && teamMembers.length === 0 ? (
-      <p className="m-0 text-caption text-text-secondary">
-        {team.name} has no active members yet. Add people on <a href={`#/teams/${team.id}`} className="underline">the team&apos;s page</a>.
-      </p>
-    ) : addable.length > 0 ? (
-      <div className="flex items-center gap-2">
-        <PlusIcon width={16} height={16} className={needsPeople ? 'text-brand-accent-text' : 'text-text-secondary'} />
-        <Select
-          value=""
-          onValueChange={(personId) => {
-            const result = repository.addAllocation(initiative.id, phase.id, personId, free?.get(personId));
-            setRefusal(result.ok ? null : (result.reason ?? null));
-          }}
-        >
-          <SelectTrigger
-            className={`w-64 ${needsPeople ? 'border-brand-accent bg-surface-card font-medium text-brand-accent-text' : ''}`}
-            aria-label={`Add person to ${phase.label}`}
-          >
-            <SelectValue placeholder="Add person" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {!free && <SelectLabel>{inverted ? 'Fix the period to see who has room.' : 'Set the period to see who has room.'}</SelectLabel>}
-              {addable.map((p) => {
-                const pct = free?.get(p.id);
-                return (
-                  <SelectItem key={p.id} value={p.id}>
-                    <span className="flex-1">
-                      {p.name} · {roleLabel(p, roles)}
-                    </span>
-                    {pct !== undefined && <span className={`ml-4 tabular-nums ${pct === 0 ? 'text-warning-text' : 'text-text-secondary'}`}>{pct}% free</span>}
-                  </SelectItem>
-                );
-              })}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col items-start gap-2">
+        <p className="m-0 text-caption text-text-secondary">
+          {team.name} has no active members yet. Add people on <a href={`#/teams/${team.id}`} className="underline">the team&apos;s page</a>.
+        </p>
+        {copyButton}
+      </div>
+    ) : team && (addable.length > 0 || copyButton) ? (
+      <div className="flex flex-col gap-1">
+        <TeamRoster
+          phaseLabel={phase.label}
+          addable={addable}
+          free={free}
+          roles={roles}
+          detail={(p) => rosterDetail(p, roleLabel(p, roles), team, teams, plan, loads, today)}
+          highlight={needsPeople}
+          copy={copyButton}
+          onAdd={add}
+        />
+        {addable.length > 0 && !free && <p className="m-0 text-caption text-text-secondary">{inverted ? 'Fix the period to see who has room.' : 'Set the period to see who has room.'}</p>}
       </div>
     ) : null;
 
@@ -375,23 +363,26 @@ function CostedPhase({
                   <p className={`m-0 text-caption ${needsPeople ? 'font-medium text-brand-accent-text' : 'text-text-secondary'}`}>
                     Who works on {phase.label}? Add a team member to see this phase&apos;s cost.
                   </p>
-                  {(picker || copyButton) && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      {picker}
-                      {copyButton}
-                    </div>
-                  )}
+                  {picker && <div className="w-full">{picker}</div>}
                 </div>
               ) : (
-                <table className="tabular-nums w-full border-collapse text-body">
+                <table className="tabular-nums w-full table-fixed border-collapse text-body">
                   <caption className="sr-only">{phase.label} allocations</caption>
+                  {/* Fixed widths: a message never moves a column (F02); it sits in a full-width row under its row. */}
+                  <colgroup>
+                    <col className="w-[30%]" />
+                    <col />
+                    <col className="w-16" />
+                    <col className="w-28" />
+                    <col className="w-10" />
+                  </colgroup>
                   <thead>
                     <tr className="text-left text-label text-text-secondary">
                       <th className="py-1 pr-2 font-medium">Person</th>
-                      <th className="py-1 pr-2 font-medium">Allocation %</th>
+                      <th className="py-1 pr-4 font-medium">Allocation %</th>
                       <th className="py-1 pr-2 text-right font-medium">Days</th>
                       <th className="py-1 pr-2 text-right font-medium">Cost</th>
-                      <th className="w-8 py-1">
+                      <th className="py-1">
                         <span className="sr-only">Remove</span>
                       </th>
                     </tr>
@@ -402,68 +393,33 @@ function CostedPhase({
                       const figures = person ? allocationFigures(plan, person, allocation.allocationPct, rateData) : null;
                       const name = person?.name ?? 'Unknown person';
                       const warnings = allocationWarnings(initiative, phase.id, allocation.personId, capacityData, loads);
-                      // Up to two exact fixes for a capacity warning (§5.11), on one line under the warnings.
-                      const reduce = warnings.overTeamFteMonths.length + warnings.overCapacityMonths.length > 0 ? reduceFix(initiative, phase.id, allocation.personId, capacityData, loads) : null;
+                      // The raise fix sits under the warnings; the reduce is the load bar's Fill free (§5.11).
                       const raise = warnings.overTeamFteMonths.length > 0 ? raiseFix(allocation.personId, initiative.teamId, capacityData, loads) : null;
-                      /** After a fix its button is gone, so focus goes to the row's Allocation % field. */
-                      const focusField = (from: HTMLElement) => from.closest('tr')?.querySelector('input')?.focus();
-                      const pctConflict = conflict(file, ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct']);
+                      const pctPath = ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct'];
+                      const pctConflict = conflict(file, pctPath);
+                      const pctFailure = failure(file, pctPath);
+                      const rowId = `allocation-${allocation.id}`;
+                      /** After the raise its button is gone, so focus goes back to the row's load bar. */
+                      const focusBar = () => document.getElementById(rowId)?.querySelector<HTMLElement>('[role="slider"]')?.focus();
+                      const hasMessages = warnings.notMember || warnings.overTeamFteMonths.length > 0 || warnings.overCapacityMonths.length > 0 || raise || pctFailure;
                       return (
                         <Fragment key={allocation.id}>
-                        <tr className="border-t border-border-default">
-                          <td className="py-1.5 pr-2">
-                            <div>{name}</div>
-                            {person && <div className="text-caption text-text-muted">{roleLabel(person, roles)}</div>}
-                            {warnings.notMember && <InlineWarning className="mt-1">No longer a member of {team?.name ?? 'the team'}</InlineWarning>}
-                            {warnings.overTeamFteMonths.length > 0 && (
-                              <InlineWarning icon={OverTeamFteIcon} className="mt-1">
-                                Over Team FTE % in {formatMonthRanges(warnings.overTeamFteMonths)}
-                              </InlineWarning>
-                            )}
-                            {warnings.overCapacityMonths.length > 0 && (
-                              <InlineWarning icon={OverCapacityIcon} className="mt-1">
-                                Over Capacity % in {formatMonthRanges(warnings.overCapacityMonths)}
-                              </InlineWarning>
-                            )}
-                            {(reduce || raise) && (
-                              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                {reduce && (
-                                  <ReduceFixButton
-                                    name={name}
-                                    to={reduce.allocationPct}
-                                    where={phase.label}
-                                    onClick={(e) => {
-                                      repository.updateAllocation(initiative.id, phase.id, reduce.allocationId, reduce.allocationPct);
-                                      focusField(e.currentTarget);
-                                    }}
-                                  />
-                                )}
-                                {raise && (
-                                  <RaiseFixButton
-                                    name={name}
-                                    teamName={team?.name ?? 'the team'}
-                                    to={raise.teamFtePct}
-                                    onClick={(e) => {
-                                      repository.updateMembership(raise.membershipId, { teamFtePct: raise.teamFtePct });
-                                      focusField(e.currentTarget);
-                                    }}
-                                  />
-                                )}
-                              </div>
-                            )}
+                        <tr id={rowId} className="border-t border-border-default align-top">
+                          <td className="py-2 pr-2">
+                            <TruncatedText text={name} />
+                            {person && <div className="truncate text-caption text-text-muted">{roleLabel(person, roles)}</div>}
                           </td>
-                          <td className="py-1.5 pr-2">
-                            <PercentInput
-                              label={`Allocation % for ${name}`}
-                              changed={changed(file, ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct'])}
-                              failure={failure(file, ['phases', phase.id, 'allocations', { id: allocation.id }, 'allocationPct'])}
-                              conflict={inRow(pctConflict)}
+                          <td className="py-1.5 pr-4">
+                            <LoadBar
+                              name={name}
                               value={allocation.allocationPct}
+                              model={loadBarModel(initiative, phase.id, allocation.personId, capacityData, loads)}
+                              changed={changed(file, pctPath)}
                               onChange={(pct) => repository.updateAllocation(initiative.id, phase.id, allocation.id, pct)}
                             />
                           </td>
-                          <td className="py-1.5 pr-2 text-right">{costed && figures ? figures.personDays.toFixed(1) : '—'}</td>
-                          <td className="py-1.5 pr-2 text-right">
+                          <td className="py-2 pr-2 text-right">{costed && figures ? figures.personDays.toFixed(1) : '—'}</td>
+                          <td className="py-2 pr-2 text-right">
                             {costed && figures ? formatAmount(figures.cost, currencySymbol) : '—'}
                           </td>
                           <td className="py-1.5 text-right">
@@ -482,6 +438,33 @@ function CostedPhase({
                             </Button>
                           </td>
                         </tr>
+                        {hasMessages && (
+                          <tr>
+                            <td colSpan={5} className="pr-2 pb-2">
+                              <div className="flex flex-col items-start gap-1">
+                                {warnings.notMember && <InlineWarning>No longer a member of {team?.name ?? 'the team'}</InlineWarning>}
+                                {warnings.overTeamFteMonths.length > 0 && (
+                                  <InlineWarning icon={OverTeamFteIcon}>Over Team FTE % in {formatMonthRanges(warnings.overTeamFteMonths)}</InlineWarning>
+                                )}
+                                {warnings.overCapacityMonths.length > 0 && (
+                                  <InlineWarning icon={OverCapacityIcon}>Over Capacity % in {formatMonthRanges(warnings.overCapacityMonths)}</InlineWarning>
+                                )}
+                                {raise && (
+                                  <RaiseFixButton
+                                    name={name}
+                                    teamName={team?.name ?? 'the team'}
+                                    to={raise.teamFtePct}
+                                    onClick={() => {
+                                      repository.updateMembership(raise.membershipId, { teamFtePct: raise.teamFtePct });
+                                      focusBar();
+                                    }}
+                                  />
+                                )}
+                                {pctFailure && <FailedEdit className="w-full" retryLabel={`Retry Allocation % for ${name}`} failure={pctFailure} />}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                         <ConflictRow conflict={pctConflict} label={`Allocation % for ${name}`} colSpan={5} />
                         </Fragment>
                       );

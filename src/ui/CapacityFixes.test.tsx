@@ -9,28 +9,36 @@ installCapacityFixture();
 /** The commit messages written so far, first line only (the rest are trailers). */
 const messages = () => puts.map((p) => p.message.split('\n')[0]);
 
+/** An allocation row, and the full-width row of its warnings and fixes under it when it has one (§5.4). */
+function allocationRow(table: ReturnType<typeof within>, name: string) {
+  const row = table.getByRole('row', { name: new RegExp(`^${name}`) });
+  const next = row.nextElementSibling as HTMLElement | null;
+  const messages = next && !next.id ? next : null;
+  return { row: within(row), text: () => `${row.textContent} ${messages?.textContent ?? ''}`, messages: messages && within(messages) };
+}
+
 describe('fix suggestions on an allocation row (§5.11, §5.4)', () => {
-  it('offers the reduce that fits every month, and no raise past Capacity % minus other teams\' Team FTE %s', async () => {
+  it("offers the reduce as the load bar's Fill free, and no raise past Capacity % minus other teams' Team FTE %s", async () => {
     // Ana: 70% on Payments (Team FTE 60%), plus 40% on Platform in Oct; Platform claims 40% of her 100%.
     renderView(<InitiativeDetail id="i1" />);
     const table = within(await screen.findByRole('table', { name: 'Validation allocations' }));
-    const ana = within(table.getByRole('row', { name: /Ana Ruiz/ }));
-    expect(ana.getByRole('button', { name: 'Set Ana Ruiz to 60% in Validation' })).toHaveTextContent('Set to 60%');
-    expect(ana.queryByRole('button', { name: /Raise/ })).not.toBeInTheDocument();
-    // Bo has no warning, so no fix; Cy is no longer a member, which has no fix.
-    expect(within(table.getByRole('row', { name: /Bo Lind/ })).queryByRole('button', { name: /^Set/ })).not.toBeInTheDocument();
-    expect(within(table.getByRole('row', { name: /Cy Ode/ })).queryByRole('button', { name: /^Set|Raise/ })).not.toBeInTheDocument();
+    const ana = allocationRow(table, 'Ana Ruiz');
+    expect(ana.row.getByRole('button', { name: 'Fill free 60% for Ana Ruiz' })).toHaveTextContent('Fill free 60%');
+    expect(table.queryByRole('button', { name: /^Set .* in Validation/ })).not.toBeInTheDocument(); // no second reduce
+    expect(ana.messages?.queryByRole('button', { name: /Raise/ }) ?? null).toBeNull();
+    // Cy is no longer a member, which has no fix.
+    expect(allocationRow(table, 'Cy Ode').messages?.queryByRole('button') ?? null).toBeNull();
   });
 
-  it('sets the allocation in one click and one commit; the warnings and the fixes clear', async () => {
+  it('fills free in one click and one commit; the warnings clear and focus stays on the bar', async () => {
     const user = setupUser();
     renderView(<InitiativeDetail id="i1" />);
     const table = within(await screen.findByRole('table', { name: 'Validation allocations' }));
-    await user.click(table.getByRole('button', { name: 'Set Ana Ruiz to 60% in Validation' }));
-    const ana = table.getByRole('row', { name: /Ana Ruiz/ });
-    expect(ana).not.toHaveTextContent('Over');
-    expect(within(ana).queryByRole('button', { name: /^Set/ })).not.toBeInTheDocument();
-    expect(within(ana).getByRole('spinbutton', { name: 'Allocation % for Ana Ruiz' })).toHaveFocus();
+    await user.click(table.getByRole('button', { name: 'Fill free 60% for Ana Ruiz' }));
+    const ana = allocationRow(table, 'Ana Ruiz');
+    expect(ana.text()).not.toContain('Over');
+    expect(ana.row.queryByRole('button', { name: /^Fill free/ })).not.toBeInTheDocument();
+    expect(ana.row.getByRole('slider', { name: 'Allocation % for Ana Ruiz' })).toHaveFocus();
     await vi.waitFor(() => expect(messages()).toEqual(['Payments API: Ana Ruiz set to 60% in Validation']), { timeout: 3000 });
   });
 
@@ -42,11 +50,12 @@ describe('fix suggestions on an allocation row (§5.11, §5.4)', () => {
     const raise = table.getByRole('button', { name: "Raise Ana Ruiz's Team FTE % on Payments to 70%" });
     expect(raise).toHaveTextContent('Raise Team FTE % to 70%');
     await user.click(raise);
-    const ana = table.getByRole('row', { name: /Ana Ruiz/ });
-    expect(ana).not.toHaveTextContent('Over Team FTE %');
-    // 70% + 40% on Platform is still over her Capacity % in Oct: that warning and its reduce stay.
-    expect(ana).toHaveTextContent('Over Capacity % in Oct 2026');
-    expect(within(ana).getByRole('button', { name: /^Set Ana Ruiz to 60%/ })).toBeInTheDocument();
+    const ana = allocationRow(table, 'Ana Ruiz');
+    expect(ana.text()).not.toContain('Over Team FTE %');
+    // 70% + 40% on Platform is still over her Capacity % in Oct: that warning and its Fill free stay.
+    expect(ana.text()).toContain('Over Capacity % in Oct 2026');
+    expect(ana.row.getByRole('button', { name: /^Fill free 60%/ })).toBeInTheDocument();
+    expect(ana.row.getByRole('slider', { name: 'Allocation % for Ana Ruiz' })).toHaveFocus();
     await vi.waitFor(() => expect(messages()).toEqual(['Ana Ruiz: Team FTE % on Payments set to 70%']), { timeout: 3000 });
   });
 });
