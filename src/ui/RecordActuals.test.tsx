@@ -82,55 +82,92 @@ const validationRow = () => phases().getByRole('button', { name: /^Validation/ }
 const actualsTable = async () => within(await screen.findByRole('table', { name: 'Validation actuals' }));
 const monthRow = (table: ReturnType<typeof within>, month: string) => table.getByRole('row', { name: new RegExp(`^${month}`) });
 
+const recordName = (month: string, amount = '€4,000') => `Record ${amount} as the actual for Validation ${month}`;
+
 describe('Record actuals for a closed month (§7.3, §5.4)', () => {
-  it('shows a closed month using the estimate, and an open month as not closed yet', async () => {
+  it('shows a closed month using the estimate, and folds the months not closed yet into one line with their total', async () => {
     renderPage();
     const table = await actualsTable();
     const oct = monthRow(table, 'Oct 2026');
     expect(within(oct).getByText('€4,000 · using the estimate')).toBeInTheDocument();
-    expect(within(oct).getByRole('button', { name: 'Record the estimate as the actual for Validation Oct 2026' })).toBeInTheDocument();
+    expect(within(oct).getByRole('button', { name: recordName('Oct 2026') })).toHaveTextContent('Record €4,000');
+    expect(within(oct).getByRole('button', { name: 'Different amount for Validation Oct 2026' })).toHaveTextContent('Different amount');
+    expect(within(oct).getByRole('cell', { name: '—' })).toBeInTheDocument();
 
-    const dec = monthRow(table, 'Dec 2026');
-    expect(within(dec).getByText('not closed yet')).toBeInTheDocument();
-    expect(within(dec).queryByRole('textbox')).not.toBeInTheDocument();
-    expect(within(dec).queryByRole('button')).not.toBeInTheDocument();
+    expect(table.queryByRole('row', { name: /^Nov 2026/ })).not.toBeInTheDocument();
+    expect(table.queryByRole('row', { name: /^Dec 2026/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Nov 2026 – Dec 2026 · 2 months not closed yet · €8,000 estimated')).toBeInTheDocument();
   });
 
-  it('records the estimate as the actual in one click', async () => {
+  it('records the estimate as the actual in one click, "On estimate" and Change in its place', async () => {
     const user = userEvent.setup();
     renderPage();
     const table = await actualsTable();
     const oct = monthRow(table, 'Oct 2026');
-    await user.click(within(oct).getByRole('button', { name: 'Record the estimate as the actual for Validation Oct 2026' }));
+    await user.click(within(oct).getByRole('button', { name: recordName('Oct 2026') }));
 
     expect(within(oct).queryByText('using the estimate')).not.toBeInTheDocument();
-    expect(within(oct).queryByRole('button')).not.toBeInTheDocument();
-    expect(within(oct).getByLabelText('Actual for Validation Oct 2026')).toHaveValue('4000');
+    expect(within(oct).getAllByRole('cell', { name: '€4,000' })).toHaveLength(2); // the estimate and the actual
+    expect(within(oct).getByText('On estimate')).toBeInTheDocument();
+    expect(within(oct).queryByRole('button', { name: /^Record/ })).not.toBeInTheDocument();
+    expect(within(oct).getByRole('button', { name: 'Change the actual for Validation Oct 2026' })).toBeInTheDocument();
   });
 
-  it('records a typed amount instead of the estimate, overriding it', async () => {
+  it('records a typed amount with Different amount, and shows the signed difference', async () => {
     const user = userEvent.setup();
     renderPage();
     const table = await actualsTable();
     const oct = monthRow(table, 'Oct 2026');
+    await user.click(within(oct).getByRole('button', { name: 'Different amount for Validation Oct 2026' }));
     const override = within(oct).getByLabelText('Override the actual for Validation Oct 2026');
-    await user.type(override, '5250{Enter}');
+    expect(override).toHaveFocus();
+    expect(override).toHaveAttribute('placeholder', 'Actual');
+    await user.type(override, '4.58k{Enter}');
 
     expect(within(oct).queryByText('using the estimate')).not.toBeInTheDocument();
-    expect(within(oct).getByLabelText('Actual for Validation Oct 2026')).toHaveValue('5250');
+    expect(within(oct).getByRole('cell', { name: '€4,580' })).toBeInTheDocument();
+    expect(within(oct).getByText('+€580')).toBeInTheDocument();
   });
 
-  it('keeps a recorded actual editable', async () => {
+  it('shows an actual under the estimate with a minus sign', async () => {
     const user = userEvent.setup();
     renderPage();
     const table = await actualsTable();
     const oct = monthRow(table, 'Oct 2026');
-    await user.click(within(oct).getByRole('button', { name: 'Record the estimate as the actual for Validation Oct 2026' }));
+    await user.click(within(oct).getByRole('button', { name: 'Different amount for Validation Oct 2026' }));
+    await user.type(within(oct).getByLabelText('Override the actual for Validation Oct 2026'), '3750{Enter}');
+    expect(within(oct).getByText('−€250')).toBeInTheDocument();
+  });
+
+  it('puts the buttons back when Different amount is left with nothing typed, or cancelled with Esc', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const table = await actualsTable();
+    const oct = monthRow(table, 'Oct 2026');
+    await user.click(within(oct).getByRole('button', { name: 'Different amount for Validation Oct 2026' }));
+    await user.tab();
+    expect(within(oct).getByRole('button', { name: recordName('Oct 2026') })).toBeInTheDocument();
+
+    await user.click(within(oct).getByRole('button', { name: 'Different amount for Validation Oct 2026' }));
+    await user.keyboard('{Escape}');
+    expect(within(oct).getByRole('button', { name: recordName('Oct 2026') })).toBeInTheDocument();
+  });
+
+  it('changes a recorded actual with Change', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const table = await actualsTable();
+    const oct = monthRow(table, 'Oct 2026');
+    await user.click(within(oct).getByRole('button', { name: recordName('Oct 2026') }));
+    await user.click(within(oct).getByRole('button', { name: 'Change the actual for Validation Oct 2026' }));
 
     const field = within(oct).getByLabelText('Actual for Validation Oct 2026');
+    expect(field).toHaveValue('4000');
     await user.clear(field);
     await user.type(field, '4800{Enter}');
-    expect(field).toHaveValue('4800');
+    expect(within(oct).getByRole('cell', { name: '€4,800' })).toBeInTheDocument();
+    expect(within(oct).getByText('+€800')).toBeInTheDocument();
+    expect(within(oct).getByRole('button', { name: 'Change the actual for Validation Oct 2026' })).toBeInTheDocument();
   });
 
   it('shows "using the estimate" even when the estimate is exactly €0', async () => {
@@ -139,7 +176,14 @@ describe('Record actuals for a closed month (§7.3, §5.4)', () => {
     const table = await actualsTable();
     const oct = monthRow(table, 'Oct 2026');
     expect(within(oct).getByText('€0 · using the estimate')).toBeInTheDocument();
-    expect(within(oct).getByRole('button', { name: 'Record the estimate as the actual for Validation Oct 2026' })).toBeInTheDocument();
+    expect(within(oct).getByRole('button', { name: recordName('Oct 2026', '€0') })).toBeInTheDocument();
+  });
+
+  it('reads a single month not closed yet in the singular, and shows no table while none has closed', async () => {
+    initiative = { ...initiative, phases: { [validationId]: { startDate: '2026-11-01', endDate: '2026-11-30', allocations: [{ id: 'a1', personId: 'ana', allocationPct: 50 }] } } };
+    renderPage();
+    expect(await screen.findByText('Nov 2026 · 1 month not closed yet · €4,000 estimated')).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Validation actuals' })).not.toBeInTheDocument();
   });
 
   it('moves the phase header from Estimate to Forecast to Actual as closed months are recorded', async () => {
@@ -156,7 +200,7 @@ describe('Record actuals for a closed month (§7.3, §5.4)', () => {
     expect(validationRow()).toHaveTextContent('€12,000'); // 3 months × €4,000, pure estimate
 
     const table = await actualsTable();
-    const recordButton = (month: string) => within(monthRow(table, month)).getByRole('button', { name: `Record the estimate as the actual for Validation ${month}` });
+    const recordButton = (month: string) => within(monthRow(table, month)).getByRole('button', { name: recordName(month) });
     await user.click(recordButton('Sept 2026'));
     expect(validationRow()).toHaveTextContent('Forecast');
     expect(validationRow()).toHaveTextContent('€12,000'); // the recorded month matched its estimate

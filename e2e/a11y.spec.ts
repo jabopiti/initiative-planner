@@ -73,6 +73,11 @@ for (const colorScheme of ['light', 'dark'] as const) test(`the app screens have
   await page.keyboard.press('Escape');
   await expect(picker).toBeHidden();
 
+  // A cost item being added, timed on the period's month strip (§5.4).
+  await page.getByRole('button', { name: /^Add cost item to/ }).first().click();
+  await expect(page.getByRole('radiogroup', { name: 'When' })).toBeVisible();
+  await expectNoViolations(page); // cost item month strip
+
   // A hash navigation is same-document, so wait for something only the target screen shows before scanning.
   const section = (label: string) => () =>
     page.getByRole('navigation', { name: 'Settings sections' }).locator('[aria-current="page"]', { hasText: label });

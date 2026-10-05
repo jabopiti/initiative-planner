@@ -14,6 +14,7 @@ import { CostItemLabelInput } from './CostItemLabelInput';
 import { ConflictRow, inRow } from './ConflictBlock';
 import { InlineWarning } from './InlineWarning';
 import { MonthInput } from './MonthInput';
+import { MonthStrip, SPREAD } from './MonthStrip';
 import { PlusIcon, RemoveIcon } from './icons';
 import { TIMING_LABELS } from './costItemTiming';
 import { undoToast } from './undoToast';
@@ -26,6 +27,61 @@ const MONTH_REFUSAL = 'Enter a month.';
 
 /** The month a new one-month item starts on: the phase's first month, or this month while the period is unset. */
 const defaultMonth = (months: string[]): string => months[0] ?? monthOf(localToday());
+
+/** What a cost item puts in each month of the period (§7.1): an equal share of the amount spread, or all of it in its one month. */
+function receivedByMonth(months: string[], timing: CostItem['timing'], month: string | undefined, amount: number | undefined): Record<string, number | undefined> {
+  if (amount === undefined) return {};
+  if (timing === 'spread') return Object.fromEntries(months.map((key) => [key, amount / months.length]));
+  return month ? { [month]: amount } : {};
+}
+
+/**
+ * A cost item's timing control (§5.4): the period's months as a strip with the month input beside it, or, while the
+ * phase has no valid period, the One month / Spread toggle with the month input under it.
+ */
+function Timing({
+  label,
+  months,
+  timing,
+  month,
+  amount,
+  monthInput,
+  onTiming,
+  onMonth,
+}: {
+  label: string;
+  months: string[];
+  timing: CostItem['timing'];
+  month: string | undefined;
+  amount: number | undefined;
+  /** The month input, supplied by the caller for its conflict and failure wiring. */
+  monthInput: (props: { value: string | undefined }) => React.ReactNode;
+  onTiming: (timing: CostItem['timing']) => void;
+  onMonth: (month: string) => void;
+}) {
+  const { currencySymbol } = useBrand();
+  if (months.length === 0) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <TimingToggle value={timing} label={label} onChange={onTiming} />
+        {timing === 'month' && monthInput({ value: month })}
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-start gap-2">
+      <MonthStrip
+        months={months}
+        label={label}
+        currencySymbol={currencySymbol}
+        value={timing === 'spread' ? SPREAD : month && months.includes(month) ? month : undefined}
+        amountByMonth={receivedByMonth(months, timing, month, amount)}
+        onChange={(next) => (next === SPREAD ? onTiming('spread') : onMonth(next))}
+      />
+      {monthInput({ value: timing === 'month' ? month : undefined })}
+    </div>
+  );
+}
 
 function TimingToggle({ value, label, onChange }: { value: CostItem['timing']; label: string; onChange: (timing: CostItem['timing']) => void }) {
   return (
@@ -128,27 +184,29 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                     />
                   </td>
                   <td className="py-1.5 pr-2">
-                    <div className="flex flex-col items-start gap-2">
-                      <TimingToggle
-                        value={item.timing}
-                        label={`When for ${item.label}`}
-                        onChange={(timing) =>
-                          repository.updateCostItem(initiativeId, phase.id, item.id, timing === 'month' ? { timing, month: item.month ?? defaultMonth(months) } : { timing })
-                        }
-                      />
-                      {item.timing === 'month' && (
+                    <Timing
+                      label={`When for ${item.label}`}
+                      months={months}
+                      timing={item.timing}
+                      month={item.month}
+                      amount={item.amount}
+                      onTiming={(timing) =>
+                        repository.updateCostItem(initiativeId, phase.id, item.id, timing === 'month' ? { timing, month: item.month ?? defaultMonth(months) } : { timing })
+                      }
+                      onMonth={(month) => repository.updateCostItem(initiativeId, phase.id, item.id, { timing: 'month', month })}
+                      monthInput={({ value }) => (
                         <MonthInput
-                          required
+                          required={value !== undefined}
                           label={`Month for ${item.label}`}
-                          value={item.month}
+                          value={value}
                           changed={itemChanged('month')}
                           failure={itemFailure('month')}
                           conflict={inRow(conflicts.month)}
                           retryLabel={itemRetryLabel('month')}
-                          onChange={(month) => month && repository.updateCostItem(initiativeId, phase.id, item.id, { month })}
+                          onChange={(month) => month && repository.updateCostItem(initiativeId, phase.id, item.id, { timing: 'month', month })}
                         />
                       )}
-                    </div>
+                    />
                   </td>
                   <td className="py-1.5 text-right">
                     <Button
@@ -282,22 +340,38 @@ function DraftRow({
           }}
           onKeyDown={keys}
         />
-        <TimingToggle value={timing} label="When" onChange={setTiming} />
-        {timing === 'month' && (
-          <div className="flex flex-col gap-1">
-            <MonthInput
-              required
-              label="Month"
-              value={month}
-              onChange={(next) => {
-                if (!next) return;
-                setMonth(next);
-                setRefused((current) => ({ ...current, month: undefined }));
-              }}
-            />
-            {refused.month && <Refusal>{refused.month}</Refusal>}
-          </div>
-        )}
+        <Timing
+          label="When"
+          months={months}
+          timing={timing}
+          month={month}
+          amount={(() => {
+            const parsed = parseAmountExpression(amount);
+            return parsed.ok ? parsed.value : undefined;
+          })()}
+          onTiming={setTiming}
+          onMonth={(next) => {
+            setTiming('month');
+            setMonth(next);
+            setRefused((current) => ({ ...current, month: undefined }));
+          }}
+          monthInput={({ value }) => (
+            <div className="flex flex-col gap-1">
+              <MonthInput
+                required={value !== undefined}
+                label="Month"
+                value={value}
+                onChange={(next) => {
+                  if (!next) return;
+                  setTiming('month');
+                  setMonth(next);
+                  setRefused((current) => ({ ...current, month: undefined }));
+                }}
+              />
+              {refused.month && <Refusal>{refused.month}</Refusal>}
+            </div>
+          )}
+        />
       </div>
       <div className="flex gap-2">
         <Button type="button" size="sm" onClick={add}>

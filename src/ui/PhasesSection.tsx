@@ -1,11 +1,11 @@
 import { Fragment, useMemo, useState } from 'react';
 import { useBrand } from '../state/BrandContext';
-import { useFieldConflict, useRevealTarget, type FieldConflict } from '../state/ConflictUi';
-import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState, type FieldFailure } from '../state/DataContext';
+import { useFieldConflict, useRevealTarget } from '../state/ConflictUi';
+import { useFieldFailure, useIsChangedByOthers, useRepository, useRepositoryState } from '../state/DataContext';
 import { lostEditKey } from '../sync/Repository';
 import type { PhaseDef } from '../brand/types';
 import { activeLoads, allocationWarnings, raiseFix, reduceFix, type Load } from '../data/capacity';
-import { actualOrEstimate, allocationFigures } from '../data/cost';
+import { allocationFigures } from '../data/cost';
 import { RaiseFixButton, ReduceFixButton } from './CapacityFixButtons';
 import { formatDate, formatMonth, formatMonthRanges, formatPeriod, localToday } from '../data/dates';
 import { allocationsWithCost, costedPhasesFrom, currentPhaseId } from '../data/gate';
@@ -17,7 +17,7 @@ import { nextStepPhase, overlapWithPrevious, phaseSummary, planningGap } from '.
 import { teamCountries, workingDaysByCountry } from '../data/period';
 import { roleLabel } from '../data/roleLabel';
 import { FILE_PATHS, type FrozenAllocation, type FrozenPhaseSnapshot, type Initiative, type PhasePlan, type Person, type Role, type Team } from '../data/types';
-import { AmountInput } from './AmountInput';
+import { ActualsTable } from './ActualsTable';
 import { ConflictRow, inRow } from './ConflictBlock';
 import { CostItemsTable } from './CostItemsTable';
 import { TIMING_LABELS } from './costItemTiming';
@@ -25,7 +25,7 @@ import { RecalcTint } from './motion';
 import { overlapWarning, PeriodPicker, type NeighbourPhase } from './PeriodPicker';
 import { formatAmount } from './formatAmount';
 import { GateChecklistPanel } from './GateChecklistPanel';
-import { CheckIcon, ChevronDownIcon, ChevronRightIcon, DismissIcon, FrozenIcon, InfoIcon, OverdueIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
+import { ChevronDownIcon, ChevronRightIcon, DismissIcon, FrozenIcon, InfoIcon, OverdueIcon, SkippedIcon, OverCapacityIcon, OverTeamFteIcon, PlusIcon, RemoveIcon, WarningIcon } from './icons';
 import { InlineWarning } from './InlineWarning';
 import { PercentInput } from './PercentInput';
 import { TruncatedText } from './TruncatedText';
@@ -54,8 +54,7 @@ export const NOT_COSTED = 'not costed';
 /** A phase nobody has planned yet. One shared object, so the picker's memo isn't invalidated on every render. */
 const UNPLANNED: PhasePlan = { allocations: [] };
 
-/** A phase's actuals-table row anchor (§5.2, §8.5), for the Portfolio's Needs attention strip jumping to an Overdue month. */
-export const actualCellAnchor = (phaseId: string, month: string) => `actual-${phaseId}-${month}`;
+export { actualCellAnchor } from './ActualsTable';
 
 /** The initiative page's Phases section (§5.4): every phase in order, costed ones expandable, with the current phase's Gate / Checklist panel directly beneath it. */
 export function PhasesSection({ initiative, team, reveal = null }: { initiative: Initiative; team: Team | undefined; reveal?: Jump | null }) {
@@ -509,46 +508,7 @@ function CostedPhase({
           )}
 
           {costed && months.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <h3 className="m-0 text-heading text-text-primary">Actuals</h3>
-              <table className="tabular-nums w-full border-collapse text-body">
-                <caption className="sr-only">{phase.label} actuals</caption>
-                <thead>
-                  <tr className="text-left text-label text-text-secondary">
-                    <th className="py-1 pr-2 font-medium">Month</th>
-                    <th className="py-1 pr-2 text-right font-medium">Estimate</th>
-                    <th className="py-1 pr-2 text-right font-medium">Actual</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {months.map((month) => {
-                    const actualConflict = conflict(file, ['phases', phase.id, 'actualMonths', month]);
-                    return (
-                    <Fragment key={month}>
-                    <tr id={actualCellAnchor(phase.id, month)} className="border-t border-border-default">
-                      <td className="py-1.5 pr-2">{formatMonth(month)}</td>
-                      <td className="py-1.5 pr-2 text-right">{formatAmount(estimateByMonth[month] ?? 0, currencySymbol)}</td>
-                      <td className="py-1.5 pr-2">
-                        <ActualCell
-                          phase={phase}
-                          month={month}
-                          recorded={plan.actualMonths?.[month]}
-                          defaulted={actualOrEstimate(plan, month, today, estimateByMonth)}
-                          currencySymbol={currencySymbol}
-                          changed={changed(file, ['phases', phase.id, 'actualMonths', month])}
-                          failure={failure(file, ['phases', phase.id, 'actualMonths', month])}
-                          conflict={inRow(actualConflict)}
-                          onChange={(amount) => repository.setActual(initiative.id, phase.id, month, amount)}
-                        />
-                      </td>
-                    </tr>
-                    <ConflictRow conflict={actualConflict} label={`Actual for ${phase.label} ${formatMonth(month)}`} colSpan={3} />
-                    </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <ActualsTable initiativeId={initiative.id} phase={phase} plan={plan} months={months} estimateByMonth={estimateByMonth} today={today} />
           )}
         </div>
       )}
@@ -649,76 +609,6 @@ function ReadOnlyPhaseBody({ phase, people, roles, currencySymbol }: { phase: Re
       )}
     </div>
   );
-}
-
-/** One actuals-table cell (§7.3): a recorded actual, a defaulted estimate with the confirm check, or "not closed yet". */
-function ActualCell({
-  phase,
-  month,
-  recorded,
-  defaulted,
-  currencySymbol,
-  changed,
-  failure,
-  conflict,
-  onChange,
-}: {
-  phase: PhaseDef;
-  month: string;
-  /** The recorded actual, if any. */
-  recorded: number | undefined;
-  /** What §7.3 defaults an unrecorded, closed month to; `undefined` while the month hasn't closed yet. */
-  defaulted: number | undefined;
-  currencySymbol: string;
-  changed: boolean;
-  /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
-  failure: FieldFailure | null;
-  /** A same-field conflict on this month's actual (§3, §9.9), shown in the row under it. */
-  conflict: FieldConflict | null;
-  onChange: (amount: number) => void;
-}) {
-  if (recorded !== undefined) {
-    return (
-      <div className="flex justify-end">
-        <AmountInput
-          label={`Actual for ${phase.label} ${formatMonth(month)}`}
-          currencySymbol={currencySymbol}
-          value={recorded}
-          changed={changed}
-          failure={failure}
-          conflict={conflict}
-          onChange={onChange}
-        />
-      </div>
-    );
-  }
-  if (defaulted !== undefined) {
-    return (
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={`Record the estimate as the actual for ${phase.label} ${formatMonth(month)}`}
-          onClick={() => onChange(defaulted)}
-        >
-          <CheckIcon />
-        </Button>
-        <span className="text-text-muted">{formatAmount(defaulted, currencySymbol)} · using the estimate</span>
-        <AmountInput
-          label={`Override the actual for ${phase.label} ${formatMonth(month)}`}
-          currencySymbol={currencySymbol}
-          value={undefined}
-          placeholder="Actual"
-          changed={changed}
-          failure={failure}
-          conflict={conflict}
-          onChange={onChange}
-        />
-      </div>
-    );
-  }
-  return <span className="flex justify-end text-text-secondary">not closed yet</span>;
 }
 
 /** The lock icon on a phase behind a passed gate, the skip icon in its place behind a skipped one (§8.1, §8.2, §9.10). */
