@@ -4,7 +4,7 @@ import { useFieldConflict } from '../state/ConflictUi';
 import { useFieldFailure, useIsChangedByOthers, useRepository } from '../state/DataContext';
 import type { PhaseDef } from '../brand/types';
 import { amountRefusal, parseAmountExpression } from '../data/amountExpression';
-import { isOutsidePeriod, periodMonths } from '../data/cost';
+import { isOutsidePeriod, periodMonths, spreadItem } from '../data/cost';
 import { AmountDraftInput, AmountInput } from './AmountInput';
 import { formatMonth, localToday, monthOf } from '../data/dates';
 import type { CostItemSuggestion } from '../data/costItemSuggestions';
@@ -28,13 +28,6 @@ const MONTH_REFUSAL = 'Enter a month.';
 /** The month a new one-month item starts on: the phase's first month, or this month while the period is unset. */
 const defaultMonth = (months: string[]): string => months[0] ?? monthOf(localToday());
 
-/** What a cost item puts in each month of the period (§7.1): an equal share of the amount spread, or all of it in its one month. */
-function receivedByMonth(months: string[], timing: CostItem['timing'], month: string | undefined, amount: number | undefined): Record<string, number | undefined> {
-  if (amount === undefined) return {};
-  if (timing === 'spread') return Object.fromEntries(months.map((key) => [key, amount / months.length]));
-  return month ? { [month]: amount } : {};
-}
-
 /**
  * A cost item's timing control (§5.4): the period's months as a strip with the month input beside it, or, while the
  * phase has no valid period, the One month / Spread toggle with the month input under it.
@@ -54,8 +47,8 @@ function Timing({
   timing: CostItem['timing'];
   month: string | undefined;
   amount: number | undefined;
-  /** The month input, supplied by the caller for its conflict and failure wiring. */
-  monthInput: (props: { value: string | undefined }) => React.ReactNode;
+  /** The month input, supplied by the caller for its conflict and failure wiring; beside the strip, or under the toggle while One month is chosen. */
+  monthInput: React.ReactNode;
   onTiming: (timing: CostItem['timing']) => void;
   onMonth: (month: string) => void;
 }) {
@@ -64,7 +57,7 @@ function Timing({
     return (
       <div className="flex flex-col items-start gap-2">
         <TimingToggle value={timing} label={label} onChange={onTiming} />
-        {timing === 'month' && monthInput({ value: month })}
+        {timing === 'month' && monthInput}
       </div>
     );
   }
@@ -75,10 +68,10 @@ function Timing({
         label={label}
         currencySymbol={currencySymbol}
         value={timing === 'spread' ? SPREAD : month && months.includes(month) ? month : undefined}
-        amountByMonth={receivedByMonth(months, timing, month, amount)}
+        amountByMonth={amount === undefined ? {} : spreadItem(months, { timing, month, amount })}
         onChange={(next) => (next === SPREAD ? onTiming('spread') : onMonth(next))}
       />
-      {monthInput({ value: timing === 'month' ? month : undefined })}
+      {monthInput}
     </div>
   );
 }
@@ -141,6 +134,7 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
               // Position, not the item's own (freely re-typed, possibly duplicate) label: two cost items named
               // alike must still get their own Retry, distinguishable to a screen reader (§9.5, §9.9).
               const itemRetryLabel = (field: string) => `Retry saving the ${field} of cost item ${index + 1}`;
+              const pickMonth = (month: string) => repository.updateCostItem(initiativeId, phase.id, item.id, { timing: 'month', month });
               const conflicts = {
                 label: conflict(file, ['phases', phase.id, 'costItems', { id: item.id }, 'label']),
                 amount: conflict(file, ['phases', phase.id, 'costItems', { id: item.id }, 'amount']),
@@ -193,19 +187,19 @@ export function CostItemsTable({ initiativeId, phase, plan }: { initiativeId: st
                       onTiming={(timing) =>
                         repository.updateCostItem(initiativeId, phase.id, item.id, timing === 'month' ? { timing, month: item.month ?? defaultMonth(months) } : { timing })
                       }
-                      onMonth={(month) => repository.updateCostItem(initiativeId, phase.id, item.id, { timing: 'month', month })}
-                      monthInput={({ value }) => (
+                      onMonth={pickMonth}
+                      monthInput={
                         <MonthInput
-                          required={value !== undefined}
+                          required={item.timing === 'month'}
                           label={`Month for ${item.label}`}
-                          value={value}
+                          value={item.timing === 'month' ? item.month : undefined}
                           changed={itemChanged('month')}
                           failure={itemFailure('month')}
                           conflict={inRow(conflicts.month)}
                           retryLabel={itemRetryLabel('month')}
-                          onChange={(month) => month && repository.updateCostItem(initiativeId, phase.id, item.id, { timing: 'month', month })}
+                          onChange={(month) => month && pickMonth(month)}
                         />
-                      )}
+                      }
                     />
                   </td>
                   <td className="py-1.5 text-right">
@@ -286,9 +280,14 @@ function DraftRow({
   const month = pickedMonth === undefined ? defaultMonth(months) : (pickedMonth ?? undefined);
   const [refused, setRefused] = useState<{ label?: string; amount?: string; month?: string }>({});
   const labelErrorId = useId();
+  const parsed = parseAmountExpression(amount);
+  const pickMonth = (next: string) => {
+    setTiming('month');
+    setMonth(next);
+    setRefused((current) => ({ ...current, month: undefined }));
+  };
 
   const add = () => {
-    const parsed = parseAmountExpression(amount);
     const text = label.trim();
     const next = {
       label: text === '' ? LABEL_REFUSAL : undefined,
@@ -345,32 +344,20 @@ function DraftRow({
           months={months}
           timing={timing}
           month={month}
-          amount={(() => {
-            const parsed = parseAmountExpression(amount);
-            return parsed.ok ? parsed.value : undefined;
-          })()}
+          amount={parsed.ok ? parsed.value : undefined}
           onTiming={setTiming}
-          onMonth={(next) => {
-            setTiming('month');
-            setMonth(next);
-            setRefused((current) => ({ ...current, month: undefined }));
-          }}
-          monthInput={({ value }) => (
+          onMonth={pickMonth}
+          monthInput={
             <div className="flex flex-col gap-1">
               <MonthInput
-                required={value !== undefined}
+                required={timing === 'month'}
                 label="Month"
-                value={value}
-                onChange={(next) => {
-                  if (!next) return;
-                  setTiming('month');
-                  setMonth(next);
-                  setRefused((current) => ({ ...current, month: undefined }));
-                }}
+                value={timing === 'month' ? month : undefined}
+                onChange={(next) => next && pickMonth(next)}
               />
               {refused.month && <Refusal>{refused.month}</Refusal>}
             </div>
-          )}
+          }
         />
       </div>
       <div className="flex gap-2">

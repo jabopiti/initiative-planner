@@ -42,8 +42,9 @@ export function ActualsTable({
   const { currencySymbol } = useBrand();
   const file = FILE_PATHS.initiative(initiativeId);
 
-  const rows = months.filter((month) => actualOrEstimate(plan, month, today, estimateByMonth) !== undefined);
-  const open = months.filter((month) => !rows.includes(month));
+  const closed = (month: string) => actualOrEstimate(plan, month, today, estimateByMonth) !== undefined;
+  const rows = months.filter(closed);
+  const open = months.filter((month) => !closed(month));
   const openTotal = open.reduce((sum, month) => sum + (estimateByMonth[month] ?? 0), 0);
 
   return (
@@ -76,7 +77,6 @@ export function ActualsTable({
                       month={month}
                       estimate={estimate}
                       recorded={plan.actualMonths?.[month]}
-                      currencySymbol={currencySymbol}
                       changed={changed(file, path)}
                       failure={failure(file, path)}
                       conflict={inRow(actualConflict)}
@@ -106,7 +106,6 @@ function ActualRow({
   month,
   estimate,
   recorded,
-  currencySymbol,
   changed,
   failure,
   conflict,
@@ -117,7 +116,6 @@ function ActualRow({
   estimate: number;
   /** The recorded actual, if any. */
   recorded: number | undefined;
-  currencySymbol: string;
   changed: boolean;
   /** This field's file has a failed, unsaved edit at this field's own path (§3, §9.9). */
   failure: FieldFailure | null;
@@ -125,6 +123,7 @@ function ActualRow({
   conflict: FieldConflict | null;
   onRecord: (amount: number) => void;
 }) {
+  const { currencySymbol } = useBrand();
   const [editing, setEditing] = useState(false);
   const name = `${phase.label} ${formatMonth(month)}`;
   const record = (amount: number) => {
@@ -132,8 +131,7 @@ function ActualRow({
     setEditing(false);
   };
   // The estimate rounds to whole currency units on screen, so a difference that shows as €0 reads "On estimate".
-  const difference = recorded === undefined ? undefined : recorded - estimate;
-  const onEstimate = difference !== undefined && Math.abs(difference) < 0.5;
+  const difference = recorded === undefined ? undefined : Math.abs(recorded - estimate) < 0.5 ? 0 : recorded - estimate;
   const initialText = recorded === undefined ? '' : String(recorded);
 
   return (
@@ -168,8 +166,8 @@ function ActualRow({
           formatAmount(recorded, currencySymbol)
         )}
       </td>
-      <td className={`py-1.5 pr-2 text-right ${difference !== undefined && !onEstimate && difference > 0 ? 'text-warning-text' : 'text-text-secondary'}`}>
-        {difference === undefined ? '—' : onEstimate ? 'On estimate' : formatSignedAmount(difference, currencySymbol)}
+      <td className={`py-1.5 pr-2 text-right ${difference !== undefined && difference > 0 ? 'text-warning-text' : 'text-text-secondary'}`}>
+        {difference === undefined ? '—' : difference === 0 ? 'On estimate' : formatSignedAmount(difference, currencySymbol)}
       </td>
       <td className="py-1 text-right">
         {!editing && (

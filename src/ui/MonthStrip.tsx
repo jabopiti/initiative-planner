@@ -1,12 +1,10 @@
-import { formatMonth, formatMonthShort, shortMonths } from '../data/dates';
+import { formatMonth, formatMonthName, formatMonthShort } from '../data/dates';
 import { formatAmount, formatCompactAmount } from './formatAmount';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 /** The strip's value for "spread over the phase"; every other value is a month key. */
 export const SPREAD = 'spread';
-
-const monthName = (key: string) => shortMonths()[Number(key.slice(5, 7)) - 1];
 
 /**
  * A cost item's timing, chosen on the period's months (§5.4): **Spread over the phase** or one month, each month
@@ -50,20 +48,21 @@ export function MonthStrip({
       </ToggleGroupItem>
       {months.map((key) => {
         const amount = amountByMonth[key];
-        const full = amount === undefined ? undefined : formatAmount(amount, currencySymbol);
+        const when = formatMonth(key);
+        const full = amount === undefined ? '' : formatAmount(amount, currencySymbol);
         return (
           <Tooltip key={key}>
             <TooltipTrigger asChild>
               <ToggleGroupItem
                 value={key}
-                aria-label={full ? `${formatMonth(key)}, receives ${full}` : `${formatMonth(key)}, receives nothing`}
+                aria-label={`${when}, receives ${full || 'nothing'}`}
                 className="h-auto min-w-14 shrink-0 flex-col gap-0 px-2 py-1 leading-tight"
               >
-                <span>{years > 1 ? formatMonthShort(key) : monthName(key)}</span>
+                <span>{years > 1 ? formatMonthShort(key) : formatMonthName(key)}</span>
                 <span className="text-caption text-text-secondary">{amount === undefined ? '—' : formatCompactAmount(amount, currencySymbol)}</span>
               </ToggleGroupItem>
             </TooltipTrigger>
-            <TooltipContent>{full ? `${formatMonth(key)}: ${full}` : formatMonth(key)}</TooltipContent>
+            <TooltipContent>{full ? `${when}: ${full}` : when}</TooltipContent>
           </Tooltip>
         );
       })}
