@@ -106,7 +106,9 @@ describe('New initiative: name it on the page (§5.1, §5.4)', () => {
     const preview = screen.getByTestId('draft-preview');
     expect(preview).toHaveAttribute('aria-hidden', 'true');
     for (const phase of defaultBrandPack.process) expect(within(preview).getAllByText(phase.label)).toHaveLength(2);
-    expect(within(preview).getAllByText('—')).toHaveLength(4);
+    // Four key figures, then each costed phase's total.
+    const costed = defaultBrandPack.process.filter((phase) => phase.costed).length;
+    expect(within(preview).getAllByText('—')).toHaveLength(4 + costed);
     expect(within(preview).getByText(`Gate ${defaultBrandPack.process[0].exitGate.label}`)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Phases' })).not.toBeInTheDocument();
   });

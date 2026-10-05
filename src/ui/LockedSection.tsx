@@ -16,7 +16,7 @@ export function LockableSectionHeader({ id, title, lock, actions }: { id: string
       title={title}
       tag={
         !lock.locked && (
-          <Badge className="bg-brand-accent-tint font-medium text-brand-accent-text">
+          <Badge variant="accent">
             <EditingIcon width={12} height={12} />
             Editing
           </Badge>
@@ -33,11 +33,6 @@ export function LockableSectionHeader({ id, title, lock, actions }: { id: string
       }
     />
   );
-}
-
-/** A locked section's value as plain text, not a disabled field (§5.9, §9.9), at a field's height so rows keep their size. */
-export function LockedValue({ children }: { children: ReactNode }) {
-  return <span className="inline-flex h-9 items-center">{children}</span>;
 }
 
 /** A locked row's active state as text, where unlocked its actions menu sits (§9.3). */

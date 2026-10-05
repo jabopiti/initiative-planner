@@ -35,6 +35,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { cardClass } from './cardClass';
+import { cn } from '@/lib/utils';
 
 /** The phase that opens with the page (§5.4): the current one, or without cost of its own the next costed phase ahead. */
 function phaseToOpen(process: PhaseDef[], currentId: string): string | undefined {
@@ -47,6 +48,10 @@ function overdueChipText(months: string[]): string {
 }
 
 /** A phase nobody has planned yet. One shared object, so the picker's memo isn't invalidated on every render. */
+/** A phase row's line: its marker, label and summary (§5.4). */
+export const PHASE_ROW_CLASS = 'flex items-center gap-2 px-3 py-2.5 text-body';
+export const NOT_COSTED = 'not costed';
+
 const UNPLANNED: PhasePlan = { allocations: [] };
 
 /** A phase's actuals-table row anchor (§5.2, §8.5), for the Portfolio's Needs attention strip jumping to an Overdue month. */
@@ -125,10 +130,10 @@ export function PhasesSection({ initiative, team, reveal = null }: { initiative:
                     onToggle={() => toggle(phase.id)}
                   />
                 ) : (
-                  <div className="flex items-center gap-2 px-3 py-2.5 text-body">
+                  <div className={PHASE_ROW_CLASS}>
                     <GateMarker frozen={isPhaseFrozen(initiative, phase.id)} skipped={skipReason(initiative, phase.id) !== undefined} />
                     <span className="font-medium">{phase.label}</span>
-                    <span className="text-text-muted">· not costed</span>
+                    <span className="text-text-muted">· {NOT_COSTED}</span>
                     <SkippedLabel gateLabel={phase.exitGate.label} reason={skipReason(initiative, phase.id)} withReason />
                   </div>
                 )}
@@ -278,7 +283,7 @@ function CostedPhase({
     <>
       <button
         type="button"
-        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-3 py-2.5 text-left text-body text-text-primary"
+        className={cn(PHASE_ROW_CLASS, 'w-full cursor-pointer rounded-lg border-0 bg-transparent text-left text-text-primary')}
         aria-expanded={expanded}
         aria-controls={bodyId}
         onClick={onToggle}

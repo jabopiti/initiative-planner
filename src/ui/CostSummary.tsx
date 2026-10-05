@@ -11,16 +11,16 @@ import { BulletBar } from './BulletBar';
 import { CopyButton } from './CopyButton';
 import type { CopyTableData } from './copyTable';
 import { formatAmount, formatSignedAmount } from './formatAmount';
-import { cardClass } from './cardClass';
+import { cardClass, ghostCardClass } from './cardClass';
 import { cn } from '@/lib/utils';
 import { PhaseIcon } from './icons';
 import { TruncatedText } from './TruncatedText';
 import { RolledFigure } from './motion';
 
-/** A key figure's tile (§5.4): its label (with an action at the right, if any), the figure, and what's beneath it. */
-export function Tile({ label, action, className, children }: { label: string; action?: ReactNode; className?: string; children: ReactNode }) {
+/** A key figure's tile (§5.4): its label (with an action at the right, if any), the figure, and what's beneath it. `ghost` for a greyed preview's. */
+export function Tile({ label, action, ghost = false, children }: { label: string; action?: ReactNode; ghost?: boolean; children: ReactNode }) {
   return (
-    <div className={cn(cardClass, 'flex min-w-0 flex-1 flex-col px-3.5 py-3', className)}>
+    <div className={cn(ghost ? ghostCardClass : cardClass, 'flex min-w-0 flex-1 flex-col px-3.5 py-3')}>
       <div className="flex h-6 items-center justify-between gap-2">
         <span className="text-label text-text-secondary">{label}</span>
         {action && <div className="-mr-1.5 flex items-center gap-2">{action}</div>}

@@ -95,10 +95,12 @@ export function CommitFieldMessages({
  * Esc cancels an edit in progress (§9.5), clears the message and, having used the key, keeps it from also
  * closing a panel around the field; with nothing typed it passes on. While text is typed and not yet committed,
  * a change another user made is held back from the page (§3), and `changed` tints the field for a few seconds
- * when another user's change just updated its value (§9.9).
+ * when another user's change just updated its value (§9.9). `locked` shows the value as plain text instead, not a
+ * disabled field (§5.9, §9.9), at a field's height so rows keep their size.
  */
 export function CommitInput({
   value,
+  locked = false,
   onCommit,
   onDraftChange,
   errorClassName = '',
@@ -114,6 +116,8 @@ export function CommitInput({
   ...props
 }: Omit<ComponentProps<typeof Input>, 'value' | 'defaultValue' | 'onChange' | 'onBlur'> & {
   value: string;
+  /** A locked Settings section's field (§5.9): the value as text, not editable. */
+  locked?: boolean;
   onCommit: (text: string) => boolean | string | void;
   /** Every keystroke, for feedback that must not wait for the commit (a limit warning). */
   onDraftChange?: (text: string) => void;
@@ -137,6 +141,7 @@ export function CommitInput({
   note?: (draft: string) => string | null;
 }) {
   const { draft, setDraft, error, errorId, failureId, commit, cancel } = useCommitField(value, onCommit);
+  if (locked) return <span className="inline-flex h-9 items-center">{value}</span>;
 
   // Not while actively drafting something else: a fresh, uncommitted edit takes over the field's message slot.
   const showFailure = !error && draft === value ? failure : null;

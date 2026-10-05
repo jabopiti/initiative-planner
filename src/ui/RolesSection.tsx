@@ -10,7 +10,7 @@ import { DraftField } from './DraftField';
 import { initiativeCount } from './impactNote';
 import { PlusIcon } from './icons';
 import { activeToggleAction, RowActionsMenu } from './RowActionsMenu';
-import { LockableSectionHeader, LockedActive, LockedValue } from './LockedSection';
+import { LockableSectionHeader, LockedActive } from './LockedSection';
 import type { SectionLock } from './useSectionLock';
 import { Button } from '@/components/ui/button';
 
@@ -67,73 +67,64 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
               <Fragment key={role.id}>
               <tr className={`border-t border-border-default align-top ${role.active ? '' : 'text-text-secondary'}`}>
                 <td className="py-1.5 pr-2">
-                  {lock.locked ? (
-                    <LockedValue>{role.name}</LockedValue>
-                  ) : (
-                    <CommitInput
-                      aria-label={`Name of ${role.name}`}
-                      className="w-full min-w-32"
-                      value={role.name}
-                      changed={roleChanged('name')}
-                      failure={roleFailure('name')}
-                      conflict={inRow(conflicts.name)}
-                      retryLabel={`Retry saving the name of ${role.name}`}
-                      onCommit={(text) => {
-                        const name = text.trim();
-                        if (name === '') return NAME_REFUSAL;
-                        if (name === role.name) return false;
-                        repository.updateRole(role.id, { name });
-                      }}
-                    />
-                  )}
+                  <CommitInput
+                    locked={lock.locked}
+                    aria-label={`Name of ${role.name}`}
+                    className="w-full min-w-32"
+                    value={role.name}
+                    changed={roleChanged('name')}
+                    failure={roleFailure('name')}
+                    conflict={inRow(conflicts.name)}
+                    retryLabel={`Retry saving the name of ${role.name}`}
+                    onCommit={(text) => {
+                      const name = text.trim();
+                      if (name === '') return NAME_REFUSAL;
+                      if (name === role.name) return false;
+                      repository.updateRole(role.id, { name });
+                    }}
+                  />
                 </td>
                 <td className="py-1.5 pr-2">
-                  {lock.locked ? (
-                    <LockedValue>{role.abbreviation}</LockedValue>
-                  ) : (
-                    <CommitInput
-                      aria-label={`Abbreviation of ${role.name}`}
-                      className="w-24"
-                      value={role.abbreviation}
-                      changed={roleChanged('abbreviation')}
-                      failure={roleFailure('abbreviation')}
-                      conflict={inRow(conflicts.abbreviation)}
-                      retryLabel={`Retry saving the abbreviation of ${role.name}`}
-                      onCommit={(text) => {
-                        const abbreviation = text.trim();
-                        if (abbreviation === '') return ABBREVIATION_REFUSAL;
-                        if (abbreviation === role.abbreviation) return false;
-                        repository.updateRole(role.id, { abbreviation });
-                      }}
-                    />
-                  )}
+                  <CommitInput
+                    locked={lock.locked}
+                    aria-label={`Abbreviation of ${role.name}`}
+                    className="w-24"
+                    value={role.abbreviation}
+                    changed={roleChanged('abbreviation')}
+                    failure={roleFailure('abbreviation')}
+                    conflict={inRow(conflicts.abbreviation)}
+                    retryLabel={`Retry saving the abbreviation of ${role.name}`}
+                    onCommit={(text) => {
+                      const abbreviation = text.trim();
+                      if (abbreviation === '') return ABBREVIATION_REFUSAL;
+                      if (abbreviation === role.abbreviation) return false;
+                      repository.updateRole(role.id, { abbreviation });
+                    }}
+                  />
                 </td>
                 <td className="py-1.5 pr-2 text-right">
-                  {lock.locked ? (
-                    <LockedValue>{String(role.costFactor)}</LockedValue>
-                  ) : (
-                    <CommitInput
-                      type="number"
-                      inputMode="decimal"
-                      min={0}
-                      step="any"
-                      aria-label={`Cost factor for ${role.name}`}
-                      className="w-20 text-right"
-                      errorClassName="mt-1 text-left"
-                      value={String(role.costFactor)}
-                      changed={roleChanged('costFactor')}
-                      failure={roleFailure('costFactor')}
-                      conflict={inRow(conflicts.costFactor)}
-                      retryLabel={`Retry saving the cost factor for ${role.name}`}
-                      onCommit={(text) => {
-                        const costFactor = parseCostFactor(text);
-                        if (costFactor === null) return COST_FACTOR_REFUSAL;
-                        if (costFactor === role.costFactor) return false;
-                        repository.updateRole(role.id, { costFactor });
-                        setImpact((current) => ({ ...current, [role.id]: initiativesAffectedByRole(role.id, initiatives, people) }));
-                      }}
-                    />
-                  )}
+                  <CommitInput
+                    locked={lock.locked}
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="any"
+                    aria-label={`Cost factor for ${role.name}`}
+                    className="w-20 text-right"
+                    errorClassName="mt-1 text-left"
+                    value={String(role.costFactor)}
+                    changed={roleChanged('costFactor')}
+                    failure={roleFailure('costFactor')}
+                    conflict={inRow(conflicts.costFactor)}
+                    retryLabel={`Retry saving the cost factor for ${role.name}`}
+                    onCommit={(text) => {
+                      const costFactor = parseCostFactor(text);
+                      if (costFactor === null) return COST_FACTOR_REFUSAL;
+                      if (costFactor === role.costFactor) return false;
+                      repository.updateRole(role.id, { costFactor });
+                      setImpact((current) => ({ ...current, [role.id]: initiativesAffectedByRole(role.id, initiatives, people) }));
+                    }}
+                  />
                   {impact[role.id] !== undefined && (
                     <p className="m-0 mt-1 text-caption text-text-secondary">Changes the estimate of {initiativeCount(impact[role.id])}.</p>
                   )}
@@ -142,10 +133,10 @@ export function RolesSection({ lock }: { lock: SectionLock }) {
                   {lock.locked ? (
                     <LockedActive active={role.active} />
                   ) : (
-                      <RowActionsMenu
-                        label={`Actions for ${role.name}`}
-                        actions={[activeToggleAction('role', role.active, (active) => repository.updateRole(role.id, { active }))]}
-                      />
+                    <RowActionsMenu
+                      label={`Actions for ${role.name}`}
+                      actions={[activeToggleAction('role', role.active, (active) => repository.updateRole(role.id, { active }))]}
+                    />
                   )}
                 </td>
               </tr>

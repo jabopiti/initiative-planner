@@ -24,6 +24,21 @@ export const BLOCK_CLASS = {
   ahead: `${HATCH} border-border-input text-text-primary`,
 } as const;
 export const BLOCK_TEXT = { 'not-costed': 'Not costed', 'no-period': 'No period yet' } as const;
+// A segment's box, sized to the strip; its state class sets the fill.
+export const SEGMENT_CLASS = 'flex h-12 min-w-0 flex-col justify-center overflow-hidden rounded-md border px-2';
+
+/** A segment's face: the phase, with a check once done, over its cost or why it has none. */
+export function SegmentFace({ label, detail, done = false }: { label: string; detail: string; done?: boolean }) {
+  return (
+    <>
+      <span className="flex min-w-0 items-center gap-1 text-caption font-medium">
+        {done && <CheckIcon width={14} height={14} className="shrink-0" />}
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="truncate text-label">{detail}</span>
+    </>
+  );
+}
 
 /**
  * The initiative header's time strip (§5.4): each phase over time, dated phases on one month axis and the others as
@@ -54,19 +69,18 @@ export function TimeStrip({ initiative }: { initiative: Initiative }) {
             aria-label={label}
             style={style}
             className={cn(
-              'flex h-12 min-w-0 cursor-pointer flex-col justify-center overflow-hidden rounded-md border px-2 text-left',
+              SEGMENT_CLASS,
+              'cursor-pointer text-left',
               p.placement.kind === 'axis' ? AXIS_CLASS[p.state] : BLOCK_CLASS[p.state],
               className,
             )}
             onClick={() => jump({ id: `phase-row-${p.phase.id}`, phaseId: p.phase.costed ? p.phase.id : undefined })}
           >
-            <span className="flex min-w-0 items-center gap-1 text-caption font-medium">
-              {p.state === 'done' && <CheckIcon width={14} height={14} className="shrink-0" />}
-              <span className="truncate">{p.phase.label}</span>
-            </span>
-            <span className="truncate text-label">
-              {p.placement.kind === 'axis' ? formatCompactAmount(p.cost ?? 0, currencySymbol) : BLOCK_TEXT[p.placement.kind]}
-            </span>
+            <SegmentFace
+              label={p.phase.label}
+              detail={p.placement.kind === 'axis' ? formatCompactAmount(p.cost ?? 0, currencySymbol) : BLOCK_TEXT[p.placement.kind]}
+              done={p.state === 'done'}
+            />
           </button>
         </TooltipTrigger>
         <TooltipContent>{label}</TooltipContent>

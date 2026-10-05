@@ -141,47 +141,41 @@ export function CountriesSection({ lock, today = new Date() }: { lock: SectionLo
                       >
                         {open ? <ChevronDownIcon width={16} height={16} /> : <ChevronRightIcon width={16} height={16} />}
                       </Button>
-                      {lock.locked ? (
-                        <span className="font-medium">{country.name}</span>
-                      ) : (
-                        <CommitInput
-                          aria-label={`Name of ${country.name}`}
-                          className="w-48"
-                          value={country.name}
-                          changed={changed(FILE_PATHS.countries, [{ id: country.id }, 'name'])}
-                          failure={failure(FILE_PATHS.countries, [{ id: country.id }, 'name'])}
-                          conflict={inRow(nameConflict)}
-                          retryLabel={`Retry saving the name of ${country.name}`}
-                          onCommit={(text) => {
-                            const name = text.trim();
-                            if (name === '') return NAME_REFUSAL;
-                            if (name === country.name) return false;
-                            repository.updateCountry(country.id, { name });
-                          }}
-                        />
-                      )}
+                      <CommitInput
+                        locked={lock.locked}
+                        aria-label={`Name of ${country.name}`}
+                        className="w-48"
+                        value={country.name}
+                        changed={changed(FILE_PATHS.countries, [{ id: country.id }, 'name'])}
+                        failure={failure(FILE_PATHS.countries, [{ id: country.id }, 'name'])}
+                        conflict={inRow(nameConflict)}
+                        retryLabel={`Retry saving the name of ${country.name}`}
+                        onCommit={(text) => {
+                          const name = text.trim();
+                          if (name === '') return NAME_REFUSAL;
+                          if (name === country.name) return false;
+                          repository.updateCountry(country.id, { name });
+                        }}
+                      />
                     </div>
                   </td>
                   <td className="py-1.5 pr-2">
-                    {lock.locked ? (
-                      country.code
-                    ) : (
-                      <CommitInput
-                        aria-label={`Code of ${country.name}`}
-                        className="w-20"
-                        value={country.code}
-                        changed={changed(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
-                        failure={failure(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
-                        conflict={inRow(codeConflict)}
-                        retryLabel={`Retry saving the code of ${country.name}`}
-                        onCommit={(text) => {
-                          const code = text.trim();
-                          if (code === '') return CODE_REFUSAL;
-                          if (code === country.code) return false;
-                          repository.updateCountry(country.id, { code });
-                        }}
-                      />
-                    )}
+                    <CommitInput
+                      locked={lock.locked}
+                      aria-label={`Code of ${country.name}`}
+                      className="w-20"
+                      value={country.code}
+                      changed={changed(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
+                      failure={failure(FILE_PATHS.countries, [{ id: country.id }, 'code'])}
+                      conflict={inRow(codeConflict)}
+                      retryLabel={`Retry saving the code of ${country.name}`}
+                      onCommit={(text) => {
+                        const code = text.trim();
+                        if (code === '') return CODE_REFUSAL;
+                        if (code === country.code) return false;
+                        repository.updateCountry(country.id, { code });
+                      }}
+                    />
                   </td>
                   <td className="py-1.5 pr-2 text-right">
                     {current ? `${formatAmount(current.dayRate, currencySymbol)} / day (${tracked[0]})` : '—'}
