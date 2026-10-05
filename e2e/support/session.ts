@@ -65,13 +65,12 @@ export async function loadExampleData(page: Page) {
 /**
  * Collects every Content-Security-Policy violation the page reports while a flow runs. The CSP test only sees
  * the first render; selects, popovers and toasts are where an inline style or script would be blocked later.
- * (The `frame-ancestors` notice is the one the browser always logs for a <meta> policy.)
  */
 export function watchCspViolations(page: Page): string[] {
   const violations: string[] = [];
   page.on('console', (msg) => {
     const text = msg.text();
-    if (msg.type() === 'error' && /Content Security Policy|Refused to/.test(text) && !text.includes("'frame-ancestors' is ignored")) violations.push(text);
+    if (msg.type() === 'error' && /Content Security Policy|Refused to/.test(text)) violations.push(text);
   });
   return violations;
 }
