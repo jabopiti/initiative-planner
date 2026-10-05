@@ -5,8 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, Initiative, Membership, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
-import { RepositoryProvider, useRepository } from '../state/DataContext';
-import type { Repository } from '../sync/Repository';
+import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
@@ -84,11 +83,7 @@ beforeAll(() => {
   );
 });
 afterAll(() => vi.unstubAllGlobals());
-// A debounced save still pending when a test ends lands in that test, not in the next one's `puts`.
-afterEach(async () => {
-  await repository?.flushPending();
-  cleanup();
-});
+afterEach(cleanup);
 beforeEach(() => {
   initiative = { id: 'i1', name: 'Payments API', teamId: 't1', status: 'Active' };
   members = [membership('m1', 'ana', 60), membership('m2', 'cai', 50)];
@@ -96,19 +91,11 @@ beforeEach(() => {
   puts = [];
 });
 
-/** The page's repository, so pending saves can be flushed after each test. */
-let repository: Repository | undefined;
-function GrabRepository() {
-  repository = useRepository();
-  return null;
-}
-
 function renderPage() {
   return render(
     <BrandProvider brand={defaultBrandPack}>
       <TooltipProvider>
         <RepositoryProvider token="token">
-          <GrabRepository />
           <InitiativeDetail id="i1" />
           <Toaster />
         </RepositoryProvider>

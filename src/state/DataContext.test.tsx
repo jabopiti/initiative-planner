@@ -51,3 +51,16 @@ describe('Closing the tab (§10.3)', () => {
     expect(closeTab()).toBe(false);
   });
 });
+
+describe('Unmounting the app (§10.3)', () => {
+  it('sends a save still waiting on its debounce instead of dropping it', async () => {
+    const repository = await renderProvider();
+    act(() => {
+      repository.createTeam('Platform');
+    });
+    expect(repository.hasUnsavedWork()).toBe(true);
+
+    cleanup();
+    await waitFor(() => expect(repository.hasUnsavedWork()).toBe(false));
+  });
+});

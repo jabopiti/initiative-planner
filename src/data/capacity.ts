@@ -1,5 +1,5 @@
 import type { PhaseDef } from '../brand/types';
-import { monthsInRange } from './cost';
+import { monthsInRange, periodMonths, type Period } from './cost';
 import { monthOf } from './dates';
 import { isPhaseFrozen } from './frozen';
 import { currentPhaseId, isPhaseConfirmed as isConfirmedByStart } from './processState';
@@ -203,98 +203,12 @@ export interface AllocationWarnings {
   overCapacityMonths: string[];
 }
 
-/**
- * The warnings on one allocation row of the initiative page (§5.4). The ceilings look at the phase's own
- * months and stay silent on a Provisional phase or an initiative that is not counted (not Active, or of an
- * inactive team), whose allocation is not counted; the membership warning shows regardless, because such an allocation keeps costing.
- */
-export function allocationWarnings(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): AllocationWarnings {
-  const person = data.people.find((p) => p.id === personId);
-  // A dangling person is shown as "Unknown person" on the row already; that is not a membership matter.
-  const none: AllocationWarnings = { notMember: person !== undefined && !memberOf(person, initiative.teamId, data), overTeamFteMonths: [], overCapacityMonths: [] };
-  const ctx = ceilingContext(initiative, phaseId, personId, data, allLoads);
-  if (!ctx) return none;
-  const { membership, months, loads, teamLoads } = ctx;
-  return {
-    ...none,
-    overTeamFteMonths: membership ? months.filter((m) => sum(loadsIn(teamLoads, personId, m)) > membership.teamFtePct + EPSILON) : [],
-    overCapacityMonths: ctx.person.active ? months.filter((m) => sum(loadsIn(loads, personId, m)) > ctx.person.capacityPct + EPSILON) : [],
-  };
-}
-
 /** A deactivated person is a member of no team (§4), so no Team FTE % applies to them. */
 function memberOf(person: Person, teamId: string, data: CapacityData): Membership | undefined {
   return person.active ? activeMembership(person.id, teamId, data.memberships) : undefined;
 }
 
-/**
- * What the two ceilings look at for one allocation (§7.2), shared by its warnings and its fix so they can't
- * disagree: the person's confirmed loads (all teams, and the initiative's team) and the phase's months from the
- * current month on — earlier months are history, like the grid. Null when the allocation isn't counted.
- */
-function ceilingContext(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[]) {
-  const person = data.people.find((p) => p.id === personId);
-  const plan = initiative.phases?.[phaseId];
-  if (!person || !countsTowardCapacity(initiative, data.teams) || !plan?.startDate || !plan.endDate) return null;
-  if (!isPhaseConfirmed(initiative, phaseId, data.process, data.today)) return null;
-  const loads = allLoads.filter((l) => l.confirmed && l.personId === personId);
-  return {
-    person,
-    plan,
-    membership: memberOf(person, initiative.teamId, data),
-    months: monthsInRange(plan.startDate, plan.endDate).filter((m) => m >= monthOf(data.today)),
-    loads,
-    teamLoads: loads.filter((l) => l.teamId === initiative.teamId),
-  };
-}
-
-// ---- Fix suggestions (§5.11) ----
-
-/**
- * The Allocation % to reduce one allocation to so it is over neither ceiling in any month the warnings look at
- * (§5.11): the highest whole percent that fits, with every other load unchanged. Null when there is nothing to
- * fix (no warning), nothing positive fits, or the allocation can't be edited (a frozen phase or initiative) or
- * isn't counted (a Provisional phase, an initiative that does not count).
- */
-export function reduceFix(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): { allocationId: string; allocationPct: number } | null {
-  // A Closed or Cancelled initiative isn't counted, so only a frozen phase needs its own check here.
-  const ctx = isPhaseFrozen(initiative, phaseId) ? null : ceilingContext(initiative, phaseId, personId, data, allLoads);
-  const allocation = ctx?.plan.allocations.find((a) => a.personId === personId);
-  if (!ctx || !allocation) return null;
-  const { person, membership, months } = ctx;
-  const isOwn = (l: Load) => l.initiativeId === initiative.id && l.phaseId === phaseId;
-  const others = ctx.loads.filter((l) => !isOwn(l));
-  const teamOthers = ctx.teamLoads.filter((l) => !isOwn(l));
-  let fit = Infinity;
-  for (const month of months) {
-    if (membership) fit = Math.min(fit, membership.teamFtePct - sum(loadsIn(teamOthers, personId, month)));
-    if (person.active) fit = Math.min(fit, person.capacityPct - sum(loadsIn(others, personId, month)));
-  }
-  if (fit === Infinity) return null;
-  const value = Math.floor(fit + EPSILON);
-  return value > 0 && value < allocation.allocationPct - EPSILON ? { allocationId: allocation.id, allocationPct: value } : null;
-}
-
-/**
- * The Team FTE % to raise a person's membership to (§5.11): the lowest whole percent covering their highest month
- * on the team's counted initiatives from the current month on, so every over Team FTE % warning on that team
- * clears at once. Null when they are not over it, or when the raise would not fit within their Capacity % minus
- * their other teams' Team FTE %s.
- */
-export function raiseFix(personId: string, teamId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): { membershipId: string; teamFtePct: number } | null {
-  const person = data.people.find((p) => p.id === personId);
-  const membership = person && memberOf(person, teamId, data);
-  if (!person || !membership) return null;
-  const first = monthOf(data.today);
-  const teamLoads = allLoads.filter((l) => l.confirmed && l.personId === personId && l.teamId === teamId);
-  const months = [...new Set(teamLoads.flatMap((l) => l.months))].filter((m) => m >= first);
-  const peak = months.reduce((max, m) => Math.max(max, sum(loadsIn(teamLoads, personId, m))), 0);
-  if (peak <= membership.teamFtePct + EPSILON) return null;
-  const value = Math.ceil(peak - EPSILON);
-  return value <= unclaimedCapacityPct(person, data.memberships, membership.id) + EPSILON ? { membershipId: membership.id, teamFtePct: value } : null;
-}
-
-// ---- The allocation load bar (§5.4, §5.11) ----
+// ---- One allocation against the ceilings: its row's load bar, warnings and fixes (§5.4, §5.11) ----
 
 /** One month of a person's other counted work, beside one allocation: on the initiative's team, and on other teams. */
 export interface OtherLoadMonth {
@@ -305,84 +219,125 @@ export interface OtherLoadMonth {
   loads: Load[];
 }
 
-/** Why an allocation doesn't count toward the ceilings (§7.2), shown in place of the ceiling on its load bar. */
-export type NotCountedReason = 'Provisional' | 'On hold' | 'Team inactive' | 'Person inactive';
+/** The two ceilings an allocation is set against (§7.2); each is absent when it doesn't apply. */
+export interface Ceilings {
+  /** The Team FTE % of an active member of the initiative's team. */
+  teamFtePct?: number;
+  /** The Capacity % of an active person. */
+  capacityPct?: number;
+}
 
-export interface LoadBarModel {
-  /** Set when this allocation doesn't count toward the ceilings; the bar then never hatches. */
+/** Why an allocation doesn't count toward the ceilings (§7.2), shown in place of the ceiling on its load bar. */
+export type NotCountedReason = 'provisional' | 'onHold' | 'closed' | 'cancelled' | 'teamInactive' | 'personInactive';
+
+const STATUS_REASON: Record<Exclude<Initiative['status'], 'Active'>, NotCountedReason> = { 'On Hold': 'onHold', Closed: 'closed', Cancelled: 'cancelled' };
+
+export interface LoadBarModel extends Ceilings {
+  /** Set when this allocation doesn't count toward the ceilings: no warning, no fix, and the bar never hatches. */
   notCounted?: NotCountedReason;
   /** The months the warnings check (the phase's, from the current month on), with the person's other counted work. Empty without a period. */
   months: OtherLoadMonth[];
-  /** The Team FTE % ceiling, when the person is an active member of the initiative's team. */
-  teamFtePct?: number;
-  /** The Capacity % ceiling, when the person is active. */
-  capacityPct?: number;
 }
 
 /**
  * A person's confirmed, counted loads in each of `months` (§7.2), split into the team's and other teams', leaving out
- * `exclude` (the allocation being set). The one per-month split the load bar, free capacity and the chips share.
+ * `exclude` (the allocation being set). The one per-month split the load bar, the warnings, the fixes and free
+ * capacity share, so none of them can disagree.
  */
 export function otherLoadMonths(personId: string, teamId: string, months: string[], allLoads: Load[], exclude?: { initiativeId: string; phaseId: string }): OtherLoadMonth[] {
   const mine = allLoads.filter((l) => l.confirmed && l.personId === personId && !(exclude && l.initiativeId === exclude.initiativeId && l.phaseId === exclude.phaseId));
   return months.map((month) => {
-    const loads = mine.filter((l) => l.months.includes(month));
+    const loads = loadsIn(mine, personId, month);
     const onTeam = sum(loads.filter((l) => l.teamId === teamId));
     return { month, onTeam, otherTeams: sum(loads) - onTeam, loads };
   });
 }
 
-/** The phase's months the warnings check (§5.11): from the current month on. Empty without a valid period. */
-export function warningMonths(startDate: string | undefined, endDate: string | undefined, today: string): string[] {
-  if (!startDate || !endDate) return [];
+/** A period's months the warnings check (§5.11): from the current month on — earlier months are history, like the grid. */
+export function warningMonths(period: Period, today: string): string[] {
   const first = monthOf(today);
-  return monthsInRange(startDate, endDate).filter((m) => m >= first);
+  return periodMonths(period).filter((m) => m >= first);
 }
 
-/** What one allocation row's load bar shows (§5.4): the person's other counted work over the warning months, and the ceilings. */
+/** Why one allocation isn't counted (§7.2), or undefined when it is: the rules of `activeLoads`, plus an active person. */
+function whyNotCounted(initiative: Initiative, phaseId: string, person: Person, data: CapacityData): NotCountedReason | undefined {
+  if (initiative.status !== 'Active') return STATUS_REASON[initiative.status];
+  if (!countsTowardCapacity(initiative, data.teams)) return 'teamInactive';
+  if (!person.active) return 'personInactive';
+  const plan = initiative.phases?.[phaseId];
+  return plan?.startDate && plan.endDate && !isPhaseConfirmed(initiative, phaseId, data.process, data.today) ? 'provisional' : undefined;
+}
+
+/** One allocation against the ceilings (§5.4): the person's other counted work over the warning months, and the ceilings. */
 export function loadBarModel(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): LoadBarModel {
   const person = data.people.find((p) => p.id === personId);
   const plan = initiative.phases?.[phaseId];
-  if (!person) return { months: [] };
-  const notCounted: NotCountedReason | undefined =
-    initiative.status !== 'Active'
-      ? 'On hold'
-      : !data.teams.some((t) => t.id === initiative.teamId && t.active)
-        ? 'Team inactive'
-        : !person.active
-          ? 'Person inactive'
-          : plan?.startDate && plan.endDate && !isPhaseConfirmed(initiative, phaseId, data.process, data.today)
-            ? 'Provisional'
-            : undefined;
-  const membership = memberOf(person, initiative.teamId, data);
+  if (!person || !plan) return { months: [] };
   return {
-    notCounted,
-    months: otherLoadMonths(personId, initiative.teamId, warningMonths(plan?.startDate, plan?.endDate, data.today), allLoads, { initiativeId: initiative.id, phaseId }),
-    teamFtePct: membership?.teamFtePct,
+    notCounted: whyNotCounted(initiative, phaseId, person, data),
+    months: otherLoadMonths(personId, initiative.teamId, warningMonths(plan, data.today), allLoads, { initiativeId: initiative.id, phaseId }),
+    teamFtePct: memberOf(person, initiative.teamId, data)?.teamFtePct,
     capacityPct: person.active ? person.capacityPct : undefined,
   };
 }
 
-/**
- * Fill free's value (§5.4, §5.11): the highest whole percent this allocation can take without passing a ceiling in any
- * of the bar's months — the person's free capacity with this allocation left out, so it is also the row's reduce fix.
- * Undefined without months or without a ceiling.
- */
-export function fillFreePct(model: LoadBarModel): number | undefined {
-  let fit = Infinity;
-  for (const m of model.months) {
-    if (model.teamFtePct !== undefined) fit = Math.min(fit, model.teamFtePct - m.onTeam);
-    if (model.capacityPct !== undefined) fit = Math.min(fit, model.capacityPct - m.onTeam - m.otherTeams);
-  }
-  return fit === Infinity ? undefined : Math.min(100, Math.max(0, Math.floor(fit + EPSILON)));
+/** How far a month is past each ceiling at `value`; -Infinity for a ceiling that doesn't apply. */
+function overBy(ceilings: Ceilings, m: OtherLoadMonth, value: number): { team: number; capacity: number } {
+  return {
+    team: ceilings.teamFtePct === undefined ? -Infinity : value + m.onTeam - ceilings.teamFtePct,
+    capacity: ceilings.capacityPct === undefined ? -Infinity : value + m.onTeam + m.otherTeams - ceilings.capacityPct,
+  };
 }
 
 /** How far a month is past either ceiling at `value`; 0 when within both, or when the allocation isn't counted. */
 function overflowAt(model: LoadBarModel, m: OtherLoadMonth, value: number): number {
   if (model.notCounted) return 0;
-  const teamOver = model.teamFtePct === undefined ? 0 : value + m.onTeam - model.teamFtePct;
-  const capOver = model.capacityPct === undefined ? 0 : value + m.onTeam + m.otherTeams - model.capacityPct;
-  return Math.max(0, teamOver, capOver);
+  const { team, capacity } = overBy(model, m, value);
+  return Math.max(0, team, capacity);
+}
+
+/** The months over each ceiling at `value` (§5.4): none when the allocation isn't counted. */
+export function overCeilingMonths(model: LoadBarModel, value: number): Pick<AllocationWarnings, 'overTeamFteMonths' | 'overCapacityMonths'> {
+  const over = model.notCounted ? [] : model.months.map((m) => ({ month: m.month, ...overBy(model, m, value) }));
+  return {
+    overTeamFteMonths: over.filter((o) => o.team > EPSILON).map((o) => o.month),
+    overCapacityMonths: over.filter((o) => o.capacity > EPSILON).map((o) => o.month),
+  };
+}
+
+/**
+ * The hatched stretches of the bar at `value` in `month` (§5.4): this team's stack past Team FTE %, and the whole load
+ * past Capacity %, merged where they overlap so a stretch past both is hatched once. None when not counted.
+ */
+export function overflowSpans(model: LoadBarModel, month: OtherLoadMonth | undefined, value: number): [number, number][] {
+  if (!month || model.notCounted) return [];
+  const { team, capacity } = overBy(model, month, value);
+  const spans: [number, number][] = [];
+  if (team > EPSILON) spans.push([model.teamFtePct!, value + month.onTeam]);
+  if (capacity > EPSILON) spans.push([model.capacityPct!, value + month.onTeam + month.otherTeams]);
+  if (spans.length < 2) return spans;
+  const [a, b] = spans[0][0] <= spans[1][0] ? spans : [spans[1], spans[0]];
+  return a[1] >= b[0] ? [[a[0], Math.max(a[1], b[1])]] : [a, b];
+}
+
+/**
+ * The person's free capacity beside one allocation (§5.4, §5.11): the highest whole percent it can take without passing
+ * a ceiling in any of `months`, never below 0 or above 100, and the month that sets it (the busiest on a tie, then the
+ * earliest). Fill free's value, the row's reduce fix and the roster's "% free". Undefined without months or ceilings.
+ */
+export function freeCapacity(months: OtherLoadMonth[], ceilings: Ceilings): { pct: number; limiting: OtherLoadMonth } | undefined {
+  let limiting: OtherLoadMonth | undefined;
+  let fit = Infinity;
+  for (const m of months) {
+    const { team, capacity } = overBy(ceilings, m, 0);
+    const room = -Math.max(team, capacity);
+    const busier = limiting !== undefined && m.onTeam + m.otherTeams > limiting.onTeam + limiting.otherTeams + EPSILON;
+    if (room < fit - EPSILON || (room !== Infinity && Math.abs(room - fit) <= EPSILON && busier)) {
+      fit = room;
+      limiting = m;
+    }
+  }
+  return limiting ? { pct: Math.min(100, Math.max(0, Math.floor(fit + EPSILON))), limiting } : undefined;
 }
 
 /**
@@ -403,4 +358,59 @@ export function shownLoadMonth(model: LoadBarModel, value: number): OtherLoadMon
     }
   }
   return best;
+}
+
+/**
+ * One allocation row of the initiative page (§5.4): its load bar and its warnings. The ceilings look at the warning
+ * months and stay silent on an allocation that isn't counted; the membership warning shows regardless, because such
+ * an allocation keeps costing.
+ */
+export function allocationRow(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): { bar: LoadBarModel; warnings: AllocationWarnings } {
+  const person = data.people.find((p) => p.id === personId);
+  const bar = loadBarModel(initiative, phaseId, personId, data, allLoads);
+  const value = initiative.phases?.[phaseId]?.allocations.find((a) => a.personId === personId)?.allocationPct ?? 0;
+  return {
+    bar,
+    // A dangling person is shown as "Unknown person" on the row already; that is not a membership matter.
+    warnings: { notMember: person !== undefined && !memberOf(person, initiative.teamId, data), ...overCeilingMonths(bar, value) },
+  };
+}
+
+/** The warnings on one allocation row of the initiative page (§5.4); see `allocationRow`. */
+export function allocationWarnings(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): AllocationWarnings {
+  return allocationRow(initiative, phaseId, personId, data, allLoads).warnings;
+}
+
+// ---- Fix suggestions (§5.11) ----
+
+/**
+ * The Allocation % to reduce one allocation to so it is over neither ceiling in any month the warnings look at
+ * (§5.11): the person's free capacity beside it, as Fill free offers. Null when there is nothing to fix (it is
+ * within that already), nothing positive fits, or the allocation can't be edited (a frozen phase) or isn't counted.
+ */
+export function reduceFix(initiative: Initiative, phaseId: string, personId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): { allocationId: string; allocationPct: number } | null {
+  const allocation = initiative.phases?.[phaseId]?.allocations.find((a) => a.personId === personId);
+  if (!allocation || isPhaseFrozen(initiative, phaseId)) return null;
+  const model = loadBarModel(initiative, phaseId, personId, data, allLoads);
+  const value = model.notCounted ? undefined : freeCapacity(model.months, model)?.pct;
+  return value !== undefined && value > 0 && value < allocation.allocationPct - EPSILON ? { allocationId: allocation.id, allocationPct: value } : null;
+}
+
+/**
+ * The Team FTE % to raise a person's membership to (§5.11): the lowest whole percent covering their highest month
+ * on the team's counted initiatives from the current month on, so every over Team FTE % warning on that team
+ * clears at once. Null when they are not over it, or when the raise would not fit within their Capacity % minus
+ * their other teams' Team FTE %s.
+ */
+export function raiseFix(personId: string, teamId: string, data: CapacityData, allLoads: Load[] = activeLoads(data)): { membershipId: string; teamFtePct: number } | null {
+  const person = data.people.find((p) => p.id === personId);
+  const membership = person && memberOf(person, teamId, data);
+  if (!person || !membership) return null;
+  const first = monthOf(data.today);
+  const teamLoads = allLoads.filter((l) => l.confirmed && l.personId === personId && l.teamId === teamId);
+  const months = [...new Set(teamLoads.flatMap((l) => l.months))].filter((m) => m >= first);
+  const peak = months.reduce((max, m) => Math.max(max, sum(loadsIn(teamLoads, personId, m))), 0);
+  if (peak <= membership.teamFtePct + EPSILON) return null;
+  const value = Math.ceil(peak - EPSILON);
+  return value <= unclaimedCapacityPct(person, data.memberships, membership.id) + EPSILON ? { membershipId: membership.id, teamFtePct: value } : null;
 }

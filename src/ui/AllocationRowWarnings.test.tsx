@@ -17,6 +17,6 @@ describe('allocation rows on the initiative page (§5.4)', () => {
     expect(ana).toHaveTextContent('Over Capacity % in Oct 2026');
     expect(under(/^Cy Ode/)).toHaveTextContent('No longer a member of Payments');
     // Bo has no warnings: the next row is the next person's own.
-    expect(under(/^Bo Lind/).id).toMatch(/^allocation-/);
+    expect(within(under(/^Bo Lind/)).getByRole('slider')).toBeInTheDocument();
   });
 });

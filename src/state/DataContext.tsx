@@ -18,6 +18,10 @@ export function RepositoryProvider({ token, keepTrackedYears = false, children }
     void repository.initialize();
   }, [repository]);
 
+  // A save still waiting on its debounce goes out when the provider unmounts or swaps its repository (a new token),
+  // rather than being dropped with it (§10.3).
+  useEffect(() => () => void repository.flushPending(), [repository]);
+
   // §3: pull when the tab regains focus and at least every 5 minutes while it is visible.
   useEffect(() => repository.startPulling(), [repository]);
 

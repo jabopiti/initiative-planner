@@ -2,11 +2,15 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Load } from '../data/capacity';
-import type { Person, Team } from '../data/types';
+import type { FreeCapacity } from '../data/personLoad';
+import type { Person, Role, Team } from '../data/types';
 import { MAX_CHIPS, rosterDetail, TeamRoster } from './TeamRoster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 const person = (id: string, name: string): Person => ({ id, name, countryId: 'es', roleId: 'dev', capacityPct: 100, active: true });
+const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }];
+/** Free capacity with nothing else allocated in October. */
+const freeAt = (pct: number, loads: Load[] = []): FreeCapacity => ({ pct, limiting: { month: '2026-10', onTeam: 0, otherTeams: 0, loads } });
 afterEach(cleanup);
 // cmdk scrolls the highlighted item into view, which jsdom lacks.
 beforeAll(() => {
@@ -16,10 +20,10 @@ beforeAll(() => {
 const sofia = person('sofia', 'Sofia Molina');
 const paul = person('paul', 'Paul Richter');
 
-function renderRoster(addable: Person[], free: Map<string, number> | undefined, onAdd = vi.fn()) {
+function renderRoster(addable: Person[], free: Map<string, FreeCapacity> | undefined, onAdd = vi.fn()) {
   render(
     <TooltipProvider>
-      <TeamRoster phaseLabel="Validation" addable={addable} free={free} roles={[]} detail={() => 'Developer'} highlight={false} onAdd={onAdd} />
+      <TeamRoster phaseLabel="Validation" addable={addable} free={free} roles={roles} teams={[]} highlight={false} onAdd={onAdd} />
     </TooltipProvider>,
   );
   return onAdd;
@@ -28,7 +32,7 @@ function renderRoster(addable: Person[], free: Map<string, number> | undefined, 
 describe('TeamRoster (§5.4, §5.11)', () => {
   it('shows a chip per person in the order given, 0% free included, and adds one in a click', async () => {
     const user = userEvent.setup();
-    const onAdd = renderRoster([sofia, paul], new Map([['sofia', 50], ['paul', 0]]));
+    const onAdd = renderRoster([sofia, paul], new Map([['sofia', freeAt(50)], ['paul', freeAt(0)]]));
     const chips = within(screen.getByRole('group', { name: 'Add people to Validation' })).getAllByRole('button');
     expect(chips.map((c) => c.textContent)).toEqual(['Sofia Molina· 50% free', 'Paul Richter· 0% free']);
     expect(chips[0]).toHaveAccessibleName('Add Sofia Molina, 50% free. Developer');
@@ -65,12 +69,17 @@ describe('rosterDetail (§5.4)', () => {
     confirmed: true,
   });
 
-  it('names where the load is in the busiest month, after the role', () => {
-    const detail = rosterDetail(paul, 'Developer', growth, [growth, platform], { startDate: '2026-10-01', endDate: '2026-11-30' }, [load(100, ['2026-10'])], '2026-10-05');
-    expect(detail).toBe('Developer · 100% on Checkout Redesign (Platform) in Oct 2026');
+  it('names where the load is in the month that limits the free capacity, after the role', () => {
+    expect(rosterDetail('Developer', freeAt(0, [load(100, ['2026-10'])]), [growth, platform])).toBe('Developer · 100% on Checkout Redesign (Platform) in Oct 2026');
   });
 
-  it('is the role alone when nothing else is allocated', () => {
-    expect(rosterDetail(paul, 'Developer', growth, [growth], { startDate: '2026-10-01', endDate: '2026-11-30' }, [], '2026-10-05')).toBe('Developer');
+  it('joins several loads in running copy', () => {
+    const second = { ...load(20, ['2026-10']), initiativeName: 'Search' };
+    expect(rosterDetail('Developer', freeAt(0, [load(60, ['2026-10']), second]), [platform])).toBe('Developer · 60% on Checkout Redesign (Platform) and 20% on Search (Platform) in Oct 2026');
+  });
+
+  it('is the role alone when nothing else is allocated, or without a period', () => {
+    expect(rosterDetail('Developer', freeAt(100), [growth])).toBe('Developer');
+    expect(rosterDetail('Developer', undefined, [growth])).toBe('Developer');
   });
 });

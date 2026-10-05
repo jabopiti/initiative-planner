@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from 'react';
-import { otherLoadMonths, warningMonths, type Load } from '../data/capacity';
-import type { Period } from '../data/cost';
 import { formatMonth } from '../data/dates';
+import { joinList } from '../data/joinList';
+import type { FreeCapacity } from '../data/personLoad';
 import { roleLabel } from '../data/roleLabel';
 import type { Person, Role, Team } from '../data/types';
 import { PlusIcon } from './icons';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { focusRing } from '@/components/ui/focus-ring';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -16,15 +17,13 @@ export const MAX_CHIPS = 12;
 
 /**
  * Where a person's other counted work is in the month that limits their free capacity (§5.4, §5.11), after their role:
- * "Developer · 100% on Checkout Redesign (Platform) in Oct 2026". The role alone when nothing else is allocated.
+ * "Developer · 100% on Checkout Redesign (Platform) in Oct 2026". The role alone when nothing else is allocated then.
  */
-export function rosterDetail(person: Person, role: string, team: Team, teams: Team[], period: Period, loads: Load[], today: string): string {
-  const months = otherLoadMonths(person.id, team.id, warningMonths(period.startDate, period.endDate, today), loads);
-  let limiting = months[0];
-  for (const m of months) if (m.onTeam + m.otherTeams > limiting.onTeam + limiting.otherTeams) limiting = m;
-  if (!limiting || limiting.loads.length === 0) return role;
-  const where = limiting.loads.map((l) => `${Math.round(l.allocationPct)}% on ${l.initiativeName} (${teams.find((t) => t.id === l.teamId)?.name ?? 'another team'})`);
-  return `${role} · ${where.join(', ')} in ${formatMonth(limiting.month)}`;
+export function rosterDetail(role: string, free: FreeCapacity | undefined, teams: Team[]): string {
+  const loads = free?.limiting.loads ?? [];
+  if (loads.length === 0) return role;
+  const where = loads.map((l) => `${Math.round(l.allocationPct)}% on ${l.initiativeName} (${teams.find((t) => t.id === l.teamId)?.name ?? 'another team'})`);
+  return `${role} · ${joinList(where)} in ${formatMonth(free!.limiting.month)}`;
 }
 
 /**
@@ -37,7 +36,7 @@ export function TeamRoster({
   addable,
   free,
   roles,
-  detail,
+  teams,
   highlight,
   copy,
   onAdd,
@@ -45,22 +44,18 @@ export function TeamRoster({
   phaseLabel: string;
   addable: Person[];
   /** Free capacity per person; undefined without a valid period (§5.11). */
-  free: Map<string, number> | undefined;
+  free: Map<string, FreeCapacity> | undefined;
   roles: Role[];
-  /** The role and where the person's load is, for the chip's tooltip and accessible name. */
-  detail: (person: Person) => string;
+  /** For naming the teams where a person's load is. */
+  teams: Team[];
   /** This phase's missing people are the highlighted next step. */
   highlight: boolean;
   copy?: ReactNode;
   onAdd: (personId: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  if (addable.length === 0 && !copy) return null;
-  const freeText = (p: Person) => {
-    const pct = free?.get(p.id);
-    return pct === undefined ? null : <span className={cn('tabular-nums', pct === 0 ? 'text-warning-text' : 'text-text-secondary')}>· {pct}% free</span>;
-  };
-  const freeLabel = (p: Person) => (free?.get(p.id) === undefined ? '' : `, ${free.get(p.id)}% free`);
+  const freeText = (pct: number | undefined) =>
+    pct === undefined ? null : <span className={cn('tabular-nums', pct === 0 ? 'text-warning-text' : 'text-text-secondary')}>· {pct}% free</span>;
 
   return (
     <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`Add people to ${phaseLabel}`}>
@@ -90,7 +85,7 @@ export function TeamRoster({
                       <span className="flex-1">
                         {p.name} · {roleLabel(p, roles)}
                       </span>
-                      {freeText(p)}
+                      {freeText(free?.get(p.id)?.pct)}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -99,26 +94,30 @@ export function TeamRoster({
           </PopoverContent>
         </Popover>
       ) : (
-        addable.map((p) => (
-          <Tooltip key={p.id}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  'inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border-input bg-surface-card py-0.5 pr-2.5 pl-2 text-caption text-text-primary hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring',
-                  highlight && 'border-brand-accent',
-                )}
-                aria-label={`Add ${p.name}${freeLabel(p)}. ${detail(p)}`}
-                onClick={() => onAdd(p.id)}
-              >
-                <PlusIcon width={14} height={14} className={highlight ? 'text-brand-accent-text' : 'text-text-secondary'} />
-                {p.name}
-                {freeText(p)}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{detail(p)}</TooltipContent>
-          </Tooltip>
-        ))
+        addable.map((p) => {
+          const personFree = free?.get(p.id);
+          const detail = rosterDetail(roleLabel(p, roles), personFree, teams);
+          return (
+            <Tooltip key={p.id}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    `inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border-input bg-surface-card py-0.5 pr-2.5 pl-2 text-caption text-text-primary hover:bg-surface-subtle ${focusRing}`,
+                    highlight && 'border-brand-accent',
+                  )}
+                  aria-label={`Add ${p.name}${personFree ? `, ${personFree.pct}% free` : ''}. ${detail}`}
+                  onClick={() => onAdd(p.id)}
+                >
+                  <PlusIcon width={14} height={14} className={highlight ? 'text-brand-accent-text' : 'text-text-secondary'} />
+                  {p.name}
+                  {freeText(personFree?.pct)}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>{detail}</TooltipContent>
+            </Tooltip>
+          );
+        })
       )}
       {copy && <span className="ml-auto">{copy}</span>}
     </div>

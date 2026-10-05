@@ -4,32 +4,21 @@ import { Slider as SliderPrimitive } from "radix-ui"
 import { focusRing } from "./focus-ring"
 
 /**
- * shadcn's slider, single-thumb: the caller can draw its own track content (the load bar's segments, §5.4) in place of
- * the default range, and pass the thumb its accessible name, value text and key handling (§9.5).
+ * shadcn's slider, single-thumb. `bare` leaves the track undrawn for a caller that draws its own beneath it (the load
+ * bar's segments, §5.4); `thumbProps` give the thumb its accessible name, value text, key handling and ref (§9.5).
  */
 function Slider({
   className,
-  trackClassName,
-  trackChildren,
+  bare = false,
   thumbProps,
-  defaultValue,
-  value,
-  min = 0,
-  max = 100,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root> & {
-  trackClassName?: string
-  /** Drawn inside the track instead of the default range. */
-  trackChildren?: React.ReactNode
+  bare?: boolean
   thumbProps?: React.ComponentProps<typeof SliderPrimitive.Thumb>
 }) {
   return (
     <SliderPrimitive.Root
       data-slot="slider"
-      defaultValue={defaultValue}
-      value={value}
-      min={min}
-      max={max}
       className={cn(
         "relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50",
         className
@@ -38,9 +27,9 @@ function Slider({
     >
       <SliderPrimitive.Track
         data-slot="slider-track"
-        className={cn("relative h-1.5 w-full grow overflow-hidden rounded-full bg-muted", trackClassName)}
+        className={cn("relative h-1.5 w-full grow overflow-hidden rounded-full", bare ? "bg-transparent" : "bg-muted")}
       >
-        {trackChildren ?? <SliderPrimitive.Range data-slot="slider-range" className="absolute h-full bg-primary" />}
+        {!bare && <SliderPrimitive.Range data-slot="slider-range" className="absolute h-full bg-primary" />}
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
         data-slot="slider-thumb"

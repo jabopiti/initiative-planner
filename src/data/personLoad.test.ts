@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
+import { activeLoads } from './capacity';
 import { allocatablePeople, freeCapacityByPerson } from './personLoad';
-import type { Initiative, Membership, Person } from './types';
+import type { Initiative, Membership, Person, Team } from './types';
 
 const process = defaultBrandPack.process;
 const later = process[1].id;
@@ -26,8 +27,14 @@ const teams = [
   { id: 't1', name: 'T1', active: true },
   { id: 't2', name: 'T2', active: true },
 ];
+type Portfolio = { initiatives: Initiative[]; teams: Team[]; process: typeof process; today: string };
+/** Free capacity per person, in whole percent, over the loads of `initiatives`. */
+const freeOf = ({ initiatives, teams, process, ...args }: Omit<Parameters<typeof freeCapacityByPerson>[0], 'loads'> & Portfolio) => {
+  const result = freeCapacityByPerson({ ...args, loads: activeLoads({ initiatives, teams, process, today: args.today }) });
+  return result && new Map([...result].map(([id, f]) => [id, f.pct]));
+};
 const free = (initiatives: Initiative[], period: { startDate?: string; endDate?: string } = { startDate: '2026-10-01', endDate: '2026-11-30' }, teamFtePct = 60) =>
-  freeCapacityByPerson({ people: [person], teamId: 't1', teams, memberships: [membership(teamFtePct)], period, initiatives, process, today: TODAY })?.get('ana');
+  freeOf({ people: [person], teamId: 't1', teams, memberships: [membership(teamFtePct)], period, initiatives, process, today: TODAY })?.get('ana');
 
 describe('freeCapacityByPerson (§5.11, §7.2)', () => {
   it('is the Team FTE % when the person has no other commitments', () => {
@@ -60,7 +67,7 @@ describe('freeCapacityByPerson (§5.11, §7.2)', () => {
   it('counts the current phase even when it starts far ahead', () => {
     // A costed phase first in the process is the current one; only costed phases carry load, as in the grid.
     const costedFirst = [process[1], process[0], ...process.slice(2)];
-    const result = freeCapacityByPerson({
+    const result = freeOf({
       people: [person],
       teamId: 't1',
       teams,
@@ -102,7 +109,7 @@ describe('freeCapacityByPerson (§5.11, §7.2)', () => {
   it('ignores the initiatives of an inactive team (§7.2)', () => {
     const other = initiative('other', 't2', later, 70, '2026-10-01', '2026-10-31');
     const inactive = [teams[0], { ...teams[1], active: false }];
-    const result = freeCapacityByPerson({ people: [person], teamId: 't1', teams: inactive, memberships: [membership(60)], period: { startDate: '2026-10-01', endDate: '2026-10-31' }, initiatives: [other], process, today: TODAY });
+    const result = freeOf({ people: [person], teamId: 't1', teams: inactive, memberships: [membership(60)], period: { startDate: '2026-10-01', endDate: '2026-10-31' }, initiatives: [other], process, today: TODAY });
     expect(result?.get('ana')).toBe(60);
   });
 
@@ -113,7 +120,7 @@ describe('freeCapacityByPerson (§5.11, §7.2)', () => {
 
   it('answers for everyone in the list in one call, each against their own load and Team FTE %', () => {
     const bo: Person = { ...person, id: 'bo', name: 'Bo', capacityPct: 80 };
-    const result = freeCapacityByPerson({
+    const result = freeOf({
       people: [person, bo],
       teamId: 't1',
       teams,
@@ -134,16 +141,14 @@ describe('allocatablePeople (§5.11, §7.2)', () => {
   const cy: Person = { ...person, id: 'cy', name: 'Cy' };
   const inactive: Person = { ...person, id: 'di', name: 'Di', active: false };
   const members = (...ids: string[]): Membership[] => ids.map((id) => ({ id: `m-${id}`, personId: id, teamId: 't1', teamFtePct: 60, active: true }));
-  const args = (over: Partial<Parameters<typeof allocatablePeople>[0]> = {}) => ({
+  const args = ({ initiatives = [], ...over }: Partial<Parameters<typeof allocatablePeople>[0]> & { initiatives?: Initiative[] } = {}) => ({
     plan: { startDate: '2026-10-01', endDate: '2026-10-31', allocations: [] },
     team: t1,
     withFree: true,
     people: [person, bo, cy, inactive],
-    teams: [t1],
     memberships: members('ana', 'bo', 'cy', 'di'),
-    initiatives: [] as Initiative[],
-    process,
     today: TODAY,
+    loads: activeLoads({ initiatives, teams: [t1], process, today: TODAY }),
     ...over,
   });
 
@@ -162,7 +167,7 @@ describe('allocatablePeople (§5.11, §7.2)', () => {
     busy.phases![later].allocations[0].personId = 'ana';
     const r = allocatablePeople(args({ initiatives: [busy] }));
     expect(r.addable.map((p) => p.id)).toEqual(['bo', 'cy', 'ana']);
-    expect(r.free?.get('ana')).toBe(20);
+    expect(r.free?.get('ana')?.pct).toBe(20);
   });
 
   it('is by name alone, with no free figures, when not asked for (closed or frozen phase)', () => {

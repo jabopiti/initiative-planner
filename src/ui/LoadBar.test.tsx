@@ -54,7 +54,7 @@ describe('LoadBar (§5.4, §9.5)', () => {
   });
 
   it('outlines an allocation that does not count, never hatches it, and says why', () => {
-    const { bar } = renderBar({ ...jonas, notCounted: 'Provisional' }, 60);
+    const { bar } = renderBar({ ...jonas, notCounted: 'provisional' }, 60);
     expect(screen.getByTestId('load-this')).toHaveClass('border-dashed');
     expect(screen.queryByTestId('load-overflow')).not.toBeInTheDocument();
     expect(screen.getByText('Provisional, not counted · 60% elsewhere in Nov 2026')).toBeInTheDocument();
