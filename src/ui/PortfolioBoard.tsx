@@ -8,7 +8,11 @@ import { useNeedsAttentionItems } from '../state/NeedsAttentionContext';
 import { ApprovalTrackBadge } from './ApprovalTrackBadge';
 import { BulletBar } from './BulletBar';
 import { AttentionMarker, IconMarker } from './AttentionMarker';
+import { ChangedDot, ChangedMarker } from './ChangedMarker';
+import { useChangedInitiatives, useSeen, useSeenActions } from '../state/SeenContext';
+import { formatSince } from '../data/seen';
 import { CompactAmount } from './CompactAmount';
+import { Button } from '@/components/ui/button';
 import { CopyButton } from './CopyButton';
 import { PhaseIcon } from './icons';
 import { ClearFilters, Page, Toolbar } from './Page';
@@ -45,6 +49,7 @@ function StatusMarker({ status }: { status: InitiativeStatus }) {
 function BoardCard({ row }: { row: PortfolioRow }) {
   const attention = useNeedsAttentionItems();
   const changed = useIsChangedByOthers();
+  const seen = useSeen();
   const { initiative } = row;
   const item = attention.find((i) => i.initiativeId === initiative.id);
   return (
@@ -55,6 +60,7 @@ function BoardCard({ row }: { row: PortfolioRow }) {
       <div className="flex items-center justify-between gap-1.5 text-body font-medium">
         <TruncatedText text={initiative.name} className="min-w-0" />
         <span className="flex shrink-0 items-center gap-1.5">
+          {seen.changed.has(initiative.id) && <ChangedMarker />}
           <StatusMarker status={initiative.status} />
           {item && <AttentionMarker item={item} />}
         </span>
@@ -70,6 +76,24 @@ function BoardCard({ row }: { row: PortfolioRow }) {
         <ApprovalTrackBadge initiative={initiative} />
       </div>
     </a>
+  );
+}
+
+/** "N initiatives changed since you last looked, <day date>" with Mark as seen (§9.9): every changed initiative, whatever the filters. */
+function ChangedLine() {
+  const { markAllSeen } = useSeenActions();
+  const changed = useChangedInitiatives();
+  if (changed.length === 0) return null;
+  return (
+    <div className="mb-3 flex items-center justify-between gap-3 rounded-card bg-surface-card px-3.5 py-2 text-body shadow-card">
+      <p className="m-0 flex items-center gap-2">
+        <ChangedDot />
+        {plural(changed.length, 'initiative', 'initiatives')} changed since you last looked, {formatSince(changed[0].since, new Date())}
+      </p>
+      <Button type="button" variant="outline" size="sm" onClick={markAllSeen}>
+        Mark as seen
+      </Button>
+    </div>
   );
 }
 
@@ -158,6 +182,7 @@ export function PortfolioBoard() {
     <Page title="Portfolio">
       <GettingStartedStrip collapsible />
       <NeedsAttentionStrip />
+      <ChangedLine />
       <Toolbar
         className="mb-2"
         filters={

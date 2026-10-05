@@ -3,6 +3,7 @@ import { tokenStore } from './auth/tokenStore';
 import { defaultBrandPack } from './brand/defaultBrand';
 import { BrandProvider } from './state/BrandContext';
 import { RepositoryProvider, useRepositoryState } from './state/DataContext';
+import { SeenProvider } from './state/SeenContext';
 import { NeedsAttentionProvider } from './state/NeedsAttentionContext';
 import { SessionContext, type Session } from './state/SessionContext';
 import { ClassicTokenBanner } from './ui/ClassicTokenBanner';
@@ -65,6 +66,7 @@ function MainApp({ token }: { token: string }) {
   const route = useHashRoute();
   return (
     <RepositoryProvider token={token} keepTrackedYears>
+      <SeenProvider>
       <NeedsAttentionProvider>
         <ConflictUiProvider>
           <TopBar route={route} />
@@ -77,6 +79,7 @@ function MainApp({ token }: { token: string }) {
           </main>
         </ConflictUiProvider>
       </NeedsAttentionProvider>
+      </SeenProvider>
     </RepositoryProvider>
   );
 }

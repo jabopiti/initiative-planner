@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearAllFileCaches, closeDatabase, defaultBudget, FileCache, tokenCache } from './db';
+import { clearAllFileCaches, closeDatabase, defaultBudget, FileCache, SeenCache, tokenCache } from './db';
 
 const file = (size: number, sha = 'sha') => ({ content: 'x'.repeat(size), sha });
 
@@ -158,5 +158,31 @@ describe('FileCache (§10.4)', () => {
     older.close();
     // Once the older tab is gone the cache opens again.
     expect(await new FileCache('a/b@data').all()).toEqual(new Map());
+  });
+});
+
+describe('SeenCache (§9.9, §10.4)', () => {
+  const record = (at: number) => ({ at, fingerprint: 'f', figures: { estimate: 1, deviation: 0, phase: 'Discovery', gate: '0 of 1 complete' } });
+
+  afterEach(async () => {
+    await new SeenCache('a/b@data').clear();
+    await new SeenCache('c/d@data').clear();
+  });
+
+  it('keeps what was seen per initiative, apart from other repositories, until cleared', async () => {
+    const seen = new SeenCache('a/b@data');
+    await seen.putMany([['x', record(1)], ['y', record(2)]]);
+
+    expect([...(await seen.all()).keys()].sort()).toEqual(['x', 'y']);
+    expect((await new SeenCache('c/d@data').all()).size).toBe(0);
+    await seen.clear();
+    expect((await seen.all()).size).toBe(0);
+  });
+
+  it('is not touched by clearing the dataset cache', async () => {
+    const seen = new SeenCache('a/b@data');
+    await seen.put('x', record(1));
+    await clearAllFileCaches();
+    expect((await seen.all()).size).toBe(1);
   });
 });

@@ -126,6 +126,7 @@ describe('Reset (slice 032)', () => {
     expect(state.teams).toEqual([]);
     expect(state.people).toEqual([]);
     expect(state.datasetFlags!.ratesReviewed).toBe(false);
+    expect(state.datasetResets).toBe(1);
   });
 
   it('drops edits not saved yet and never pushes them afterwards', async () => {

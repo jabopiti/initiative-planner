@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { grandDeviation, grandEstimate, hasValidPeriod, phaseEffectiveTotal, resolveApprovalTrack } from '../data/cost';
 import { formatPeriod } from '../data/dates';
-import { currentPhaseId, gateBlockers, gateProgress, gateProgressText, gateRequirements, lastCostedPassedGate } from '../data/gate';
+import { currentPhaseId, GATE_ALL_PASSED, GATE_NOTHING_TO_CHECK, gateBlockers, gateProgress, gateProgressText, gateRequirements, lastCostedPassedGate } from '../data/gate';
 import { escalation, recordedActuals } from '../data/keyFigures';
 import { plural } from '../data/plural';
 import { useBrand } from '../state/BrandContext';
 import { useRepositoryState } from '../state/DataContext';
+import type { KeyFigureSnapshot } from '../data/seen';
 import type { Initiative } from '../data/types';
 import { BulletBar } from './BulletBar';
 import { CopyButton } from './CopyButton';
@@ -35,8 +36,25 @@ export function Figure({ children, className = '' }: { children: ReactNode; clas
   return <div className={`mb-1.5 min-w-0 text-display tabular-nums break-words ${className}`}>{children}</div>;
 }
 
+/**
+ * A key figure's previous value, struck through before the new one until the page is left (§9.9); screen readers get
+ * "was <value>". Without a previous value, just the figure.
+ */
+function WithPrevious({ previous, children }: { previous: string | undefined; children: ReactNode }) {
+  if (previous === undefined) return children;
+  return (
+    <>
+      <s className="mr-2 text-body font-normal text-text-muted" aria-hidden="true">
+        {previous}
+      </s>
+      <span className="sr-only">was {previous}, now </span>
+      <span className="inline-block">{children}</span>
+    </>
+  );
+}
+
 /** A key figure that rolls to a new value and tints briefly (slice 059), as a block so a long figure wraps in its tile. */
-const Rolled = (props: { value: number; format: (n: number) => string }) => <RolledFigure {...props} className="-mx-1 block" />;
+const Rolled = (props: { value: number; format: (n: number) => string }) => <RolledFigure value={props.value} format={props.format} className="-mx-1 block" />;
 
 const Sub = ({ children, className }: { children: ReactNode; className?: string }) => (
   <p className={cn('m-0 mt-1 text-caption tabular-nums text-text-secondary', className)}>{children}</p>
@@ -49,7 +67,7 @@ const Sub = ({ children, className }: { children: ReactNode; className?: string 
  * estimate tile and copies the cost summary and the phase costs (§9.2). With no costed phase in the process, only the
  * phase and gate tiles show.
  */
-export function CostSummary({ initiative }: { initiative: Initiative }) {
+export function CostSummary({ initiative, previous = {} }: { initiative: Initiative; previous?: Partial<KeyFigureSnapshot> }) {
   const { process, currencySymbol, approvalTracks } = useBrand();
   const { people, roles, countries } = useRepositoryState();
   const data = { roles, countries };
@@ -97,7 +115,9 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
         <>
           <Tile label="Grand estimate" action={<CopyButton getData={getData} noun={['line', 'lines']} iconLabel="Copy cost summary" />}>
             <Figure>
-              <Rolled value={estimate} format={(n) => formatAmount(n, currencySymbol)} />
+              <WithPrevious previous={previous.estimate === undefined ? undefined : formatAmount(previous.estimate, currencySymbol)}>
+                <Rolled value={estimate} format={(n) => formatAmount(n, currencySymbol)} />
+              </WithPrevious>
             </Figure>
             <BulletBar
               size="tile"
@@ -126,7 +146,9 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
           </Tile>
           <Tile label="Deviation">
             <Figure className={deviation > 0 ? 'text-warning-text' : ''}>
-              <Rolled value={deviation} format={(n) => formatSignedAmount(n, currencySymbol)} />
+              <WithPrevious previous={previous.deviation === undefined ? undefined : formatSignedAmount(previous.deviation, currencySymbol)}>
+                <Rolled value={deviation} format={(n) => formatSignedAmount(n, currencySymbol)} />
+              </WithPrevious>
             </Figure>
             <Sub>{deviationSub}</Sub>
           </Tile>
@@ -135,17 +157,21 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
       <Tile label="Current phase">
         {closed ? (
           <>
-            <Figure>Closed</Figure>
+            <Figure>
+              <WithPrevious previous={previous.phase}>Closed</WithPrevious>
+            </Figure>
             <Sub>after {finalGate}</Sub>
           </>
         ) : (
           <>
-            <Figure>
-              {/* A long phase name is cut with an ellipsis, in full in its tooltip (§9.11), rather than overflowing the tile. */}
-              <span className="flex min-w-0 items-center gap-1.5">
-                <PhaseIcon name={phase.icon} width={18} height={18} aria-hidden="true" className="shrink-0" />
-                <TruncatedText text={phase.label} className="min-w-0" />
-              </span>
+            <Figure className="flex flex-wrap items-center">
+              <WithPrevious previous={previous.phase}>
+                {/* A long phase name is cut with an ellipsis, in full in its tooltip (§9.11), rather than overflowing the tile. */}
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <PhaseIcon name={phase.icon} width={18} height={18} aria-hidden="true" className="shrink-0" />
+                  <TruncatedText text={phase.label} className="min-w-0" />
+                </span>
+              </WithPrevious>
             </Figure>
             <Sub>{plan && hasValidPeriod(plan) ? formatPeriod(plan.startDate!, plan.endDate!) : 'No period yet'}</Sub>
           </>
@@ -153,7 +179,9 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
       </Tile>
       {closed ? (
         <Tile label="Gates">
-          <Figure>All passed</Figure>
+          <Figure>
+            <WithPrevious previous={previous.gate}>{GATE_ALL_PASSED}</WithPrevious>
+          </Figure>
           <Sub>
             {process[0].exitGate.label} – {finalGate}
           </Sub>
@@ -161,11 +189,15 @@ export function CostSummary({ initiative }: { initiative: Initiative }) {
       ) : (
         <Tile label={`Gate ${phase.exitGate.label}`}>
           {requirements.length === 0 ? (
-            <Figure>Nothing to check</Figure>
+            <Figure>
+              <WithPrevious previous={previous.gate}>{GATE_NOTHING_TO_CHECK}</WithPrevious>
+            </Figure>
           ) : (
             <>
               <Figure>
-                <Rolled value={progress.complete} format={(complete) => gateProgressText({ ...progress, complete })} />
+                <WithPrevious previous={previous.gate}>
+                  <Rolled value={progress.complete} format={(complete) => gateProgressText({ ...progress, complete })} />
+                </WithPrevious>
               </Figure>
               <Sub>{open === 0 ? 'Ready to pass' : `${open} open`}</Sub>
             </>

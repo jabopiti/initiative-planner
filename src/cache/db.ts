@@ -4,17 +4,20 @@
  * dataset per §3/§10.4's "separately from the dataset."
  */
 
+import type { SeenRecord } from '../data/seen';
+
 const DB_NAME = 'initiative-planner';
 // 2, not 1: the pre-rebuild prototype (prototype/store.js, since removed from
 // the app) also opened an IndexedDB named 'initiative-planner' at version 1,
 // for an unrelated single object store. On an origin that ran both builds,
 // opening at version 1 again would silently reuse that old database and skip
 // onupgradeneeded, leaving this build's stores missing (§10.4 needs them).
-// 3 adds the store for what the last full pull saw (slice 005i).
-const DB_VERSION = 3;
+// 3 adds the store for what the last full pull saw (slice 005i). 4 adds the store for what the user last looked at (slice 063).
+const DB_VERSION = 4;
 const FILES_STORE = 'files';
 const META_STORE = 'meta';
 const AUTH_STORE = 'auth';
+const SEEN_STORE = 'seen';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -25,7 +28,7 @@ function openDb(): Promise<IDBDatabase> {
       let settled = false;
       request.onupgradeneeded = (event) => {
         const db = request.result;
-        for (const store of [FILES_STORE, META_STORE, AUTH_STORE]) {
+        for (const store of [FILES_STORE, META_STORE, AUTH_STORE, SEEN_STORE]) {
           if (!db.objectStoreNames.contains(store)) db.createObjectStore(store);
         }
         // Before 3, files were kept by bare path with nothing saying which repository they came from: nothing reads those now.
@@ -270,6 +273,35 @@ export class FileCache {
       this.total = 0;
       this.incomplete = false;
     });
+  }
+}
+
+/**
+ * What the user last looked at (§9.9, §10.4): per initiative opened in one repository and branch, when and its key
+ * figures then. Never synced and outside the cache's budget; the token and the dataset cache are not touched.
+ */
+export class SeenCache {
+  private readonly prefix: string;
+
+  constructor(scope: string) {
+    this.prefix = `${scope}|`;
+  }
+
+  async all(): Promise<Map<string, SeenRecord>> {
+    const found = await entriesWithPrefix<SeenRecord>(SEEN_STORE, this.prefix);
+    return new Map([...found].map(([key, record]) => [key.slice(this.prefix.length), record]));
+  }
+
+  put(initiativeId: string, record: SeenRecord): Promise<void> {
+    return set(SEEN_STORE, `${this.prefix}${initiativeId}`, record);
+  }
+
+  async putMany(records: Iterable<[string, SeenRecord]>): Promise<void> {
+    await Promise.all([...records].map(([id, record]) => this.put(id, record)));
+  }
+
+  async clear(): Promise<void> {
+    await Promise.all([...(await this.all()).keys()].map((id) => del(SEEN_STORE, `${this.prefix}${id}`)));
   }
 }
 
