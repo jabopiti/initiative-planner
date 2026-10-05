@@ -75,3 +75,25 @@ tables; they can run in either order.
 
 User picked proposals 3 and 4 on 2 Oct 2026 from rendered mockups ("Fewer
 steps, same plan"), while this was part of 061.
+
+Review of 5 Oct 2026 (before implementation):
+
+- Month strip cells show compact amounts (€2k, full amount in the tooltip,
+  a dash while the draft amount isn't valid); one row, scrolls sideways
+  past 12 months. §5.4 updated.
+- Actuals table gets a Difference column: Month, Estimate, Actual,
+  Difference, buttons. Unrecorded: the estimate "using the estimate" in
+  Actual, "—" in Difference, **Record <estimate>** and **Different
+  amount** in the last column. Recorded: the actual, the signed difference
+  ("+€580", Warning when over; "On estimate" when equal) and **Change**.
+  **Change** and **Different amount** open the amount field, Enter records,
+  Esc cancels. The fold line ends "· €154,560 estimated". The slice's
+  "+€580 vs estimate" example becomes "+€580" under the Difference heading.
+  §5.4 updated.
+- Assumptions: the strip is a single-choice control with roving arrow
+  keys, in draft and saved rows alike (saved rows save at once); the month
+  input always sits beside it; a month outside the period leaves no cell
+  selected and keeps its warning; unrecorded not-closed months fold, a
+  month recorded early keeps its row; no un-record; frozen phases keep
+  their read-only list; the e2e axe scan covers the strip and both actual
+  states.
