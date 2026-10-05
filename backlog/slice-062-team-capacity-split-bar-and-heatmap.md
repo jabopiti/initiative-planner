@@ -47,7 +47,8 @@ fixes them where they are seen.
 ## Execution path
 
 1. People → Lucía Ramos (Platform 60%, Growth 40%) → drag the divider to
-   70/30 → one commit "Lucía Ramos: Team FTE % Platform 70%, Growth 30%".
+   70/30 → one commit "Lucía Ramos: Team FTE % on Platform set to 70%,
+   Team FTE % on Growth set to 30%".
 2. Teams → Platform → Felix's Dec cell is orange with ▲ 120% → click →
    Checkout Redesign 80%, Fraud Detection Upgrade 40% → **Set to 20%** on
    Fraud → the cell drops to 100%.
@@ -117,9 +118,12 @@ Settled in the next-slice review on 5 Oct 2026, from rendered mockups:
 - **Saving:** as the allocation load bar does. A drag saves on release;
   keys and digits save on Enter or blur; Esc reverts; other users'
   changes wait while a value is unsaved. A move between two teams is one
-  edit through one Repository write with one note: "Lucía Ramos: Team
-  FTE % Platform 70%, Growth 30%". The last divider is one membership,
-  with today's note.
+  edit through one Repository write, with today's note for each
+  membership under one name: "Lucía Ramos: Team FTE % on Platform set to
+  70%, Team FTE % on Growth set to 30%". So a move and a typed value on
+  the same team before the save net into one note (§10.3), and each value
+  is capped at the person's unclaimed capacity as a typed one is. The
+  last divider is one membership, with today's note.
 - **Heatmap fill:** an accent wash (accent mixed into the card colour)
   rises from the cell's bottom to the Allocation % as a share of the Team
   FTE %, full at or above it. An over cell gets a full-height Warning wash
