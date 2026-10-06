@@ -36,10 +36,21 @@ export class DamagedDataError extends Error {
   }
 }
 
+/** GitHub's own `message` from a JSON error body, or '' when the body is not one. */
+export function githubMessage(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    return parsed && typeof parsed === 'object' && 'message' in parsed ? String(parsed.message) : '';
+  } catch {
+    return '';
+  }
+}
+
 /**
  * The cause of a failed response (§3 Sync failures). GitHub answers a primary or secondary rate limit with a 403 as
- * often as a 429, so a 403 is only "access denied" when nothing says it is a limit: no requests left
- * (`x-ratelimit-remaining: 0`), a `retry-after`, or a body naming a rate limit. A server error is "unreachable", as
+ * often as a 429, so a 403 is only "access denied" when nothing says it is a limit: a `retry-after`, a body naming a
+ * rate limit, or, for a body without a message, no requests left (`x-ratelimit-remaining: 0`). A 403 whose message
+ * names something else is that, even when it happened to spend the last request. A server error is "unreachable", as
  * the token check (§5.10) already reads it, so the automatic retry covers it.
  */
 export function classifyFailure(status: number, headers: Headers, body: string): GithubFailureCause {
@@ -52,7 +63,8 @@ export function classifyFailure(status: number, headers: Headers, body: string):
 }
 
 function isRateLimit(headers: Headers, body: string): boolean {
-  return headers.get('x-ratelimit-remaining') === '0' || headers.has('retry-after') || /rate limit/i.test(body);
+  if (headers.has('retry-after') || /rate limit/i.test(body)) return true;
+  return headers.get('x-ratelimit-remaining') === '0' && githubMessage(body) === '';
 }
 
 export interface ReadOnlyState {

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryContext } from '../state/DataContext';
-import type { Repository } from '../sync/Repository';
+import { PULL_RETRY_MS, type Repository } from '../sync/Repository';
 import { fakeGithub, open } from '../sync/testing/fakeGithub';
 import { ReadOnlyBanner } from './ReadOnlyBanner';
 
@@ -106,18 +106,28 @@ describe('Read-only banner (§3, §9.9)', () => {
       expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     });
 
-    it('resends when the token check is itself rate limited, so the save lands instead of blaming the token (slice 043)', async () => {
+    it('says GitHub is limiting requests when the token check is itself rate limited, and resends on the retry cadence, not at once (slice 043)', async () => {
       const fake = fakeGithub();
       const { repo } = await open(fake);
       fake.fail('teams.json', 401);
       repo.createTeam('Platform');
       await repo.flushPending();
       fake.setTokenBehaviour('token', 'rate-limited');
-      renderBanner(repo);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      try {
+        renderBanner(repo);
 
-      await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
-      expect(fake.requests().filter((r) => r === 'GET /user')).toHaveLength(1);
-      expect(fake.commits('teams.json')).toHaveLength(1);
+        await vi.waitFor(() => expect(screen.getByText('GitHub is limiting requests; try again shortly.')).toBeInTheDocument());
+        expect(screen.queryByRole('link', { name: /Edit this token in GitHub/ })).toBeNull();
+        expect(fake.commits('teams.json')).toHaveLength(0);
+
+        await vi.advanceTimersByTimeAsync(PULL_RETRY_MS);
+        await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+        expect(fake.requests().filter((r) => r === 'GET /user')).toHaveLength(1);
+        expect(fake.commits('teams.json')).toHaveLength(1);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('shows the four steps behind Show steps', async () => {

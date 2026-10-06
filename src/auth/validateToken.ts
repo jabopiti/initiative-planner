@@ -1,6 +1,6 @@
 import type { GithubLocation } from '../brand/types';
 import { GithubClient } from '../github/client';
-import { AUTOMATIC_RETRY_CAUSES, CAUSE_MESSAGES, GithubApiError } from '../github/errors';
+import { CAUSE_MESSAGES, GithubApiError } from '../github/errors';
 
 /** The checked-token outcomes table (§5.10). */
 export type TokenCheckResult =
@@ -36,16 +36,17 @@ export function repoLabel(location: GithubLocation): string {
   return `${location.owner}/${location.repo}`;
 }
 
-type TransientOutcome = Extract<TokenCheckResult['outcome'], 'unreachable' | 'rate-limited'>;
-
 /** A failure §3 retries by itself (no connection, a server error, a rate limit): it says nothing about the token. */
-function transientOutcome(error: unknown): { outcome: TransientOutcome } | null {
-  return error instanceof GithubApiError && AUTOMATIC_RETRY_CAUSES.includes(error.cause_) ? { outcome: error.cause_ as TransientOutcome } : null;
+function transientOutcome(error: unknown): { outcome: 'unreachable' | 'rate-limited' } | null {
+  if (!(error instanceof GithubApiError)) return null;
+  if (error.cause_ === 'unreachable') return { outcome: 'unreachable' };
+  if (error.cause_ === 'rate-limited') return { outcome: 'rate-limited' };
+  return null;
 }
 
-/** A check that finds nothing wrong with the token: it works, or GitHub couldn't be asked just now. */
-export function clearsToken(result: TokenCheckResult): boolean {
-  return result.outcome === 'works' || result.outcome === 'classic-warning' || (AUTOMATIC_RETRY_CAUSES as readonly string[]).includes(result.outcome);
+/** The check couldn't ask GitHub just now (§3 retries these by itself), so it found nothing wrong with the token. */
+export function isTransient(result: TokenCheckResult): boolean {
+  return result.outcome === 'unreachable' || result.outcome === 'rate-limited';
 }
 
 export async function checkToken(location: GithubLocation, token: string): Promise<TokenCheckResult> {
@@ -75,11 +76,10 @@ export async function checkToken(location: GithubLocation, token: string): Promi
     // plain access-denied 403/404 (§5.10). Not exercised by slice 002's
     // spike (a classic token, not a fine-grained org-pending one) — worth
     // confirming against a real pending token (see TODO.md).
-    const transient = transientOutcome(error);
-    if (transient) return transient;
+    // Checked first: GitHub's message names the approval, whatever limit headers the 403 also carries.
     if (error instanceof GithubApiError && error.status === 403 && /pending|approv/i.test(error.message)) {
       return { outcome: 'pending-approval' };
     }
-    return { outcome: 'cannot-see-repo' };
+    return transientOutcome(error) ?? { outcome: 'cannot-see-repo' };
   }
 }

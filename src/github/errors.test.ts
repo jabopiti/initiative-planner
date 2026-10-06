@@ -66,6 +66,11 @@ describe('classifyFailure (§3 Sync failures, slice 043)', () => {
     expect(classifyFailure(401, headers(), '')).toBe('access-denied');
   });
 
+  it('keeps a 403 whose message names a permission as access-denied, even when it spent the last request', () => {
+    const body = '{"message":"Resource not accessible by personal access token"}';
+    expect(classifyFailure(403, headers({ 'x-ratelimit-remaining': '0' }), body)).toBe('access-denied');
+  });
+
   it.each([500, 502, 503])('reads %i as unreachable', (status) => {
     expect(classifyFailure(status, headers(), '')).toBe('unreachable');
   });

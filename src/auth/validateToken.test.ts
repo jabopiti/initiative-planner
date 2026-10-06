@@ -74,6 +74,16 @@ describe('checkToken — the outcomes table (§5.10)', () => {
     expect(result).toEqual({ outcome: 'pending-approval' });
   });
 
+  it('pending-approval: named by GitHub\'s message even when the 403 also carries a retry-after', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith('/user')) return jsonResponse({ login: 'bo' });
+      return jsonResponse({ message: 'Token requires organization approval, pending review.' }, 403, { 'retry-after': '60' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    expect(await checkToken(location, 'token')).toEqual({ outcome: 'pending-approval' });
+  });
+
   it('invalid: GitHub rejects the token outright', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ message: 'Bad credentials' }, 401));
     vi.stubGlobal('fetch', fetchMock);
