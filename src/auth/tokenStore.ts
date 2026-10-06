@@ -40,10 +40,14 @@ function devToken(): string | null {
   return import.meta.env.VITE_DEV_TOKEN || null;
 }
 
+function clearRemembered(): Promise<unknown> {
+  return Promise.all([tokenCache.clear(), loginCache.clear(), classicWarningCache.clear()]);
+}
+
 /**
  * On a shared origin, moves a token remembered there before Remember me was turned off — with its login and
  * classic-token flag — into this tab's session storage and deletes it from IndexedDB (§3, Authentication).
- * Safe to run concurrently: each value reaches session storage before anything is deleted.
+ * Each value reaches session storage before anything is deleted.
  */
 async function moveRememberedIntoTab(): Promise<void> {
   if (!isSharedOrigin()) return;
@@ -58,7 +62,16 @@ async function moveRememberedIntoTab(): Promise<void> {
     if (login) writeSession(login, LOGIN_SESSION_KEY);
     if (classic) writeSession('1', CLASSIC_SESSION_KEY);
   }
-  await Promise.all([tokenCache.clear(), loginCache.clear(), classicWarningCache.clear()]);
+  await clearRemembered();
+}
+
+/** App loads the token, login and classic flag together: they share one move instead of each running their own. */
+let moving: Promise<void> | undefined;
+function moveOnce(): Promise<void> {
+  moving ??= moveRememberedIntoTab()
+    .catch(() => undefined)
+    .finally(() => (moving = undefined));
+  return moving;
 }
 
 export const tokenStore = {
@@ -70,13 +83,13 @@ export const tokenStore = {
   async load(): Promise<string | null> {
     const dev = devToken();
     if (dev) return dev;
-    await moveRememberedIntoTab().catch(() => undefined);
+    await moveOnce();
     return readSession() ?? (await tokenCache.get());
   },
 
   /** The GitHub login the stored token belongs to, or null when it was never recorded (a dev token, an older session). */
   async loadLogin(): Promise<string | null> {
-    await moveRememberedIntoTab().catch(() => undefined);
+    await moveOnce();
     return readSession(LOGIN_SESSION_KEY) ?? (await loginCache.get().catch(() => null)) ?? null;
   },
 
@@ -91,7 +104,7 @@ export const tokenStore = {
       await Promise.all([tokenCache.set(token), loginCache.clear(), classicWarningCache.clear()]);
     } else {
       writeSession(token);
-      await Promise.all([tokenCache.clear(), loginCache.clear(), classicWarningCache.clear()]);
+      await clearRemembered();
     }
   },
 
@@ -103,7 +116,7 @@ export const tokenStore = {
 
   /** Whether the stored token is a classic one whose warning is still to be shown (§5.10). */
   async loadClassicWarning(): Promise<boolean> {
-    await moveRememberedIntoTab().catch(() => undefined);
+    await moveOnce();
     return readSession(CLASSIC_SESSION_KEY) === '1' || ((await classicWarningCache.get().catch(() => null)) ?? false);
   },
 
@@ -129,6 +142,6 @@ export const tokenStore = {
     writeSession(null);
     writeSession(null, LOGIN_SESSION_KEY);
     writeSession(null, CLASSIC_SESSION_KEY);
-    await Promise.all([tokenCache.clear(), loginCache.clear(), classicWarningCache.clear()]);
+    await clearRemembered();
   },
 };

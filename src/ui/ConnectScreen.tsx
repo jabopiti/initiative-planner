@@ -96,7 +96,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
           <div className="flex items-start gap-2">
             <Checkbox
               id="remember-field"
-              checked={remember && canRemember}
+              checked={remember}
               disabled={!canRemember}
               aria-describedby={canRemember ? undefined : 'remember-unavailable'}
               onCheckedChange={(checked) => setRemember(checked === true)}
