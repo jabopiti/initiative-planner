@@ -201,46 +201,46 @@ save on blur, drag bars on pointer-up, the 1-file-1-commit merge path.
 
 ## Acceptance criteria
 
-- [ ] Given the spike report, then `spike-findings.md` records it and names
+- [x] Given the spike report, then `spike-findings.md` records it and names
       the route chosen for items 4 and 5, with the failing question if REST.
-- [ ] Given three edits to one file 2 s apart (fake clock), then one PUT is
+- [x] Given three edits to one file 2 s apart (fake clock), then one PUT is
       sent, 4 s after the last edit.
-- [ ] Given an edit every 2 s for 30 s, then a commit is sent at 20 s and
+- [x] Given an edit every 2 s for 30 s, then a commit is sent at 20 s and
       another 4 s after the last edit.
-- [ ] Given a pending edit, then leaving the initiative, hiding the tab,
+- [x] Given a pending edit, then leaving the initiative, hiding the tab,
       `pagehide`, Disconnect and passing a gate each send it at once, before
       the gate's own write; the gate's write is then sent at once too.
-- [ ] Given an edit, then "Saving" shows within 100 ms, as before.
-- [ ] Given 61 content-creating requests due within one minute from two
+- [x] Given an edit, then "Saving" shows within 100 ms, as before.
+- [x] Given 61 content-creating requests due within one minute from two
       tabs, then at most 60 are sent in any rolling minute, the rest go
       later, and no edit fails or is dropped.
-- [ ] Given a 403 with `retry-after: 60` (and, separately, a 429 with
+- [x] Given a 403 with `retry-after: 60` (and, separately, a 429 with
       `x-ratelimit-reset`), then no request reaches the fake GitHub until
       that time, after which the pull and pending writes resume without
       user action; meanwhile the banner reads "GitHub is limiting
       requests. Saving resumes by itself at <time>." with no Retry, and an
       edit made then fails at once without a request.
-- [ ] Given Reset and Load example data at the volume ceiling, then each
+- [x] Given Reset and Load example data at the volume ceiling, then each
       makes 1 content-creating request (one GraphQL commit), no blob POSTs,
       and downloads none of the files it wrote; given the bootstrap onto a
       missing data branch, then 3 (tree, commit, ref) and no blob POSTs.
-- [ ] Given a GraphQL commit answered with a 504 that landed anyway, then
+- [x] Given a GraphQL commit answered with a 504 that landed anyway, then
       it is not sent a second time.
-- [ ] Given a rate edit that also marks rates reviewed, and a roll-forward
+- [x] Given a rate edit that also marks rates reviewed, and a roll-forward
       into a new year, then each is one commit.
-- [ ] Given (GraphQL route) a new person and their membership, then one
+- [x] Given (GraphQL route) a new person and their membership, then one
       commit holds both files; given another commit landed first on a file
       neither touches, then it is resent without a conflict; given one on
       `memberships.json`, then the two versions merge per §10.5.
-- [ ] Given any write, then it names the data branch: every Contents call's
+- [x] Given any write, then it names the data branch: every Contents call's
       `branch`, and every GraphQL commit's `branchName` (client test).
-- [ ] Given a request-count regression test that replays the baseline
+- [x] Given a request-count regression test that replays the baseline
       table's scenarios, then its counts are pinned, and the rows this
       slice improves show the new numbers.
-- [ ] Given Settings → Connection, then the row "Saves this hour" reads
+- [x] Given Settings → Connection, then the row "Saves this hour" reads
       "<n> of 400 from this browser; saving slows down above that", and
       passes the e2e axe scan in both themes.
-- [ ] Given `npm run test:e2e`, then the e2e fake GitHub serves the chosen
+- [x] Given `npm run test:e2e`, then the e2e fake GitHub serves the chosen
       route and the existing connect and planning flows pass.
 
 ## Spec changes (make as `Slice 064 spec:` commits once item 0 decides the route)
