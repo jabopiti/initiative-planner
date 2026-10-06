@@ -1,0 +1,218 @@
+---
+slice_id: "064"
+title: "Write budget: fewer commits, many-file commits in one request, pauses when GitHub limits"
+type: "capability"
+status: "valid"
+criteria_failures: []
+depends_on: ["043", "045"]
+verification_status: null
+superseded_by: null
+supersedes: null
+change_summary: "Added on 6 Oct 2026 from an analysis of requests to the data branch, measured against the in-memory fake GitHub at the volume ceiling (table below). Reads are well within GitHub's limits; the risk is content-creating requests (80 a minute, 500 an hour per user). Settled with the user: one slice for the write side, a separate optional slice (065) for cheaper reads; the commit window becomes 4 s quiet / 20 s at most; the write budget is shown in Settings → Connection; GraphQL is used for commits that change several files, but only after a spike confirms it works from the browser (scope item 0). The 403 misclassification is 043's, not repeated here."
+recommended_model: "Claude Opus 5.5"
+model_rationale: "Touches the writer's timing, the global write queue and the many-file commit path, where a mistake loses or duplicates an edit; the GraphQL route adds a second API with its own error and concurrency model."
+spec_sections: ["§3 Storage & sync (Sync behaviour, Sync failures)", "§5.9 Settings", "§9.6 Performance", "§10.2 Data layout", "§10.3 Writing", "§10.4 Browser storage"]
+---
+
+# Write budget: fewer commits, many-file commits in one request, pauses when GitHub limits
+
+## Intent
+
+**Problem statement:** Every save of a file is one content-creating request
+to GitHub, and edits more than 1 s apart are separate commits. Planning one
+initiative is about 90 edits, so a focused session at 1–3 s per edit makes
+20–60 commits a minute: close to GitHub's 80 a minute, and past 500 an hour
+in one to two hours of steady work (both per user, shared by their tabs).
+A many-file commit uploads one blob per file, all at once, so it costs N + 3
+content-creating requests: harmless for Reset today, but a migration at the
+volume ceiling (§3 Versioning and migration) would send about 209 in parallel
+and fail. When a limit is hit, the client keeps polling and retrying every
+30 s instead of waiting for the time GitHub names.
+
+**Outcome statement:** A normal working session stays well inside GitHub's
+write limits without the user noticing; a many-file commit costs a fixed,
+small number of requests whatever its size; and when GitHub does limit, the
+tool waits as told and resumes by itself.
+
+## Measured baseline (6 Oct 2026, fake GitHub, 200 initiatives / 200 people / 25 teams)
+
+| Scenario | Requests | Content-creating |
+|---|---|---|
+| Cold first load | 209 (1 head, 2 listings, 206 files) | 0 |
+| Poll, nothing changed | 1 (ETag 304, not counted) | 0 |
+| Poll, 1 initiative changed by another user | 4 | 0 |
+| 3 edits to one initiative within 1 s | 1 PUT | 1 |
+| Poll after own commits only | 3 (head, 2 listings) | 0 |
+| Same field on 5 initiatives in one burst | 5 PUTs | 5 |
+| New person + membership | 2 PUTs, in order | 2 |
+| Edit on a stale version (409) | PUT, re-read, PUT | 2 |
+| Reset | 21, incl. 6 blob POSTs, then re-downloads the 6 files it wrote | 9 |
+| Load example data | 26, incl. 8 blob POSTs, then re-downloads the 8 files it wrote | 11 |
+| Reopen, warm cache, unchanged | 1 | 0 |
+| Reopen, 40 initiatives changed | 43 | 0 |
+
+Already good, keep: ETag head check, files cached by version, text fields
+save on blur, drag bars on pointer-up, the 1-file-1-commit merge path.
+
+## Scope
+
+0. **GraphQL spike, before any code** (`scripts/spike-graphql.mjs`). Run it
+   from a machine or session that can reach `api.github.com/graphql` with a
+   fine-grained dev token (Claude Code cloud sessions cannot: their proxy
+   refuses GraphQL). It works only on a throwaway branch `spike-graphql`,
+   deleted at the end. Record the report in `spike-findings.md` and decide
+   the route for items 4 and 5:
+   - **GraphQL route** when Q1 (browser CORS from the Pages origin), Q2
+     (fine-grained token), Q3 (`createCommitOnBranch` adds and deletes in
+     one commit, keeps the subject and `Entity:` trailers, refuses a stale
+     `expectedHeadOid` with a recognisable error, and the resulting file
+     version equals the locally computed git blob sha) and Q6 (a 210-file,
+     ~4 MB commit succeeds) all pass.
+   - **REST route** otherwise: a tree with inline `content` entries (no
+     blob POSTs) on the base tree, then commit, then ref update. Item 5 is
+     then dropped (with REST it costs more than the two PUTs it replaces).
+1. **Commit window** (§10.3): a file's edits are committed after **4 s**
+   without a further edit to it, and at most **20 s** after its first
+   uncommitted edit, whichever comes first. Pending edits are committed at
+   once when the user leaves the initiative or the page, when the tab is
+   hidden, on `pagehide`, on Disconnect (after its existing offer to keep
+   them), and before any action that reads or replaces the saved file
+   (pass, skip or reopen a gate, status changes, duplicate, delete, change
+   team, Reset, Load example data). "Saving" still shows within 100 ms.
+2. **Write budget** (§10.3, §10.4): the client counts its own
+   content-creating requests (PUT, DELETE, Git data POST/PATCH, GraphQL
+   mutations), rejected ones included, in a rolling minute and hour,
+   shared by the user's tabs on this browser (IndexedDB plus a
+   BroadcastChannel; per tab when storage is unavailable). Above **60 a
+   minute or 400 an hour**, a commit waits until the count drops below
+   the line; the edits keep combining meanwhile, the indicator stays
+   "Saving", and no edit is refused or dropped.
+3. **Waiting out a limit** (§3 Sync failures, on top of 043's
+   classification): after a `rate-limited` response, no request goes to
+   GitHub (pull, retry or write) until the time `retry-after` names, else
+   `x-ratelimit-reset`, else 60 s, doubling for each repeat within the
+   hour; then the pull and the pending writes resume by themselves. The
+   banner says when it will try again.
+4. **Many-file commits in a fixed number of requests** (§10.3): Reset,
+   Load example data and the bootstrap use the route from item 0: one
+   `createCommitOnBranch` (GraphQL), or tree + commit + ref with inline
+   contents (REST). Never a blob per file, and never more than one
+   content-creating request in flight. After it lands, the written files
+   are taken into the dataset and the cache with their versions (git blob
+   sha, `sha1("blob <bytes>\0" + content)`), without downloading them
+   again.
+5. **One commit per user action that writes several files** (GraphQL route
+   only, §10.3): new person + their first membership, and every other
+   action that today schedules writes to two or more files in one go (list
+   them while implementing). Both files are in one commit or neither is;
+   §3's rule that a membership waits for its person's commit becomes moot
+   for these. A refused `expectedHeadOid` re-lists the touched files: when
+   none changed, the commit is resent on the new head; when one did, it is
+   re-read and merged per §10.5, as a 409 is today (three tries, then the
+   conflict flow).
+6. **Budget in Settings → Connection** (§5.9): beside the remaining API
+   requests, how many content-creating requests this browser made in the
+   last hour of GitHub's 500. Copy and layout as rendered mockups first.
+
+## Execution path
+
+1. Plan a whole initiative at a normal pace: periods, allocations, cost
+   items, the checklist. The sync indicator shows Saving and Synced as
+   today; the commit history shows a few commits per section, not one per
+   field.
+2. Settings → Connection shows e.g. "Saves this hour: 38 of 500".
+3. Reset the dataset: one commit; the request log shows no blob uploads and
+   no re-download of the files just written.
+4. GitHub answers a save with a secondary-limit 403 and `retry-after: 60`:
+   the banner says GitHub is limiting requests and when it tries again; no
+   request goes out for 60 s; then the save lands by itself.
+
+## Value
+
+- **Desirable:** No "GitHub is limiting requests" during normal heavy use.
+- **Usable:** Nothing to learn: saving stays automatic, the budget is
+  visible for the administrator.
+- **Valuable:** Migrations and bulk actions work at the volume ceiling;
+  the tool keeps to GitHub's terms instead of hammering a limit.
+
+## Acceptance criteria
+
+- [ ] Given the spike report, then `spike-findings.md` records it and names
+      the route chosen for items 4 and 5, with the failing question if REST.
+- [ ] Given three edits to one file 2 s apart (fake clock), then one PUT is
+      sent, 4 s after the last edit.
+- [ ] Given an edit every 2 s for 30 s, then a commit is sent at 20 s and
+      another 4 s after the last edit.
+- [ ] Given a pending edit, then leaving the initiative, hiding the tab,
+      `pagehide`, Disconnect and passing a gate each send it at once, before
+      the gate's own write.
+- [ ] Given an edit, then "Saving" shows within 100 ms, as before.
+- [ ] Given 61 content-creating requests due within one minute from two
+      tabs, then at most 60 are sent in any rolling minute, the rest go
+      later, and no edit fails or is dropped.
+- [ ] Given a 403 with `retry-after: 60` (and, separately, a 429 with
+      `x-ratelimit-reset`), then no request reaches the fake GitHub until
+      that time, after which the pull and pending writes resume without
+      user action.
+- [ ] Given Reset and Load example data at the volume ceiling, then each
+      makes at most 1 (GraphQL) or 3 (REST) content-creating requests, no
+      blob POSTs, and downloads none of the files it wrote.
+- [ ] Given (GraphQL route) a new person and their membership, then one
+      commit holds both files; given another commit landed first on a file
+      neither touches, then it is resent without a conflict; given one on
+      `memberships.json`, then the two versions merge per §10.5.
+- [ ] Given any write, then it names the data branch: every Contents call's
+      `branch`, and every GraphQL commit's `branchName` (client test).
+- [ ] Given a request-count regression test that replays the baseline
+      table's scenarios, then its counts are pinned, and the rows this
+      slice improves show the new numbers.
+- [ ] Given Settings → Connection, then the budget line shows, has an
+      accessible name, and passes the e2e axe scan in both themes.
+- [ ] Given `npm run test:e2e`, then the e2e fake GitHub serves the chosen
+      route and the existing connect and planning flows pass.
+
+## Spec changes (make as `Slice 064 spec:` commits once item 0 decides the route)
+
+- §3 Sync behaviour: "immediately pushes" becomes "pushes within seconds
+  (§10.3)"; Sync failures, rate-limited row: waits for the time GitHub
+  names, then recovers automatically.
+- §5.9 Connection: the budget line.
+- §9.6: an edit is confirmed within 2 s after its commit window closes.
+- §10.3: the 4 s / 20 s window and its flush points; the write budget;
+  many-file commits by the chosen route; (GraphQL) one commit per
+  multi-file action; the branch rule's GraphQL form (`branchName` plus
+  `expectedHeadOid`, reads by commit oid).
+- §10.4: the budget counter in IndexedDB, outside the cache budget.
+- §10.7 / brand pack (GraphQL route): GitHub Enterprise serves GraphQL at
+  `https://<host>/api/graphql`, not under `apiBaseUrl` (`/api/v3`), so the
+  URL is derived, not appended. The CSP's `connect-src` already allows it
+  (same origin).
+
+## Flags and compromises
+
+- **043 was built late.** Its first commit, 1e777e2 "Slice 043: scope and
+  criteria follow the recommended retry path", changed the slice file alone
+  but marked it done for `find-eligible.sh`; until 8d2ee88 a secondary-limit
+  403 on a save read "GitHub refused access with this token" and was never
+  retried. Item 3 builds on 043's `rate-limited` classification.
+- A longer window means other users see a change up to ~20 s later, and
+  more saves meet a newer version and merge (§10.5). Accepted for the
+  budget.
+- `createCommitOnBranch` checks the branch head, not the file, so it is
+  never used for single-file edits: with five writers it would be refused
+  far more often than a per-file Contents PUT.
+- The budget is counted per browser: two browsers of the same user don't
+  see each other's count. GitHub's own limit still holds them, and item 3
+  handles it.
+- F3 (commit a grid's edits when the section is left) was considered and
+  left out: the 4 s window already combines fast grid edits. Revisit with
+  the budget line's numbers if grids still dominate.
+
+## Open decisions
+
+- Copy and layout of the budget line (§5.9) and of the rate-limit banner's
+  "tries again at …" (mockups).
+- Budget lines: recommended 60 a minute and 400 an hour, below GitHub's 80
+  and 500 to leave room for the user's other tools.
+- The final list of flush points in item 1 and of multi-file actions in
+  item 5, from the code.

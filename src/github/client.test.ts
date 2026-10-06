@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
-import { GithubClient } from './client';
+import { GithubClient, REQUEST_TIMEOUT_MS } from './client';
+import { WriteQueue } from '../sync/WriteQueue';
 import { GithubApiError } from './errors';
+import { defaultBrandPack } from '../brand/defaultBrand';
+import { fakeGithub } from '../sync/testing/fakeGithub';
 
 const location: GithubLocation = {
   apiBaseUrl: 'https://api.github.com',
@@ -286,5 +289,119 @@ describe('GithubClient — putFile on a file that is gone (slice 017)', () => {
 
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'sha-3' } }), { status: 200 }));
     await expect(client.putFile(args)).resolves.toEqual({ sha: 'sha-3', created: false });
+  });
+});
+
+describe('GithubClient — failures are classified and requests end (slice 043)', () => {
+  const put = (client: GithubClient) => client.putFile({ path: 'teams.json', branch: 'data', content: '[]', message: 'm', sha: 's' });
+
+  it('reads a secondary-limit 403 on a save as rate-limited, not access-denied', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ message: 'You have exceeded a secondary rate limit.' }), { status: 403, headers: { 'retry-after': '60' } }),
+    );
+    await expect(put(new GithubClient(location, () => 'token'))).rejects.toMatchObject({ cause_: 'rate-limited', status: 403 });
+  });
+
+  it('reads a plain 403 on a save as access-denied', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ message: 'Resource not accessible by personal access token' }), { status: 403 }));
+    await expect(put(new GithubClient(location, () => 'token'))).rejects.toMatchObject({ cause_: 'access-denied' });
+  });
+
+  it.each([500, 502, 503])('reads a %i on a read as unreachable', async (status) => {
+    fetchMock.mockResolvedValue(new Response('', { status }));
+    const client = new GithubClient(location, () => 'token');
+    await expect(client.getFile({ path: 'teams.json', branch: 'data' })).rejects.toMatchObject({ cause_: 'unreachable', status });
+  });
+
+  it('reads a network error as unreachable', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(put(new GithubClient(location, () => 'token'))).rejects.toMatchObject({ cause_: 'unreachable' });
+  });
+
+  describe('with a fake clock', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('aborts a request that never answers at the timeout, as unreachable, and the next queued write runs', async () => {
+      const signals: AbortSignal[] = [];
+      fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+        signals.push(init.signal as AbortSignal);
+        return new Promise(() => {});
+      });
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'new' } }), { status: 200 }));
+      const client = new GithubClient(location, () => 'token', undefined, 30_000);
+      const queue = new WriteQueue();
+
+      const hung = queue.run(() => put(client));
+      const next = queue.run(() => put(client));
+      const hungSettled = expect(hung).rejects.toMatchObject({ cause_: 'unreachable' });
+
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await hungSettled;
+      expect(signals[0].aborted).toBe(true);
+      await expect(next).resolves.toEqual({ sha: 'new', created: false });
+    });
+
+    it('times out a response whose body stalls after the headers, so its reader never hangs', async () => {
+      fetchMock.mockResolvedValue(new Response(new ReadableStream({ start() {} }), { status: 200 }));
+      const settled = expect(put(new GithubClient(location, () => 'token'))).rejects.toMatchObject({ cause_: 'unreachable' });
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+      await settled;
+    });
+
+    it('gives a large upload longer than the timeout to send, as for a slow link', async () => {
+      fetchMock.mockImplementation(() => new Promise(() => {}));
+      const client = new GithubClient(location, () => 'token');
+      let settled = false;
+      const result = client
+        .putFile({ path: 'teams.json', branch: 'data', content: 'x'.repeat(1_000_000), message: 'm', sha: 's' })
+        .catch((error: unknown) => {
+          settled = true;
+          throw error;
+        });
+      const rejected = expect(result).rejects.toMatchObject({ cause_: 'unreachable' });
+
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 30_000);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(120_000);
+      await rejected;
+    });
+
+    it('defaults the timeout to 30 s', async () => {
+      fetchMock.mockImplementation(() => new Promise(() => {}));
+      const settled = expect(put(new GithubClient(location, () => 'token'))).rejects.toMatchObject({ cause_: 'unreachable' });
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+      expect(REQUEST_TIMEOUT_MS).toBe(30_000);
+      await settled;
+    });
+  });
+
+  it('bootstrapping an existing branch never commits over another client\'s commit that lands first: it returns that head', async () => {
+    const fake = fakeGithub();
+    vi.stubGlobal('fetch', fake.fetchMock);
+    fake.seed('roles.json', []);
+    fake.beforeRefUpdate(() => fake.seed('countries.json', [])); // the other client's baseline lands first
+
+    const client = new GithubClient(defaultBrandPack.github, () => 'token');
+    const result = await client.createFilesCommit({ branch: 'data', files: [{ path: 'dataset.json', content: '{}' }], message: 'm' });
+
+    expect(fake.gitCommits).toEqual([]);
+    expect(fake.has('dataset.json')).toBe(false);
+    expect(result).toEqual({ commitSha: 'commit-3' });
+    expect(fake.requests().filter((r) => r.startsWith('PATCH'))).toHaveLength(1);
+  });
+
+  it('bootstrapping an existing branch commits on its head when nothing else lands', async () => {
+    const fake = fakeGithub();
+    vi.stubGlobal('fetch', fake.fetchMock);
+    fake.seed('roles.json', []);
+
+    const client = new GithubClient(defaultBrandPack.github, () => 'token');
+    await client.createFilesCommit({ branch: 'data', files: [{ path: 'dataset.json', content: '{}' }], message: 'm' });
+
+    expect(fake.gitCommits).toEqual([{ message: 'm', files: ['dataset.json'], deleted: [] }]);
+    expect(fake.has('roles.json')).toBe(true);
   });
 });

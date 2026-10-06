@@ -1,6 +1,6 @@
 import type { GithubLocation } from '../brand/types';
 import { GithubClient } from '../github/client';
-import { GithubApiError } from '../github/errors';
+import { CAUSE_MESSAGES, GithubApiError } from '../github/errors';
 
 /** The checked-token outcomes table (§5.10). */
 export type TokenCheckResult =
@@ -10,7 +10,8 @@ export type TokenCheckResult =
   | { outcome: 'read-only' }
   | { outcome: 'pending-approval' }
   | { outcome: 'invalid' }
-  | { outcome: 'unreachable' };
+  | { outcome: 'unreachable' }
+  | { outcome: 'rate-limited' };
 
 /** What a message names: the GitHub user the token belongs to and the repository (`owner/repo`) it must reach. */
 export interface TokenMessageContext {
@@ -27,6 +28,7 @@ export const TOKEN_CHECK_MESSAGES: Record<TokenCheckResult['outcome'], (context:
   invalid: () =>
     "GitHub doesn't accept this token. It has probably expired or been revoked, or part of it is missing from the paste.",
   unreachable: () => "Couldn't reach GitHub to check the token. Check your connection and try again.",
+  'rate-limited': () => `${CAUSE_MESSAGES['rate-limited']}.`,
 };
 
 /** The `owner/repo` of the brand pack's repository, for messages. */
@@ -34,11 +36,17 @@ export function repoLabel(location: GithubLocation): string {
   return `${location.owner}/${location.repo}`;
 }
 
-/** A network failure, rate limiting, or a status GitHub returns for reasons that have nothing to do with the token itself (§5.10). */
-function isUnreachable(error: unknown): boolean {
-  if (!(error instanceof GithubApiError)) return false;
-  if (error.cause_ === 'unreachable' || error.cause_ === 'rate-limited') return true;
-  return typeof error.status === 'number' && error.status >= 500;
+/** A failure §3 retries by itself (no connection, a server error, a rate limit): it says nothing about the token. */
+function transientOutcome(error: unknown): { outcome: 'unreachable' | 'rate-limited' } | null {
+  if (!(error instanceof GithubApiError)) return null;
+  if (error.cause_ === 'unreachable') return { outcome: 'unreachable' };
+  if (error.cause_ === 'rate-limited') return { outcome: 'rate-limited' };
+  return null;
+}
+
+/** The check couldn't ask GitHub just now (§3 retries these by itself), so it found nothing wrong with the token. */
+export function isTransient(result: TokenCheckResult): boolean {
+  return result.outcome === 'unreachable' || result.outcome === 'rate-limited';
 }
 
 export async function checkToken(location: GithubLocation, token: string): Promise<TokenCheckResult> {
@@ -48,12 +56,11 @@ export async function checkToken(location: GithubLocation, token: string): Promi
   try {
     identity = await client.checkToken();
   } catch (error) {
-    // Only a 401 means GitHub rejected the token outright; anything else (a network
-    // failure, a 403, a 5xx) says nothing about the token and shouldn't be read as that.
-    // Deliberately wider than isUnreachable() below: there's no other outcome this identity
-    // check could fall back to, whereas the repo-access step below still has cannot-see-repo
-    // and pending-approval as valid non-401, non-network/5xx outcomes.
-    return error instanceof GithubApiError && error.status === 401 ? { outcome: 'invalid' } : { outcome: 'unreachable' };
+    // Only a 401 means GitHub rejected the token outright; a rate limit is reported as such, and anything else
+    // (a network failure, another 403, a 5xx) says nothing about the token, so reads as unreachable. Wider than the
+    // repo-access step below, which still has cannot-see-repo and pending-approval to fall back to.
+    if (error instanceof GithubApiError && error.status === 401) return { outcome: 'invalid' };
+    return transientOutcome(error) ?? { outcome: 'unreachable' };
   }
 
   try {
@@ -69,10 +76,10 @@ export async function checkToken(location: GithubLocation, token: string): Promi
     // plain access-denied 403/404 (§5.10). Not exercised by slice 002's
     // spike (a classic token, not a fine-grained org-pending one) — worth
     // confirming against a real pending token (see TODO.md).
+    // Checked first: GitHub's message names the approval, whatever limit headers the 403 also carries.
     if (error instanceof GithubApiError && error.status === 403 && /pending|approv/i.test(error.message)) {
       return { outcome: 'pending-approval' };
     }
-    if (isUnreachable(error)) return { outcome: 'unreachable' };
-    return { outcome: 'cannot-see-repo' };
+    return transientOutcome(error) ?? { outcome: 'cannot-see-repo' };
   }
 }
