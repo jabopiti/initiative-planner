@@ -217,7 +217,9 @@ depends on it.
 The tool is a **statically hosted single-page application** with no custom
 backend, hosted on GitHub Pages from the same repository that holds its data
 (§3). It works with github.com and with GitHub Enterprise; the API base URL
-is a brand-pack setting. The SPA is written in React with TypeScript
+is a brand-pack setting. The GraphQL endpoint is derived from it, not
+appended to it: `https://api.github.com/graphql`, or on GitHub Enterprise
+`https://<host>/api/graphql` for a base URL of `https://<host>/api/v3`. The SPA is written in React with TypeScript
 (§10.1). Supported browsers are the current major version of Chrome,
 Firefox, Safari and Edge.
 
@@ -338,7 +340,7 @@ person who made it.
 ### Sync behaviour
 
 - **Automatic after every change.** When a user modifies data, the tool
-  immediately pushes the change to GitHub and keeps the local copy in step.
+  pushes the change to GitHub within seconds (§10.3) and keeps the local copy in step.
   A change counts as saved only once the push has succeeded (see Sync
   failures below). There is no manual save or sync action.
 - **Pulling others' changes.** The tool pulls the repository dataset on
@@ -387,7 +389,7 @@ because each needs a different fix:
 |---|---|---|
 | GitHub unreachable or offline | Cannot reach GitHub; changes are paused | Automatic retry, or Retry |
 | Access denied | The token check (§5.10) runs once on the failure and the message is its outcome: "GitHub doesn't accept this token. It has expired or been revoked; create a new one.", "This token can read but not write. Set Contents to Read and write.", "This token can't see <repository>. Create it with access to that repository.", or "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." | Paste a new token into the banner (below), or fix the token in GitHub and Retry |
-| Rate limited by GitHub | GitHub is limiting requests; try again shortly | Automatic once the limit resets, or Retry |
+| Rate limited by GitHub | "GitHub is limiting requests. Saving resumes by itself at <time>." | Automatic: no request goes to GitHub until the time GitHub names (§10.3), then the pull and the failed edits resume by themselves. No Retry while the wait lasts |
 | Process mismatch, or dataset newer than this build | Which of the two failed (see Data integrity) | Matching build or dataset; reload to update |
 | Dataset damaged | "Dataset damaged: <file>: <what>. Ask the repository owner to restore an earlier version from the commit history." with **Open commit history** (see Damaged data) | The owner restores the files; the next pull recovers, or Retry |
 
@@ -415,7 +417,8 @@ real cause, "GitHub unreachable" with its automatic retry, takes over.
 mid-edit, the write is rejected and the dataset stays unchanged. The field
 remains in edit mode with the typed value, the error and **Retry**, and the
 tool switches to read-only mode with the cause. No change is ever queued for
-later.
+later. While GitHub is limiting requests, an edit fails at once without
+being sent and is resent with the others when the wait ends.
 
 ### Conflict edge cases
 
@@ -435,7 +438,8 @@ deleted, only deactivated (§9.3), so an allocation, membership or owner
 always points at an entity that still exists. An allocation whose
 membership was removed at the same moment stays and shows the warning of
 §7.2. A new record is saved before anything that refers to it: a new
-person's membership waits for the person's commit, so no pull ever sees one
+person and the membership added with them are one commit (§10.3), and a
+membership added later waits for the person's commit, so no pull ever sees one
 without the other. If that save fails, the membership fails the same way
 ("Not saved: <short cause>.") and is sent once the person's save lands.
 
@@ -1152,7 +1156,8 @@ Contains the following sections:
   it is known after a reload; fetched once if missing) and the repository, the
   remaining GitHub API requests for the current hour (from the rate-limit
   headers GitHub returns on every response, so this costs no extra
-  request), **Replace token** (the banner's token field, §3 Sync failures,
+  request), **Saves this hour**, "38 of 400 from this browser; saving slows
+  down above that" (the write budget, §10.3), **Replace token** (the banner's token field, §3 Sync failures,
   so a token can be rotated before it expires without losing an edit), and
   **Disconnect**, which removes the token from the browser and opens the
   Connect screen (§3, §5.10).
@@ -1832,8 +1837,8 @@ laptop with a normal broadband connection:
 
 - Every view is interactive within **1 s** of navigation.
 - An edit shows a "saving" state within **100 ms** and is confirmed within
-  **2 s** after the burst of edits ends (a burst ends after 1 s without a
-  further edit, §10.3), under normal network conditions.
+  **2 s** after its commit window closes (§10.3), under normal network
+  conditions.
 - On the first load the Portfolio appears within **5 s**: it shows once the
   master data and the Active initiatives have loaded, and the other
   initiatives load in the background (§9.9).
@@ -2129,16 +2134,48 @@ files are cached by version (§10.4).
 A single edit is written through the Contents API against the file's last-seen
 version, as one commit. A text or number field makes its edit when it loses
 focus or Enter is pressed, never on each keystroke, so typing a value is one
-edit rather than several. Edits are grouped into one commit after 1 second
-without a further edit, one write is in flight at a time, and closing the tab
-while a write is pending shows a warning. A stale version is rejected with a
-409: the client re-reads the file, re-applies the change with the merge rule of
-§10.5 and retries up to three times with a short backoff, then shows the
-conflict flow (§3). Operations that change many files — Reset, Load example
-data, a migration (§3) — are a single commit through the Git data API. GitHub
-allows, in general, no more than 80 content-generating requests per minute and
-500 per hour, and the limits can change; this rule keeps the tool well inside
-them.
+edit rather than several. A file's edits are grouped into one commit, sent
+4 seconds after the last edit to it, and at most 20 seconds after its first
+uncommitted edit. Pending edits are sent at once when the user leaves an
+initiative's page (that file), the tab is hidden or closed, on Disconnect
+(before it counts what would be discarded), and before any action that reads
+or replaces the saved file: passing, skipping or reopening a gate, putting
+on hold, cancelling, reopening, duplicating (the source), deleting, changing
+team, Reset and Load example data. These send the pending edits as their
+own commit, and the action's own write follows at once. One write is in
+flight at a time, and closing the tab while a write is pending shows a
+warning. A stale version is rejected with a 409: the client re-reads the
+file, re-applies the change with the merge rule of §10.5 and retries up to
+three times with a short backoff, then shows the conflict flow (§3).
+
+A single-file edit always goes through the Contents API. A commit that
+changes several files goes through GraphQL `createCommitOnBranch`, as one
+request, with `branchName` set to the data branch and `expectedHeadOid` set
+to the head it builds on (spike-findings.md, Slice 064). This covers Reset,
+Load example data, a migration (§3), the bootstrap onto an existing branch,
+and each user action that writes several files: a new person with the
+membership added with them, a rate edit that also marks rates reviewed,
+and the roll-forward of rates into a new year (§7.2). Each of these is one
+commit or none. A refused `expectedHeadOid` (`STALE_DATA`) re-lists the
+touched files. When none changed, the commit is resent on the new head;
+when one did, it is re-read and merged per §10.5 as for a 409, up to three
+times. After a 5xx, a timeout or a network error, the head is re-read
+before resending, since such a commit can have landed. The written files'
+versions are their git blob shas, computed locally, so they are never
+downloaded again. The bootstrap onto a missing data branch, which GraphQL
+can't create, is a tree with inline contents, a commit and the new ref.
+Reads go by commit, never by the branch name alone.
+
+GitHub allows, in general, no more than 80 content-generating requests per
+minute and 500 per hour per user, and the limits can change. The client
+counts its own (Contents writes, Git data writes, GraphQL commits, refused
+ones included) in a rolling minute and hour, shared by its tabs in this
+browser, and holds a commit while the count is at **60 a minute** or **400
+an hour**. A held commit stays "Saving" and keeps combining edits; nothing
+is refused or dropped. When GitHub limits anyway (§3 Sync failures), no
+request is sent until the time its `retry-after` names, else its
+`x-ratelimit-reset`, else 60 seconds, doubling for each repeat within the
+hour.
 
 Every Contents API call the client makes — read or write — must pass the data
 branch explicitly. GitHub's Contents API silently defaults an omitted `branch`
@@ -2150,7 +2187,9 @@ dataset changes onto the app branch instead of the data branch with no error
 Commit messages are written by the app in plain words, for example "Payments
 API: Development period set to Apr–Sep", with one trailer line per touched
 entity, `Entity: <kind>/<id>` (each entity once, in first-edit order), so the
-history reads as a change log. Multi-file and dataset-level commits carry none.
+history reads as a change log. A user action that writes several files
+carries the trailers of every entity it touches; Reset, Load example data and
+other dataset-level commits carry none.
 Edits grouped into one commit are described by their net effect: what
 changed between the saved state before and after, per entity and field. An
 added-then-changed entity reads as added with its final values, an
@@ -2174,6 +2213,10 @@ in IndexedDB for that repository and branch, never synced, outside the cache
 budget; they are written when the page opens and whenever the open
 initiative changes, and emptied by Reset (§5.9). If they cannot be read,
 nothing is marked.
+The write budget's count (§10.3), the times of this browser's
+content-creating requests in the last hour, is kept in IndexedDB outside
+the cache budget and shared between tabs. If IndexedDB can't be used, each
+tab counts its own.
 The Portfolio's **Dismiss for now** on the Getting started strip (§5.2) is kept in
 session storage, never synced; if session storage cannot be used, the
 dismissal lasts for the page's lifetime.
