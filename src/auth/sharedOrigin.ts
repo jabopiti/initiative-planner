@@ -4,5 +4,6 @@
  * per origin, so any of those sites could read a token remembered here — Remember me is unavailable on one.
  */
 export function isSharedOrigin(hostname: string = window.location.hostname): boolean {
-  return hostname.toLowerCase().endsWith('.github.io');
+  // A trailing dot (`user.github.io.`) names the same host.
+  return hostname.toLowerCase().replace(/\.$/, '').endsWith('.github.io');
 }

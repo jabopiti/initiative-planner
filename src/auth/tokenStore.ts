@@ -56,12 +56,18 @@ async function moveRememberedIntoTab(): Promise<void> {
     loginCache.get().catch(() => null),
     classicWarningCache.get().catch(() => null),
   ]);
-  if (token == null) return;
+  if (token == null) {
+    // A login or classic flag left without its token is cleared too, so loadLogin can't surface it.
+    if (login != null || classic != null) await clearRemembered();
+    return;
+  }
   if (readSession() == null) {
     writeSession(token);
     if (login) writeSession(login, LOGIN_SESSION_KEY);
     if (classic) writeSession('1', CLASSIC_SESSION_KEY);
   }
+  // Session storage blocked or full: writeSession swallowed it, so keep the remembered copy rather than lose it.
+  if (readSession() == null) return;
   await clearRemembered();
 }
 
@@ -131,6 +137,8 @@ export const tokenStore = {
 
   /** Whether the token is kept on this device (Remember me), so a replacement keeps the same choice. */
   async remembered(): Promise<boolean> {
+    // Never on a shared origin, even if a copy survived the move, so nothing more is written to IndexedDB there.
+    if (!tokenStore.canRemember()) return false;
     try {
       return (await tokenCache.get()) != null;
     } catch {

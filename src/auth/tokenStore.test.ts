@@ -92,6 +92,28 @@ describe('tokenStore on a shared origin (§3, Authentication)', () => {
     expect(await tokenStore.load()).toBe('tab-token');
     expect(await tokenCache.get()).toBeNull();
   });
+
+  it('keeps the remembered token when this tab’s session storage refuses it', async () => {
+    await tokenCache.set('old-remembered');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    try {
+      expect(await tokenStore.load()).toBe('old-remembered');
+      expect(await tokenCache.get()).toBe('old-remembered');
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  it('clears a login left in IndexedDB without its token, and never reports a token as remembered', async () => {
+    await loginCache.set('stale');
+    expect(await tokenStore.loadLogin()).toBeNull();
+    expect(await loginCache.get()).toBeNull();
+
+    await tokenCache.set('survivor');
+    expect(await tokenStore.remembered()).toBe(false);
+  });
 });
 
 describe('tokenStore dev token', () => {

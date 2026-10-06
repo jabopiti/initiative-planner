@@ -335,8 +335,11 @@ every page on the same origin, so where the app is served from a shared
 origin (a `*.github.io` address, which every Pages site of that account or
 organisation shares) Remember me is unavailable, and a token remembered there
 earlier is moved into the tab's session storage and deleted from IndexedDB
-on the next load. A deployment should therefore be served from an origin of
-its own, such as a custom domain (§10.7). When it expires or is revoked, the tool shows the
+on the next load. Session storage only narrows the exposure: another page of
+the same origin opened in that tab can still read it, and only `*.github.io`
+is recognised as shared (a GitHub Enterprise Pages host is not). A deployment
+should therefore be served from an origin of its own, such as a custom domain
+(§10.7). When it expires or is revoked, the tool shows the
 access state (Sync failures) and asks for a new one. Commits are made under
 the user's own identity, so every change is committed under the name of the
 person who made it.
