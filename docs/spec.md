@@ -2157,10 +2157,12 @@ Load example data, a migration (§3), the bootstrap onto an existing branch,
 and each user action that writes several files: a new person with the
 membership added with them, a rate edit that also marks rates reviewed,
 and the roll-forward of rates into a new year (§7.2). Each of these is one
-commit or none. A refused `expectedHeadOid` (`STALE_DATA`) re-lists the
-touched files. When none changed, the commit is resent on the new head;
-when one did, it is re-read and merged per §10.5 as for a 409, up to three
-times. After a 5xx, a timeout or a network error, the head is re-read
+commit or none. A user action's commit is sent at once, pinned to a head
+at which every file it touches is still at the version its edit was made
+on. When the branch moves first (`STALE_DATA`) and none of those files
+changed, it is made again on the new head, up to three times; when one
+did, each file is saved on its own instead, merged per §10.5 as for a 409,
+the person's file before the membership's. After a 5xx, a timeout or a network error, the head is re-read
 before resending, since such a commit can have landed. The written files'
 versions are their git blob shas, computed locally, so they are never
 downloaded again. The bootstrap onto a missing data branch, which GraphQL

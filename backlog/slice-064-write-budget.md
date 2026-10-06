@@ -173,7 +173,10 @@ save on blur, drag bars on pointer-up, the 1-file-1-commit merge path.
     `countries.json` + `people.json`.
 
   Each is one commit, with one `Entity:` trailer per touched entity, as
-  for single-file edits.
+  for single-file edits, sent at once. When a touched file changed
+  meanwhile, each file is saved on its own instead and merges per §10.5
+  (settled during implementation: re-merging into one GraphQL commit would
+  duplicate the writers' merge-and-retry path for a rare case).
 
 ## Execution path
 
