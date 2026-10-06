@@ -190,14 +190,11 @@ save on blur, drag bars on pointer-up, the 1-file-1-commit merge path.
 
 ## Flags and compromises
 
-- **043 is not built, though the backlog tooling counts it as done.** Its
-  only commit, 1e777e2 "Slice 043: scope and criteria follow the
-  recommended retry path", changed the slice file alone, and its
-  `Slice 043:` prefix (rather than `Slice 043 spec:`) marks it done for
-  `find-eligible.sh`. On 6 Oct 2026 a secondary-limit 403 on a save still
-  read "GitHub refused access with this token" (`access-denied`, never
-  retried). Build 043 before item 3 of this slice, in its own `Slice 043:`
-  commit.
+- **043 was built late.** Its first commit, 1e777e2 "Slice 043: scope and
+  criteria follow the recommended retry path", changed the slice file alone
+  but marked it done for `find-eligible.sh`; until 8d2ee88 a secondary-limit
+  403 on a save read "GitHub refused access with this token" and was never
+  retried. Item 3 builds on 043's `rate-limited` classification.
 - A longer window means other users see a change up to ~20 s later, and
   more saves meet a newer version and merge (§10.5). Accepted for the
   budget.
