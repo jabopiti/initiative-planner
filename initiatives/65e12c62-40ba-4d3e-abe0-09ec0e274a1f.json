@@ -1,1 +1,1 @@
-{"id":"65e12c62-40ba-4d3e-abe0-09ec0e274a1f","name":"Fraud Detection Upgrade","description":"Replace the rules engine with a scored model.","teamId":"c1d99af0-b979-4b50-9063-e39a9fbd2cd0","status":"Active"}
+{"id":"65e12c62-40ba-4d3e-abe0-09ec0e274a1f","name":"Fraud Detection Upgrade","description":"Replace the rules engine with a scored model.","teamId":"c1d99af0-b979-4b50-9063-e39a9fbd2cd0","status":"Active","checklist":{"discovery":{"g1-problem-statement":{"status":"complete","note":""}}}}
