@@ -95,7 +95,7 @@ async function renderSection({ unlock = false } = {}) {
 }
 
 const saved = async (path: string) => {
-  await waitFor(() => expect(puts.some((p) => p.path === path)).toBe(true), { timeout: 3000 });
+  await waitFor(() => expect(puts.some((p) => p.path === path)).toBe(true));
   return puts.filter((p) => p.path === path);
 };
 
