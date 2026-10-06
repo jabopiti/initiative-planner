@@ -1,6 +1,8 @@
 import type { GithubLocation } from '../brand/types';
+import { HOUR_MS, MINUTE_MS } from '../data/dates';
 import { decodeBase64Utf8, encodeBase64Utf8 } from './base64';
 import { CAUSE_MESSAGES, GithubApiError, classifyFailure, githubMessage } from './errors';
+import type { WriteBudget } from './writeBudget';
 
 /**
  * Thin wrapper over the GitHub Contents API. `branch` is a required,
@@ -64,11 +66,20 @@ function assertBranch(branch: string): void {
   }
 }
 
-/** Throw a labelled GithubApiError unless the response is ok (or its status is explicitly allowed). */
-async function assertOk(response: Response, label: string, extraOkStatuses: number[] = []): Promise<void> {
-  if (response.ok || extraOkStatuses.includes(response.status)) return;
-  throw await failure(response, label);
+/** How long a request may take to answer before it counts as GitHub unreachable (§3 Sync failures). */
+export const REQUEST_TIMEOUT_MS = 30_000;
+
+/** The time limit covers this many bytes sent or received; beyond it, a request gets as long more as the slowest
+ * transfer still allowed for (16 kB/s) needs, so a large file on a slow link is not cut off and resent for ever. */
+const BYTES_WITHIN_TIMEOUT = 64 * 1024;
+const MIN_BYTES_PER_MS = 16;
+
+function transferAllowanceMs(bytes: number): number {
+  return Number.isFinite(bytes) && bytes > BYTES_WITHIN_TIMEOUT ? (bytes - BYTES_WITHIN_TIMEOUT) / MIN_BYTES_PER_MS : 0;
 }
+
+/** How long to wait after a limit when GitHub names no time: doubled for each repeat within the hour (§10.3). */
+export const RATE_LIMIT_FALLBACK_MS = MINUTE_MS;
 
 /**
  * A failed response as a GithubApiError, its cause read from the status, headers and body (§3 Sync failures). GitHub's
@@ -82,21 +93,78 @@ async function failure(response: Response, label: string): Promise<GithubApiErro
   return new GithubApiError(`${label} failed (${response.status})${detail ? `: ${detail}` : ''}`, cause, response.status);
 }
 
-/** How long a request may take to answer before it counts as GitHub unreachable (§3 Sync failures). */
-export const REQUEST_TIMEOUT_MS = 30_000;
+/** GitHub is limiting requests: nothing is sent before `until` (§3 Sync failures). GitHub's own message, when it gave
+ * one, is kept: a 403 can name another cause as well (a token pending approval, §5.10). */
+function rateLimited(until: number, status?: number, detail = ''): GithubApiError {
+  return new GithubApiError(`GitHub is limiting requests${detail ? `: ${detail}` : ''}`, 'rate-limited', status, until);
+}
 
-/** The time limit covers this many bytes sent or received; beyond it, a request gets as long more as the slowest
- * transfer still allowed for (16 kB/s) needs, so a large file on a slow link is not cut off and resent for ever. */
-const BYTES_WITHIN_TIMEOUT = 64 * 1024;
-const MIN_BYTES_PER_MS = 16;
-
-function transferAllowanceMs(bytes: number): number {
-  return Number.isFinite(bytes) && bytes > BYTES_WITHIN_TIMEOUT ? (bytes - BYTES_WITHIN_TIMEOUT) / MIN_BYTES_PER_MS : 0;
+/** Throw a labelled GithubApiError unless the response is ok (or its status is explicitly allowed). */
+async function assertOk(response: Response, label: string, extraOkStatuses: number[] = []): Promise<void> {
+  if (response.ok || extraOkStatuses.includes(response.status)) return;
+  throw await failure(response, label);
 }
 
 /** A write at a sha that is no longer the file's (409): a conflict, re-read and retried by the writer (§10.3). */
 function assertNotStale(response: Response): void {
   if (response.status === 409) throw new GithubApiError('Stale version — the file changed since it was last read.', 'conflict', 409);
+}
+
+export interface FileChange {
+  path: string;
+  content: string;
+}
+
+/** What a many-file commit writes and deletes. */
+export interface FileChanges {
+  files: FileChange[];
+  deletes: string[];
+}
+
+/** A many-file commit that landed, with each written file's version (its git blob sha). */
+export interface CommitResult {
+  commitSha: string;
+  written: (FileChange & { sha: string })[];
+}
+
+/** What {@link GithubClient.commitOnHead} is asked to do. */
+export interface CommitOnHeadArgs {
+  branch: string;
+  message: string;
+  /** What to write against the head `at`; null stops without committing. */
+  build: (at: string) => Promise<FileChanges | null>;
+}
+
+/** The input of GraphQL `createCommitOnBranch`, as {@link GithubClient.commitOnBranch} sends it. */
+export interface CreateCommitOnBranchInput {
+  branch: { repositoryNameWithOwner: string; branchName: string };
+  expectedHeadOid: string;
+  message: { headline: string; body?: string };
+  fileChanges: { additions: { path: string; contents: string }[]; deletions: { path: string }[] };
+}
+
+const CREATE_COMMIT = `mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }`;
+
+/** GitHub's GraphQL endpoint for an API base URL: derived, not appended (§2). `https://api.github.com/graphql`, or on
+ * GitHub Enterprise `https://<host>/api/graphql` for `https://<host>/api/v3`. */
+export function graphqlUrl(apiBaseUrl: string): string {
+  const base = apiBaseUrl.replace(/\/+$/, '');
+  return base.endsWith('/api/v3') ? `${base.slice(0, -'/v3'.length)}/graphql` : `${base}/graphql`;
+}
+
+/** A file's version as GitHub gives it, the git blob sha: SHA-1 of `blob <bytes>\0` and the UTF-8 content (§10.3). */
+export async function gitBlobSha(content: string): Promise<string> {
+  const bytes = new TextEncoder().encode(content);
+  const header = new TextEncoder().encode(`blob ${bytes.length}\0`);
+  const whole = new Uint8Array(header.length + bytes.length);
+  whole.set(header);
+  whole.set(bytes, header.length);
+  const digest = await crypto.subtle.digest('SHA-1', whole);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function withVersions(files: FileChange[]): Promise<(FileChange & { sha: string })[]> {
+  return Promise.all(files.map(async (file) => ({ ...file, sha: await gitBlobSha(file.content) })));
 }
 
 export class GithubClient {
@@ -105,21 +173,65 @@ export class GithubClient {
     private readonly getToken: () => string | null,
     /** Told of every response's headers, so the rate-limit budget is read without a request of its own (§5.9). */
     private readonly onResponse?: (headers: Headers) => void,
-    /** A request not answered within this time is aborted and counts as unreachable, so the write queue moves on. */
-    private readonly timeoutMs = REQUEST_TIMEOUT_MS,
+    private readonly options: {
+      timeoutMs?: number;
+      /** Reserves a place for each content-creating request (§10.3); none means no budget is kept. */
+      budget?: WriteBudget;
+      /** Told when GitHub limits requests, with the time until which nothing is sent (§3 Sync failures). */
+      onPause?: (until: number) => void;
+    } = {},
   ) {}
+
+  /** GitHub's last limit: nothing is sent before `until`; `repeats` counts the limits within an hour of each other. */
+  private pause: { until: number; repeats: number; at: number } | null = null;
+
+  /** Until when no request is sent because GitHub is limiting requests, or null when it isn't (§3 Sync failures). */
+  get pausedUntil(): number | null {
+    return this.pause && this.pause.until > Date.now() ? this.pause.until : null;
+  }
+
+  private throwIfPaused(): void {
+    const pausedUntil = this.pausedUntil;
+    if (pausedUntil !== null) throw rateLimited(pausedUntil);
+  }
+
+  /** The time GitHub names (`retry-after`, else the reset of an exhausted limit), else 60 s doubling per repeat (§10.3). */
+  private limitHit(headers: Headers): number {
+    const now = Date.now();
+    const repeats = this.pause && now - this.pause.at < HOUR_MS ? this.pause.repeats + 1 : 0;
+    const retryAfter = Number(headers.get('retry-after'));
+    const reset = Number(headers.get('x-ratelimit-reset')) * 1000;
+    let until = now + RATE_LIMIT_FALLBACK_MS * 2 ** repeats;
+    if (headers.has('retry-after') && Number.isFinite(retryAfter)) until = now + retryAfter * 1000;
+    else if (headers.get('x-ratelimit-remaining') === '0' && Number.isFinite(reset) && reset > now) until = reset;
+    this.pause = { until, repeats, at: now };
+    this.options.onPause?.(until);
+    return until;
+  }
 
   private repoUrl(path: string): string {
     return `${this.location.apiBaseUrl}/repos/${this.location.owner}/${this.location.repo}/${path}`;
   }
 
-  private async request(input: string, init: RequestInit = {}): Promise<Response> {
+  /**
+   * Every request goes through here. While GitHub's limit lasts, none is sent: it fails at once as rate limited. A
+   * content-creating one (any but a GET, unless `contentCreating` says otherwise) first waits for a place in the
+   * write budget. A response that says GitHub is limiting requests starts the wait.
+   */
+  private async request(input: string, init: RequestInit = {}, contentCreating = (init.method ?? 'GET') !== 'GET'): Promise<Response> {
+    this.throwIfPaused();
+    if (contentCreating) {
+      await this.options.budget?.reserve();
+      // GitHub may have started limiting requests while this one waited for its place.
+      this.throwIfPaused();
+    }
     const token = this.getToken();
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/vnd.github+json');
     headers.set('X-GitHub-Api-Version', '2022-11-28');
     if (token) headers.set('Authorization', `Bearer ${token}`);
 
+    const timeoutMs = this.options.timeoutMs ?? REQUEST_TIMEOUT_MS;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let timeOut: (error: Error) => void = () => {};
@@ -135,27 +247,34 @@ export class GithubClient {
       }, ms);
     };
     // The upload counts against the time, so a large body gets longer to send.
-    allow(this.timeoutMs + transferAllowanceMs(typeof init.body === 'string' ? init.body.length : 0));
+    allow(timeoutMs + transferAllowanceMs(typeof init.body === 'string' ? init.body.length : 0));
+    let response: Response;
     try {
-      const response = await Promise.race([
+      response = await Promise.race([
         (async () => {
           // no-store: GitHub's Contents API answers with max-age=60, and a re-read after a 409 must see the other writer's commit.
           const answered = await fetch(input, { cache: 'no-store', ...init, headers, signal: controller.signal });
           // The body is read within the time too, given longer for a large one: a connection that stalls after the
           // headers would otherwise hang its reader, and the write queue behind it, for ever.
-          allow(this.timeoutMs + transferAllowanceMs(Number(answered.headers.get('content-length'))));
+          allow(timeoutMs + transferAllowanceMs(Number(answered.headers.get('content-length'))));
           const body = answered.status === 204 || answered.status === 304 ? null : await answered.arrayBuffer();
           return new Response(body, { status: answered.status, statusText: answered.statusText, headers: answered.headers });
         })(),
         timedOut,
       ]);
       this.onResponse?.(response.headers);
-      return response;
     } catch {
       throw new GithubApiError(CAUSE_MESSAGES.unreachable!, 'unreachable');
     } finally {
       clearTimeout(timer);
     }
+    if (response.status === 403 || response.status === 429) {
+      const body = await response.clone().text();
+      if (classifyFailure(response.status, response.headers, body) === 'rate-limited') {
+        throw rateLimited(this.limitHit(response.headers), response.status, githubMessage(body));
+      }
+    }
+    return response;
   }
 
   /** GET .../contents/{path}?ref={branch} (§10.2). Returns null when the file doesn't exist yet. */
@@ -258,6 +377,19 @@ export class GithubClient {
     return { sha: body.object.sha, etag: response.headers.get('etag') };
   }
 
+  /** The commit the branch is at now; null when the branch does not exist. */
+  private async headOf(branch: string): Promise<string | null> {
+    const head = await this.getBranchHead({ branch, etag: null });
+    return head && head !== 'not-modified' ? head.sha : null;
+  }
+
+  /** The commit the branch is at now, which must exist. */
+  private async existingHeadOf(branch: string): Promise<string> {
+    const head = await this.headOf(branch);
+    if (head === null) throw new GithubApiError(`GET the head of ${branch} failed (404)`, 'not-found', 404);
+    return head;
+  }
+
   /** Checked-token validation (§5.10): who this token is, and whether it can write to the configured repo. */
   async checkToken(): Promise<{ login: string; scopesClassic: boolean }> {
     const userResponse = await this.request(`${this.location.apiBaseUrl}/user`, { method: 'GET' });
@@ -281,157 +413,127 @@ export class GithubClient {
   }
 
   /**
-   * Replace and delete several files on an existing branch as one commit through the Git data API (§10.3): Reset and
-   * Load example data. `build` is asked what to write against the head the commit will sit on, and may read the
-   * branch at that commit (`at`) to decide; null stops without committing. Only the final ref update changes the
-   * branch, so a failure before it leaves the branch as it was. When another commit lands first, the ref update is
-   * refused as not a fast-forward (422) and the whole commit is built again on the new head, up to three times.
+   * Replace and delete several files on an existing branch as one commit (§10.3): Reset, Load example data, and a
+   * user action that writes several files. `build` is asked what to write
+   * against the head the commit will sit on, and may read the branch at that commit (`at`) to decide; null stops
+   * without committing. One GraphQL `createCommitOnBranch` makes the commit, refused unless the branch is still at that
+   * head; then the whole commit is built again on the new head, up to three times. The written files come back with
+   * their versions, computed here, so nobody needs to download them again.
    */
-  async commitOnHead(args: {
-    branch: string;
-    message: string;
-    build: (at: string) => Promise<{ files: { path: string; content: string }[]; deletes: string[] } | null>;
-  }): Promise<{ commitSha: string } | 'stopped'> {
+  async commitOnHead(args: CommitOnHeadArgs): Promise<CommitResult | 'stopped'> {
     assertBranch(args.branch);
-    const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
     for (let attempt = 0; ; attempt += 1) {
-      const head = await this.headOf(refUrl);
-      if (head === null) throw new GithubApiError(`The data branch ${args.branch} does not exist.`, 'not-found', 404);
-      // The base tree only matters once there is something to write; fetch it while `build` reads.
-      const baseTree = this.treeOf(head);
-      baseTree.catch(() => {}); // awaited below unless `build` stops or throws first
-
+      const head = await this.existingHeadOf(args.branch);
       const changes = await args.build(head);
       if (changes === null) return 'stopped';
-      const blobs = await this.createBlobs(changes.files);
-      // A null sha removes the path from the base tree.
-      const entries = [...blobs, ...changes.deletes.map((path) => ({ path, sha: null }))];
-      const commitSha = await this.createCommit({ baseTree: await baseTree, parent: head, entries, message: args.message });
-
-      const updateResponse = await this.updateRef(args.branch, commitSha);
-      if (updateResponse.status === 422 && attempt < 3) continue; // the head moved: build again on the new one
-      if (updateResponse.status === 422) throw new GithubApiError('The data branch kept changing — please retry.', 'conflict', 422);
-      await assertOk(updateResponse, 'Ref update');
-      return { commitSha };
+      const outcome = await this.commitOnBranch({ branch: args.branch, expectedHeadOid: head, message: args.message, ...changes });
+      if (outcome === 'moved' && attempt < 3) continue; // another commit landed first: build again on the new head
+      if (outcome === 'moved') throw new GithubApiError('The data branch kept changing — please retry.', 'conflict', 422);
+      return { commitSha: outcome.commitSha, written: await withVersions(changes.files) };
     }
-  }
-
-  private async treeOf(commitSha: string): Promise<string> {
-    const commitResponse = await this.request(this.repoUrl(`git/commits/${commitSha}`), { method: 'GET' });
-    await assertOk(commitResponse, 'GET commit');
-    return ((await commitResponse.json()) as { tree: { sha: string } }).tree.sha;
-  }
-
-  private createBlobs(files: { path: string; content: string }[]): Promise<{ path: string; sha: string }[]> {
-    return Promise.all(
-      files.map(async (file) => {
-        const blobResponse = await this.request(this.repoUrl('git/blobs'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: encodeBase64Utf8(file.content), encoding: 'base64' }),
-        });
-        await assertOk(blobResponse, 'Blob create');
-        return { path: file.path, sha: ((await blobResponse.json()) as { sha: string }).sha };
-      }),
-    );
-  }
-
-  /** A tree on `baseTree` with `entries` (a null sha removes the path), then a commit of it on `parent`; returns the commit's sha. */
-  private async createCommit(args: {
-    baseTree?: string;
-    parent?: string;
-    entries: { path: string; sha: string | null }[];
-    message: string;
-  }): Promise<string> {
-    const treeResponse = await this.request(this.repoUrl('git/trees'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...(args.baseTree ? { base_tree: args.baseTree } : {}),
-        tree: args.entries.map((e) => ({ path: e.path, mode: '100644', type: 'blob', sha: e.sha })),
-      }),
-    });
-    await assertOk(treeResponse, 'Tree create');
-    const tree = ((await treeResponse.json()) as { sha: string }).sha;
-
-    const commitResponse = await this.request(this.repoUrl('git/commits'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: args.message, tree, parents: args.parent ? [args.parent] : [] }),
-    });
-    await assertOk(commitResponse, 'Commit create');
-    return ((await commitResponse.json()) as { sha: string }).sha;
-  }
-
-  /** Updating a ref is PATCH .../git/refs/heads/{branch} (plural); only the GET is `git/ref/...` (singular) — PATCHing the singular URL is a 404. */
-  private updateRef(branch: string, commitSha: string): Promise<Response> {
-    return this.request(this.repoUrl(`git/refs/heads/${encodePath(branch)}`), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sha: commitSha }),
-    });
   }
 
   /**
-   * Create or update several files as one commit through the Git Data API
-   * (§10.3: "Operations that change many files ... are a single commit
-   * through the Git data API"). Used for the fresh-install baseline bootstrap
-   * (§3 "System writes"). If the branch doesn't exist yet, it's created as
-   * an orphan (no parent commit, no base tree) — confirmed viable against
-   * the real API in slice 002's spike.
-   *
-   * When another commit reaches the branch first, ours is never put on top of it: the ref create ("Reference already
-   * exists") or the fast-forward is refused with a 422, and the branch's actual head is returned instead. The
-   * concurrent attempts converge on the winner's baseline, with no duplicate (§3 "System writes"); a second baseline
-   * over it would replace its roles' and countries' ids under data already pointing at them. The caller re-reads the
-   * branch either way.
+   * One GraphQL `createCommitOnBranch` on `branch`, refused unless the branch is at `expectedHeadOid` (§10.3). It is one
+   * content-creating request whatever its size. 'moved' when the branch moved or a file to delete is already gone:
+   * the caller reads again and decides. GitHub can answer a commit it made with a 5xx or not at all
+   * (spike-findings.md): then the head is read, and a head that is our commit on our parent counts as made.
    */
-  async createFilesCommit(args: {
-    branch: string;
-    files: { path: string; content: string }[];
-    message: string;
-  }): Promise<{ commitSha: string }> {
+  async commitOnBranch(args: { branch: string; expectedHeadOid: string; message: string } & FileChanges): Promise<{ commitSha: string } | 'moved'> {
     assertBranch(args.branch);
-
-    // Blob content doesn't depend on the branch/ref lookup below, so start both concurrently.
-    const blobsPromise = this.createBlobs(args.files);
-    // If the ref/commit lookup below throws first, this function returns without ever
-    // reaching `await blobsPromise` — if a blob upload then fails on its own, nothing would
-    // be listening for that rejection. This no-op catch just keeps that from ever being
-    // unhandled; the real rejection is still seen wherever `blobsPromise` is awaited below.
-    blobsPromise.catch(() => {});
-
-    const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
-    const head = await this.headOf(refUrl);
-    let commitSha: string;
-    let landed: Response;
-    if (head === null) {
-      commitSha = await this.createCommit({ entries: await blobsPromise, message: args.message });
-      landed = await this.request(this.repoUrl('git/refs'), {
+    const [headline, ...rest] = args.message.split('\n\n');
+    const input: CreateCommitOnBranchInput = {
+      branch: { repositoryNameWithOwner: `${this.location.owner}/${this.location.repo}`, branchName: args.branch },
+      expectedHeadOid: args.expectedHeadOid,
+      message: { headline, ...(rest.length > 0 ? { body: rest.join('\n\n') } : {}) },
+      fileChanges: {
+        additions: args.files.map((file) => ({ path: file.path, contents: encodeBase64Utf8(file.content) })),
+        deletions: args.deletes.map((path) => ({ path })),
+      },
+    };
+    let response: Response;
+    try {
+      response = await this.request(graphqlUrl(this.location.apiBaseUrl), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ref: `refs/heads/${args.branch}`, sha: commitSha }),
+        body: JSON.stringify({ query: CREATE_COMMIT, variables: { input } }),
       });
-    } else {
-      const baseTree = await this.treeOf(head);
-      commitSha = await this.createCommit({ baseTree, parent: head, entries: await blobsPromise, message: args.message });
-      landed = await this.updateRef(args.branch, commitSha);
+      if (response.status >= 500) throw await failure(response, 'Commit');
+    } catch (error) {
+      if (error instanceof GithubApiError && error.cause_ === 'unreachable') {
+        const landed = await this.landedOn(args.branch, args.expectedHeadOid, headline).catch(() => null);
+        if (landed) return { commitSha: landed };
+      }
+      throw error;
     }
-    // Our commit never got attached to the branch, so return the winner's rather than a dangling sha.
-    if (landed.status === 422) {
-      const winner = await this.headOf(refUrl);
-      if (winner === null) throw new GithubApiError('The data branch changed during setup — please retry.', 'conflict', 422);
-      return { commitSha: winner };
-    }
-    await assertOk(landed, head === null ? 'Ref create' : 'Ref update');
-    return { commitSha };
+    await assertOk(response, 'Commit');
+    const body = (await response.json()) as { data?: { createCommitOnBranch?: { commit?: { oid: string } } | null }; errors?: { type?: string; message?: string }[] };
+    // A refusal is a 200 with errors, told apart by type (spike-findings.md).
+    const errors = body.errors ?? [];
+    if (errors.some((e) => e.type === 'STALE_DATA' || e.type === 'NOT_FOUND')) return 'moved';
+    const oid = body.data?.createCommitOnBranch?.commit?.oid;
+    if (errors.length > 0 || !oid) throw new GithubApiError(`Commit failed: ${errors[0]?.message ?? 'no commit'}`, 'unknown', response.status);
+    return { commitSha: oid };
   }
 
-  /** The branch's head commit, or null when the branch doesn't exist. */
-  private async headOf(refUrl: string): Promise<string | null> {
-    const response = await this.request(refUrl, { method: 'GET' });
-    if (response.status === 404) return null;
-    await assertOk(response, 'GET ref');
-    return ((await response.json()) as { object: { sha: string } }).object.sha;
+  /** The branch's head, when it is a commit titled `headline` on `parent`: a commit of ours whose answer was lost. */
+  private async landedOn(branch: string, parent: string, headline: string): Promise<string | null> {
+    const head = await this.existingHeadOf(branch);
+    if (head === parent) return null;
+    const commitResponse = await this.request(this.repoUrl(`git/commits/${head}`), { method: 'GET' });
+    await assertOk(commitResponse, 'GET commit');
+    const commit = (await commitResponse.json()) as { message: string; parents: { sha: string }[] };
+    return commit.parents[0]?.sha === parent && commit.message.split('\n')[0] === headline ? head : null;
+  }
+
+  /**
+   * The fresh-install baseline (§3 "System writes") as one commit. Onto an existing branch it is one GraphQL commit on
+   * the head just read. A missing branch is created, which GraphQL can't do: a tree with the files' contents inline, a
+   * commit with no parent, then the ref; three content-creating requests and no blob uploads.
+   *
+   * When another commit reaches the branch first, ours is never put on top of it: the commit is refused as stale, or
+   * the ref create as "Reference already exists" (422), and the branch's actual head is returned instead, with nothing
+   * written by us. The concurrent attempts converge on the winner's baseline, with no duplicate (§3 "System writes"); a
+   * second baseline over it would replace its roles' and countries' ids under data already pointing at them.
+   */
+  async createFilesCommit(args: { branch: string; files: FileChange[]; message: string }): Promise<CommitResult> {
+    assertBranch(args.branch);
+    const head = await this.headOf(args.branch);
+    if (head !== null) {
+      const outcome = await this.commitOnBranch({ branch: args.branch, expectedHeadOid: head, message: args.message, files: args.files, deletes: [] });
+      if (outcome === 'moved') return this.lostTo(args.branch);
+      return { commitSha: outcome.commitSha, written: await withVersions(args.files) };
+    }
+
+    const treeResponse = await this.request(this.repoUrl('git/trees'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tree: args.files.map((file) => ({ path: file.path, mode: '100644', type: 'blob', content: file.content })) }),
+    });
+    await assertOk(treeResponse, 'Tree create');
+    const tree = ((await treeResponse.json()) as { sha: string }).sha;
+    const commitResponse = await this.request(this.repoUrl('git/commits'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: args.message, tree, parents: [] }),
+    });
+    await assertOk(commitResponse, 'Commit create');
+    const commitSha = ((await commitResponse.json()) as { sha: string }).sha;
+
+    const createRefResponse = await this.request(this.repoUrl('git/refs'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ref: `refs/heads/${args.branch}`, sha: commitSha }),
+    });
+    if (createRefResponse.status === 422) return this.lostTo(args.branch);
+    await assertOk(createRefResponse, 'Ref create');
+    return { commitSha, written: await withVersions(args.files) };
+  }
+
+  /** Another client's bootstrap won: its commit, rather than a dangling sha of ours, and nothing written by us. */
+  private async lostTo(branch: string): Promise<CommitResult> {
+    const winner = await this.headOf(branch);
+    if (winner === null) throw new GithubApiError('The data branch changed during setup — please retry.', 'conflict', 422);
+    return { commitSha: winner, written: [] };
   }
 }

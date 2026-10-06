@@ -114,3 +114,53 @@ structural fact about needing a second account/org, not a flaw in the
 chosen approach — nothing here forces a rework of the sync or security
 design. Slices 003 onward can proceed on the strength of these results,
 with the branch-parameter discipline above carried forward explicitly.
+
+---
+
+# Slice 064 — GraphQL spike findings (6 Oct 2026)
+
+Run with `scripts/spike-graphql.mjs` from a local machine, with the
+fine-grained dev token (Contents read and write on this repository).
+`data` was only read (head `88200eb` before and after). Every write went
+to the throwaway branch `spike-graphql`, which was deleted at the end of
+both runs (`DELETE` 204, absent from `git ls-remote` afterwards).
+
+| Question | Result |
+|---|---|
+| Q1 CORS preflight for `/graphql`, Origin `https://jabopiti.github.io` | **Pass.** 204, `allow-origin: *`, allows `Authorization` and `Content-Type`; exposes `Retry-After` and all `X-RateLimit-*` headers. |
+| Q2 fine-grained token on GraphQL | **Pass.** 200; separate `graphql` budget of 5000 points an hour; a query costs 1. |
+| Q3 `createCommitOnBranch`: 2 adds + 1 delete in one commit | **Pass.** One commit (signed by GitHub, `VALID`); subject and `Entity:` trailers kept exactly; UTF-8 round trip exact; the file's Contents `sha` equals the locally computed git blob sha, so written files need no re-download; the deleted file is gone. |
+| Q3b stale `expectedHeadOid` | **Pass.** HTTP 200 with `errors[0].type = "STALE_DATA"` and `data.createCommitOnBranch = null`, so a refusal is recognisable by `type`, not by HTTP status. |
+| Q3c deleting a path that doesn't exist | HTTP 200, `errors[0].type = "NOT_FOUND"`: the whole commit is refused, not just that path. |
+| Q4a listing root + `initiatives/` at one commit | One query, cost 1, ~0.6 s. |
+| Q4b every data file in one aliased query | 9 files, cost 1, ~0.8 s; blob `oid` equals the REST Contents `sha`; text identical. |
+| Q6 single large files | 1 MB and 5 MB commits succeed (1.8 s, 4.0 s). 20 MB: 504 after 11.3 s in the first run, 200 after 9.6 s in the second. 40 MB: 499. **Read side:** `Blob.text` is cut at 512,000 bytes (`isTruncated: true`) for any file larger than that. |
+| Q6b 210 files, ~4 MB, one commit | **Pass** in the second run: 200 in 3.2 s, all 210 files in the tree. (First run: refused as `STALE_DATA` only because the 20 MB write before it had landed despite its 504. See below.) |
+| Q5 budget used by the whole spike | 14 GraphQL points of 5000. |
+
+## Route for slice 064 items 4 and 5: GraphQL
+
+Q1, Q2, Q3 and Q6 all pass, so many-file commits (Reset, Load example data,
+bootstrap, migrations) and multi-file user actions use one
+`createCommitOnBranch` each. Single-file saves stay on the Contents API.
+
+## What the implementation must take from this
+
+- **A 5xx or timeout on a commit doesn't mean it failed.** The 504 on the
+  20 MB write in run 1 had committed: the next commit, built on the old
+  head, was refused as `STALE_DATA`. After a 5xx, a timeout or a network
+  error on `createCommitOnBranch`, re-read the branch head before
+  resending. If the head's commit carries the same subject and its tree
+  holds the blob shas we computed, the commit landed; treat it as done.
+- **Refusals arrive as HTTP 200.** Classify by `errors[].type`
+  (`STALE_DATA` → re-list and resend or merge; `NOT_FOUND` on a deletion →
+  re-list, since someone else already deleted it). Don't classify by
+  status alone.
+- **Keep commits well under ~10 MB.** The volume ceiling's whole dataset
+  (~4 MB) fits in one commit with plenty of room.
+- **For slice 065 (GraphQL reads):** a blob over 512,000 bytes comes back
+  truncated. Any batch read must check `isTruncated` and fall back to
+  REST Contents/blob reads for that file.
+- **GitHub Enterprise:** GraphQL is at `https://<host>/api/graphql`, not
+  under `apiBaseUrl` (`/api/v3`). Derive it (slice 064 spec change,
+  §10.7).

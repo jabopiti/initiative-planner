@@ -5,7 +5,13 @@ import { changedPaths, getAtPath, pathKey, sameValue, setAtPath, type DocumentMe
 import { parseDataFile } from './validateDataset';
 import type { WriteQueue } from './WriteQueue';
 
-const COMMIT_DEBOUNCE_MS = 1000;
+/** A file's edits are committed this long after the last edit to it (§10.3)… */
+export const COMMIT_QUIET_MS = 4000;
+/** …and at most this long after its first uncommitted edit, so steady editing still saves (§10.3). */
+export const COMMIT_MAX_MS = 20_000;
+
+/** The window every writer uses; tests that wait for a save in real time shorten it (src/test/setup.ts). */
+export const commitWindow = { quietMs: COMMIT_QUIET_MS, maxMs: COMMIT_MAX_MS };
 const MAX_RETRIES = 3;
 /** The wait before retry 1, 2 and 3 after a rejected write (§10.3), before jitter. */
 const RETRY_BACKOFF_MS = [500, 1000, 2000];
@@ -53,7 +59,7 @@ export function renderMessage({ subject, entities }: CommitMessage): string {
 }
 
 /** Entities in first-seen order, each once. */
-function distinctEntities(entities: EntityRef[]): EntityRef[] {
+export function distinctEntities(entities: EntityRef[]): EntityRef[] {
   const seen = new Set<string>();
   return entities.filter((e) => {
     const key = `${e.kind}/${e.id}`;
@@ -116,6 +122,8 @@ export interface FileWriterOptions<D> {
   /** Uniform in [0, 1), for the retry jitter; `Math.random` by default. */
   random?: () => number;
   onStatus: (status: WriteStatus) => void;
+  /** An edit was made (see {@link FileWriter.schedule}). */
+  onSchedule?: () => void;
   /** The local cache refused a write because storage is full (§3 Storage limits); the save itself had succeeded. */
   onCacheFull?: () => void;
   onConflict: (conflict: FileConflict) => void;
@@ -123,6 +131,28 @@ export interface FileWriterOptions<D> {
   onConflictClosed?: (conflict: FileConflict) => void;
   /** The document on screen should now be this one: a save landed, or a merge brought in the other writer's changes. */
   onDocument: (doc: D) => void;
+}
+
+/** One file's share of a commit of several files (§10.3), taken by {@link FileWriter.takeJoint}. */
+export interface JointPart<D> {
+  path: string;
+  /** What is committed: the file's text. */
+  content: string;
+  /** The version the edit was made on: the commit goes ahead only while the file is still at it. */
+  sha: string;
+  message: CommitMessage;
+  mine: D;
+  batch: EditBatch<D>;
+}
+
+/** An edit taken out of a writer to be saved apart from those made after it (see {@link FileWriter.flushApart}). */
+interface EditBatch<D> {
+  pending: D | null;
+  notes: CommitNote[];
+  extras: [string, string][];
+  extraEntities: EntityRef[];
+  replaced: boolean;
+  noted: boolean;
 }
 
 /**
@@ -155,10 +185,17 @@ export class FileWriter<D> {
   /** An edit with a note was made since the last save, even if its note has cancelled out. */
   private noted = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** Edits set aside by {@link flushApart}, oldest first: each save takes the oldest before what is pending, so
+   * documents are sent in the order they were made. */
+  private readonly apart: EditBatch<D>[] = [];
+  /** When the oldest edit no save has taken yet was made: the commit window closes {@link COMMIT_MAX_MS} after it. */
+  private windowOpenedAt: number | null = null;
   /** Saves are chained so each starts after the one before it has finished. */
   private tail: Promise<unknown> = Promise.resolve();
   /** Saves requested and not yet started. */
   private waiting = 0;
+  /** Saves requested and not yet finished, those waiting at their gate included. */
+  private unfinished = 0;
   /** What last failed to save, and why — set and cleared together by {@link fail}/{@link clearFailure} — kept
    * until a fresh edit or a landed save clears it (§3, §9.9); non-null is "the last save failed and nothing
    * has been saved since", so an idle writer must not say synced. */
@@ -187,23 +224,104 @@ export class FileWriter<D> {
     this.clearFailure();
     for (const n of note === undefined ? [] : [note].flat()) this.note(n);
     this.options.onStatus('syncing');
+    this.options.onSchedule?.();
     if (this.timer) clearTimeout(this.timer);
+    const now = Date.now();
+    this.windowOpenedAt ??= now;
+    const wait = Math.min(commitWindow.quietMs, this.windowOpenedAt + commitWindow.maxMs - now);
     this.timer = setTimeout(() => {
       this.timer = null;
       void this.flush();
-    }, COMMIT_DEBOUNCE_MS);
+    }, Math.max(0, wait));
   }
 
-  /** Save what is pending now, without waiting out the debounce (creation, page unload), after any save in flight. */
+  /** Save what is pending now, without waiting for the commit window to close (§10.3's flush points), after any save in flight. */
   flush(): Promise<SaveResult> {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    this.windowOpenedAt = null;
     return this.enqueue(() => this.saveNext());
   }
 
-  /** Settles once the edits made so far are saved or have failed: one waiting out the debounce is saved now. */
+  /**
+   * Sends what is pending now as a save of its own, after any save in flight, and starts it at once (§10.3: an action
+   * that reads or replaces the saved file). An edit made after this call, such as that action's own, goes in the next
+   * save, not this one, even though this one starts later.
+   */
+  flushApart(): Promise<SaveResult> {
+    if (this.pending === null) return this.flush();
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    this.windowOpenedAt = null;
+    this.apart.push(this.takeEdits());
+    return this.enqueue(() => this.saveNext());
+  }
+
+  /**
+   * Takes the pending edit for a commit of several files (§10.3), at once and without its window: null when nothing is
+   * pending, the file does not exist yet, a save of it is queued or running, a choice is open or the edit is refused,
+   * and the caller then lets each file save on its own. Until {@link jointLanded}, {@link jointFailed} or
+   * {@link jointReturned}, the file counts as saving.
+   */
+  takeJoint(): JointPart<D> | null {
+    const mine = this.pending;
+    if (mine === null || this.synced === null || this.unfinished > 0 || this.disposed) return null;
+    if (this.openConflicts.length > 0 || this.options.refused?.(mine)) return null;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.windowOpenedAt = null;
+    const message = this.commitMessage();
+    const batch = this.takeEdits();
+    this.saving = true;
+    // A save of an edit made meanwhile waits for the commit, so it neither races it nor is overwritten by an edit given back.
+    const done = new Promise<void>((resolve) => (this.jointDone = resolve));
+    void this.enqueue(() => done);
+    return { path: this.options.path, content: JSON.stringify(mine), sha: this.synced.sha, message, mine, batch };
+  }
+
+  /** Ends the hold {@link takeJoint} put on this writer's saves. */
+  private jointDone: (() => void) | null = null;
+
+  private endJoint(): void {
+    this.saving = false;
+    this.jointDone?.();
+    this.jointDone = null;
+  }
+
+  /** The commit holding this file's share landed: `sha` is the file's new version. */
+  jointLanded(part: JointPart<D>, sha: string): void {
+    this.endJoint();
+    this.synced = { content: part.mine, sha };
+    this.clearFailure();
+    this.landed(part.mine, part.mine, false, part.message);
+    void this.cache(part.mine, sha);
+  }
+
+  /** The commit failed: the edit is this file's failure, resent by Retry or the automatic retry as its own save. */
+  jointFailed(part: JointPart<D>, cause: ReadOnlyState): void {
+    this.endJoint();
+    // Its notes stay for the resend; an edit made since stays pending, on top of it.
+    this.giveBack({ ...part, batch: { ...part.batch, pending: null } });
+    this.failWith(cause, part.mine);
+  }
+
+  /** No commit was made (the file changed meanwhile): the edit goes back and is saved on its own, now. */
+  jointReturned(part: JointPart<D>): void {
+    this.endJoint();
+    this.giveBack(part);
+    void this.flush();
+  }
+
+  /** The share's edit and notes back in, before anything edited since. */
+  private giveBack(part: JointPart<D>): void {
+    this.addEdits(this.swapEdits(part.batch));
+  }
+
+  /** Settles once the edits made so far are saved or have failed: one waiting for its commit window is saved now. */
   settled(): Promise<unknown> {
     return this.timer ? this.flush() : this.tail;
   }
@@ -211,11 +329,12 @@ export class FileWriter<D> {
   /** Runs `step` once every save before it has finished. */
   private enqueue<T>(step: () => Promise<T>): Promise<T> {
     this.waiting += 1;
+    this.unfinished += 1;
     const result = this.tail.then(() => {
       this.waiting -= 1;
       return step();
     });
-    this.tail = result.catch(() => undefined);
+    this.tail = result.catch(() => undefined).finally(() => (this.unfinished -= 1));
     return result;
   }
 
@@ -236,7 +355,7 @@ export class FileWriter<D> {
 
   /** An edit is waiting to be saved or a save is running. */
   get busy(): boolean {
-    return this.pending !== null || this.timer !== null || this.waiting > 0 || this.saving;
+    return this.pending !== null || this.apart.length > 0 || this.timer !== null || this.waiting > 0 || this.saving;
   }
 
   /** Why this file's last save failed, for as long as nothing has saved since (§3, §9.9); null otherwise. */
@@ -246,7 +365,7 @@ export class FileWriter<D> {
 
   /** An edit is waiting to be saved: typed or made, and no save has taken it yet. */
   get hasPending(): boolean {
-    return this.pending !== null;
+    return this.pending !== null || this.apart.length > 0;
   }
 
   /** The paths that changed in the edit that failed to save, against what is actually on GitHub (§9.9): only
@@ -260,10 +379,19 @@ export class FileWriter<D> {
    * fresh edit already cleared it via {@link schedule}. */
   retry(): Promise<SaveResult> {
     if (this.failedContent === null) return Promise.resolve('saved');
+    // A second Retry while the first is still on its way would send the same edit again, as a second commit.
+    if (this.retrying) return this.retrying;
     this.pending = this.failedContent;
     this.options.onStatus('syncing');
-    return this.enqueue(() => this.saveNext());
+    const retrying = this.enqueue(() => this.saveNext()).finally(() => {
+      if (this.retrying === retrying) this.retrying = null;
+    });
+    this.retrying = retrying;
+    return retrying;
   }
+
+  /** The resend {@link retry} started and that has not finished yet. */
+  private retrying: Promise<SaveResult> | null = null;
 
   /**
    * The repository's newer version of the file, from a pull (§3). It replaces what is on screen; an edit not yet
@@ -380,6 +508,39 @@ export class FileWriter<D> {
     return distinctEntities([...[...this.notes.values()].map((n) => n.entity), ...this.extraEntities]);
   }
 
+  /** The pending edit and its notes, taken out of the writer, which is left with none. */
+  private takeEdits(): EditBatch<D> {
+    const batch: EditBatch<D> = {
+      pending: this.pending,
+      notes: [...this.notes.values()],
+      extras: [...this.extras],
+      extraEntities: this.extraEntities,
+      replaced: this.replaced,
+      noted: this.noted,
+    };
+    this.pending = null;
+    this.clearEdits();
+    return batch;
+  }
+
+  /** Puts `batch` in the writer's place, and returns what the writer held. */
+  private swapEdits(batch: EditBatch<D>): EditBatch<D> {
+    const held = this.takeEdits();
+    this.addEdits(batch);
+    return held;
+  }
+
+  /** Adds a batch's edit after what the writer holds: its document is the newer one, its notes merge by field. */
+  private addEdits(batch: EditBatch<D>): void {
+    if (batch.pending !== null) this.pending = batch.pending;
+    const noted = this.noted || batch.noted;
+    for (const n of batch.notes) this.note(n);
+    this.noted = noted;
+    for (const [key, words] of batch.extras) this.extras.set(key, words);
+    this.extraEntities = [...this.extraEntities, ...batch.extraEntities];
+    this.replaced ||= batch.replaced;
+  }
+
   /** The edits so far are written into a commit: they start afresh. */
   private clearEdits(): void {
     this.notes.clear();
@@ -391,6 +552,21 @@ export class FileWriter<D> {
 
   private async saveNext(): Promise<SaveResult> {
     await this.options.gate?.();
+    const batch = this.apart.shift();
+    if (batch) {
+      const later = this.swapEdits(batch);
+      try {
+        return await this.saveTaken();
+      } finally {
+        // Whatever is left (a refused save keeps its notes, an edit made during the save) joins what came later.
+        this.addEdits(this.swapEdits(later));
+      }
+    }
+    return this.saveTaken();
+  }
+
+  /** Saves what is pending now. */
+  private async saveTaken(): Promise<SaveResult> {
     if (this.disposed) return 'gone';
     if (this.pending === null) {
       this.reportIdle();
@@ -424,8 +600,9 @@ export class FileWriter<D> {
     for (let retries = MAX_RETRIES; ; retries -= 1) {
       if (retries < MAX_RETRIES) {
         await this.backoff(MAX_RETRIES - retries - 1);
-        // An edit made during the wait joins this write rather than starting one of its own.
-        if (this.pending !== null) {
+        // An edit made during the wait joins this write rather than starting one of its own, unless edits set apart
+        // are waiting: they are older, and go first.
+        if (this.pending !== null && this.apart.length === 0) {
           const newer = this.pending;
           this.pending = null;
           sent = this.rebase(mine, newer, sent, message);
@@ -622,7 +799,9 @@ export class FileWriter<D> {
   private discardLocal(): void {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    this.windowOpenedAt = null;
     this.pending = null;
+    this.apart.length = 0;
     this.notes.clear();
     this.extras.clear();
     this.extraEntities = [];

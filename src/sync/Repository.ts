@@ -29,17 +29,21 @@ import { FROZEN_PHASE_FIELDS, frozenPaths, hasPassedGate, isInitiativeFrozen, is
 import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
 import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
-import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { GithubClient, type BranchHead } from '../github/client';
+import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, GithubApiError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
+import { GithubClient, type BranchHead, type CommitOnHeadArgs, type CommitResult } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
+import { WriteBudget } from '../github/writeBudget';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
-import { FileWriter, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
+import { distinctEntities, FileWriter, renderMessage, type JointPart, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { MASTER_FILES, parseDataFile, validateDataset, validateRecords } from './validateDataset';
 import { WriteQueue } from './WriteQueue';
+
+/** A file a commit of this client's wrote, with its version. */
+type WrittenFile = CommitResult['written'][number];
 
 export type { ReadOnlyState } from '../github/errors';
 
@@ -267,16 +271,25 @@ export class Repository {
   /** Why the last delete failed (§9.9): shown in the read-only banner until a pull succeeds. */
   private deleteFailure: ReadOnlyState | null = null;
   private tintTimer: ReturnType<typeof setTimeout> | null = null;
-  /** The pull running brings in this client's own Reset or Load (§5.9): nothing it changes is "updated by others". */
-  private ownCommitPull = false;
+  /** Set while the pull running brings in this client's own many-file commit (§5.9's Reset or Load): nothing it changes
+   * is "updated by others", and the files the commit wrote, with their versions, are taken as they are rather than
+   * downloaded again (§10.3). */
+  private ownCommit: Map<string, WrittenFile> | null = null;
 
   constructor(
     private readonly brand: BrandPack,
     private token: string,
   ) {
-    this.github = new GithubClient(brand.github, () => this.token, (headers) => this.noteRateLimit(headers));
+    this.writeBudget = new WriteBudget(brand.github.apiBaseUrl);
+    this.github = new GithubClient(brand.github, () => this.token, (headers) => this.noteRateLimit(headers), {
+      budget: this.writeBudget,
+      onPause: () => this.rearmRetry(),
+    });
     this.cache = new FileCache(cacheScope(brand.github));
   }
+
+  /** The content-creating requests this browser sent, counted against the lines of §10.3. */
+  readonly writeBudget: WriteBudget;
 
   // Arrow properties, so React's useSyncExternalStore gets the same functions on every render and never resubscribes.
   readonly getState = (): RepositoryState => this.state;
@@ -445,12 +458,14 @@ export class Repository {
     // Listing and files are read at the head just checked, so they are one commit's snapshot: validation across
     // files (§3 Damaged data) never sees half of another user's change, such as a membership without its person.
     let at = head?.sha ?? branch;
+    // Files this client's own commit just wrote: not read again at the version the listing gives.
+    const written = new Map(this.ownCommit);
     let listing = await this.listDataset(at);
     if (!listing.has(FILE_PATHS.datasetFlags)) {
       // No dataset anywhere: the first write-capable client creates it (§3). Never over a dataset that has any file
       // left, nor one already on screen: that dataset is damaged, and the owner restores it (§3 Damaged data).
       if (listing.size > 0 || this.state.status === 'ready') throw new DamagedDataError(FILE_PATHS.datasetFlags, 'is missing');
-      await this.bootstrapBaseline(branch);
+      for (const file of await this.bootstrapBaseline(branch)) written.set(file.path, file);
       at = branch;
       listing = await this.listDataset(at);
       if (!listing.has(FILE_PATHS.datasetFlags)) throw new DamagedDataError(FILE_PATHS.datasetFlags, 'is missing');
@@ -462,7 +477,8 @@ export class Repository {
     const waiting = [...changed];
     const worker = async () => {
       for (let path = waiting.shift(); path !== undefined; path = waiting.shift()) {
-        const file = await this.github.getFile({ path, branch: at });
+        const own = written.get(path);
+        const file = own && own.sha === listing.get(path) ? own : await this.github.getFile({ path, branch: at });
         if (file) files.set(path, pulledFile(path, file));
       }
     };
@@ -598,7 +614,7 @@ export class Repository {
     if (removed.size > 0) this.forgetInitiatives(removed);
     if (added.length > 0) this.setState({ initiatives: [...this.state.initiatives, ...added] });
 
-    if (changed.length > 0 && !this.ownCommitPull) this.markChanged(changed);
+    if (changed.length > 0 && !this.ownCommit) this.markChanged(changed);
     return complete;
   }
 
@@ -674,10 +690,12 @@ export class Repository {
     const tracked = trackedYears(this.rolloverToday());
     // A system write over the whole file (§3), not an edit of one country or person: it notes the dataset.
     const note = () => this.note('dataset', 'rates', 'rollover', undefined, tracked, () => `Rates copied into ${tracked[tracked.length - 1]}`);
-    const countries = countriesRolledForward(this.state.countries, tracked);
-    if (countries) this.commitCountries(countries, note());
-    const people = peopleRolledForward(this.state.people, tracked);
-    if (people) this.commitPeople(people, note());
+    this.jointly(() => {
+      const countries = countriesRolledForward(this.state.countries, tracked);
+      if (countries) this.commitCountries(countries, note());
+      const people = peopleRolledForward(this.state.people, tracked);
+      if (people) this.commitPeople(people, note());
+    });
   }
 
   /**
@@ -689,13 +707,23 @@ export class Repository {
    */
   private armRetry(pullIncomplete: boolean, hasRecoverableFailure: boolean): void {
     if (this.retryTimer) return;
-    if (!pullIncomplete && this.pullFailure === null && this.deleteFailure === null && !hasRecoverableFailure) return;
+    // While GitHub limits requests, the retry waits for the time it named rather than the usual 30 s (§3).
+    const pausedUntil = this.github.pausedUntil;
+    if (!pullIncomplete && this.pullFailure === null && this.deleteFailure === null && !hasRecoverableFailure && pausedUntil === null) return;
+    const delay = pausedUntil === null ? PULL_RETRY_MS : pausedUntil - Date.now();
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       if (document.visibilityState !== 'visible') return;
       for (const [, writer] of this.allWriters()) if (this.autoRetries(writer)) void writer.retry();
       void this.pull();
-    }, PULL_RETRY_MS);
+    }, delay);
+  }
+
+  /** GitHub started limiting requests: the retry is moved to the time it named. */
+  private rearmRetry(): void {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    this.armRetry(false, false);
   }
 
   /** Whether `writer`'s failure, if any, is one of the two causes §3 marks "Automatic" (§9.9). */
@@ -933,6 +961,7 @@ export class Repository {
       whenMissing,
       initial,
       onStatus: this.statusOf(path),
+      onSchedule: () => this.writtenByAction?.add(path),
       onCacheFull: this.onCacheFull,
       onConflict: this.onConflict,
       onConflictClosed: this.onConflictClosed,
@@ -967,6 +996,7 @@ export class Repository {
       initial: sha === null ? null : { content: initiative, sha },
       creationFailure: 'Could not create the initiative.',
       onStatus: this.statusOf(path),
+      onSchedule: () => this.writtenByAction?.add(path),
       onCacheFull: this.onCacheFull,
       onConflict: this.onConflict,
       onConflictClosed: this.onConflictClosed,
@@ -1016,16 +1046,18 @@ export class Repository {
     this.setState({ initiatives: this.state.initiatives.map((i) => (i.id === next.id ? next : i)) });
   }
 
-  /** First-write-capable-client baseline bootstrap (§2, §3 "System writes"): one commit, idempotent. */
-  private async bootstrapBaseline(branch: string): Promise<void> {
+  /** First-write-capable-client baseline bootstrap (§2, §3 "System writes"): one commit, idempotent. Returns the files
+   * it wrote, none when another client's bootstrap won. */
+  private async bootstrapBaseline(branch: string): Promise<WrittenFile[]> {
     const baseline = buildBaselineDataset(this.brand);
-    await this.queue.run(() =>
+    const result = await this.queue.run(() =>
       this.github.createFilesCommit({
         branch,
         message: 'Initialize dataset from fresh-install baseline',
         files: baselineFiles(baseline),
       }),
     );
+    return result.written;
   }
 
   /** New role (§5.9): created from a name, abbreviation and cost factor, active. */
@@ -1136,11 +1168,14 @@ export class Repository {
     const next = set(record);
     if (sameValue(get(next), get(record))) return;
     const updated = { ...country, ratesByYear: country.ratesByYear.map((r) => (r.year === year ? next : r)) };
-    this.commitCountries(
-      this.state.countries.map((c) => (c.id === id ? updated : c)),
-      this.note('country', id, field, get(record), get(next), (_, to) => words(country.name, to)),
-    );
-    this.markRatesReviewed('Rates marked as reviewed');
+    // The first rate edit also marks the rates reviewed: both files in one commit (§10.3).
+    this.jointly(() => {
+      this.commitCountries(
+        this.state.countries.map((c) => (c.id === id ? updated : c)),
+        this.note('country', id, field, get(record), get(next), (_, to) => words(country.name, to)),
+      );
+      this.markRatesReviewed('Rates marked as reviewed');
+    });
   }
 
   /** Rates are correct (§5.9): confirms the rates without editing them, which clears Review rates (§5.2). */
@@ -1148,12 +1183,81 @@ export class Repository {
     this.markRatesReviewed('Rates confirmed as correct');
   }
 
+  /** Marks the rates reviewed (§5.2) unless they already are. */
   private markRatesReviewed(words: string): void {
     const flags = this.state.datasetFlags;
     if (!flags || flags.ratesReviewed || !this.flagsWriter) return;
     const next = { ...flags, ratesReviewed: true };
     this.setState({ datasetFlags: next });
     this.flagsWriter.schedule(next, this.note('dataset', 'flags', 'ratesReviewed', false, true, () => words));
+  }
+
+  /** The files the action {@link jointly} runs has written so far; null outside one. */
+  private writtenByAction: Set<string> | null = null;
+
+  /**
+   * Runs a user action that may write several files (§10.3): a new person with their membership, a rate edit that marks
+   * the rates reviewed, the roll-forward of rates. When it writes more than one, they go as one commit, sent at once.
+   */
+  private jointly(action: () => void): void {
+    const written = new Set<string>();
+    this.writtenByAction = written;
+    try {
+      action();
+    } finally {
+      this.writtenByAction = null;
+    }
+    if (written.size > 1) this.commitJointly([...written]);
+  }
+
+  /**
+   * One commit of the files' pending edits (§10.3). It goes ahead only while every file is still at the version its
+   * edit was made on, read at the head the commit is pinned to, and is made again on a new head when another commit
+   * lands first; otherwise each file saves on its own and merges with the newer version as any save does (§10.5).
+   */
+  private commitJointly(paths: string[]): void {
+    void this.firstPullDone.then(() =>
+      this.queue.run(async () => {
+        const writers = paths.map((path) => this.allWriters().find(([p]) => p === path)?.[1]);
+        const parts: [FileWriter<unknown>, JointPart<unknown>][] = [];
+        for (const writer of writers) {
+          const part = writer?.takeJoint();
+          if (writer && part) parts.push([writer, part]);
+        }
+        // Each file given back saves on its own.
+        const giveBack = () => {
+          for (const [writer, part] of parts) writer.jointReturned(part);
+        };
+        if (parts.length < paths.length) {
+          giveBack();
+          for (const writer of writers) if (writer && !parts.some(([taken]) => taken === writer)) void writer.flush();
+          return;
+        }
+        const message = renderMessage({
+          subject: [...new Set(parts.map(([, part]) => part.message.subject))].join('; '),
+          entities: distinctEntities(parts.flatMap(([, part]) => part.message.entities)),
+        });
+        const files = parts.map(([, part]) => ({ path: part.path, content: part.content }));
+        try {
+          const result = await this.github.commitOnHead({
+            branch: this.brand.github.dataBranch,
+            message,
+            build: async (at) => {
+              const root = await this.github.listDirectory({ path: '', branch: at });
+              const unchanged = parts.every(([, part]) => root.find((entry) => entry.path === part.path)?.sha === part.sha);
+              return unchanged ? { files, deletes: [] } : null;
+            },
+          });
+          if (result === 'stopped') return giveBack();
+          parts.forEach(([writer, part], i) => writer.jointLanded(part, result.written[i].sha));
+        } catch (error) {
+          // The branch kept moving, or its head can't be read: each file saves on its own, as it would without this commit.
+          if (error instanceof GithubApiError && (error.cause_ === 'conflict' || error.cause_ === 'not-found')) return giveBack();
+          const cause = toReadOnlyState(error, 'Something went wrong saving this change.');
+          for (const [writer, part] of parts) writer.jointFailed(part, cause);
+        }
+      }),
+    );
   }
 
   private commitCountries(next: Country[], note?: CommitNote): void {
@@ -1181,6 +1285,16 @@ export class Repository {
     const team: Team = { id: newId(), name: name.trim(), active: true };
     this.commitTeams([...this.state.teams, team], this.note('team', team.id, 'record', undefined, team, (f, t) => this.describeTeam(f, t)));
     return team;
+  }
+
+  /** A new person added straight to a team (§5.8): the person and the membership in one commit (§10.3). */
+  createPersonInTeam(input: NewPersonInput, teamId: string): Person {
+    let person!: Person;
+    this.jointly(() => {
+      person = this.createPerson(input);
+      this.addMembership(person.id, teamId);
+    });
+    return person;
   }
 
   /** New person (§5.5): Capacity % defaults to 100, active. */
@@ -1405,6 +1519,8 @@ export class Repository {
   async duplicateInitiative(id: string, today: string = localToday()): Promise<DuplicateResult | null> {
     const source = this.state.initiatives.find((i) => i.id === id);
     if (!source) return null;
+    // The source's own edits are committed first (§10.3), so its file and the copy agree.
+    void this.initiativeWriters.get(id)?.flushApart();
     const result = duplicateInitiative(source, {
       process: this.brand.process,
       people: this.state.people,
@@ -1878,9 +1994,24 @@ export class Repository {
   private commitGateOutcome(name: string, result: GateRecorded, what: string): void {
     const { initiative, phase, record } = result;
     this.replaceInitiative(initiative);
-    this.initiativeWriters
-      .get(initiative.id)
-      ?.schedule(initiative, this.note('initiative', initiative.id, `gate:${phase.id}`, 'open', record.outcome, () => `${name}: ${phase.exitGate.label} ${what}`));
+    this.commitAtOnce(initiative.id, initiative, this.note('initiative', initiative.id, `gate:${phase.id}`, 'open', record.outcome, () => `${name}: ${phase.exitGate.label} ${what}`));
+  }
+
+  /**
+   * An action that reads or replaces the saved file (§10.3): the edits waiting in the file's commit window are sent
+   * first, as their own commit, and the action's own write follows at once instead of opening a new window.
+   */
+  private commitAtOnce(initiativeId: string, next: Initiative, note: CommitNote): void {
+    const writer = this.initiativeWriters.get(initiativeId);
+    if (!writer) return;
+    void writer.flushApart();
+    writer.schedule(next, note);
+    void writer.flush();
+  }
+
+  /** Sends the initiative's pending edits now (§10.3): the user left its page. */
+  flushInitiative(initiativeId: string): void {
+    void this.initiativeWriters.get(initiativeId)?.flush();
   }
 
   /**
@@ -1894,9 +2025,7 @@ export class Repository {
     if (!result) return;
     this.replaceInitiative(result.initiative);
     const [name, gateLabel] = [initiative.name, result.phase.exitGate.label];
-    this.initiativeWriters
-      .get(initiativeId)
-      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, result.record.outcome, 'open', () => `${name}: ${gateLabel} reopened`));
+    this.commitAtOnce(initiativeId, result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, result.record.outcome, 'open', () => `${name}: ${gateLabel} reopened`));
   }
 
   /** Put an Active initiative On Hold (§8.4): a plain status change, one click and no reason. A no-op for any other status. */
@@ -1924,9 +2053,7 @@ export class Repository {
     if (!initiative || !from.includes(initiative.status)) return;
     const next: Initiative = { ...initiative, status: to };
     this.replaceInitiative(next);
-    this.initiativeWriters
-      .get(initiativeId)
-      ?.schedule(next, this.note('initiative', initiativeId, 'status', initiative.status, to, () => words(initiative.name)));
+    this.commitAtOnce(initiativeId, next, this.note('initiative', initiativeId, 'status', initiative.status, to, () => words(initiative.name)));
   }
 
   /**
@@ -2006,7 +2133,7 @@ export class Repository {
       const tail = lost > 0 ? `, ${allocationCount(lost)} removed` : lost < 0 ? `, ${allocationCount(-lost)} restored` : '';
       return `${subject} from ${this.teamName(from?.teamId as string)} to ${this.teamName(to?.teamId as string)}${tail}`;
     };
-    this.initiativeWriters.get(next.id)?.schedule(next, this.note('initiative', next.id, 'team', state(before), state(next), words));
+    this.commitAtOnce(next.id, next, this.note('initiative', next.id, 'team', state(before), state(next), words));
   }
 
   /**
@@ -2130,26 +2257,26 @@ export class Repository {
   private async commitDataset(
     message: string,
     failureText: string,
-    build: Parameters<GithubClient['commitOnHead']>[0]['build'],
+    build: CommitOnHeadArgs['build'],
   ): Promise<'done' | 'stopped' | { failed: ReadOnlyState }> {
-    let result: { commitSha: string } | 'stopped';
+    let result: CommitResult | 'stopped';
     try {
       result = await this.queue.run(() => this.github.commitOnHead({ branch: this.brand.github.dataBranch, message, build }));
     } catch (error) {
       return { failed: toReadOnlyState(error, failureText) };
     }
-    await this.pullOwnCommit();
+    await this.pullOwnCommit(result === 'stopped' ? [] : result.written);
     return result === 'stopped' ? 'stopped' : 'done';
   }
 
   /** Brings in this client's own many-file commit at once, through the ordinary pull (§3), without the "updated by others" tint. */
-  private async pullOwnCommit(): Promise<void> {
+  private async pullOwnCommit(written: WrittenFile[]): Promise<void> {
     await this.pulling;
-    this.ownCommitPull = true;
+    this.ownCommit = new Map(written.map((file) => [file.path, file]));
     try {
       await this.pull();
     } finally {
-      this.ownCommitPull = false;
+      this.ownCommit = null;
     }
   }
 
@@ -2161,11 +2288,8 @@ export class Repository {
     for (const [, writer] of this.allWriters()) writer.discardUnsaved();
   }
 
-  /** Flush any pending debounced write immediately (page unload). */
+  /** Sends every pending edit now (§10.3's flush points), and settles once every save in flight has. */
   async flushPending(): Promise<void> {
-    await Promise.all([
-      ...this.masterWriters().map(([, writer]) => writer?.flush()),
-      ...[...this.initiativeWriters.values()].map((w) => w.flush()),
-    ]);
+    await Promise.all(this.allWriters().map(([, writer]) => (writer.busy ? writer.flush() : undefined)));
   }
 }

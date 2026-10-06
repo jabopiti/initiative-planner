@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Initiative, Person, Team } from '../data/types';
 import { changeKey, PULL_RETRY_MS } from './Repository';
+import { advance } from './testing/clock';
 import { fakeGithub, initiative, open, person, PHASE, type Fake } from './testing/fakeGithub';
+import { RATE_LIMIT_FALLBACK_MS, REQUEST_TIMEOUT_MS } from '../github/client';
 
 /**
  * Slice 005g: every case the one file writer must keep true, driven through the Repository against an
@@ -497,11 +499,62 @@ describe('slice 005j: read-only banner, automatic recovery, and Retry (§3, §9.
       await repo.flushPending();
       expect(repo.getState().readOnly?.cause).toBe('rate-limited');
 
+      await vi.advanceTimersByTimeAsync(RATE_LIMIT_FALLBACK_MS); // GitHub named no time: 60 s (slice 064)
+      await repo.whenPulled();
+
+      expect(repo.getState().readOnly).toBeNull();
+      expect(fake.commits('teams.json')).toHaveLength(1);
+    });
+
+    it('a secondary-limit 403 on a save is rate limited, not access denied: retried by the loop, the token never re-checked (slice 043)', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+
+      fake.fail('teams.json', 403, { headers: { 'retry-after': '60' }, message: 'You have exceeded a secondary rate limit.' });
+      repo.createTeam('Platform');
+      await repo.flushPending();
+      expect(repo.getState().readOnly).toMatchObject({ cause: 'rate-limited', message: expect.stringMatching(/^GitHub is limiting requests\. Saving resumes by itself at \d\d:\d\d\.$/) });
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      await repo.whenPulled();
+
+      expect(repo.getState().readOnly).toBeNull();
+      expect(fake.commits('teams.json')).toHaveLength(1);
+      expect(fake.requests().some((r) => r.endsWith('/user'))).toBe(false);
+    });
+
+    it.each([500, 502, 503])('a %i on a save is unreachable and retried by the loop (slice 043)', async (status) => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+
+      fake.fail('teams.json', status);
+      repo.createTeam('Platform');
+      await repo.flushPending();
+      expect(repo.getState().readOnly).toMatchObject({ cause: 'unreachable', message: 'Cannot reach GitHub; changes are paused.' });
+
       await vi.advanceTimersByTimeAsync(PULL_RETRY_MS);
       await repo.whenPulled();
 
       expect(repo.getState().readOnly).toBeNull();
       expect(fake.commits('teams.json')).toHaveLength(1);
+    });
+
+    it('a save that never answers ends at the timeout, and the next queued write runs (slice 043)', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+
+      fake.hold('teams.json'); // never released: GitHub never answers
+      repo.createTeam('Platform');
+      repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
+      const flushed = repo.flushPending();
+      await advance(REQUEST_TIMEOUT_MS + 1000, 1000);
+      await flushed;
+
+      expect(fake.commits('people.json')).toHaveLength(1);
+      expect(repo.getState().fileFailures.get('teams.json')?.cause).toBe('unreachable');
     });
 
     it.each([500, 502, 503])('a %i on a save reads as unreachable and retries itself on the 30s loop (slice 043)', async (status) => {
@@ -521,7 +574,7 @@ describe('slice 005j: read-only banner, automatic recovery, and Retry (§3, §9.
       expect(fake.commits('teams.json')).toHaveLength(1);
     });
 
-    it('a secondary-limit 403 on a save reads as rate limited, not a refused token, and retries itself (slice 043)', async () => {
+    it('a secondary-limit 403 on a save reads as rate limited, not a refused token, and retries itself once the limit ends (slices 043, 064)', async () => {
       const fake = fakeGithub();
       const { repo } = await open(fake);
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
@@ -529,9 +582,9 @@ describe('slice 005j: read-only banner, automatic recovery, and Retry (§3, §9.
 
       repo.createTeam('Platform');
       await repo.flushPending();
-      expect(repo.getState().readOnly).toEqual({ cause: 'rate-limited', message: 'GitHub is limiting requests; try again shortly' });
+      expect(repo.getState().readOnly).toMatchObject({ cause: 'rate-limited', retryAt: Date.now() + 60_000 });
 
-      await vi.advanceTimersByTimeAsync(PULL_RETRY_MS);
+      await advance(60_000);
       await repo.whenPulled();
 
       expect(repo.getState().readOnly).toBeNull();
@@ -580,7 +633,7 @@ describe('slice 005j: read-only banner, automatic recovery, and Retry (§3, §9.
       fake.fail('teams.json', 403); // access-denied: would never auto-retry on its own
       repo.createTeam('Platform');
       await repo.flushPending();
-      fake.fail('people.json', 429); // rate-limited
+      fake.fail('people.json', 503); // unreachable: retried automatically too
       repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
       await repo.flushPending();
       expect(repo.getState().readOnly).not.toBeNull();

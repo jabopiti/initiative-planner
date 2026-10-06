@@ -44,6 +44,8 @@ export function InitiativeDetail({ id, focus, openPhaseId }: { id: string; focus
   useEffect(() => {
     if (jump) jumpTo(jump.id);
   }, [jump]);
+  // Leaving the initiative sends its pending edits at once rather than at the end of the commit window (§10.3).
+  useEffect(() => () => repository.flushInitiative(id), [repository, id]);
 
   if (!initiative) {
     return (

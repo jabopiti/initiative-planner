@@ -8,7 +8,7 @@ depends_on: ["043", "045"]
 verification_status: null
 superseded_by: null
 supersedes: null
-change_summary: "Added on 6 Oct 2026 from an analysis of requests to the data branch, measured against the in-memory fake GitHub at the volume ceiling (table below). Reads are well within GitHub's limits; the risk is content-creating requests (80 a minute, 500 an hour per user). Settled with the user: one slice for the write side, a separate optional slice (065) for cheaper reads; the commit window becomes 4 s quiet / 20 s at most; the write budget is shown in Settings → Connection; GraphQL is used for commits that change several files, but only after a spike confirms it works from the browser (scope item 0). The 403 misclassification is 043's, not repeated here."
+change_summary: "Added on 6 Oct 2026 from an analysis of requests to the data branch, measured against the in-memory fake GitHub at the volume ceiling (table below). Reads are well within GitHub's limits; the risk is content-creating requests (80 a minute, 500 an hour per user). Settled with the user: one slice for the write side, a separate optional slice (065) for cheaper reads; the commit window becomes 4 s quiet / 20 s at most; the write budget is shown in Settings → Connection; GraphQL is used for commits that change several files, but only after a spike confirms it works from the browser (scope item 0). The 403 misclassification is 043's, not repeated here. Review on 6 Oct 2026: the spike passed Q1, Q2, Q3 and Q6, so the GraphQL route; budget line A1 ('Saves this hour: 38 of 400 from this browser; saving slows down above that'), banner B1 (resumes at a clock time, no Retry while waiting), lines 60 a minute and 400 an hour, the flush points and the three multi-file actions listed under Decided in review."
 recommended_model: "Claude Opus 5.5"
 model_rationale: "Touches the writer's timing, the global write queue and the many-file commit path, where a mistake loses or duplicates an edit; the GraphQL route adds a second API with its own error and concurrency model."
 spec_sections: ["§3 Storage & sync (Sync behaviour, Sync failures)", "§5.9 Settings", "§9.6 Performance", "§10.2 Data layout", "§10.3 Writing", "§10.4 Browser storage"]
@@ -44,10 +44,10 @@ tool waits as told and resumes by itself.
 | 3 edits to one initiative within 1 s | 1 PUT | 1 |
 | Poll after own commits only | 3 (head, 2 listings) | 0 |
 | Same field on 5 initiatives in one burst | 5 PUTs | 5 |
-| New person + membership | 2 PUTs, in order | 2 |
+| New person + membership | 2 PUTs, in order → **3**: head, root listing, one GraphQL commit | 2 → **1** |
 | Edit on a stale version (409) | PUT, re-read, PUT | 2 |
-| Reset | 21, incl. 6 blob POSTs, then re-downloads the 6 files it wrote | 9 |
-| Load example data | 26, incl. 8 blob POSTs, then re-downloads the 8 files it wrote | 11 |
+| Reset | 21, incl. 6 blob POSTs, then re-downloads the 6 files it wrote → **6**: ref, listing, one GraphQL commit, then head and 2 listings, no download | 9 → **1** |
+| Load example data | 26, incl. 6 blob POSTs, 5 reads to check the branch is empty, then re-downloads the 6 files it wrote → **11**: no blob, no re-download | 9 → **1** |
 | Reopen, warm cache, unchanged | 1 | 0 |
 | Reopen, 40 initiatives changed | 43 | 0 |
 
@@ -114,6 +114,70 @@ save on blur, drag bars on pointer-up, the 1-file-1-commit merge path.
    requests, how many content-creating requests this browser made in the
    last hour of GitHub's 500. Copy and layout as rendered mockups first.
 
+### Decided in review (pre-implementation, 6 Oct 2026)
+
+- **Route: GraphQL** (spike-findings.md, Slice 064 section: Q1, Q2, Q3 and Q6
+  pass). Items 4 and 5 use `createCommitOnBranch`. Bootstrapping onto a
+  *missing* data branch stays REST, because GraphQL can't create a branch:
+  a tree with inline contents, a commit with no parent, then the ref. That
+  is 3 content-creating requests and no blobs. Bootstrapping onto an
+  existing branch, Reset and Load example data use one GraphQL commit each.
+  There is no migration code yet; item 4 provides the mechanism for it.
+- **GraphQL handling, from the spike:** a refusal arrives as HTTP 200 with
+  `errors[].type` (`STALE_DATA`, `NOT_FOUND`), classified by type rather
+  than status. After a 5xx, a timeout or a network error on a commit, the
+  branch head is re-read before resending: the commit counts as landed
+  when the head carries our subject and our blob shas. The GraphQL URL is
+  derived from `apiBaseUrl`: `https://api.github.com` → `/graphql`;
+  `https://<host>/api/v3` → `https://<host>/api/graphql`.
+- **Budget lines: 60 a minute and 400 an hour** of content-creating
+  requests from this browser.
+- **Budget line (§5.9, mockup A1):** a row **Saves this hour** under API
+  requests, reading "38 of 400 from this browser; saving slows down above
+  that". Before anything is counted: "0 of 400 from this browser; saving
+  slows down above that".
+- **Rate-limit banner (§3, mockup B1):** "GitHub is limiting requests.
+  Saving resumes by itself at 14:32." (clock time as in the Connection
+  section), with no Retry while the wait lasts. If the first try after the
+  wait is refused again, the banner names the next time. The sync
+  indicator's "Rate limited" stays. A failed field reads "Not saved:
+  <the banner's message>", as fields do for every cause (corrected
+  during implementation: the review said "Not saved: Rate limited.",
+  which was never what fields showed).
+- **An edit made during a rate-limit wait** fails at once without sending
+  a request (its field says "Not saved:" and the banner's message). It is resent by itself
+  when the wait ends, so §3's "no change is ever queued" holds. A commit
+  held back by the budget (item 2) is different: it stays "Saving" and
+  waits.
+- **Flush points (item 1):** pending edits are committed at once when:
+  - the user leaves an initiative's page (that initiative's file);
+  - the tab is hidden;
+  - `pagehide` or `beforeunload` fires;
+  - the user disconnects. Disconnect first sends pending edits and waits
+    for them; only edits that then still fail count in its "Disconnect
+    and discard N unsaved changes" offer;
+  - before pass, skip or reopen a gate; put on hold, cancel, reopen;
+    duplicate (the source file); change team; Load example data. Delete
+    and Reset keep dropping the pending edits to what they erase (settled
+    during implementation, 6 Oct 2026: flushing would commit edits that
+    are erased a moment later).
+
+  Each of these sends the pending edits as their own commit, and the
+  action's own write is then committed at once, without a window.
+- **Multi-file user actions (item 5), from the code:**
+  - new person and their first membership (Team page → Add person):
+    `people.json` + `memberships.json`;
+  - a country's rate for a year edited while rates aren't reviewed yet:
+    `countries.json` + `dataset.json`;
+  - rolling rates into a new tracked year (system write, §7.2):
+    `countries.json` + `people.json`.
+
+  Each is one commit, with one `Entity:` trailer per touched entity, as
+  for single-file edits, sent at once. When a touched file changed
+  meanwhile, each file is saved on its own instead and merges per §10.5
+  (settled during implementation: re-merging into one GraphQL commit would
+  duplicate the writers' merge-and-retry path for a rare case).
+
 ## Execution path
 
 1. Plan a whole initiative at a normal pace: periods, allocations, cost
@@ -137,38 +201,46 @@ save on blur, drag bars on pointer-up, the 1-file-1-commit merge path.
 
 ## Acceptance criteria
 
-- [ ] Given the spike report, then `spike-findings.md` records it and names
+- [x] Given the spike report, then `spike-findings.md` records it and names
       the route chosen for items 4 and 5, with the failing question if REST.
-- [ ] Given three edits to one file 2 s apart (fake clock), then one PUT is
+- [x] Given three edits to one file 2 s apart (fake clock), then one PUT is
       sent, 4 s after the last edit.
-- [ ] Given an edit every 2 s for 30 s, then a commit is sent at 20 s and
+- [x] Given an edit every 2 s for 30 s, then a commit is sent at 20 s and
       another 4 s after the last edit.
-- [ ] Given a pending edit, then leaving the initiative, hiding the tab,
+- [x] Given a pending edit, then leaving the initiative, hiding the tab,
       `pagehide`, Disconnect and passing a gate each send it at once, before
-      the gate's own write.
-- [ ] Given an edit, then "Saving" shows within 100 ms, as before.
-- [ ] Given 61 content-creating requests due within one minute from two
+      the gate's own write; the gate's write is then sent at once too.
+- [x] Given an edit, then "Saving" shows within 100 ms, as before.
+- [x] Given 61 content-creating requests due within one minute from two
       tabs, then at most 60 are sent in any rolling minute, the rest go
       later, and no edit fails or is dropped.
-- [ ] Given a 403 with `retry-after: 60` (and, separately, a 429 with
+- [x] Given a 403 with `retry-after: 60` (and, separately, a 429 with
       `x-ratelimit-reset`), then no request reaches the fake GitHub until
       that time, after which the pull and pending writes resume without
-      user action.
-- [ ] Given Reset and Load example data at the volume ceiling, then each
-      makes at most 1 (GraphQL) or 3 (REST) content-creating requests, no
-      blob POSTs, and downloads none of the files it wrote.
-- [ ] Given (GraphQL route) a new person and their membership, then one
+      user action; meanwhile the banner reads "GitHub is limiting
+      requests. Saving resumes by itself at <time>." with no Retry, and an
+      edit made then fails at once without a request.
+- [x] Given Reset and Load example data at the volume ceiling, then each
+      makes 1 content-creating request (one GraphQL commit), no blob POSTs,
+      and downloads none of the files it wrote; given the bootstrap onto a
+      missing data branch, then 3 (tree, commit, ref) and no blob POSTs.
+- [x] Given a GraphQL commit answered with a 504 that landed anyway, then
+      it is not sent a second time.
+- [x] Given a rate edit that also marks rates reviewed, and a roll-forward
+      into a new year, then each is one commit.
+- [x] Given (GraphQL route) a new person and their membership, then one
       commit holds both files; given another commit landed first on a file
       neither touches, then it is resent without a conflict; given one on
       `memberships.json`, then the two versions merge per §10.5.
-- [ ] Given any write, then it names the data branch: every Contents call's
+- [x] Given any write, then it names the data branch: every Contents call's
       `branch`, and every GraphQL commit's `branchName` (client test).
-- [ ] Given a request-count regression test that replays the baseline
+- [x] Given a request-count regression test that replays the baseline
       table's scenarios, then its counts are pinned, and the rows this
       slice improves show the new numbers.
-- [ ] Given Settings → Connection, then the budget line shows, has an
-      accessible name, and passes the e2e axe scan in both themes.
-- [ ] Given `npm run test:e2e`, then the e2e fake GitHub serves the chosen
+- [x] Given Settings → Connection, then the row "Saves this hour" reads
+      "<n> of 400 from this browser; saving slows down above that", and
+      passes the e2e axe scan in both themes.
+- [x] Given `npm run test:e2e`, then the e2e fake GitHub serves the chosen
       route and the existing connect and planning flows pass.
 
 ## Spec changes (make as `Slice 064 spec:` commits once item 0 decides the route)
@@ -210,9 +282,4 @@ save on blur, drag bars on pointer-up, the 1-file-1-commit merge path.
 
 ## Open decisions
 
-- Copy and layout of the budget line (§5.9) and of the rate-limit banner's
-  "tries again at …" (mockups).
-- Budget lines: recommended 60 a minute and 400 an hour, below GitHub's 80
-  and 500 to leave room for the user's other tools.
-- The final list of flush points in item 1 and of multi-file actions in
-  item 5, from the code.
+None: all settled on 6 Oct 2026 (Decided in review, under Scope).

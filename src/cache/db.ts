@@ -5,6 +5,7 @@
  */
 
 import type { SeenRecord } from '../data/seen';
+import { HOUR_MS, MINUTE_MS } from '../data/dates';
 
 const DB_NAME = 'initiative-planner';
 // 2, not 1: the pre-rebuild prototype (prototype/store.js, since removed from
@@ -13,11 +14,13 @@ const DB_NAME = 'initiative-planner';
 // opening at version 1 again would silently reuse that old database and skip
 // onupgradeneeded, leaving this build's stores missing (§10.4 needs them).
 // 3 adds the store for what the last full pull saw (slice 005i). 4 adds the store for what the user last looked at (slice 063).
-const DB_VERSION = 4;
+// 5 adds the write budget's count (slice 064).
+const DB_VERSION = 5;
 const FILES_STORE = 'files';
 const META_STORE = 'meta';
 const AUTH_STORE = 'auth';
 const SEEN_STORE = 'seen';
+const BUDGET_STORE = 'budget';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -28,7 +31,7 @@ function openDb(): Promise<IDBDatabase> {
       let settled = false;
       request.onupgradeneeded = (event) => {
         const db = request.result;
-        for (const store of [FILES_STORE, META_STORE, AUTH_STORE, SEEN_STORE]) {
+        for (const store of [FILES_STORE, META_STORE, AUTH_STORE, SEEN_STORE, BUDGET_STORE]) {
           if (!db.objectStoreNames.contains(store)) db.createObjectStore(store);
         }
         // Before 3, files were kept by bare path with nothing saying which repository they came from: nothing reads those now.
@@ -192,7 +195,10 @@ export class FileCache {
 
   private serially<T>(write: () => Promise<T>): Promise<T> {
     const done = this.writes.then(write, write);
-    this.writes = done.catch(() => {});
+    const tail = done.then(() => {}, () => {});
+    this.writes = tail;
+    writesInFlight.add(tail);
+    void tail.then(() => writesInFlight.delete(tail));
     return done;
   }
 
@@ -311,10 +317,59 @@ export async function closeDatabase(): Promise<void> {
   dbPromise = null;
 }
 
-/** Forgets every cached file of every repository, for tests. The token is not touched. */
+/** Every cache's writes not finished yet, so clearing for the next test waits for them rather than racing them. */
+const writesInFlight = new Set<Promise<unknown>>();
+
+/** Forgets every cached file of every repository, and the write budget's count, for tests. The token is not touched. */
 export async function clearAllFileCaches(): Promise<void> {
+  await Promise.all(writesInFlight);
   await clearStore(FILES_STORE);
   await clearStore(META_STORE);
+  await clearStore(BUDGET_STORE);
+}
+
+/** The most content-creating requests allowed in a rolling minute and hour (§10.3). */
+export interface BudgetLines {
+  perMinute: number;
+  perHour: number;
+}
+
+/**
+ * The write budget's count (§10.3, §10.4): when this browser sent each content-creating request in the last hour,
+ * kept outside the cache budget and shared by its tabs. A reservation reads and records in one transaction, which
+ * IndexedDB runs one at a time across tabs, so two tabs never both take the last place under a line.
+ */
+export const budgetStore = {
+  /** Records a request at `now` when that keeps under both lines, and says so; otherwise when the next place frees up. */
+  async reserve(key: string, now: number, lines: BudgetLines): Promise<{ sent: number[] } | { waitUntil: number }> {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(BUDGET_STORE, 'readwrite');
+      const store = tx.objectStore(BUDGET_STORE);
+      let outcome!: { sent: number[] } | { waitUntil: number };
+      const request = store.get(key);
+      request.onsuccess = () => {
+        const sent = ((request.result as number[] | undefined) ?? []).filter((at) => at > now - HOUR_MS);
+        outcome = budgetOutcome(sent, now, lines);
+        store.put('sent' in outcome ? outcome.sent : sent, key);
+      };
+      tx.oncomplete = () => resolve(outcome);
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+
+  /** The times of the requests recorded in the hour before `now`. */
+  async sentSince(key: string, now: number): Promise<number[]> {
+    return ((await get<number[]>(BUDGET_STORE, key)) ?? []).filter((at) => at > now - HOUR_MS);
+  },
+};
+
+/** Whether one more request at `now` stays under both lines given those `sent` in the last hour, and if not, when it can go. */
+export function budgetOutcome(sent: number[], now: number, lines: BudgetLines): { sent: number[] } | { waitUntil: number } {
+  const lastMinute = sent.filter((at) => at > now - MINUTE_MS);
+  if (lastMinute.length >= lines.perMinute) return { waitUntil: lastMinute[lastMinute.length - lines.perMinute] + MINUTE_MS };
+  if (sent.length >= lines.perHour) return { waitUntil: sent[sent.length - lines.perHour] + HOUR_MS };
+  return { sent: [...sent, now] };
 }
 
 const TOKEN_KEY = 'github-token';

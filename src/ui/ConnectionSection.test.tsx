@@ -61,6 +61,19 @@ describe('Settings → Connection (§5.9)', () => {
     expect(fake.requests().filter((r) => r === 'GET /user')).toHaveLength(0);
   });
 
+  it('shows the saves this browser made this hour against the line where saving slows (slice 064)', async () => {
+    const fake = fakeGithub();
+    const { repo } = await open(fake);
+    renderConnection(repo);
+    expect(screen.getByText('0 of 400 from this browser; saving slows down above that')).toBeInTheDocument();
+
+    repo.createTeam('Platform');
+    await repo.flushPending();
+
+    expect(await screen.findByText('1 of 400 from this browser; saving slows down above that')).toBeInTheDocument();
+    expect(screen.getByText('Saves this hour')).toBeInTheDocument();
+  });
+
   it('fetches the user once when the session never recorded it', async () => {
     const fake = fakeGithub();
     const { repo } = await open(fake);
@@ -75,6 +88,19 @@ describe('Settings → Connection (§5.9)', () => {
     const session = renderConnection(repo);
     await user.click(screen.getByRole('button', { name: 'Disconnect' }));
     expect(session.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('sends a pending edit first and then disconnects in one click, with nothing to discard (slice 064)', async () => {
+    const user = userEvent.setup();
+    const fake = fakeGithub();
+    const { repo } = await open(fake);
+    repo.createTeam('Platform'); // waiting in its commit window
+    const session = renderConnection(repo);
+
+    await user.click(screen.getByRole('button', { name: 'Disconnect' }));
+
+    await vi.waitFor(() => expect(session.disconnect).toHaveBeenCalledOnce());
+    expect(fake.commits('teams.json')).toHaveLength(1);
   });
 
   it('asks first, naming the count, when edits are unsaved, and Cancel keeps everything', async () => {

@@ -1,11 +1,18 @@
 import '@testing-library/jest-dom/vitest';
 import 'fake-indexeddb/auto';
+import { configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
 import { clearAllFileCaches } from '../cache/db';
-import { defaultTiming } from '../sync/FileWriter';
+import { commitWindow, defaultTiming } from '../sync/FileWriter';
 
 // A retry's backoff (§10.3) never waits on real time in a test; the backoff tests inject their own clock.
 defaultTiming.delay = () => Promise.resolve();
+
+// Component tests wait for a save in real time: a 1 s quiet window keeps that short. The commit window's own tests
+// (sync/commitWindow.test.ts) put back the real 4 s / 20 s.
+commitWindow.quietMs = 1000;
+// A `waitFor` for a save outlasts that window even on a busy machine (the default 1 s would race it).
+configure({ asyncUtilTimeout: 3000 });
 
 // The browser cache outlives a test's repository: every test starts as a first visit.
 afterEach(async () => {

@@ -35,14 +35,27 @@ describe('Read-only banner (§3, §9.9)', () => {
   it('names the cause and offers Retry once a write fails', async () => {
     const fake = fakeGithub();
     const { repo } = await open(fake);
-    fake.fail('teams.json', 429);
+    fake.fail('teams.json', 503);
     repo.createTeam('Platform');
     await repo.flushPending();
     renderBanner(repo);
 
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('GitHub is limiting requests; try again shortly');
+    expect(alert.textContent).toContain('Cannot reach GitHub; changes are paused.');
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  it('while GitHub limits requests, says when saving resumes and offers no Retry until then (slice 064)', async () => {
+    const fake = fakeGithub();
+    const { repo } = await open(fake);
+    fake.fail('teams.json', 403, { headers: { 'retry-after': '60' }, message: 'You have exceeded a secondary rate limit.' });
+    repo.createTeam('Platform');
+    await repo.flushPending();
+    renderBanner(repo);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toMatch(/^GitHub is limiting requests\. Saving resumes by itself at \d\d:\d\d\.$/);
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
   });
 
   it('Retry resends the pull and every failed file, and the banner clears once it lands', async () => {

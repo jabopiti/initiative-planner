@@ -37,8 +37,19 @@ export function RepositoryProvider({ token, keepTrackedYears = false, children }
       }
       void repository.flushPending();
     };
+    // A hidden tab may never come back, and `pagehide` is the last event a closing tab is sure to get (§10.3).
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') void repository.flushPending();
+    };
+    const onPageHide = () => void repository.flushPending();
     window.addEventListener('beforeunload', onUnload);
-    return () => window.removeEventListener('beforeunload', onUnload);
+    window.addEventListener('pagehide', onPageHide);
+    document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      window.removeEventListener('beforeunload', onUnload);
+      window.removeEventListener('pagehide', onPageHide);
+      document.removeEventListener('visibilitychange', onHidden);
+    };
   }, [repository]);
 
   return <RepositoryContext.Provider value={repository}>{children}</RepositoryContext.Provider>;
