@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, Membership, Person } from '../data/types';
+import { commitWindow } from './FileWriter';
 import { Repository } from './Repository';
-import { FIXTURE_COUNTRY, fakeGithub, open, person, seedDataset, type Fake } from './testing/fakeGithub';
+import { settle } from './testing/clock';
+import { FIXTURE_COUNTRY, fakeGithub, holdNetwork, open, person, seedDataset, type Fake } from './testing/fakeGithub';
 
 /** Slice 064 item 5 (§10.3): a user action that writes several files is one GraphQL commit, or none. */
 
@@ -66,6 +68,34 @@ describe('a new person with their membership (slice 064)', () => {
     expect(fake.read<Membership[]>('memberships.json').map((m) => m.personId).sort()).toEqual(['p0', created.id].sort());
     expect(fake.read<Person[]>('people.json').map((p) => p.name)).toContain('Cai Wu');
     expect(repo.getState().conflicts).toEqual([]);
+  });
+
+  it('an edit made while the commit is on its way is saved after the edit given back, not overwritten by it', async () => {
+    const fake = fakeGithub();
+    const { repo } = await open(fake, { teams: [team], people: [person('p0', 'Ana Ruiz')] });
+    let release: (() => void) | null = null;
+    // memberships.json changes as the commit is sent, and the re-read that finds it is slow to answer.
+    fake.beforeCommit(() => {
+      fake.seed('memberships.json', [{ id: 'm0', personId: 'p0', teamId: 'team-1', teamFtePct: 50, active: true }]);
+      release = holdNetwork(fake, (url) => new URL(url).pathname.endsWith('/contents/'));
+    });
+
+    const created = repo.createPersonInTeam({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' }, 'team-1');
+    await vi.waitFor(() => expect(release).not.toBeNull());
+    // The edit's commit window closes while the commit is still on its way.
+    const window = commitWindow.quietMs;
+    commitWindow.quietMs = 0;
+    try {
+      repo.updatePerson(created.id, { name: 'Cai Wu-Li' });
+      await settle();
+    } finally {
+      commitWindow.quietMs = window;
+    }
+    release!();
+    await repo.flushPending();
+
+    expect(fake.read<Person[]>('people.json').map((p) => p.name)).toContain('Cai Wu-Li');
+    expect(repo.getState().people.map((p) => p.name)).toContain('Cai Wu-Li');
   });
 });
 

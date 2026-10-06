@@ -31,9 +31,6 @@ import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReo
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, GithubApiError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type BranchHead, type CommitResult } from '../github/client';
-
-/** A file a commit of this client's wrote, with its version. */
-type WrittenFile = CommitResult['written'][number];
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { WriteBudget } from '../github/writeBudget';
 import { unclaimedCapacityPct } from '../data/capacity';
@@ -44,6 +41,9 @@ import { distinctEntities, FileWriter, renderMessage, type JointPart, type Commi
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { MASTER_FILES, parseDataFile, validateDataset, validateRecords } from './validateDataset';
 import { WriteQueue } from './WriteQueue';
+
+/** A file a commit of this client's wrote, with its version. */
+type WrittenFile = CommitResult['written'][number];
 
 export type { ReadOnlyState } from '../github/errors';
 
@@ -1216,7 +1216,7 @@ export class Repository {
    * lands first; otherwise each file saves on its own and merges with the newer version as any save does (§10.5).
    */
   private commitJointly(paths: string[]): void {
-    const commit = this.firstPullDone.then(() =>
+    void this.firstPullDone.then(() =>
       this.queue.run(async () => {
         const writers = paths.map((path) => this.allWriters().find(([p]) => p === path)?.[1]);
         const parts: [FileWriter<unknown>, JointPart<unknown>][] = [];
@@ -1258,12 +1258,7 @@ export class Repository {
         }
       }),
     );
-    this.jointCommits.add(commit);
-    void commit.finally(() => this.jointCommits.delete(commit));
   }
-
-  /** The commits of several files on their way, for {@link flushPending} to wait for. */
-  private readonly jointCommits = new Set<Promise<void>>();
 
   private commitCountries(next: Country[], note?: CommitNote): void {
     this.setState({ countries: next });
@@ -2295,8 +2290,6 @@ export class Repository {
 
   /** Sends every pending edit now (§10.3's flush points), and settles once every save in flight has. */
   async flushPending(): Promise<void> {
-    // A joint commit first: a file it gives back is then saved on its own, with the rest.
-    await Promise.all(this.jointCommits);
     await Promise.all(this.allWriters().map(([, writer]) => (writer.busy ? writer.flush() : undefined)));
   }
 }

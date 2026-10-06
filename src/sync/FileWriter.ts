@@ -194,6 +194,8 @@ export class FileWriter<D> {
   private tail: Promise<unknown> = Promise.resolve();
   /** Saves requested and not yet started. */
   private waiting = 0;
+  /** Saves requested and not yet finished, those waiting at their gate included. */
+  private unfinished = 0;
   /** What last failed to save, and why — set and cleared together by {@link fail}/{@link clearFailure} — kept
    * until a fresh edit or a landed save clears it (§3, §9.9); non-null is "the last save failed and nothing
    * has been saved since", so an idle writer must not say synced. */
@@ -267,7 +269,7 @@ export class FileWriter<D> {
    */
   takeJoint(): JointPart<D> | null {
     const mine = this.pending;
-    if (mine === null || this.synced === null || this.saving || this.waiting > 0 || this.disposed) return null;
+    if (mine === null || this.synced === null || this.unfinished > 0 || this.disposed) return null;
     if (this.openConflicts.length > 0 || this.options.refused?.(mine)) return null;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
@@ -275,12 +277,24 @@ export class FileWriter<D> {
     const message = this.commitMessage();
     const batch = this.takeEdits();
     this.saving = true;
+    // A save of an edit made meanwhile waits for the commit, so it neither races it nor is overwritten by an edit given back.
+    const done = new Promise<void>((resolve) => (this.jointDone = resolve));
+    void this.enqueue(() => done);
     return { path: this.options.path, content: JSON.stringify(mine), sha: this.synced.sha, message, mine, batch };
+  }
+
+  /** Ends the hold {@link takeJoint} put on this writer's saves. */
+  private jointDone: (() => void) | null = null;
+
+  private endJoint(): void {
+    this.saving = false;
+    this.jointDone?.();
+    this.jointDone = null;
   }
 
   /** The commit holding this file's share landed: `sha` is the file's new version. */
   jointLanded(part: JointPart<D>, sha: string): void {
-    this.saving = false;
+    this.endJoint();
     this.synced = { content: part.mine, sha };
     this.clearFailure();
     this.landed(part.mine, part.mine, false, part.message);
@@ -289,7 +303,7 @@ export class FileWriter<D> {
 
   /** The commit failed: the edit is this file's failure, resent by Retry or the automatic retry as its own save. */
   jointFailed(part: JointPart<D>, cause: ReadOnlyState): void {
-    this.saving = false;
+    this.endJoint();
     // Its notes stay for the resend; an edit made since stays pending, on top of it.
     this.giveBack({ ...part, batch: { ...part.batch, pending: null } });
     this.failWith(cause, part.mine);
@@ -297,7 +311,7 @@ export class FileWriter<D> {
 
   /** No commit was made (the file changed meanwhile): the edit goes back and is saved on its own, now. */
   jointReturned(part: JointPart<D>): void {
-    this.saving = false;
+    this.endJoint();
     this.giveBack(part);
     void this.flush();
   }
@@ -315,11 +329,12 @@ export class FileWriter<D> {
   /** Runs `step` once every save before it has finished. */
   private enqueue<T>(step: () => Promise<T>): Promise<T> {
     this.waiting += 1;
+    this.unfinished += 1;
     const result = this.tail.then(() => {
       this.waiting -= 1;
       return step();
     });
-    this.tail = result.catch(() => undefined);
+    this.tail = result.catch(() => undefined).finally(() => (this.unfinished -= 1));
     return result;
   }
 
