@@ -47,7 +47,7 @@ tool waits as told and resumes by itself.
 | New person + membership | 2 PUTs, in order | 2 |
 | Edit on a stale version (409) | PUT, re-read, PUT | 2 |
 | Reset | 21, incl. 6 blob POSTs, then re-downloads the 6 files it wrote | 9 |
-| Load example data | 26, incl. 8 blob POSTs, then re-downloads the 8 files it wrote | 11 |
+| Load example data | 26, incl. 6 blob POSTs, 5 reads to check the branch is empty, then re-downloads the 6 files it wrote | 9 |
 | Reopen, warm cache, unchanged | 1 | 0 |
 | Reopen, 40 initiatives changed | 43 | 0 |
 
