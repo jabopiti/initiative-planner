@@ -185,6 +185,11 @@ export class GithubClient {
     return this.pause && this.pause.until > Date.now() ? this.pause.until : null;
   }
 
+  private throwIfPaused(): void {
+    const pausedUntil = this.pausedUntil;
+    if (pausedUntil !== null) throw rateLimited(pausedUntil);
+  }
+
   /** The time GitHub names (`retry-after`, else the reset of an exhausted limit), else 60 s doubling per repeat (§10.3). */
   private limitHit(headers: Headers): number {
     const now = Date.now();
@@ -209,9 +214,12 @@ export class GithubClient {
    * write budget. A response that says GitHub is limiting requests starts the wait.
    */
   private async request(input: string, init: RequestInit = {}, contentCreating = (init.method ?? 'GET') !== 'GET'): Promise<Response> {
-    const pausedUntil = this.pausedUntil;
-    if (pausedUntil !== null) throw rateLimited(pausedUntil);
-    if (contentCreating) await this.options.budget?.reserve();
+    this.throwIfPaused();
+    if (contentCreating) {
+      await this.options.budget?.reserve();
+      // GitHub may have started limiting requests while this one waited for its place.
+      this.throwIfPaused();
+    }
     const token = this.getToken();
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/vnd.github+json');

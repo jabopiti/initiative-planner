@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
 import { gitBlobSha, GithubClient, graphqlUrl, REQUEST_TIMEOUT_MS } from './client';
 import { GithubApiError } from './errors';
+import type { WriteBudget } from './writeBudget';
 
 const location: GithubLocation = {
   apiBaseUrl: 'https://api.github.com',
@@ -349,6 +350,20 @@ describe('GithubClient — failure classification (slice 043, §3 Sync failures)
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('does not send a write that waited for the write budget once GitHub has started limiting requests meanwhile', async () => {
+    let place!: () => void;
+    const budget = { reserve: () => new Promise<void>((resolve) => (place = resolve)) } as unknown as WriteBudget;
+    const client = new GithubClient(location, () => 'token', undefined, { budget });
+    const put = client.putFile(putArgs);
+    const outcome = expect(put).rejects.toMatchObject({ cause_: 'rate-limited' });
+    fetchMock.mockResolvedValueOnce(refused(403, { 'retry-after': '60' }, 'You have exceeded a secondary rate limit.'));
+    await expect(client.getFile({ path: 'teams.json', branch: location.dataBranch })).rejects.toMatchObject({ cause_: 'rate-limited' });
+
+    place();
+    await outcome;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('classifies the token check’s own /user call the same way', async () => {
