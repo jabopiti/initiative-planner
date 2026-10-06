@@ -29,6 +29,16 @@ export function ReadOnlyBanner() {
   const [checked, setChecked] = useState(false);
   // Bumped when the token is replaced, so the check runs again for the new token.
   const [attempt, setAttempt] = useState(0);
+  // While GitHub limits requests, Retry is hidden until the time it named, when saving resumes by itself (§3).
+  const retryAt = readOnly?.cause === 'rate-limited' ? readOnly.retryAt : undefined;
+  const [waiting, setWaiting] = useState(false);
+  useEffect(() => {
+    const left = retryAt === undefined ? 0 : retryAt - Date.now();
+    setWaiting(left > 0);
+    if (left <= 0) return;
+    const timer = setTimeout(() => setWaiting(false), left);
+    return () => clearTimeout(timer);
+  }, [retryAt]);
 
   useEffect(() => {
     setDiagnosis(null);
@@ -123,9 +133,11 @@ export function ReadOnlyBanner() {
           )}
         </span>
       </span>
-      <Button type="button" variant="outline" size="sm" onClick={() => repository.retryAll()}>
-        Retry
-      </Button>
+      {!waiting && (
+        <Button type="button" variant="outline" size="sm" onClick={() => repository.retryAll()}>
+          Retry
+        </Button>
+      )}
     </div>
   );
 }

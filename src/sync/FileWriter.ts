@@ -301,10 +301,19 @@ export class FileWriter<D> {
    * fresh edit already cleared it via {@link schedule}. */
   retry(): Promise<SaveResult> {
     if (this.failedContent === null) return Promise.resolve('saved');
+    // A second Retry while the first is still on its way would send the same edit again, as a second commit.
+    if (this.retrying) return this.retrying;
     this.pending = this.failedContent;
     this.options.onStatus('syncing');
-    return this.enqueue(() => this.saveNext());
+    const retrying = this.enqueue(() => this.saveNext()).finally(() => {
+      if (this.retrying === retrying) this.retrying = null;
+    });
+    this.retrying = retrying;
+    return retrying;
   }
+
+  /** The resend {@link retry} started and that has not finished yet. */
+  private retrying: Promise<SaveResult> | null = null;
 
   /**
    * The repository's newer version of the file, from a pull (§3). It replaces what is on screen; an edit not yet

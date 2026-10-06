@@ -1,3 +1,4 @@
+import { formatClock } from '../data/dates';
 export type GithubFailureCause =
   | 'unreachable'
   | 'access-denied'
@@ -13,12 +14,15 @@ export type GithubFailureCause =
 export class GithubApiError extends Error {
   readonly cause_: GithubFailureCause;
   readonly status?: number;
+  /** Rate limited: when requests may be sent again (ms since the epoch). */
+  readonly retryAt?: number;
 
-  constructor(message: string, cause: GithubFailureCause, status?: number) {
+  constructor(message: string, cause: GithubFailureCause, status?: number, retryAt?: number) {
     super(message);
     this.name = 'GithubApiError';
     this.cause_ = cause;
     this.status = status;
+    this.retryAt = retryAt;
   }
 }
 
@@ -59,6 +63,8 @@ export const UNREACHABLE_MESSAGE = 'Cannot reach GitHub; changes are paused.';
 export interface ReadOnlyState {
   cause: GithubFailureCause;
   message: string;
+  /** Rate limited: when saving resumes by itself (ms since the epoch). */
+  retryAt?: number;
 }
 
 /** What the read-only state says for the causes §3 Sync failures names, because each needs a different fix. */
@@ -73,6 +79,9 @@ const CAUSE_MESSAGES: Partial<Record<GithubFailureCause, string>> = {
  */
 export function toReadOnlyState(error: unknown, fallbackMessage: string): ReadOnlyState {
   if (error instanceof DamagedDataError) return { cause: 'damaged', message: error.message };
+  if (error instanceof GithubApiError && error.cause_ === 'rate-limited' && error.retryAt !== undefined) {
+    return { cause: 'rate-limited', message: `GitHub is limiting requests. Saving resumes by itself at ${formatClock(error.retryAt)}.`, retryAt: error.retryAt };
+  }
   if (error instanceof GithubApiError) return { cause: error.cause_, message: CAUSE_MESSAGES[error.cause_] ?? error.message };
   return { cause: 'unknown', message: fallbackMessage };
 }

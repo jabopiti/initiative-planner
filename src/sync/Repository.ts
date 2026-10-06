@@ -32,6 +32,7 @@ import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type BranchHead } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
+import { WriteBudget } from '../github/writeBudget';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { copySource, planCopy } from '../data/copyAllocations';
@@ -274,9 +275,16 @@ export class Repository {
     private readonly brand: BrandPack,
     private token: string,
   ) {
-    this.github = new GithubClient(brand.github, () => this.token, (headers) => this.noteRateLimit(headers));
+    this.writeBudget = new WriteBudget(brand.github.apiBaseUrl);
+    this.github = new GithubClient(brand.github, () => this.token, (headers) => this.noteRateLimit(headers), {
+      budget: this.writeBudget,
+      onPause: () => this.rearmRetry(),
+    });
     this.cache = new FileCache(cacheScope(brand.github));
   }
+
+  /** The content-creating requests this browser sent, counted against the lines of §10.3. */
+  readonly writeBudget: WriteBudget;
 
   // Arrow properties, so React's useSyncExternalStore gets the same functions on every render and never resubscribes.
   readonly getState = (): RepositoryState => this.state;
@@ -690,12 +698,22 @@ export class Repository {
   private armRetry(pullIncomplete: boolean, hasRecoverableFailure: boolean): void {
     if (this.retryTimer) return;
     if (!pullIncomplete && this.pullFailure === null && this.deleteFailure === null && !hasRecoverableFailure) return;
+    // While GitHub limits requests, the retry waits for the time it named rather than the usual 30 s (§3).
+    const pausedUntil = this.github.pausedUntil;
+    const delay = pausedUntil === null ? PULL_RETRY_MS : pausedUntil - Date.now();
     this.retryTimer = setTimeout(() => {
       this.retryTimer = null;
       if (document.visibilityState !== 'visible') return;
       for (const [, writer] of this.allWriters()) if (this.autoRetries(writer)) void writer.retry();
       void this.pull();
-    }, PULL_RETRY_MS);
+    }, delay);
+  }
+
+  /** GitHub started limiting requests: the retry is moved to the time it named. */
+  private rearmRetry(): void {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    this.armRetry(false, true);
   }
 
   /** Whether `writer`'s failure, if any, is one of the two causes §3 marks "Automatic" (§9.9). */

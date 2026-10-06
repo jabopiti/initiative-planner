@@ -1,6 +1,7 @@
 import type { GithubLocation } from '../brand/types';
 import { decodeBase64Utf8, encodeBase64Utf8 } from './base64';
 import { GithubApiError, UNREACHABLE_MESSAGE, classifyFailure } from './errors';
+import type { WriteBudget } from './writeBudget';
 
 /**
  * Thin wrapper over the GitHub Contents API. `branch` is a required,
@@ -68,6 +69,10 @@ function assertBranch(branch: string): void {
  * wedge the write queue. */
 export const REQUEST_TIMEOUT_MS = 30_000;
 
+/** How long to wait after a limit when GitHub names no time: doubled for each repeat within the hour (§10.3). */
+export const RATE_LIMIT_FALLBACK_MS = 60_000;
+const HOUR_MS = 3_600_000;
+
 /** GitHub's own message in a failed response's body, or '' when there is none. */
 async function messageOf(response: Response): Promise<string> {
   const body: unknown = await response.json().catch(() => null);
@@ -80,6 +85,11 @@ async function failure(response: Response, label: string, detail?: string): Prom
   const cause = classifyFailure(response.status, response.headers, message);
   if (cause === 'unreachable') return new GithubApiError(UNREACHABLE_MESSAGE, cause, response.status);
   return new GithubApiError(`${label} failed (${response.status})`, cause, response.status);
+}
+
+/** GitHub is limiting requests: nothing is sent before `until` (§3 Sync failures). */
+function rateLimited(until: number, status?: number): GithubApiError {
+  return new GithubApiError('GitHub is limiting requests', 'rate-limited', status, until);
 }
 
 /** Throw a labelled GithubApiError unless the response is ok (or its status is explicitly allowed). */
@@ -99,14 +109,50 @@ export class GithubClient {
     private readonly getToken: () => string | null,
     /** Told of every response's headers, so the rate-limit budget is read without a request of its own (§5.9). */
     private readonly onResponse?: (headers: Headers) => void,
-    private readonly options: { timeoutMs?: number } = {},
+    private readonly options: {
+      timeoutMs?: number;
+      /** Reserves a place for each content-creating request (§10.3); none means no budget is kept. */
+      budget?: WriteBudget;
+      /** Told when GitHub limits requests, with the time until which nothing is sent (§3 Sync failures). */
+      onPause?: (until: number) => void;
+    } = {},
   ) {}
+
+  /** GitHub's last limit: nothing is sent before `until`; `repeats` counts the limits within an hour of each other. */
+  private pause: { until: number; repeats: number; at: number } | null = null;
+
+  /** Until when no request is sent because GitHub is limiting requests, or null when it isn't (§3 Sync failures). */
+  get pausedUntil(): number | null {
+    return this.pause && this.pause.until > Date.now() ? this.pause.until : null;
+  }
+
+  /** The time GitHub names (`retry-after`, else the reset of an exhausted limit), else 60 s doubling per repeat (§10.3). */
+  private limitHit(headers: Headers): number {
+    const now = Date.now();
+    const repeats = this.pause && now - this.pause.at < HOUR_MS ? this.pause.repeats + 1 : 0;
+    const retryAfter = Number(headers.get('retry-after'));
+    const reset = Number(headers.get('x-ratelimit-reset')) * 1000;
+    let until = now + RATE_LIMIT_FALLBACK_MS * 2 ** repeats;
+    if (headers.has('retry-after') && Number.isFinite(retryAfter)) until = now + retryAfter * 1000;
+    else if (headers.get('x-ratelimit-remaining') === '0' && Number.isFinite(reset) && reset > now) until = reset;
+    this.pause = { until, repeats, at: now };
+    this.options.onPause?.(until);
+    return until;
+  }
 
   private repoUrl(path: string): string {
     return `${this.location.apiBaseUrl}/repos/${this.location.owner}/${this.location.repo}/${path}`;
   }
 
-  private async request(input: string, init: RequestInit = {}): Promise<Response> {
+  /**
+   * Every request goes through here. While GitHub's limit lasts, none is sent: it fails at once as rate limited. A
+   * content-creating one (any but a GET, unless `contentCreating` says otherwise) first waits for a place in the
+   * write budget. A response that says GitHub is limiting requests starts the wait.
+   */
+  private async request(input: string, init: RequestInit = {}, contentCreating = (init.method ?? 'GET') !== 'GET'): Promise<Response> {
+    const pausedUntil = this.pausedUntil;
+    if (pausedUntil !== null) throw rateLimited(pausedUntil);
+    if (contentCreating) await this.options.budget?.reserve();
     const token = this.getToken();
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/vnd.github+json');
@@ -115,6 +161,7 @@ export class GithubClient {
 
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let response: Response;
     // Raced as well as signalled, so a request ends at the timeout even where aborting doesn't settle the fetch.
     const timedOut = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
@@ -124,14 +171,20 @@ export class GithubClient {
     });
     try {
       // no-store: GitHub's Contents API answers with max-age=60, and a re-read after a 409 must see the other writer's commit.
-      const response = await Promise.race([fetch(input, { cache: 'no-store', ...init, headers, signal: controller.signal }), timedOut]);
+      response = await Promise.race([fetch(input, { cache: 'no-store', ...init, headers, signal: controller.signal }), timedOut]);
       this.onResponse?.(response.headers);
-      return response;
     } catch {
       throw new GithubApiError(UNREACHABLE_MESSAGE, 'unreachable');
     } finally {
       clearTimeout(timer);
     }
+    if (response.status === 403 || response.status === 429) {
+      const message = await messageOf(response.clone());
+      if (classifyFailure(response.status, response.headers, message) === 'rate-limited') {
+        throw rateLimited(this.limitHit(response.headers), response.status);
+      }
+    }
+    return response;
   }
 
   /** GET .../contents/{path}?ref={branch} (§10.2). Returns null when the file doesn't exist yet. */

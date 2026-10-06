@@ -140,10 +140,12 @@ save on blur, drag bars on pointer-up, the 1-file-1-commit merge path.
   Saving resumes by itself at 14:32." (clock time as in the Connection
   section), with no Retry while the wait lasts. If the first try after the
   wait is refused again, the banner names the next time. The sync
-  indicator's "Rate limited" and the field's "Not saved: Rate limited."
-  stay as they are.
+  indicator's "Rate limited" stays. A failed field reads "Not saved:
+  <the banner's message>", as fields do for every cause (corrected
+  during implementation: the review said "Not saved: Rate limited.",
+  which was never what fields showed).
 - **An edit made during a rate-limit wait** fails at once without sending
-  a request ("Not saved: Rate limited.", as today). It is resent by itself
+  a request (its field says "Not saved:" and the banner's message). It is resent by itself
   when the wait ends, so §3's "no change is ever queued" holds. A commit
   held back by the budget (item 2) is different: it stays "Saving" and
   waits.
@@ -214,7 +216,7 @@ save on blur, drag bars on pointer-up, the 1-file-1-commit merge path.
       that time, after which the pull and pending writes resume without
       user action; meanwhile the banner reads "GitHub is limiting
       requests. Saving resumes by itself at <time>." with no Retry, and an
-      edit made then shows "Not saved: Rate limited." without a request.
+      edit made then fails at once without a request.
 - [ ] Given Reset and Load example data at the volume ceiling, then each
       makes 1 content-creating request (one GraphQL commit), no blob POSTs,
       and downloads none of the files it wrote; given the bootstrap onto a

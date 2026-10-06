@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Initiative, Person, Team } from '../data/types';
 import { changeKey, PULL_RETRY_MS } from './Repository';
 import { fakeGithub, initiative, open, person, PHASE, type Fake } from './testing/fakeGithub';
-import { REQUEST_TIMEOUT_MS } from '../github/client';
+import { RATE_LIMIT_FALLBACK_MS, REQUEST_TIMEOUT_MS } from '../github/client';
 
 /**
  * Slice 005g: every case the one file writer must keep true, driven through the Repository against an
@@ -498,7 +498,7 @@ describe('slice 005j: read-only banner, automatic recovery, and Retry (§3, §9.
       await repo.flushPending();
       expect(repo.getState().readOnly?.cause).toBe('rate-limited');
 
-      await vi.advanceTimersByTimeAsync(PULL_RETRY_MS);
+      await vi.advanceTimersByTimeAsync(RATE_LIMIT_FALLBACK_MS); // GitHub named no time: 60 s (slice 064)
       await repo.whenPulled();
 
       expect(repo.getState().readOnly).toBeNull();
@@ -513,9 +513,9 @@ describe('slice 005j: read-only banner, automatic recovery, and Retry (§3, §9.
       fake.fail('teams.json', 403, { headers: { 'retry-after': '60' }, message: 'You have exceeded a secondary rate limit.' });
       repo.createTeam('Platform');
       await repo.flushPending();
-      expect(repo.getState().readOnly).toMatchObject({ cause: 'rate-limited', message: 'GitHub is limiting requests; try again shortly' });
+      expect(repo.getState().readOnly).toMatchObject({ cause: 'rate-limited', message: expect.stringMatching(/^GitHub is limiting requests\. Saving resumes by itself at \d\d:\d\d\.$/) });
 
-      await vi.advanceTimersByTimeAsync(PULL_RETRY_MS);
+      await vi.advanceTimersByTimeAsync(60_000);
       await repo.whenPulled();
 
       expect(repo.getState().readOnly).toBeNull();
@@ -549,7 +549,10 @@ describe('slice 005j: read-only banner, automatic recovery, and Retry (§3, §9.
       repo.createTeam('Platform');
       repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
       const flushed = repo.flushPending();
-      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+      for (let waited = 0; waited <= REQUEST_TIMEOUT_MS; waited += 1000) {
+        await vi.advanceTimersByTimeAsync(1000);
+        for (let i = 0; i < 20; i += 1) await new Promise((resolve) => setImmediate(resolve)); // the write budget's IndexedDB
+      }
       await flushed;
 
       expect(fake.commits('people.json')).toHaveLength(1);
@@ -598,7 +601,7 @@ describe('slice 005j: read-only banner, automatic recovery, and Retry (§3, §9.
       fake.fail('teams.json', 403); // access-denied: would never auto-retry on its own
       repo.createTeam('Platform');
       await repo.flushPending();
-      fake.fail('people.json', 429); // rate-limited
+      fake.fail('people.json', 503); // unreachable: retried automatically too
       repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
       await repo.flushPending();
       expect(repo.getState().readOnly).not.toBeNull();
