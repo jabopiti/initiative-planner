@@ -7,9 +7,7 @@ import { connect } from './support/session';
 test('production build renders under the strict CSP with no violations', async ({ page }) => {
   const problems: string[] = [];
   page.on('console', (msg) => {
-    // frame-ancestors can't be set from a <meta> tag (GitHub Pages sends no
-    // headers), so the browser always logs this one known notice.
-    if (msg.type() === 'error' && !msg.text().includes("'frame-ancestors' is ignored")) problems.push(msg.text());
+    if (msg.type() === 'error') problems.push(msg.text());
   });
   page.on('pageerror', (err) => problems.push(err.message));
 
@@ -30,4 +28,13 @@ test('production build loads its typeface from its own origin and requests no ot
   const origin = new URL(baseURL!).origin;
   await expect.poll(() => urls.some((u) => u.startsWith(origin) && u.endsWith('.woff2'))).toBe(true);
   expect([...new Set(urls.map((u) => new URL(u).origin))].sort()).toEqual([origin, 'https://api.github.com'].sort());
+});
+
+// §10.1: a <meta> policy can't carry frame-ancestors, so the app itself refuses to render inside a frame.
+test('production build refuses to render inside another page', async ({ page, baseURL }) => {
+  await page.setContent(`<iframe src="${baseURL}/" title="framed app"></iframe>`);
+
+  const framed = page.frameLocator('iframe').locator('#root');
+  await expect(framed).toHaveText('This app cannot be displayed inside a frame.');
+  await expect(page.frameLocator('iframe').getByLabel('GitHub token')).toHaveCount(0);
 });

@@ -19,4 +19,8 @@ describe('buildCsp (§10.9)', () => {
     expect(csp).toContain("script-src 'self';");
     expect(csp).not.toMatch(/script-src[^;]*('unsafe-inline'|'unsafe-eval')/);
   });
+
+  it('leaves out frame-ancestors, which browsers ignore in a <meta> policy (§10.1)', () => {
+    expect(buildCsp('https://api.github.com')).not.toContain('frame-ancestors');
+  });
 });

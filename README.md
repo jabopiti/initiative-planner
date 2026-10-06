@@ -88,7 +88,11 @@ that into a swappable per-fork file is follow-up work, not yet needed with
 one deployment), and takes updates via GitHub's fork-sync. This
 repository's own deployment (`main` branch, GitHub Actions →
 GitHub Pages) is the reference: push to `main` builds and deploys via
-[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml). See
+[`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml).
+Serve your instance from its own domain or subdomain (set a custom domain
+in the repository's Pages settings): on a shared `<account>.github.io`
+address, every other Pages site of that account can read the app's browser
+storage, so the app turns off "Remember me" there. See
 [`docs/spec.md`](./docs/spec.md) §3 and §10.7 for the full design.
 
 ## Documentation

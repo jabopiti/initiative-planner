@@ -2,6 +2,7 @@ import { useState, type ClipboardEvent } from 'react';
 import { useBrand } from '../state/BrandContext';
 import { checkToken, repoLabel, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
 import { tokenCreationUrl, tokenManagementUrl } from '../auth/tokenCreationUrl';
+import { tokenStore } from '../auth/tokenStore';
 import { ChevronDown, KeyRound, ShieldCheck } from 'lucide-react';
 import { TokenSteps } from './TokenSteps';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,8 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
   const [result, setResult] = useState<TokenCheckResult | null>(null);
   const brand = useBrand();
   const repo = repoLabel(brand.github);
+  // Off on a shared origin, where other sites could read a remembered token (§3, Authentication).
+  const canRemember = tokenStore.canRemember();
 
   async function connect(raw: string) {
     const trimmed = raw.trim();
@@ -95,11 +98,19 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
             <Checkbox
               id="remember-field"
               checked={remember}
+              disabled={!canRemember}
+              aria-describedby={canRemember ? undefined : 'remember-unavailable'}
               onCheckedChange={(checked) => setRemember(checked === true)}
               className="mt-0.5"
             />
             <Label htmlFor="remember-field">Remember me on this device</Label>
           </div>
+          {!canRemember && (
+            <p id="remember-unavailable" className="m-0 -mt-1 pl-6 text-caption text-text-secondary">
+              Not available here: this copy runs on github.io, where other sites can read what it saves. It&rsquo;s
+              kept for this tab only.
+            </p>
+          )}
         </form>
 
         {result && (
@@ -159,7 +170,7 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
         <ul className="m-0 flex list-disc flex-col gap-2 px-6 pb-6 pl-11 text-caption text-text-primary marker:text-text-secondary">
           <li>
             <strong className="font-medium">Stays in your browser.</strong> Kept in this tab only and cleared when you
-            close it, unless you tick &ldquo;Remember me&rdquo;. There is no server in between.
+            close it{canRemember && <>, unless you tick &ldquo;Remember me&rdquo;</>}. There is no server in between.
           </li>
           <li>
             <strong className="font-medium">Goes only to GitHub.</strong> Sent to {apiHost} and nowhere else. A strict
@@ -178,10 +189,17 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
             </a>
             .
           </li>
-          <li>
-            <strong className="font-medium">One thing to know.</strong> The browser keeps it unencrypted, so tick
-            &ldquo;Remember me&rdquo; only on a device you trust.
-          </li>
+          {canRemember ? (
+            <li>
+              <strong className="font-medium">One thing to know.</strong> The browser keeps it unencrypted, so tick
+              &ldquo;Remember me&rdquo; only on a device you trust.
+            </li>
+          ) : (
+            <li>
+              <strong className="font-medium">Why there is no Remember me here.</strong> This copy runs on github.io,
+              an address shared with other sites, which could read a token saved on the device.
+            </li>
+          )}
         </ul>
       </details>
     </main>
