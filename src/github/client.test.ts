@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
-import { GithubClient } from './client';
+import { GithubClient, REQUEST_TIMEOUT_MS } from './client';
+import { WriteQueue } from '../sync/WriteQueue';
 import { GithubApiError } from './errors';
 
 const location: GithubLocation = {
@@ -286,5 +287,117 @@ describe('GithubClient — putFile on a file that is gone (slice 017)', () => {
 
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'sha-3' } }), { status: 200 }));
     await expect(client.putFile(args)).resolves.toEqual({ sha: 'sha-3', created: false });
+  });
+});
+
+describe('GithubClient — failures are classified and requests end (slice 043)', () => {
+  const put = (client: GithubClient) => client.putFile({ path: 'teams.json', branch: 'data', content: '[]', message: 'm', sha: 's' });
+
+  it('reads a secondary-limit 403 on a save as rate-limited, not access-denied', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ message: 'You have exceeded a secondary rate limit.' }), { status: 403, headers: { 'retry-after': '60' } }),
+    );
+    await expect(put(new GithubClient(location, () => 'token'))).rejects.toMatchObject({ cause_: 'rate-limited', status: 403 });
+  });
+
+  it('reads a plain 403 on a save as access-denied', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ message: 'Resource not accessible by personal access token' }), { status: 403 }));
+    await expect(put(new GithubClient(location, () => 'token'))).rejects.toMatchObject({ cause_: 'access-denied' });
+  });
+
+  it.each([500, 502, 503])('reads a %i on a read as unreachable', async (status) => {
+    fetchMock.mockResolvedValue(new Response('', { status }));
+    const client = new GithubClient(location, () => 'token');
+    await expect(client.getFile({ path: 'teams.json', branch: 'data' })).rejects.toMatchObject({ cause_: 'unreachable', status });
+  });
+
+  it('reads a network error as unreachable', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(put(new GithubClient(location, () => 'token'))).rejects.toMatchObject({ cause_: 'unreachable' });
+  });
+
+  describe('with a fake clock', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it('aborts a request that never answers at the timeout, as unreachable, and the next queued write runs', async () => {
+      const signals: AbortSignal[] = [];
+      fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => {
+        signals.push(init.signal as AbortSignal);
+        return new Promise(() => {});
+      });
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'new' } }), { status: 200 }));
+      const client = new GithubClient(location, () => 'token', undefined, 30_000);
+      const queue = new WriteQueue();
+
+      const hung = queue.run(() => put(client));
+      const next = queue.run(() => put(client));
+      const hungSettled = expect(hung).rejects.toMatchObject({ cause_: 'unreachable' });
+
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await hungSettled;
+      expect(signals[0].aborted).toBe(true);
+      await expect(next).resolves.toEqual({ sha: 'new', created: false });
+    });
+
+    it('defaults the timeout to 30 s', async () => {
+      fetchMock.mockImplementation(() => new Promise(() => {}));
+      const settled = expect(put(new GithubClient(location, () => 'token'))).rejects.toMatchObject({ cause_: 'unreachable' });
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+      expect(REQUEST_TIMEOUT_MS).toBe(30_000);
+      await settled;
+    });
+  });
+
+  it('bootstrapping an existing branch commits once more when the ref update is not a fast-forward', async () => {
+    let refReads = 0;
+    let patches = 0;
+    fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      const u = String(url);
+      const method = init.method ?? 'GET';
+      if (u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob' }), { status: 201 });
+      if (u.endsWith('/git/ref/heads/data')) {
+        refReads += 1;
+        return new Response(JSON.stringify({ object: { sha: `head-${refReads}` } }), { status: 200 });
+      }
+      if (u.includes('/git/commits/head-')) return new Response(JSON.stringify({ tree: { sha: 'tree' } }), { status: 200 });
+      if (u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'new-tree' }), { status: 201 });
+      if (u.endsWith('/git/commits') && method === 'POST') {
+        const parent = (JSON.parse(String(init.body)) as { parents: string[] }).parents[0];
+        return new Response(JSON.stringify({ sha: `commit-on-${parent}` }), { status: 201 });
+      }
+      if (u.endsWith('/git/refs/heads/data') && method === 'PATCH') {
+        patches += 1;
+        return patches === 1
+          ? new Response(JSON.stringify({ message: 'Update is not a fast forward' }), { status: 422 })
+          : new Response(JSON.stringify({ object: { sha: 'x' } }), { status: 200 });
+      }
+      throw new Error(`unexpected call: ${method} ${u}`);
+    });
+
+    const client = new GithubClient(location, () => 'token');
+    const result = await client.createFilesCommit({ branch: 'data', files: [{ path: 'dataset.json', content: '{}' }], message: 'm' });
+
+    expect(result).toEqual({ commitSha: 'commit-on-head-2' });
+    expect(patches).toBe(2);
+  });
+
+  it('bootstrapping gives up after the second refused ref update', async () => {
+    fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      const u = String(url);
+      if (u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob' }), { status: 201 });
+      if (u.endsWith('/git/ref/heads/data')) return new Response(JSON.stringify({ object: { sha: 'head' } }), { status: 200 });
+      if (u.includes('/git/commits/head')) return new Response(JSON.stringify({ tree: { sha: 'tree' } }), { status: 200 });
+      if (u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'new-tree' }), { status: 201 });
+      if (u.endsWith('/git/commits') && init.method === 'POST') return new Response(JSON.stringify({ sha: 'c' }), { status: 201 });
+      return new Response(JSON.stringify({ message: 'Update is not a fast forward' }), { status: 422 });
+    });
+
+    const client = new GithubClient(location, () => 'token');
+    await expect(client.createFilesCommit({ branch: 'data', files: [{ path: 'dataset.json', content: '{}' }], message: 'm' })).rejects.toMatchObject({
+      status: 422,
+    });
   });
 });

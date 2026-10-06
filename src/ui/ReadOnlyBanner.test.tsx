@@ -106,6 +106,27 @@ describe('Read-only banner (§3, §9.9)', () => {
       expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     });
 
+    it('resends when the token check is itself rate limited, so the save lands instead of blaming the token (slice 043)', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+      fake.fail('teams.json', 401);
+      repo.createTeam('Platform');
+      await repo.flushPending();
+      let checks = 0;
+      vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+        if (new URL(url).pathname === '/user') {
+          checks += 1;
+          return Promise.resolve(new Response(JSON.stringify({ message: 'API rate limit exceeded' }), { status: 403, headers: { 'x-ratelimit-remaining': '0' } }));
+        }
+        return fake.fetchMock(url, init);
+      });
+      renderBanner(repo);
+
+      await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+      expect(checks).toBe(1);
+      expect(fake.commits('teams.json')).toHaveLength(1);
+    });
+
     it('shows the four steps behind Show steps', async () => {
       await denied('invalid');
       await screen.findByText(/expired or been revoked/);

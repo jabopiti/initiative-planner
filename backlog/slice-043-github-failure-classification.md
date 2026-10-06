@@ -54,14 +54,14 @@ cause and message the spec names, and a hung request ends.
 
 ## Acceptance criteria
 
-- [ ] Given a 403 with `x-ratelimit-remaining: 0`, a 403 with `retry-after`,
+- [x] Given a 403 with `x-ratelimit-remaining: 0`, a 403 with `retry-after`,
       and a 403 whose body says "rate limit", then each is `rate-limited`.
-- [ ] Given a plain 403, then it is `access-denied`.
-- [ ] Given 500, 502, 503 and a network error, then each is `unreachable` and
+- [x] Given a plain 403, then it is `access-denied`.
+- [x] Given 500, 502, 503 and a network error, then each is `unreachable` and
       retried by the 30 s recovery loop.
-- [ ] Given a fetch that never settles (fake clock), then it aborts at the
+- [x] Given a fetch that never settles (fake clock), then it aborts at the
       timeout and the next queued write runs.
-- [ ] Given the token check, then a rate-limited `/user` call does not read as
+- [x] Given the token check, then a rate-limited `/user` call does not read as
       unreachable.
 
 ## Flags and compromises

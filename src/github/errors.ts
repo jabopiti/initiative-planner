@@ -36,12 +36,24 @@ export class DamagedDataError extends Error {
   }
 }
 
-export function classifyStatus(status: number): GithubFailureCause {
+/**
+ * The cause of a failed response (§3 Sync failures). GitHub answers a primary or secondary rate limit with a 403 as
+ * often as a 429, so a 403 is only "access denied" when nothing says it is a limit: no requests left
+ * (`x-ratelimit-remaining: 0`), a `retry-after`, or a body naming a rate limit. A server error is "unreachable", as
+ * the token check (§5.10) already reads it, so the automatic retry covers it.
+ */
+export function classifyFailure(status: number, headers: Headers, body: string): GithubFailureCause {
+  if (status === 429) return 'rate-limited';
+  if (status === 403 && isRateLimit(headers, body)) return 'rate-limited';
   if (status === 401 || status === 403) return 'access-denied';
   if (status === 404) return 'not-found';
   if (status === 409) return 'conflict';
-  if (status === 429) return 'rate-limited';
+  if (status >= 500) return 'unreachable';
   return 'unknown';
+}
+
+function isRateLimit(headers: Headers, body: string): boolean {
+  return headers.get('x-ratelimit-remaining') === '0' || headers.has('retry-after') || /rate limit/i.test(body);
 }
 
 export interface ReadOnlyState {
@@ -51,6 +63,7 @@ export interface ReadOnlyState {
 
 /** What the read-only state says for the causes §3 Sync failures names, because each needs a different fix. */
 const CAUSE_MESSAGES: Partial<Record<GithubFailureCause, string>> = {
+  unreachable: 'Cannot reach GitHub; changes are paused.',
   'access-denied': 'GitHub refused access with this token',
   'rate-limited': 'GitHub is limiting requests; try again shortly',
 };
