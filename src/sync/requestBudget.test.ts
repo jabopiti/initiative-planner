@@ -150,10 +150,11 @@ describe('request budget at the volume ceiling (slice 064 baseline)', () => {
       await repo.whenPulled();
     });
     expect({ requests: reset.requests, contentCreating: reset.contentCreating, blobs: reset.blobs, downloads: reset.downloads.length }).toEqual({
-      requests: 21,
-      contentCreating: 9,
-      blobs: 6,
-      downloads: 6,
+      // Slice 064: one GraphQL commit; the files it wrote are not downloaded again (was 21, 9 content-creating, 6 blobs, 6 downloads).
+      requests: 6,
+      contentCreating: 1,
+      blobs: 0,
+      downloads: 0,
     });
   });
 
@@ -166,10 +167,11 @@ describe('request budget at the volume ceiling (slice 064 baseline)', () => {
       await repo.whenPulled();
     });
     expect({ requests: loaded.requests, contentCreating: loaded.contentCreating, blobs: loaded.blobs, downloads: loaded.downloads.length }).toEqual({
-      requests: 26,
-      contentCreating: 9,
-      blobs: 6,
-      downloads: 11,
+      // Slice 064: one GraphQL commit; only the 5 reads that check the branch is empty (was 26, 9 content-creating, 6 blobs, 11 downloads).
+      requests: 11,
+      contentCreating: 1,
+      blobs: 0,
+      downloads: 5,
     });
   });
 
@@ -193,5 +195,24 @@ describe('request budget at the volume ceiling (slice 064 baseline)', () => {
     });
     expect(reopened.requests).toBe(43);
     expect(reopened.downloads).toHaveLength(40);
+  });
+});
+
+describe('the bootstrap onto a missing data branch (slice 064)', () => {
+  it('is a tree with the contents inline, a commit and the ref: 3 content-creating requests, no blob, no download', async () => {
+    const fake = fakeGithub();
+    vi.stubGlobal('fetch', fake.fetchMock);
+    const repo = new Repository(defaultBrandPack, 'token');
+    const boot = await measure(fake, async () => {
+      await repo.initialize();
+      await repo.whenPulled();
+    });
+    expect(boot.sent.filter(isContentCreating)).toEqual([
+      'POST /repos/jabopiti/initiative-planner/git/trees',
+      'POST /repos/jabopiti/initiative-planner/git/commits',
+      'POST /repos/jabopiti/initiative-planner/git/refs',
+    ]);
+    expect(boot.downloads).toEqual([]);
+    expect(repo.getState().roles.length).toBeGreaterThan(0);
   });
 });

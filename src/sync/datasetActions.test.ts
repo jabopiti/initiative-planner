@@ -94,7 +94,7 @@ describe('Load example data (slice 032)', () => {
   it('leaves the data branch unchanged when a step fails', async () => {
     const fake = fakeGithub();
     const repo = await openWith(fake);
-    fake.failGit('trees', 500);
+    fake.failGraphql({ status: 500 });
 
     const result = await repo.loadExampleData();
     expect(result).toEqual({ failed: expect.objectContaining({ message: expect.any(String) }) });
@@ -158,10 +158,10 @@ describe('Reset (slice 032)', () => {
     expect(repo.getState().initiatives).toEqual([]);
   });
 
-  it('leaves the data branch unchanged when the ref update fails', async () => {
+  it('leaves the data branch unchanged when the commit fails', async () => {
     const fake = fakeGithub();
     const repo = await openWith(fake, { teams: [team], initiatives: [initiative()] });
-    fake.failGit('refs', 500);
+    fake.failGraphql({ status: 500 });
 
     const result = await repo.resetDataset();
     expect(result).toEqual({ failed: expect.anything() });

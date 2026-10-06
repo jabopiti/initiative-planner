@@ -116,7 +116,7 @@ describe('Danger zone (§5.9)', () => {
     const user = renderDangerZone({ teams: [team] });
     await unlock(user);
     await screen.findByText('Reset first');
-    fake.failGit('trees', 403);
+    fake.failGraphql({ status: 403 });
     await user.click(screen.getByRole('button', { name: 'Reset' }));
     await user.click(screen.getByRole('button', { name: 'Confirm reset' }));
 

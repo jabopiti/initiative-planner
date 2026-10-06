@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
-import { GithubClient, REQUEST_TIMEOUT_MS } from './client';
+import { gitBlobSha, GithubClient, graphqlUrl, REQUEST_TIMEOUT_MS } from './client';
 import { GithubApiError } from './errors';
 
 const location: GithubLocation = {
@@ -130,33 +130,27 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
   });
 
   it.each(['data', 'planning/data'])(
-    'updates an existing branch %s through PATCH git/refs/heads/{branch} (plural), not the singular read URL, which 404s, with `/` kept unencoded',
+    'commits onto an existing branch %s with one GraphQL createCommitOnBranch that names it and the head it read (slice 064)',
     async (branch) => {
       const calls: string[] = [];
+      let input: { branch: { branchName: string }; expectedHeadOid: string; message: { headline: string } } | undefined;
       fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
         const u = String(url);
         const method = init.method ?? 'GET';
         calls.push(`${method} ${u}`);
         if (method === 'GET' && u.endsWith(`/git/ref/heads/${branch}`)) return new Response(JSON.stringify({ object: { sha: 'parent-sha' } }), { status: 200 });
-        if (method === 'GET' && u.endsWith('/git/commits/parent-sha')) return new Response(JSON.stringify({ tree: { sha: 'base-tree' } }), { status: 200 });
-        if (method === 'POST' && u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob-1' }), { status: 200 });
-        if (method === 'POST' && u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'tree-1' }), { status: 200 });
-        if (method === 'POST' && u.endsWith('/git/commits')) return new Response(JSON.stringify({ sha: 'new-sha' }), { status: 200 });
-        // GitHub answers a PATCH to the singular `git/ref/...` URL with a 404.
-        if (method === 'PATCH' && u.endsWith(`/git/refs/heads/${branch}`)) return new Response(JSON.stringify({ object: { sha: 'new-sha' } }), { status: 200 });
+        if (method === 'POST' && u === 'https://api.github.com/graphql') {
+          input = (JSON.parse(init.body as string) as { variables: { input: NonNullable<typeof input> } }).variables.input;
+          return new Response(JSON.stringify({ data: { createCommitOnBranch: { commit: { oid: 'new-sha' } } } }), { status: 200 });
+        }
         return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
       });
 
-      const client = new GithubClient(location, () => 'token');
-      const result = await client.createFilesCommit({
-        branch,
-        files: [{ path: 'dataset.json', content: '{}' }],
-        message: 'init',
-      });
+      const result = await new GithubClient(location, () => 'token').createFilesCommit({ branch, files: [{ path: 'dataset.json', content: '{}' }], message: 'init' });
 
-      expect(result.commitSha).toBe('new-sha');
-      expect(calls).toContain(`GET https://api.github.com/repos/jabopiti/initiative-planner/git/ref/heads/${branch}`);
-      expect(calls).toContain(`PATCH https://api.github.com/repos/jabopiti/initiative-planner/git/refs/heads/${branch}`);
+      expect(result).toEqual({ commitSha: 'new-sha', written: [{ path: 'dataset.json', content: '{}', sha: '9e26dfeeb6e641a33dae4961196235bdb965b21b' }] });
+      expect(input).toMatchObject({ branch: { branchName: branch }, expectedHeadOid: 'parent-sha', message: { headline: 'init' } });
+      expect(calls.filter((c) => !c.startsWith('GET '))).toEqual(['POST https://api.github.com/graphql']);
     },
   );
 
@@ -366,10 +360,9 @@ describe('GithubClient — failure classification (slice 043, §3 Sync failures)
     await expect(new GithubClient(location, () => 'token').checkToken()).rejects.toMatchObject({ cause_: 'rate-limited' });
   });
 
-  it('builds the bootstrap commit again once when another commit moved the existing branch first (422)', async () => {
+  it('builds the commit again on the new head when another commit moved the branch first (STALE_DATA)', async () => {
     let refGets = 0;
-    let patches = 0;
-    const parents: string[] = [];
+    const expected: string[] = [];
     fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
       const u = String(url);
       const method = init.method ?? 'GET';
@@ -377,18 +370,12 @@ describe('GithubClient — failure classification (slice 043, §3 Sync failures)
         refGets += 1;
         return new Response(JSON.stringify({ object: { sha: `head-${refGets}` } }), { status: 200 });
       }
-      if (method === 'GET' && u.includes('/git/commits/head-')) return new Response(JSON.stringify({ tree: { sha: 'base-tree' } }), { status: 200 });
-      if (method === 'POST' && u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob-1' }), { status: 200 });
-      if (method === 'POST' && u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'tree-1' }), { status: 200 });
-      if (method === 'POST' && u.endsWith('/git/commits')) {
-        parents.push(...(JSON.parse(init.body as string) as { parents: string[] }).parents);
-        return new Response(JSON.stringify({ sha: `commit-on-${parents.at(-1)}` }), { status: 200 });
-      }
-      if (method === 'PATCH' && u.endsWith('/git/refs/heads/data')) {
-        patches += 1;
-        return patches === 1
-          ? new Response(JSON.stringify({ message: 'Update is not a fast forward' }), { status: 422 })
-          : new Response(JSON.stringify({ object: { sha: 'x' } }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/graphql')) {
+        const oid = (JSON.parse(init.body as string) as { variables: { input: { expectedHeadOid: string } } }).variables.input.expectedHeadOid;
+        expected.push(oid);
+        return expected.length === 1
+          ? new Response(JSON.stringify({ data: { createCommitOnBranch: null }, errors: [{ type: 'STALE_DATA', message: 'Expected branch to point to' }] }), { status: 200 })
+          : new Response(JSON.stringify({ data: { createCommitOnBranch: { commit: { oid: `commit-on-${oid}` } } } }), { status: 200 });
       }
       throw new Error(`unexpected call: ${method} ${u}`);
     });
@@ -399,7 +386,44 @@ describe('GithubClient — failure classification (slice 043, §3 Sync failures)
       message: 'init',
     });
 
-    expect(parents).toEqual(['head-1', 'head-2']);
+    expect(expected).toEqual(['head-1', 'head-2']);
     expect(result.commitSha).toBe('commit-on-head-2');
+  });
+});
+
+describe('GithubClient — GraphQL commits (slice 064)', () => {
+  it('derives the GraphQL endpoint from the API base URL, not appending to it', () => {
+    expect(graphqlUrl('https://api.github.com')).toBe('https://api.github.com/graphql');
+    expect(graphqlUrl('https://github.example.com/api/v3')).toBe('https://github.example.com/api/graphql');
+    expect(graphqlUrl('https://github.example.com/api/v3/')).toBe('https://github.example.com/api/graphql');
+  });
+
+  it('computes a file’s version as GitHub does, the git blob sha', async () => {
+    expect(await gitBlobSha('{}')).toBe('9e26dfeeb6e641a33dae4961196235bdb965b21b');
+    expect(await gitBlobSha('Zürich – € ✓')).toBe('17730bcd731d177bd88c85eed4cea412ecf12f2e'); // git hash-object, UTF-8 bytes counted
+  });
+
+  it('a commit answered with a 504 that landed anyway is not sent again', async () => {
+    const posts: string[] = [];
+    fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      const u = String(url);
+      const method = init.method ?? 'GET';
+      if (method === 'POST') {
+        posts.push(u);
+        return new Response(JSON.stringify({ message: 'timeout' }), { status: 504 });
+      }
+      if (u.endsWith('/git/ref/heads/data')) return new Response(JSON.stringify({ object: { sha: posts.length ? 'ours' : 'parent' } }), { status: 200 });
+      if (u.endsWith('/git/commits/ours')) return new Response(JSON.stringify({ message: 'Dataset reset', parents: [{ sha: 'parent' }] }), { status: 200 });
+      throw new Error(`unexpected call: ${method} ${u}`);
+    });
+
+    const result = await new GithubClient(location, () => 'token').commitOnHead({
+      branch: location.dataBranch,
+      message: 'Dataset reset',
+      build: async () => ({ files: [{ path: 'teams.json', content: '[]' }], deletes: [] }),
+    });
+
+    expect(result).toMatchObject({ commitSha: 'ours' });
+    expect(posts).toHaveLength(1);
   });
 });

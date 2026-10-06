@@ -30,7 +30,7 @@ import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
 import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { GithubClient, type BranchHead } from '../github/client';
+import { GithubClient, type BranchHead, type CommitResult } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { WriteBudget } from '../github/writeBudget';
 import { unclaimedCapacityPct } from '../data/capacity';
@@ -426,7 +426,7 @@ export class Repository {
   private async runPull(): Promise<void> {
     let complete = true;
     try {
-      const pulled = await this.fetchPull();
+      const pulled = await this.fetchPull().finally(() => this.ownWritten.clear());
       this.pullFailure = null;
       this.deleteFailure = null;
       if (pulled) {
@@ -470,7 +470,9 @@ export class Repository {
     const waiting = [...changed];
     const worker = async () => {
       for (let path = waiting.shift(); path !== undefined; path = waiting.shift()) {
-        const file = await this.github.getFile({ path, branch: at });
+        // A file this client's own many-file commit just wrote, at the version the listing gives, is not read again.
+        const written = this.ownWritten.get(path);
+        const file = written && written.sha === listing.get(path) ? written : await this.github.getFile({ path, branch: at });
         if (file) files.set(path, pulledFile(path, file));
       }
     };
@@ -1037,14 +1039,19 @@ export class Repository {
   /** First-write-capable-client baseline bootstrap (§2, §3 "System writes"): one commit, idempotent. */
   private async bootstrapBaseline(branch: string): Promise<void> {
     const baseline = buildBaselineDataset(this.brand);
-    await this.queue.run(() =>
+    const result = await this.queue.run(() =>
       this.github.createFilesCommit({
         branch,
         message: 'Initialize dataset from fresh-install baseline',
         files: baselineFiles(baseline),
       }),
     );
+    this.ownWritten = new Map(result.written.map((file) => [file.path, file]));
   }
+
+  /** The files this client's last many-file commit wrote, with their versions: the pull after it takes them as they
+   * are rather than downloading them (§10.3). */
+  private ownWritten = new Map<string, { content: string; sha: string }>();
 
   /** New role (§5.9): created from a name, abbreviation and cost factor, active. */
   createRole(input: { name: string; abbreviation: string; costFactor: number }): Role {
@@ -2163,12 +2170,13 @@ export class Repository {
     failureText: string,
     build: Parameters<GithubClient['commitOnHead']>[0]['build'],
   ): Promise<'done' | 'stopped' | { failed: ReadOnlyState }> {
-    let result: { commitSha: string } | 'stopped';
+    let result: CommitResult | 'stopped';
     try {
       result = await this.queue.run(() => this.github.commitOnHead({ branch: this.brand.github.dataBranch, message, build }));
     } catch (error) {
       return { failed: toReadOnlyState(error, failureText) };
     }
+    if (result !== 'stopped') this.ownWritten = new Map(result.written.map((file) => [file.path, file]));
     await this.pullOwnCommit();
     return result === 'stopped' ? 'stopped' : 'done';
   }
@@ -2181,6 +2189,7 @@ export class Repository {
       await this.pull();
     } finally {
       this.ownCommitPull = false;
+      this.ownWritten.clear();
     }
   }
 

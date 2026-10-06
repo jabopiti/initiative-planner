@@ -103,6 +103,47 @@ function assertNotStale(response: Response): void {
   if (response.status === 409) throw new GithubApiError('Stale version — the file changed since it was last read.', 'conflict', 409);
 }
 
+export interface FileChange {
+  path: string;
+  content: string;
+}
+
+/** What a many-file commit writes and deletes. */
+export interface FileChanges {
+  files: FileChange[];
+  deletes: string[];
+}
+
+/** A many-file commit that landed, with each written file's version (its git blob sha). */
+export interface CommitResult {
+  commitSha: string;
+  written: (FileChange & { sha: string })[];
+}
+
+const CREATE_COMMIT = `mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }`;
+
+/** GitHub's GraphQL endpoint for an API base URL: derived, not appended (§2). `https://api.github.com/graphql`, or on
+ * GitHub Enterprise `https://<host>/api/graphql` for `https://<host>/api/v3`. */
+export function graphqlUrl(apiBaseUrl: string): string {
+  const base = apiBaseUrl.replace(/\/+$/, '');
+  return base.endsWith('/api/v3') ? `${base.slice(0, -'/v3'.length)}/graphql` : `${base}/graphql`;
+}
+
+/** A file's version as GitHub gives it, the git blob sha: SHA-1 of `blob <bytes>\0` and the UTF-8 content (§10.3). */
+export async function gitBlobSha(content: string): Promise<string> {
+  const bytes = new TextEncoder().encode(content);
+  const header = new TextEncoder().encode(`blob ${bytes.length}\0`);
+  const whole = new Uint8Array(header.length + bytes.length);
+  whole.set(header);
+  whole.set(bytes, header.length);
+  const digest = await crypto.subtle.digest('SHA-1', whole);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function withVersions(files: FileChange[]): Promise<(FileChange & { sha: string })[]> {
+  return Promise.all(files.map(async (file) => ({ ...file, sha: await gitBlobSha(file.content) })));
+}
+
 export class GithubClient {
   constructor(
     private readonly location: GithubLocation,
@@ -319,156 +360,140 @@ export class GithubClient {
   }
 
   /**
-   * Replace and delete several files on an existing branch as one commit through the Git data API (§10.3): Reset and
-   * Load example data. `build` is asked what to write against the head the commit will sit on, and may read the
-   * branch at that commit (`at`) to decide; null stops without committing. Only the final ref update changes the
-   * branch, so a failure before it leaves the branch as it was. When another commit lands first, the ref update is
-   * refused as not a fast-forward (422) and the whole commit is built again on the new head, up to three times.
+   * Replace and delete several files on an existing branch as one commit (§10.3): Reset, Load example data, the
+   * bootstrap onto an existing branch, and a user action that writes several files. `build` is asked what to write
+   * against the head the commit will sit on, and may read the branch at that commit (`at`) to decide; null stops
+   * without committing. One GraphQL `createCommitOnBranch` makes the commit, refused unless the branch is still at that
+   * head; then the whole commit is built again on the new head, up to three times. The written files come back with
+   * their versions, computed here, so nobody needs to download them again.
    */
   async commitOnHead(args: {
     branch: string;
     message: string;
-    build: (at: string) => Promise<{ files: { path: string; content: string }[]; deletes: string[] } | null>;
-  }): Promise<{ commitSha: string } | 'stopped'> {
+    build: (at: string) => Promise<FileChanges | null>;
+    /** The head the caller has just read, for the first attempt. */
+    head?: string;
+  }): Promise<CommitResult | 'stopped'> {
     assertBranch(args.branch);
     const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
     for (let attempt = 0; ; attempt += 1) {
-      const refResponse = await this.request(refUrl, { method: 'GET' });
-      await assertOk(refResponse, 'GET ref');
-      const head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
-      // The base tree only matters once there is something to write; fetch it while `build` reads.
-      const baseTree = this.treeOf(head);
-      baseTree.catch(() => {}); // awaited below unless `build` stops or throws first
-
+      let head = attempt === 0 ? args.head : undefined;
+      if (head === undefined) {
+        const refResponse = await this.request(refUrl, { method: 'GET' });
+        await assertOk(refResponse, 'GET ref');
+        head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
+      }
       const changes = await args.build(head);
       if (changes === null) return 'stopped';
-
-      const blobs = await this.createBlobs(changes.files);
-      // A null sha removes the path from the base tree.
-      const removed = changes.deletes.map((path) => ({ path, sha: null }));
-      const commitSha = await this.createCommit({ baseTree: await baseTree, parent: head, entries: [...blobs, ...removed], message: args.message });
-
-      const updateResponse = await this.updateRef(args.branch, commitSha);
-      if (updateResponse.status === 422 && attempt < 3) continue; // the head moved: build again on the new one
-      if (updateResponse.status === 422) throw new GithubApiError('The data branch kept changing — please retry.', 'conflict', 422);
-      await assertOk(updateResponse, 'Ref update');
-      return { commitSha };
+      const outcome = await this.commitOnBranch({ branch: args.branch, expectedHeadOid: head, message: args.message, ...changes });
+      if (outcome === 'moved' && attempt < 3) continue; // another commit landed first: build again on the new head
+      if (outcome === 'moved') throw new GithubApiError('The data branch kept changing — please retry.', 'conflict', 422);
+      return { commitSha: outcome.commitSha, written: await withVersions(changes.files) };
     }
-  }
-
-  private async treeOf(commitSha: string): Promise<string> {
-    const commitResponse = await this.request(this.repoUrl(`git/commits/${commitSha}`), { method: 'GET' });
-    await assertOk(commitResponse, 'GET commit');
-    return ((await commitResponse.json()) as { tree: { sha: string } }).tree.sha;
-  }
-
-  private createBlobs(files: { path: string; content: string }[]): Promise<{ path: string; sha: string }[]> {
-    return Promise.all(
-      files.map(async (file) => {
-        const blobResponse = await this.request(this.repoUrl('git/blobs'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: encodeBase64Utf8(file.content), encoding: 'base64' }),
-        });
-        await assertOk(blobResponse, 'Blob create');
-        return { path: file.path, sha: ((await blobResponse.json()) as { sha: string }).sha };
-      }),
-    );
-  }
-
-  /** A tree on `baseTree` with `entries` (a null sha removes the path), then a commit of it on `parent`; returns the commit's sha. */
-  private async createCommit(args: {
-    baseTree?: string;
-    parent?: string;
-    entries: { path: string; sha: string | null }[];
-    message: string;
-  }): Promise<string> {
-    const treeResponse = await this.request(this.repoUrl('git/trees'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...(args.baseTree ? { base_tree: args.baseTree } : {}),
-        tree: args.entries.map((e) => ({ path: e.path, mode: '100644', type: 'blob', sha: e.sha })),
-      }),
-    });
-    await assertOk(treeResponse, 'Tree create');
-    const tree = ((await treeResponse.json()) as { sha: string }).sha;
-
-    const commitResponse = await this.request(this.repoUrl('git/commits'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: args.message, tree, parents: args.parent ? [args.parent] : [] }),
-    });
-    await assertOk(commitResponse, 'Commit create');
-    return ((await commitResponse.json()) as { sha: string }).sha;
-  }
-
-  /** Updating a ref is PATCH .../git/refs/heads/{branch} (plural); only the GET is `git/ref/...` (singular) — PATCHing the singular URL is a 404. */
-  private updateRef(branch: string, commitSha: string): Promise<Response> {
-    return this.request(this.repoUrl(`git/refs/heads/${encodePath(branch)}`), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sha: commitSha }),
-    });
   }
 
   /**
-   * Create or update several files as one commit through the Git Data API
-   * (§10.3: "Operations that change many files ... are a single commit
-   * through the Git data API"). Used for the fresh-install baseline bootstrap
-   * (§3 "System writes"). If the branch doesn't exist yet, it's created as
-   * an orphan (no parent commit, no base tree) — confirmed viable against
-   * the real API in slice 002's spike.
+   * One GraphQL `createCommitOnBranch` on `branch`, refused unless the branch is at `expectedHeadOid` (§10.3). It is one
+   * content-creating request whatever its size. 'moved' when the branch moved or a file to delete is already gone:
+   * the caller reads again and decides. GitHub can answer a commit it made with a 5xx or not at all
+   * (spike-findings.md): then the head is read, and a head that is our commit on our parent counts as made.
    */
-  async createFilesCommit(args: {
-    branch: string;
-    files: { path: string; content: string }[];
-    message: string;
-  }): Promise<{ commitSha: string }> {
+  async commitOnBranch(args: { branch: string; expectedHeadOid: string; message: string } & FileChanges): Promise<{ commitSha: string } | 'moved'> {
     assertBranch(args.branch);
+    const [headline, ...rest] = args.message.split('\n\n');
+    const input = {
+      branch: { repositoryNameWithOwner: `${this.location.owner}/${this.location.repo}`, branchName: args.branch },
+      expectedHeadOid: args.expectedHeadOid,
+      message: { headline, ...(rest.length > 0 ? { body: rest.join('\n\n') } : {}) },
+      fileChanges: {
+        additions: args.files.map((file) => ({ path: file.path, contents: encodeBase64Utf8(file.content) })),
+        deletions: args.deletes.map((path) => ({ path })),
+      },
+    };
+    let response: Response;
+    try {
+      response = await this.request(graphqlUrl(this.location.apiBaseUrl), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: CREATE_COMMIT, variables: { input } }),
+      });
+      if (response.status >= 500) throw await failure(response, 'Commit');
+    } catch (error) {
+      if (error instanceof GithubApiError && error.cause_ === 'unreachable') {
+        const landed = await this.landedOn(args.branch, args.expectedHeadOid, headline).catch(() => null);
+        if (landed) return { commitSha: landed };
+      }
+      throw error;
+    }
+    await assertOk(response, 'Commit');
+    const body = (await response.json()) as { data?: { createCommitOnBranch?: { commit?: { oid: string } } | null }; errors?: { type?: string; message?: string }[] };
+    // A refusal is a 200 with errors, told apart by type (spike-findings.md).
+    const errors = body.errors ?? [];
+    if (errors.some((e) => e.type === 'STALE_DATA' || e.type === 'NOT_FOUND')) return 'moved';
+    const oid = body.data?.createCommitOnBranch?.commit?.oid;
+    if (errors.length > 0 || !oid) throw new GithubApiError(`Commit failed: ${errors[0]?.message ?? 'no commit'}`, 'unknown', response.status);
+    return { commitSha: oid };
+  }
 
-    // Blob content doesn't depend on the branch/ref lookup below, so start both concurrently.
-    const blobsPromise = this.createBlobs(args.files);
-    // If the ref/commit lookup below throws first, this function returns without ever
-    // reaching `await blobsPromise` — if a blob upload then fails on its own, nothing would
-    // be listening for that rejection. This no-op catch just keeps that from ever being
-    // unhandled; the real rejection is still seen wherever `blobsPromise` is awaited below.
-    blobsPromise.catch(() => {});
+  /** The branch's head, when it is a commit titled `headline` on `parent`: a commit of ours whose answer was lost. */
+  private async landedOn(branch: string, parent: string, headline: string): Promise<string | null> {
+    const refResponse = await this.request(this.repoUrl(`git/ref/heads/${encodePath(branch)}`), { method: 'GET' });
+    await assertOk(refResponse, 'GET ref');
+    const head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
+    if (head === parent) return null;
+    const commitResponse = await this.request(this.repoUrl(`git/commits/${head}`), { method: 'GET' });
+    await assertOk(commitResponse, 'GET commit');
+    const commit = (await commitResponse.json()) as { message: string; parents: { sha: string }[] };
+    return commit.parents[0]?.sha === parent && commit.message.split('\n')[0] === headline ? head : null;
+  }
 
+  /**
+   * The fresh-install baseline (§3 "System writes") as one commit. Onto an existing branch it is {@link commitOnHead}.
+   * A missing branch is created, which GraphQL can't do: a tree with the files' contents inline, a commit with no
+   * parent, then the ref; three content-creating requests and no blob uploads. When another client creates the branch
+   * first (422), its commit is returned instead of ours, which then belongs to no branch.
+   */
+  async createFilesCommit(args: { branch: string; files: FileChange[]; message: string }): Promise<CommitResult> {
+    assertBranch(args.branch);
     const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
-    // Once more if another commit lands on an existing branch first: the ref update is then refused as not a
-    // fast-forward (422), and the commit is made again on the new head, as commitOnHead does.
-    for (let attempt = 0; ; attempt += 1) {
-      const refResponse = await this.request(refUrl, { method: 'GET' });
-      if (refResponse.status === 404) break;
+    const refResponse = await this.request(refUrl, { method: 'GET' });
+    if (refResponse.status !== 404) {
       await assertOk(refResponse, 'GET ref');
-      const parent = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
-      const baseTree = await this.treeOf(parent);
-      const commitSha = await this.createCommit({ baseTree, parent, entries: await blobsPromise, message: args.message });
-      const updateResponse = await this.updateRef(args.branch, commitSha);
-      if (updateResponse.status === 422 && attempt < 1) continue;
-      await assertOk(updateResponse, 'Ref update');
-      return { commitSha };
+      const head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
+      const result = await this.commitOnHead({ branch: args.branch, message: args.message, head, build: async () => ({ files: args.files, deletes: [] }) });
+      return result as CommitResult;
     }
 
-    const commitSha = await this.createCommit({ entries: await blobsPromise, message: args.message });
+    const treeResponse = await this.request(this.repoUrl('git/trees'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tree: args.files.map((file) => ({ path: file.path, mode: '100644', type: 'blob', content: file.content })) }),
+    });
+    await assertOk(treeResponse, 'Tree create');
+    const tree = ((await treeResponse.json()) as { sha: string }).sha;
+    const commitResponse = await this.request(this.repoUrl('git/commits'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: args.message, tree, parents: [] }),
+    });
+    await assertOk(commitResponse, 'Commit create');
+    const commitSha = ((await commitResponse.json()) as { sha: string }).sha;
 
     const createRefResponse = await this.request(this.repoUrl('git/refs'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ref: `refs/heads/${args.branch}`, sha: commitSha }),
     });
-    // 422 "Reference already exists" — another client won the bootstrap race (§3 "System writes":
-    // concurrent attempts converge, no duplicates). Our own commit never got attached to the
-    // branch in that case, so `commitSha` would be a dangling sha — return the ref's actual
-    // (winning) commit instead of our own, so a future caller never trusts an unreachable sha.
+    // 422 "Reference already exists" — another client won the bootstrap race (§3 "System writes": concurrent attempts
+    // converge, no duplicates). Return the ref's actual (winning) commit, and nothing written by us.
     if (createRefResponse.status === 422) {
       const wonRefResponse = await this.request(refUrl, { method: 'GET' });
       await assertOk(wonRefResponse, 'GET ref');
       const wonRef = (await wonRefResponse.json()) as { object: { sha: string } };
-      return { commitSha: wonRef.object.sha };
+      return { commitSha: wonRef.object.sha, written: [] };
     }
     await assertOk(createRefResponse, 'Ref create');
-    return { commitSha };
+    return { commitSha, written: await withVersions(args.files) };
   }
+
 }
