@@ -84,30 +84,30 @@ team at once.
 
 ## Acceptance criteria
 
-- [ ] Given an initiative with no allocations in any unlocked phase, when
+- [x] Given an initiative with no allocations in any unlocked phase, when
       another team is chosen, then the team changes at once with one commit
       and no confirmation.
-- [ ] Given allocations of people who are not on the new team, when another
+- [x] Given allocations of people who are not on the new team, when another
       team is chosen, then a confirmation names those people, the number of
       allocations and their planned cost, and names those who are on both
       teams and stay, and nothing has changed yet.
-- [ ] Given the confirmation, when Cancel is chosen, then the team and every
+- [x] Given the confirmation, when Cancel is chosen, then the team and every
       allocation are unchanged and the pill shows the current team.
-- [ ] Given the confirmation, when Change team is chosen, then the team
+- [x] Given the confirmation, when Change team is chosen, then the team
       changes, only the allocations of people not on the new team are removed
       from the unlocked phases, and everything is written in one commit whose
       message names the initiative, both teams and the count.
-- [ ] Given a person on both teams, when the team changes, then their
+- [x] Given a person on both teams, when the team changes, then their
       allocations stay.
-- [ ] Given a person whose membership on the new team is inactive, when the
+- [x] Given a person whose membership on the new team is inactive, when the
       team changes, then they count as not on the team.
-- [ ] Given a phase the locked predicate reports as locked, when the team
+- [x] Given a phase the locked predicate reports as locked, when the team
       changes, then its allocations, dates and figures are unchanged.
-- [ ] Given a change was confirmed, when Undo is chosen within 10 seconds,
+- [x] Given a change was confirmed, when Undo is chosen within 10 seconds,
       then the previous team and the removed allocations come back.
-- [ ] Given a Closed or Cancelled initiative, when its header renders, then
+- [x] Given a Closed or Cancelled initiative, when its header renders, then
       the team is shown and cannot be changed; On hold can.
-- [ ] Given the confirmation, when read by a screen reader, then it is
+- [x] Given the confirmation, when read by a screen reader, then it is
       announced and the focus moves to its first action.
 
 ## Flags and compromises

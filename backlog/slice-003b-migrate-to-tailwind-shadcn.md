@@ -261,28 +261,28 @@ needing their own migration step.
 
 ## Acceptance criteria
 
-- [ ] Given the project, when it's built, then no `tailwind.config.js`
+- [x] Given the project, when it's built, then no `tailwind.config.js`
       exists and colour tokens are declared via `@theme`/`@theme inline`
       in CSS.
-- [ ] Given the theme control is used, when Dark is selected, then a
+- [x] Given the theme control is used, when Dark is selected, then a
       `.dark` class is applied to the document root and every token-driven
       colour updates without a reload.
-- [ ] Given slice 003's original acceptance criteria, when re-run against
+- [x] Given slice 003's original acceptance criteria, when re-run against
       the migrated screens, then all of them still pass.
-- [ ] Given any icon from slice 003, when inspected, then it comes from
+- [x] Given any icon from slice 003, when inspected, then it comes from
       the Lucide set, not Tabler.
-- [ ] Given the content security policy (§10.1, §10.9), when the migrated
+- [x] Given the content security policy (§10.1, §10.9), when the migrated
       app is loaded, then no inline styles or `eval` are introduced by the
       Tailwind or shadcn tooling.
-- [ ] Given the migrated screens, when their source is inspected, then
+- [x] Given the migrated screens, when their source is inspected, then
       styling is done with Tailwind utility classes — no hand-written
       `.css` files outside the `@theme` token definitions.
-- [ ] Given `docs/spec.md`, `README.md`, `AGENTS.md`, and the backlog
+- [x] Given `docs/spec.md`, `README.md`, `AGENTS.md`, and the backlog
       files listed in Scope Part B, when they are read after this slice,
       then each contains the exact new text specified, with no leftover
       reference to CSS Modules, Radix UI/React Aria as the primitive
       source, or Tabler Icons as current.
-- [ ] Given `backlog/slices-overview.md`, when read, then it lists 12
+- [x] Given `backlog/slices-overview.md`, when read, then it lists 12
       total slices, shows 003b between 003 and 004, and 004 depends on
       003b.
 

@@ -5,9 +5,13 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import { BrandProvider } from '../state/BrandContext';
 import { ConnectScreen } from './ConnectScreen';
 
+const origin = vi.hoisted(() => ({ shared: false }));
+vi.mock('../auth/sharedOrigin', () => ({ isSharedOrigin: () => origin.shared }));
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  origin.shared = false;
 });
 
 function jsonResponse(body: unknown, status = 200, headers: HeadersInit = {}): Response {
@@ -128,5 +132,29 @@ describe('ConnectScreen — checked-token outcomes (§5.10)', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toBe("Couldn't reach GitHub to check the token. Check your connection and try again.");
+  });
+});
+
+describe('ConnectScreen — Remember me on a shared origin (§3, §5.10)', () => {
+  it('on its own origin, Remember me is offered and the card says the browser keeps it unencrypted', () => {
+    renderConnectScreen();
+
+    expect(screen.getByRole('checkbox', { name: 'Remember me on this device' })).toBeEnabled();
+    expect(screen.queryByText(/Not available here/)).toBeNull();
+    expect(screen.getByText(/The browser keeps it unencrypted/)).toBeInTheDocument();
+  });
+
+  it('on github.io, Remember me is disabled with the reason, and the card explains why', () => {
+    origin.shared = true;
+    renderConnectScreen();
+
+    const checkbox = screen.getByRole('checkbox', { name: 'Remember me on this device' });
+    expect(checkbox).toBeDisabled();
+    expect(checkbox).toHaveAccessibleDescription(
+      "Not available here: this copy runs on github.io, where other sites can read what it saves. It’s kept for this tab only.",
+    );
+    expect(screen.getByText('Why there is no Remember me here.')).toBeInTheDocument();
+    expect(screen.queryByText(/The browser keeps it unencrypted/)).toBeNull();
+    expect(screen.queryByText(/unless you tick/)).toBeNull();
   });
 });

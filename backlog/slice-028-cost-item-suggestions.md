@@ -67,19 +67,19 @@ and realistic amounts with less typing.
 
 ## Acceptance criteria
 
-- [ ] Given labels used 3×, 2× and 1× that contain "te", then typing "te" lists
+- [x] Given labels used 3×, 2× and 1× that contain "te", then typing "te" lists
       them in that order, at most 5.
-- [ ] Given "Cloud hosting" and "cloud hosting ", then they are one suggestion
+- [x] Given "Cloud hosting" and "cloud hosting ", then they are one suggestion
       shown with the most recent spelling.
-- [ ] Given a suggestion is chosen, then label, amount and timing are prefilled
+- [x] Given a suggestion is chosen, then label, amount and timing are prefilled
       from the item in the phase with the latest start date; a one-month
       item's month is left empty.
-- [ ] Given prefilled values, then each is editable, and nothing is saved until
+- [x] Given prefilled values, then each is editable, and nothing is saved until
       Add.
-- [ ] Given the keyboard, then arrows move, Enter chooses, Esc closes the list
+- [x] Given the keyboard, then arrows move, Enter chooses, Esc closes the list
       keeping the text.
-- [ ] Given text no earlier label contains, then no list shows.
-- [ ] Given a screen reader, then the field is announced as a combobox and the
+- [x] Given text no earlier label contains, then no list shows.
+- [x] Given a screen reader, then the field is announced as a combobox and the
       number of suggestions is announced.
 
 ## Flags and compromises

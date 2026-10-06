@@ -70,22 +70,22 @@ skipped gate's record like any other).
 
 ## Acceptance criteria
 
-- [ ] Given an Active initiative whose last passed gate is G2, then the
+- [x] Given an Active initiative whose last passed gate is G2, then the
       Actions menu lists "Reopen G2"; choosing it clears G2's record and
       frozen snapshot, makes Validation current, and commits "<name>: G2
       reopened".
-- [ ] Given Reopen G2 was chosen, then recorded actuals in Validation are
+- [x] Given Reopen G2 was chosen, then recorded actuals in Validation are
       unchanged, and G2's checklist statuses and notes are as they were.
-- [ ] Given G1 and G2 passed and G2 is reopened, then the menu next lists
+- [x] Given G1 and G2 passed and G2 is reopened, then the menu next lists
       "Reopen G1" (one transition per click).
-- [ ] Given a Closed initiative, then the menu lists "Reopen G4"; choosing it
+- [x] Given a Closed initiative, then the menu lists "Reopen G4"; choosing it
       (or the frozen line's Reopen) clears G4's record, sets the status to
       Active, removes the frozen line and shows the magic bar again.
-- [ ] Given an initiative with no gate record and not Cancelled, then the
+- [x] Given an initiative with no gate record and not Cancelled, then the
       menu lists no Reopen item.
-- [ ] Given an On Hold initiative with a passed gate, then Reopen <gate> is
+- [x] Given an On Hold initiative with a passed gate, then Reopen <gate> is
       listed and works, and the status stays On Hold.
-- [ ] Given a costed gate reopened, then the cost summary's "approved at" and
+- [x] Given a costed gate reopened, then the cost summary's "approved at" and
       the escalation baseline use the previous passed costed gate, or none.
 
 ## Flags and compromises

@@ -72,32 +72,32 @@ even when blocked.
 
 ## Acceptance criteria
 
-- [ ] Given any initiative, then the current phase is expanded on open and
+- [x] Given any initiative, then the current phase is expanded on open and
       its gate panel is the next section.
-- [ ] Given an older phase with overdue actuals, then it is collapsed with
+- [x] Given an older phase with overdue actuals, then it is collapsed with
       a Warning chip: "No actual for Aug 2026", or "3 actuals overdue".
-- [ ] Given a gate with N requirements, then the panel lists N rows and the
+- [x] Given a gate with N requirements, then the panel lists N rows and the
       count reads "x of N".
-- [ ] Given the magic bar, then the current and next phase show icon and
+- [x] Given the magic bar, then the current and next phase show icon and
       name, the others their icon with a tooltip; each step has an
       accessible name such as "Validation, current" or "Discovery, done",
       a done phase shows a tick beside its icon (both Met), a skipped one
       the skip icon, and the current one is an Accent pill.
-- [ ] Given a current phase without cost (Discovery), then its gate panel
+- [x] Given a current phase without cost (Discovery), then its gate panel
       follows its row and the next costed phase opens.
-- [ ] Given a gate requiring estimates, then its first panel row reads
+- [x] Given a gate requiring estimates, then its first panel row reads
       "<phases> have a period and at least one allocation or cost item"
       with Open or Met, and Go to <phase> opens and focuses the first
       phase missing one.
-- [ ] Given Overrun with an open requirement, then the bar reads
+- [x] Given Overrun with an open requirement, then the bar reads
       "Validation is 12 days overrun · "Business case approved" is not
       resolved (+2 more)" on one line; one day reads "1 day overrun", also
       in the Needs attention strip.
-- [ ] Given a 90-character initiative name, then the header shows it in full
+- [x] Given a 90-character initiative name, then the header shows it in full
       over at most two lines.
-- [ ] Given a blocked gate, then Pass gate renders as an outline button with
+- [x] Given a blocked gate, then Pass gate renders as an outline button with
       the open count and is announced as disabled with the reason.
-- [ ] Given hover or focus on the title, description, team or owner, then
+- [x] Given hover or focus on the title, description, team or owner, then
       a fill and border show in both themes.
 
 ## Flags and compromises

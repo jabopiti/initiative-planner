@@ -86,30 +86,30 @@ in the menu (016); Delete (017); Duplicate (025).
 
 ## Acceptance criteria
 
-- [ ] Given an Active initiative, when ⋯ Actions is opened, then it lists
+- [x] Given an Active initiative, when ⋯ Actions is opened, then it lists
       Put on hold and no action that isn't built or doesn't apply.
-- [ ] Given Put on hold is chosen, then the status is On Hold, the commit
+- [x] Given Put on hold is chosen, then the status is On Hold, the commit
       reads "<name>: put on hold", and no confirmation was asked.
-- [ ] Given an On Hold initiative, then the Actions menu lists Resume and not
+- [x] Given an On Hold initiative, then the Actions menu lists Resume and not
       Put on hold, and the status badge shows the pause icon and "On Hold".
-- [ ] Given an On Hold initiative, then the magic bar shows "On hold" and a
+- [x] Given an On Hold initiative, then the magic bar shows "On hold" and a
       Resume button, and Pass gate is muted.
-- [ ] Given the muted Pass gate is selected while on hold, then the bar reads
+- [x] Given the muted Pass gate is selected while on hold, then the bar reads
       "<name> is on hold. Resume it to pass <gate>." and no gate is passed.
-- [ ] Given Resume is chosen (bar or menu), then the status is Active, the
+- [x] Given Resume is chosen (bar or menu), then the status is Active, the
       commit reads "<name>: resumed", and the bar returns to its gate state.
-- [ ] Given an On Hold initiative, then its name, description, owner, team,
+- [x] Given an On Hold initiative, then its name, description, owner, team,
       periods, allocations, cost items, checklist and actuals are all still
       editable.
-- [ ] Given an On Hold initiative, then it is not on the Portfolio board, not
+- [x] Given an On Hold initiative, then it is not on the Portfolio board, not
       in Needs attention or the nav count, and its allocations are not in the
       team capacity grid's counted figures; it is listed in the Initiatives
       table.
-- [ ] Given an On Hold initiative whose phase is past its end date, then the
+- [x] Given an On Hold initiative whose phase is past its end date, then the
       bar shows the on-hold state, not the overrun alarm.
-- [ ] Given a Closed initiative (fixture) and no action that applies to it,
+- [x] Given a Closed initiative (fixture) and no action that applies to it,
       then the ⋯ button is not shown.
-- [ ] Given keyboard only, then the ⋯ button opens the menu with Enter or
+- [x] Given keyboard only, then the ⋯ button opens the menu with Enter or
       Space, items are reachable with the arrow keys, and Esc closes it with
       focus back on the button; the button's accessible name is "Actions".
 

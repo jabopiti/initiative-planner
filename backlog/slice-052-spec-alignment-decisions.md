@@ -75,15 +75,15 @@ Assumption: the fallback locale is `en` when the browser reports none.
 
 ## Acceptance criteria
 
-- [ ] Given each item, then the user's decision is in the spec section it
+- [x] Given each item, then the user's decision is in the spec section it
       concerns, and the slice records which way it went.
-- [ ] Given a browser set to German, then amounts, dates and clock times
+- [x] Given a browser set to German, then amounts, dates and clock times
       on the board, tables, date fields and Connection panel show German
       formats, and compact amounts read "€395k".
-- [ ] Given a focused table row, then Enter and Space open it.
-- [ ] Given a decision that changes behaviour, then tests assert it and any
+- [x] Given a focused table row, then Enter and Space open it.
+- [x] Given a decision that changes behaviour, then tests assert it and any
       follow-up code is its own commit.
-- [ ] Given the spec afterwards, then no sentence in it contradicts another
+- [x] Given the spec afterwards, then no sentence in it contradicts another
       on these points.
 
 ## Flags and compromises

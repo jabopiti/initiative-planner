@@ -113,43 +113,43 @@ trailer line (backlog tail).
 
 ## Acceptance criteria
 
-- [ ] Given GitHub is unreachable, when a read or write fails, then a
+- [x] Given GitHub is unreachable, when a read or write fails, then a
       Warning-coloured banner appears directly below the top bar on every
       page, names the cause, offers Retry, and cannot be dismissed while
       read-only.
-- [ ] Given the read-only banner and an open conflict are both showing,
+- [x] Given the read-only banner and an open conflict are both showing,
       then the read-only banner is above `ConflictBanner`.
-- [ ] Given the cause is "unreachable" or "rate limited", when sync starts
+- [x] Given the cause is "unreachable" or "rate limited", when sync starts
       working again with no user action, then the banner and every failed
       field clear themselves within one retry-loop tick, without a Retry
       click.
-- [ ] Given the cause is "access denied" or "process mismatch / dataset
+- [x] Given the cause is "access denied" or "process mismatch / dataset
       newer", when time passes with no user action, then nothing
       auto-retries; the banner and any failed field stay exactly as they
       are until a Retry is clicked or the underlying cause is fixed.
-- [ ] Given the read-only banner's Retry is clicked, for any cause, then a
+- [x] Given the read-only banner's Retry is clicked, for any cause, then a
       pull is retried immediately and every currently-failed file's writer
       resends its last edit, instead of waiting for the next tick.
-- [ ] Given a field's edit fails to save, then that field keeps its typed
+- [x] Given a field's edit fails to save, then that field keeps its typed
       value and shows "Not saved: `<cause>`." with its own Retry button,
       instead of looking identical to a saved field.
-- [ ] Given a failed field's Retry is clicked, then only that field's file
+- [x] Given a failed field's Retry is clicked, then only that field's file
       is resent.
-- [ ] Given a failed field, when a new edit is typed into it, then its
+- [x] Given a failed field, when a new edit is typed into it, then its
       failed message and Retry disappear at once.
-- [ ] Given two fields whose edits landed in the same failed commit (edited
+- [x] Given two fields whose edits landed in the same failed commit (edited
       inside the same debounce window), then both show the failed state,
       and retrying either resends the same combined edit.
-- [ ] Given a field's path is also under an open same-field conflict, then
+- [x] Given a field's path is also under an open same-field conflict, then
       that field shows only the conflict banner's message, never the
       failed-edit message as well.
-- [ ] Given a checklist status change, a deactivate/reactivate, or a new
+- [x] Given a checklist status change, a deactivate/reactivate, or a new
       initiative fails, then no inline retry appears on that control; the
       failure is visible only via the read-only banner.
-- [ ] Given a screen reader, when the banner or a failed field appears,
+- [x] Given a screen reader, when the banner or a failed field appears,
       then it is announced (`role="alert"`) and its Retry button has an
       accessible name distinct from any other Retry button on screen.
-- [ ] Given the existing writer and pull interleaving tests (005g, 005i),
+- [x] Given the existing writer and pull interleaving tests (005g, 005i),
       when they run against this slice's changes, then every invariant
       they pin other than "a failed write never retries itself" still
       holds; that one test is updated to assert the new automatic-retry

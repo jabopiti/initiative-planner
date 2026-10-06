@@ -125,18 +125,18 @@ slice's core aggregation behaviour.
 
 ## Acceptance criteria
 
-- [ ] Given an Active initiative whose current phase is past its end date
+- [x] Given an Active initiative whose current phase is past its end date
       with its gate not passed, when the Portfolio loads, then it appears
       as Overrun, ranked above any Due or Ready items.
-- [ ] Given an Active initiative whose live approval track is stricter
+- [x] Given an Active initiative whose live approval track is stricter
       than the one recorded at its last passed gate, when the Portfolio
       loads, then it appears as Escalated, ranked above Overrun.
-- [ ] Given more than three initiatives have an item, when the strip
+- [x] Given more than three initiatives have an item, when the strip
       loads, then only the top three show, with "Show n more" revealing
       the rest.
-- [ ] Given a strip item is clicked, when the initiative page opens, then
+- [x] Given a strip item is clicked, when the initiative page opens, then
       it is scrolled and focused to the place matching that item's kind.
-- [ ] Given an On Hold initiative would otherwise qualify for an item,
+- [x] Given an On Hold initiative would otherwise qualify for an item,
       when the Portfolio loads, then it does not appear in the strip.
 
 ## Flags and compromises

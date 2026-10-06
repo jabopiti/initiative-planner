@@ -57,19 +57,19 @@ field.
 
 ## Acceptance criteria
 
-- [ ] Given the parser table (12k, 2.5m, 3 × 4k, 18k + 2.4k, 1.2m / 12,
+- [x] Given the parser table (12k, 2.5m, 3 × 4k, 18k + 2.4k, 1.2m / 12,
       (2+3)k, 0, "", abc, 5-, 1/0, -3), then each yields the listed amount
       or reason; 0.1 + 0.2 yields exactly 0.30.
-- [ ] Given the decimal-comma format, then "2,5k" is 2,500 and "12,000" in
+- [x] Given the decimal-comma format, then "2,5k" is 2,500 and "12,000" in
       a dot-decimal format is 12,000.
-- [ ] Given "3 × 4k" in a cost item, then "Saves as €12,000" shows and Add
+- [x] Given "3 × 4k" in a cost item, then "Saves as €12,000" shows and Add
       saves 12000.
-- [ ] Given "abc", then the reason shows and no write is made.
-- [ ] Given a plain "820", then no "Saves as" line shows and the value
+- [x] Given "abc", then the reason shows and no write is made.
+- [x] Given a plain "820", then no "Saves as" line shows and the value
       saves on Enter as today.
-- [ ] Given each amount field (cost item, actual, country rate, custom-role
+- [x] Given each amount field (cost item, actual, country rate, custom-role
       rate), then the currency symbol sits inside it.
-- [ ] Given `grep` for `eval(` and `new Function` in `src`, then none.
+- [x] Given `grep` for `eval(` and `new Function` in `src`, then none.
 
 ## Flags and compromises
 

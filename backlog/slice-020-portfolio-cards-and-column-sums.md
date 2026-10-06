@@ -74,24 +74,24 @@ metrics, Copy (021); the Getting started strip (033).
 
 ## Acceptance criteria
 
-- [ ] Given an initiative with grand estimate €412,000 and the example tracks,
+- [x] Given an initiative with grand estimate €412,000 and the example tracks,
       then its card shows "€412 k" (tooltip "€412,000") and the badge
       "Elevated"; given one at €0, the badge reads "Light".
-- [ ] Given a total no band covers (fixture), then the badge reads "No
+- [x] Given a total no band covers (fixture), then the badge reads "No
       approval track".
-- [ ] Given an owner, then line 2 reads "<team> · <owner>"; given none, "<team>
+- [x] Given an owner, then line 2 reads "<team> · <owner>"; given none, "<team>
       · No owner".
-- [ ] Given an Overrun item, then the card shows the overrun icon in the Alarm
+- [x] Given an Overrun item, then the card shows the overrun icon in the Alarm
       colour with the tooltip naming "Overrun" and its reason; given no item,
       no marker.
-- [ ] Given Development holds €412,000 and €118,000, then its header reads
+- [x] Given Development holds €412,000 and €118,000, then its header reads
       "Development 2 · €530 k" with the full sum in the tooltip; an empty
       column reads "0 · €0".
-- [ ] Given €850, €41,200 and €4,210,000, then the compact formatter gives
+- [x] Given €850, €41,200 and €4,210,000, then the compact formatter gives
       "€850", "€41 k" and "€4.2 M".
-- [ ] Given a long name, then it is cut with an ellipsis and the full name is
+- [x] Given a long name, then it is cut with an ellipsis and the full name is
       in a tooltip.
-- [ ] Given a screen reader, then each card's attention marker has an
+- [x] Given a screen reader, then each card's attention marker has an
       accessible name naming the kind.
 
 ## Flags and compromises

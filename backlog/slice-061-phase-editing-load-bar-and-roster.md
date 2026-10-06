@@ -61,29 +61,29 @@ person's real load, and click a teammate to staff them.
 
 ## Acceptance criteria
 
-- [ ] Given Jonas at 50% here and 60% elsewhere (cap 100%), then the bar
+- [x] Given Jonas at 50% here and 60% elsewhere (cap 100%), then the bar
       shows the three segments, the ceiling line and a hatched 10%, and its
       accessible value reads "50%, total load 110% of 100%".
-- [ ] Given arrow-right on a focused bar, then the value steps by 5%; Home
+- [x] Given arrow-right on a focused bar, then the value steps by 5%; Home
       gives 0%, End 100%; typing "40" sets 40%.
-- [ ] Given a drag from 50% to 70%, then exactly one write and one commit
+- [x] Given a drag from 50% to 70%, then exactly one write and one commit
       record 70% on release.
-- [ ] Given **Fill free**, then the value equals §5.11's free capacity
+- [x] Given **Fill free**, then the value equals §5.11's free capacity
       (from the current month on, this allocation left out) and no warning
       remains; a row with a capacity warning shows no "Set to <n>%" button.
-- [ ] Given a Provisional phase, then the bar shows this allocation
+- [x] Given a Provisional phase, then the bar shows this allocation
       outlined, nothing hatched, and the load line reads "Provisional, not
       counted · …".
-- [ ] Given a person at 30% here with Team FTE 80% and Capacity 100%, then
+- [x] Given a person at 30% here with Team FTE 80% and Capacity 100%, then
       two labelled ceiling lines show; with both at 100%, one line
       "Capacity and Team FTE 100%".
-- [ ] Given a row with a warning, then it renders in its own full-width
+- [x] Given a row with a warning, then it renders in its own full-width
       row and no column width changes.
-- [ ] Given two unallocated members (50% and 0% free), then both chips
+- [x] Given two unallocated members (50% and 0% free), then both chips
       show, 50% first; clicking it adds an allocation of 50%.
-- [ ] Given 13 unallocated members, then the searchable picker shows
+- [x] Given 13 unallocated members, then the searchable picker shows
       instead of chips.
-- [ ] Given the e2e axe scan, then the detail page passes in both themes.
+- [x] Given the e2e axe scan, then the detail page passes in both themes.
 
 ## Flags and compromises
 
