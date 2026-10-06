@@ -5,7 +5,13 @@ import { changedPaths, getAtPath, pathKey, sameValue, setAtPath, type DocumentMe
 import { parseDataFile } from './validateDataset';
 import type { WriteQueue } from './WriteQueue';
 
-const COMMIT_DEBOUNCE_MS = 1000;
+/** A file's edits are committed this long after the last edit to it (§10.3)… */
+export const COMMIT_QUIET_MS = 4000;
+/** …and at most this long after its first uncommitted edit, so steady editing still saves (§10.3). */
+export const COMMIT_MAX_MS = 20_000;
+
+/** The window every writer uses; tests that wait for a save in real time shorten it (src/test/setup.ts). */
+export const commitWindow = { quietMs: COMMIT_QUIET_MS, maxMs: COMMIT_MAX_MS };
 const MAX_RETRIES = 3;
 /** The wait before retry 1, 2 and 3 after a rejected write (§10.3), before jitter. */
 const RETRY_BACKOFF_MS = [500, 1000, 2000];
@@ -155,6 +161,8 @@ export class FileWriter<D> {
   /** An edit with a note was made since the last save, even if its note has cancelled out. */
   private noted = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** When the oldest edit no save has taken yet was made: the commit window closes {@link COMMIT_MAX_MS} after it. */
+  private windowOpenedAt: number | null = null;
   /** Saves are chained so each starts after the one before it has finished. */
   private tail: Promise<unknown> = Promise.resolve();
   /** Saves requested and not yet started. */
@@ -188,22 +196,26 @@ export class FileWriter<D> {
     for (const n of note === undefined ? [] : [note].flat()) this.note(n);
     this.options.onStatus('syncing');
     if (this.timer) clearTimeout(this.timer);
+    const now = Date.now();
+    this.windowOpenedAt ??= now;
+    const wait = Math.min(commitWindow.quietMs, this.windowOpenedAt + commitWindow.maxMs - now);
     this.timer = setTimeout(() => {
       this.timer = null;
       void this.flush();
-    }, COMMIT_DEBOUNCE_MS);
+    }, Math.max(0, wait));
   }
 
-  /** Save what is pending now, without waiting out the debounce (creation, page unload), after any save in flight. */
+  /** Save what is pending now, without waiting for the commit window to close (§10.3's flush points), after any save in flight. */
   flush(): Promise<SaveResult> {
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
     }
+    this.windowOpenedAt = null;
     return this.enqueue(() => this.saveNext());
   }
 
-  /** Settles once the edits made so far are saved or have failed: one waiting out the debounce is saved now. */
+  /** Settles once the edits made so far are saved or have failed: one waiting for its commit window is saved now. */
   settled(): Promise<unknown> {
     return this.timer ? this.flush() : this.tail;
   }
