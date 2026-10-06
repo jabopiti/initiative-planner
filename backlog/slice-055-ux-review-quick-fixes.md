@@ -77,24 +77,24 @@ screenshots.
 
 ## Acceptance criteria
 
-- [ ] Given an allocation of 100 % at 1280 px, then the whole value and the
+- [x] Given an allocation of 100 % at 1280 px, then the whole value and the
       % are visible in every percent field.
-- [ ] Given keyboard focus on a primary button, an input and a select, then
+- [x] Given keyboard focus on a primary button, an input and a select, then
       each shows the same 2 px `--focus-ring` outline.
-- [ ] Given People, Team detail and Settings rows, then every row action has
+- [x] Given People, Team detail and Settings rows, then every row action has
       a text label in a ⋯ menu; no icon-only row action remains.
-- [ ] Given synced, hovering or focusing the indicator shows "Saved"; given
+- [x] Given synced, hovering or focusing the indicator shows "Saved"; given
       a pending write, it reads "Saving…".
-- [ ] Given the person panel opens, then no text is selected and focus is on
+- [x] Given the person panel opens, then no text is selected and focus is on
       its heading.
-- [ ] Given a Tentative item, then its note field has the label "Why
+- [x] Given a Tentative item, then its note field has the label "Why
       tentative?".
-- [ ] Given the e2e axe scan with `region` and `landmark-one-main` on, then
+- [x] Given the e2e axe scan with `region` and `landmark-one-main` on, then
       every screen passes.
-- [ ] Given filters, then options are sorted A–Z with selected ones first.
-- [ ] Given the Actions menu, then it reads "Cancel initiative…" after a
+- [x] Given filters, then options are sorted A–Z with selected ones first.
+- [x] Given the Actions menu, then it reads "Cancel initiative…" after a
       separator.
-- [ ] Given the Actions menu closes, then its tooltip stays closed.
+- [x] Given the Actions menu closes, then its tooltip stays closed.
 
 ## Flags and compromises
 

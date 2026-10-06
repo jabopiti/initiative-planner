@@ -88,28 +88,28 @@ quick-add row (§5.5) keeps creating standard-role people only.
 
 ## Acceptance criteria
 
-- [ ] Given a person with a standard role, when Custom role is chosen and
+- [x] Given a person with a standard role, when Custom role is chosen and
       a label and a current-year day rate are entered, then the person's
       record holds them and the change is committed with a message naming
       the person.
-- [ ] Given a person with a custom role who is allocated in a phase, when
+- [x] Given a person with a custom role who is allocated in a phase, when
       the day rate is changed, then that phase's cost for them updates to
       working days × Allocation % × the new rate × the custom cost factor,
       and the standard role's factor does not apply.
-- [ ] Given a custom role with a rate for the current year only, when a
+- [x] Given a custom role with a rate for the current year only, when a
       phase in a later year is costed, then it uses the nearest entered
       year's rate, not zero, and the panel says so.
-- [ ] Given a person with a custom role, when the cost factor is changed,
+- [x] Given a person with a custom role, when the cost factor is changed,
       then their cost updates by that factor.
-- [ ] Given a person just switched to Custom role with no rate entered,
+- [x] Given a person just switched to Custom role with no rate entered,
       when the panel renders, then it says "No rate yet. Costed at 0."
-- [ ] Given any text or number field in the person panel, when characters
+- [x] Given any text or number field in the person panel, when characters
       are typed, then nothing is committed until the field loses focus or
       Enter is pressed.
-- [ ] Given a person with a custom role, when Standard role is chosen
+- [x] Given a person with a custom role, when Standard role is chosen
       again, then their cost uses the country rate and role factor, and
       the custom rates are kept until the user clears them.
-- [ ] Given a person with a custom role, when the People overview and an
+- [x] Given a person with a custom role, when the People overview and an
       allocation table render, then both show the custom label as the role.
 
 ## Flags and compromises

@@ -55,16 +55,16 @@ one button.
 
 ## Acceptance criteria
 
-- [ ] Given a cost item of €12,000 on a six-month period, then Spread shows
+- [x] Given a cost item of €12,000 on a six-month period, then Spread shows
       €2,000 in each month; tapping Nov shows €12,000 in Nov alone, and Add
       saves timing one-month Nov.
-- [ ] Given a phase without a valid period, then the timing is the One
+- [x] Given a phase without a valid period, then the timing is the One
       month / Spread toggle with the month input.
-- [ ] Given an unrecorded closed month, then **Record €25,760** records it
+- [x] Given an unrecorded closed month, then **Record €25,760** records it
       in one write; **Different amount** "24.1k" records 24100.
-- [ ] Given six months not yet closed, then one line reads "Oct 2026 – Mar
+- [x] Given six months not yet closed, then one line reads "Oct 2026 – Mar
       2027 · 6 months not closed yet" with their total.
-- [ ] Given the e2e axe scan, then the detail page passes in both themes.
+- [x] Given the e2e axe scan, then the detail page passes in both themes.
 
 ## Flags and compromises
 

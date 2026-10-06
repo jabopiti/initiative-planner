@@ -64,18 +64,18 @@ from the data as each is done (§5.2), without ever blocking anything.
 
 ## Acceptance criteria
 
-- [ ] Given a fresh dataset, then the strip shows "Getting started" with four
+- [x] Given a fresh dataset, then the strip shows "Getting started" with four
       open items and Dismiss for now.
-- [ ] Given each item is clicked, then it opens Countries & rates, Teams, the
+- [x] Given each item is clicked, then it opens Countries & rates, Teams, the
       first active team's detail, and the draft page respectively.
-- [ ] Given `ratesReviewed`, a team, an active team with an active member, and
+- [x] Given `ratesReviewed`, a team, an active team with an active member, and
       an initiative in turn, then each item shows checked and muted.
-- [ ] Given all four done, then the strip is gone.
-- [ ] Given Dismiss for now, then the strip hides until the browser session
+- [x] Given all four done, then the strip is gone.
+- [x] Given Dismiss for now, then the strip hides until the browser session
       ends, and returns in a new session if items remain.
-- [ ] Given session storage throws, then the strip still renders and Dismiss
+- [x] Given session storage throws, then the strip still renders and Dismiss
       hides it for the page's lifetime.
-- [ ] Given another user completes an item, then after the pull it shows
+- [x] Given another user completes an item, then after the pull it shows
       checked here too.
 
 ## Flags and compromises

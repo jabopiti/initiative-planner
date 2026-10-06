@@ -74,40 +74,40 @@ time strip; first-run and empty states each have one clear action.
 
 ## Acceptance criteria
 
-- [ ] Given any screen, then it uses the shared container, PageHeader and
+- [x] Given any screen, then it uses the shared container, PageHeader and
       toolbar row.
-- [ ] Given the detail page at any width, then it is one centred column of
+- [x] Given the detail page at any width, then it is one centred column of
       at most 960 px with the time strip and then the cost summary (059's
       key figures row) under the header.
-- [ ] Given an initiative with periods, then the header's time strip sizes
+- [x] Given an initiative with periods, then the header's time strip sizes
       each phase by its period on one month axis, shows a phase without one
       as a hatched block reading "Not costed" or "No period yet", marks
       Today, and selecting a segment scrolls to that phase.
-- [ ] Given a screen at 1440 px, then its content sits in a centred
+- [x] Given a screen at 1440 px, then its content sits in a centred
       container of at most 1280 px and the top bar's content lines up with it.
-- [ ] Given first run, then the welcome card is shown, "Create a team" is
+- [x] Given first run, then the welcome card is shown, "Create a team" is
       its only primary button, and exactly one "Create a team" action is
       visible (the top bar's create button hidden on the Portfolio).
-- [ ] Given three of four steps done and no initiatives, then the strip
+- [x] Given three of four steps done and no initiatives, then the strip
       stays expanded above the empty state.
-- [ ] Given arrival from a Getting started step, then its target has focus
+- [x] Given arrival from a Getting started step, then its target has focus
       and the Accent highlight.
-- [ ] Given the new-initiative draft, then greyed previews of the time
+- [x] Given the new-initiative draft, then greyed previews of the time
       strip, key figures and phase rows show under the header, hidden from
       screen readers.
-- [ ] Given two of four Getting started steps done, then the strip shows
+- [x] Given two of four Getting started steps done, then the strip shows
       them ticked and "2 of 4 done"; given three, it collapses to a chip
       reading "Getting started · 3 of 4 done".
-- [ ] Given a board column header, then it shows the phase icon beside
+- [x] Given a board column header, then it shows the phase icon beside
       the label, the count as a pill and the sum.
-- [ ] Given an empty board column, then it shows "No initiatives in
+- [x] Given an empty board column, then it shows "No initiatives in
       <phase>".
-- [ ] Given locked Settings, then values render as text, not disabled
+- [x] Given locked Settings, then values render as text, not disabled
       fields, with "Unlock to edit" in the section header; unlocked, the
       button reads "Lock"; a locked Danger zone shows no action buttons.
-- [ ] Given each screen with a table, then "Copy table" is a ghost button
+- [x] Given each screen with a table, then "Copy table" is a ghost button
       at the right end of the toolbar row, after the count.
-- [ ] Given the e2e axe scan in both themes, then every changed screen passes.
+- [x] Given the e2e axe scan in both themes, then every changed screen passes.
 
 ## Flags and compromises
 

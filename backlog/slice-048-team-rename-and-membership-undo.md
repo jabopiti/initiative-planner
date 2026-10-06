@@ -52,14 +52,14 @@ membership can be undone for the usual 10 seconds.
 
 ## Acceptance criteria
 
-- [ ] Given a team, when its name is changed and committed, then every screen
+- [x] Given a team, when its name is changed and committed, then every screen
       shows it and the commit message names old and new.
-- [ ] Given an empty or duplicate name, then it is refused inline with the typed text kept, and Esc reverts; creating
+- [x] Given an empty or duplicate name, then it is refused inline with the typed text kept, and Esc reverts; creating
       a team with a duplicate name is refused the same way.
-- [ ] Given a membership removed from the person panel or the team detail,
+- [x] Given a membership removed from the person panel or the team detail,
       then "Removed. Undo" appears for 10 s and Undo restores the same Team
       FTE % and position.
-- [ ] Given Undo after the person was re-added to the team (or the person or team is gone), then nothing is
+- [x] Given Undo after the person was re-added to the team (or the person or team is gone), then nothing is
       duplicated and "Can't undo: <person> is on <team> again." is shown.
 
 ## Flags and compromises
