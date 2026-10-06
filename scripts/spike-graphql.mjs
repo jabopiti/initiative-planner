@@ -22,14 +22,23 @@ const b64 = (s) => Buffer.from(s, 'utf8').toString('base64');
 const blobSha = (s) => createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${Buffer.byteLength(s)}\0`), Buffer.from(s)])).digest('hex');
 const rateHeaders = (h) => `resource=${h.get('x-ratelimit-resource')} used=${h.get('x-ratelimit-used')} remaining=${h.get('x-ratelimit-remaining')}`;
 
+/** A JSON body, or `{ raw }` for anything else (a proxy's HTML error page), so the report says what came back. */
+function parseBody(text) {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text.slice(0, 300) };
+  }
+}
+
 async function rest(method, path, body) {
   const r = await fetch(`${REST}/${path}`, {
     method,
     headers: { Authorization: `Bearer ${TOKEN}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
     body: body && JSON.stringify(body),
   });
-  const text = await r.text();
-  return { status: r.status, json: text ? JSON.parse(text) : null, h: r.headers };
+  return { status: r.status, json: parseBody(await r.text()), h: r.headers };
 }
 
 async function gql(query, variables = {}) {
@@ -39,9 +48,7 @@ async function gql(query, variables = {}) {
     headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, variables }),
   });
-  const text = await r.text();
-  let json;
-  try { json = JSON.parse(text); } catch { json = { raw: text.slice(0, 300) }; }
+  const json = parseBody(await r.text()) ?? {};
   return { status: r.status, json, h: r.headers, ms: Date.now() - t0, bytes: JSON.stringify({ query, variables }).length };
 }
 
@@ -161,6 +168,7 @@ try {
   report('Q5 GraphQL budget after the spike', short(after.json.data?.rateLimit), `headers ${rateHeaders(after.h)}`);
 } catch (error) {
   report('stopped', String(error));
+  process.exitCode = 1; // the questions after this step went unanswered: not a finished spike
 } finally {
   if (spikeCreated) report('cleanup', `delete ${SPIKE}: ${(await rest('DELETE', `git/refs/heads/${SPIKE}`)).status}`);
 }
