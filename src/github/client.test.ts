@@ -3,6 +3,8 @@ import type { GithubLocation } from '../brand/types';
 import { GithubClient, REQUEST_TIMEOUT_MS } from './client';
 import { WriteQueue } from '../sync/WriteQueue';
 import { GithubApiError } from './errors';
+import { defaultBrandPack } from '../brand/defaultBrand';
+import { fakeGithub } from '../sync/testing/fakeGithub';
 
 const location: GithubLocation = {
   apiBaseUrl: 'https://api.github.com',
@@ -351,53 +353,31 @@ describe('GithubClient — failures are classified and requests end (slice 043)'
     });
   });
 
-  it('bootstrapping an existing branch commits once more when the ref update is not a fast-forward', async () => {
-    let refReads = 0;
-    let patches = 0;
-    fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
-      const u = String(url);
-      const method = init.method ?? 'GET';
-      if (u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob' }), { status: 201 });
-      if (u.endsWith('/git/ref/heads/data')) {
-        refReads += 1;
-        return new Response(JSON.stringify({ object: { sha: `head-${refReads}` } }), { status: 200 });
-      }
-      if (u.includes('/git/commits/head-')) return new Response(JSON.stringify({ tree: { sha: 'tree' } }), { status: 200 });
-      if (u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'new-tree' }), { status: 201 });
-      if (u.endsWith('/git/commits') && method === 'POST') {
-        const parent = (JSON.parse(String(init.body)) as { parents: string[] }).parents[0];
-        return new Response(JSON.stringify({ sha: `commit-on-${parent}` }), { status: 201 });
-      }
-      if (u.endsWith('/git/refs/heads/data') && method === 'PATCH') {
-        patches += 1;
-        return patches === 1
-          ? new Response(JSON.stringify({ message: 'Update is not a fast forward' }), { status: 422 })
-          : new Response(JSON.stringify({ object: { sha: 'x' } }), { status: 200 });
-      }
-      throw new Error(`unexpected call: ${method} ${u}`);
-    });
+  it('bootstrapping an existing branch commits again on the new head when another commit lands first', async () => {
+    const fake = fakeGithub();
+    vi.stubGlobal('fetch', fake.fetchMock);
+    fake.seed('roles.json', []);
+    fake.beforeRefUpdate(() => fake.seed('countries.json', []));
 
-    const client = new GithubClient(location, () => 'token');
-    const result = await client.createFilesCommit({ branch: 'data', files: [{ path: 'dataset.json', content: '{}' }], message: 'm' });
+    const client = new GithubClient(defaultBrandPack.github, () => 'token');
+    await client.createFilesCommit({ branch: 'data', files: [{ path: 'dataset.json', content: '{}' }], message: 'm' });
 
-    expect(result).toEqual({ commitSha: 'commit-on-head-2' });
-    expect(patches).toBe(2);
+    expect(fake.gitCommits).toEqual([{ message: 'm', files: ['dataset.json'], deleted: [] }]);
+    expect(fake.has('countries.json')).toBe(true);
+    expect(fake.requests().filter((r) => r.endsWith('/git/blobs'))).toHaveLength(1);
   });
 
-  it('bootstrapping gives up after the second refused ref update', async () => {
-    fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
-      const u = String(url);
-      if (u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob' }), { status: 201 });
-      if (u.endsWith('/git/ref/heads/data')) return new Response(JSON.stringify({ object: { sha: 'head' } }), { status: 200 });
-      if (u.includes('/git/commits/head')) return new Response(JSON.stringify({ tree: { sha: 'tree' } }), { status: 200 });
-      if (u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'new-tree' }), { status: 201 });
-      if (u.endsWith('/git/commits') && init.method === 'POST') return new Response(JSON.stringify({ sha: 'c' }), { status: 201 });
-      return new Response(JSON.stringify({ message: 'Update is not a fast forward' }), { status: 422 });
-    });
+  it('bootstrapping gives up as a conflict when the branch keeps moving', async () => {
+    const fake = fakeGithub();
+    vi.stubGlobal('fetch', fake.fetchMock);
+    fake.seed('roles.json', []);
+    for (let i = 0; i < 4; i += 1) fake.beforeRefUpdate(() => fake.seed('countries.json', [i]));
 
-    const client = new GithubClient(location, () => 'token');
+    const client = new GithubClient(defaultBrandPack.github, () => 'token');
     await expect(client.createFilesCommit({ branch: 'data', files: [{ path: 'dataset.json', content: '{}' }], message: 'm' })).rejects.toMatchObject({
+      cause_: 'conflict',
       status: 422,
     });
+    expect(fake.gitCommits).toEqual([]);
   });
 });

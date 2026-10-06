@@ -43,8 +43,7 @@ export class DamagedDataError extends Error {
  * the token check (§5.10) already reads it, so the automatic retry covers it.
  */
 export function classifyFailure(status: number, headers: Headers, body: string): GithubFailureCause {
-  if (status === 429) return 'rate-limited';
-  if (status === 403 && isRateLimit(headers, body)) return 'rate-limited';
+  if (status === 429 || (status === 403 && isRateLimit(headers, body))) return 'rate-limited';
   if (status === 401 || status === 403) return 'access-denied';
   if (status === 404) return 'not-found';
   if (status === 409) return 'conflict';
@@ -62,7 +61,7 @@ export interface ReadOnlyState {
 }
 
 /** What the read-only state says for the causes §3 Sync failures names, because each needs a different fix. */
-const CAUSE_MESSAGES: Partial<Record<GithubFailureCause, string>> = {
+export const CAUSE_MESSAGES: Partial<Record<GithubFailureCause, string>> = {
   unreachable: 'Cannot reach GitHub; changes are paused.',
   'access-denied': 'GitHub refused access with this token',
   'rate-limited': 'GitHub is limiting requests; try again shortly',

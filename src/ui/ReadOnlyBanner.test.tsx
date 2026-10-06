@@ -112,18 +112,11 @@ describe('Read-only banner (§3, §9.9)', () => {
       fake.fail('teams.json', 401);
       repo.createTeam('Platform');
       await repo.flushPending();
-      let checks = 0;
-      vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
-        if (new URL(url).pathname === '/user') {
-          checks += 1;
-          return Promise.resolve(new Response(JSON.stringify({ message: 'API rate limit exceeded' }), { status: 403, headers: { 'x-ratelimit-remaining': '0' } }));
-        }
-        return fake.fetchMock(url, init);
-      });
+      fake.setTokenBehaviour('token', 'rate-limited');
       renderBanner(repo);
 
       await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
-      expect(checks).toBe(1);
+      expect(fake.requests().filter((r) => r === 'GET /user')).toHaveLength(1);
       expect(fake.commits('teams.json')).toHaveLength(1);
     });
 

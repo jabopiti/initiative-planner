@@ -38,7 +38,7 @@ cause and message the spec names, and a hung request ends.
 - A request timeout (default 30 s, injectable) aborts the fetch and counts as
   `unreachable`; the write queue moves on.
 - A 422 non-fast-forward on updateRef while bootstrapping an existing branch
-  retries once, as `commitOnHead` does.
+  commits again on the new head, through the same retry as `commitOnHead`.
 
 ## Execution path
 

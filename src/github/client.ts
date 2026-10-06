@@ -1,6 +1,6 @@
 import type { GithubLocation } from '../brand/types';
 import { decodeBase64Utf8, encodeBase64Utf8 } from './base64';
-import { GithubApiError, classifyFailure } from './errors';
+import { CAUSE_MESSAGES, GithubApiError, classifyFailure } from './errors';
 
 /**
  * Thin wrapper over the GitHub Contents API. `branch` is a required,
@@ -70,11 +70,25 @@ async function assertOk(response: Response, label: string, extraOkStatuses: numb
   throw await failure(response, label);
 }
 
-/** A failed response as a GithubApiError, its cause read from the status, headers and body (§3 Sync failures). */
-async function failure(response: Response, message: string, withStatus = true): Promise<GithubApiError> {
+/**
+ * A failed response as a GithubApiError, its cause read from the status, headers and body (§3 Sync failures). GitHub's
+ * own message is kept, so a caller can tell causes apart (a fine-grained token pending organisation approval names
+ * that state in its 403 body).
+ */
+async function failure(response: Response, label: string): Promise<GithubApiError> {
   const body = await response.text().catch(() => '');
   const cause = classifyFailure(response.status, response.headers, body);
-  return new GithubApiError(withStatus ? `${message} failed (${response.status})` : message, cause, response.status);
+  const detail = githubMessage(body);
+  return new GithubApiError(`${label} failed (${response.status})${detail ? `: ${detail}` : ''}`, cause, response.status);
+}
+
+function githubMessage(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    return parsed && typeof parsed === 'object' && 'message' in parsed ? String(parsed.message) : '';
+  } catch {
+    return '';
+  }
 }
 
 /** How long a request may take to answer before it counts as GitHub unreachable (§3 Sync failures). */
@@ -121,7 +135,7 @@ export class GithubClient {
       this.onResponse?.(response.headers);
       return response;
     } catch {
-      throw new GithubApiError('Cannot reach GitHub; changes are paused.', 'unreachable');
+      throw new GithubApiError(CAUSE_MESSAGES.unreachable!, 'unreachable');
     } finally {
       clearTimeout(timer);
     }
@@ -230,7 +244,7 @@ export class GithubClient {
   /** Checked-token validation (§5.10): who this token is, and whether it can write to the configured repo. */
   async checkToken(): Promise<{ login: string; scopesClassic: boolean }> {
     const userResponse = await this.request(`${this.location.apiBaseUrl}/user`, { method: 'GET' });
-    if (!userResponse.ok) throw await failure(userResponse, 'GitHub doesn\'t accept this token.', false);
+    await assertOk(userResponse, 'GET user');
     const user = (await userResponse.json()) as { login: string };
 
     // A classic PAT's response carries an `X-OAuth-Scopes` header; a fine-grained token doesn't.
@@ -244,21 +258,7 @@ export class GithubClient {
     // No trailing slash: GitHub answers `/repos/{owner}/{repo}/` with a 404 even for a visible repo.
     const response = await this.request(this.repoUrl('').replace(/\/$/, ''), { method: 'GET' });
     if (response.status === 404) return { visible: false, canWrite: false };
-    if (!response.ok) {
-      // Surface GitHub's own message (e.g. a fine-grained token pending organisation
-      // approval names that state in its 403 body) so callers can distinguish causes.
-      const text = await response.text().catch(() => '');
-      const body = (() => {
-        try {
-          return JSON.parse(text) as unknown;
-        } catch {
-          return null;
-        }
-      })();
-      const detail = body && typeof body === 'object' && 'message' in body ? String((body as { message: unknown }).message) : '';
-      const cause = classifyFailure(response.status, response.headers, text);
-      throw new GithubApiError(`GET repo failed (${response.status})${detail ? `: ${detail}` : ''}`, cause, response.status);
-    }
+    await assertOk(response, 'GET repo');
     const body = (await response.json()) as { permissions?: { push?: boolean } };
     return { visible: true, canWrite: Boolean(body.permissions?.push) };
   }
@@ -276,25 +276,41 @@ export class GithubClient {
     build: (at: string) => Promise<{ files: { path: string; content: string }[]; deletes: string[] } | null>;
   }): Promise<{ commitSha: string } | 'stopped'> {
     assertBranch(args.branch);
-    const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
-    for (let attempt = 0; ; attempt += 1) {
-      const refResponse = await this.request(refUrl, { method: 'GET' });
-      await assertOk(refResponse, 'GET ref');
-      const head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
-      // The base tree only matters once there is something to write; fetch it while `build` reads.
-      const baseTree = this.treeOf(head);
-      baseTree.catch(() => {}); // awaited below unless `build` stops or throws first
-
+    return this.commitAndFastForward(args.branch, args.message, undefined, async (head) => {
       const changes = await args.build(head);
-      if (changes === null) return 'stopped';
-
+      if (changes === null) return null;
       const blobs = await this.createBlobs(changes.files);
       // A null sha removes the path from the base tree.
-      const removed = changes.deletes.map((path) => ({ path, sha: null }));
-      const commitSha = await this.createCommit({ baseTree: await baseTree, parent: head, entries: [...blobs, ...removed], message: args.message });
+      return [...blobs, ...changes.deletes.map((path) => ({ path, sha: null }))];
+    });
+  }
 
-      const updateResponse = await this.updateRef(args.branch, commitSha);
-      if (updateResponse.status === 422 && attempt < 3) continue; // the head moved: build again on the new one
+  /**
+   * Commit `entries` on the branch's head and move the branch to it. When another commit lands first, the ref update
+   * is refused as not a fast-forward (422) and the commit is made again on the new head, up to three times.
+   * `firstRef` is a ref read the caller already made. A null from `entries` stops without committing.
+   */
+  private async commitAndFastForward(
+    branch: string,
+    message: string,
+    firstRef: Response | undefined,
+    entries: (head: string) => Promise<{ path: string; sha: string | null }[] | null>,
+  ): Promise<{ commitSha: string } | 'stopped'> {
+    const refUrl = this.repoUrl(`git/ref/heads/${encodePath(branch)}`);
+    for (let attempt = 0; ; attempt += 1) {
+      const refResponse = attempt === 0 && firstRef ? firstRef : await this.request(refUrl, { method: 'GET' });
+      await assertOk(refResponse, 'GET ref');
+      const head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
+      // The base tree only matters once there is something to write; fetch it while `entries` reads.
+      const baseTree = this.treeOf(head);
+      baseTree.catch(() => {}); // awaited below unless `entries` stops or throws first
+
+      const written = await entries(head);
+      if (written === null) return 'stopped';
+      const commitSha = await this.createCommit({ baseTree: await baseTree, parent: head, entries: written, message });
+
+      const updateResponse = await this.updateRef(branch, commitSha);
+      if (updateResponse.status === 422 && attempt < 3) continue; // the head moved: commit again on the new one
       if (updateResponse.status === 422) throw new GithubApiError('The data branch kept changing — please retry.', 'conflict', 422);
       await assertOk(updateResponse, 'Ref update');
       return { commitSha };
@@ -381,31 +397,13 @@ export class GithubClient {
     blobsPromise.catch(() => {});
 
     const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
-    let commitSha: string;
-    for (let attempt = 0; ; attempt += 1) {
-      const refResponse = await this.request(refUrl, { method: 'GET' });
-
-      let baseTree: string | undefined;
-      let parent: string | undefined;
-      const branchExists = refResponse.status !== 404;
-
-      if (branchExists) {
-        await assertOk(refResponse, 'GET ref');
-        parent = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
-        baseTree = await this.treeOf(parent);
-      }
-
-      commitSha = await this.createCommit({ baseTree, parent, entries: await blobsPromise, message: args.message });
-      if (!branchExists) break;
-
-      const updateResponse = await this.updateRef(args.branch, commitSha);
-      // Not a fast-forward: another commit landed on the branch meanwhile. Commit once more on the new head, as
-      // commitOnHead does; the blobs are the same.
-      if (updateResponse.status === 422 && attempt === 0) continue;
-      await assertOk(updateResponse, 'Ref update');
-      return { commitSha };
+    const refResponse = await this.request(refUrl, { method: 'GET' });
+    if (refResponse.status !== 404) {
+      // The blobs are the same whichever head the commit ends up on; never 'stopped', as the entries are never null.
+      return this.commitAndFastForward(args.branch, args.message, refResponse, () => blobsPromise) as Promise<{ commitSha: string }>;
     }
 
+    const commitSha = await this.createCommit({ entries: await blobsPromise, message: args.message });
     const createRefResponse = await this.request(this.repoUrl('git/refs'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { tokenCreationUrl, tokenManagementUrl } from '../auth/tokenCreationUrl';
 import { CommitHistoryLink } from './CommitHistoryLink';
-import { repoLabel, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
+import { clearsToken, repoLabel, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
 import { Button } from '@/components/ui/button';
@@ -41,8 +41,7 @@ export function ReadOnlyBanner() {
       // token: resend, and the real cause (with its automatic retry for "unreachable" or "rate limited") takes over.
       // If the save is refused again, the banner falls back to GitHub's own message with Retry rather than waiting
       // on this check.
-      const { outcome } = result;
-      if (outcome === 'works' || outcome === 'classic-warning' || outcome === 'unreachable' || outcome === 'rate-limited') {
+      if (clearsToken(result)) {
         repository.retryAll();
       } else {
         setDiagnosis(result);

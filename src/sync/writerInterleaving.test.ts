@@ -525,15 +525,7 @@ describe('slice 005j: read-only banner, automatic recovery, and Retry (§3, §9.
       const fake = fakeGithub();
       const { repo } = await open(fake);
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
-      let spent = false;
-      vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
-        if (!spent && (init?.method ?? 'GET') === 'PUT' && new URL(url).pathname.includes('teams.json')) {
-          spent = true;
-          const body = JSON.stringify({ message: 'You have exceeded a secondary rate limit.' });
-          return Promise.resolve(new Response(body, { status: 403, headers: { 'retry-after': '60' } }));
-        }
-        return fake.fetchMock(url, init);
-      });
+      fake.fail('teams.json', 403, { message: 'You have exceeded a secondary rate limit.', headers: { 'retry-after': '60' } });
 
       repo.createTeam('Platform');
       await repo.flushPending();
