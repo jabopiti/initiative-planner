@@ -35,7 +35,9 @@ export function ConnectionSection() {
     };
   }, [login, repository, rememberLogin]);
 
-  function disconnect() {
+  /** Pending edits are sent first (§10.3); only those that still fail are offered for discarding. */
+  async function disconnect() {
+    await repository.flushPending();
     const unsaved = repository.unsavedChangeCount();
     if (unsaved === 0) session.disconnect();
     else setConfirming(unsaved);
@@ -66,7 +68,7 @@ export function ConnectionSection() {
         <p className="m-0 text-text-secondary">Removes the token from this browser and opens the Connect screen.</p>
         {confirming === null ? (
           <div>
-            <Button type="button" variant="outline" onClick={disconnect}>
+            <Button type="button" variant="outline" onClick={() => void disconnect()}>
               Disconnect
             </Button>
           </div>

@@ -131,6 +131,16 @@ export interface FileWriterOptions<D> {
   onDocument: (doc: D) => void;
 }
 
+/** An edit taken out of a writer to be saved apart from those made after it (see {@link FileWriter.flushApart}). */
+interface EditBatch<D> {
+  pending: D | null;
+  notes: CommitNote[];
+  extras: [string, string][];
+  extraEntities: EntityRef[];
+  replaced: boolean;
+  noted: boolean;
+}
+
 /**
  * The one writer behind every file in the data branch (§10.2): debounce, save, merge on conflict,
  * report status. A file is a document `D`, merged by path (§10.5), with any rule of its own the
@@ -161,6 +171,9 @@ export class FileWriter<D> {
   /** An edit with a note was made since the last save, even if its note has cancelled out. */
   private noted = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** Edits set aside by {@link flushApart}, oldest first: each save takes the oldest before what is pending, so
+   * documents are sent in the order they were made. */
+  private readonly apart: EditBatch<D>[] = [];
   /** When the oldest edit no save has taken yet was made: the commit window closes {@link COMMIT_MAX_MS} after it. */
   private windowOpenedAt: number | null = null;
   /** Saves are chained so each starts after the one before it has finished. */
@@ -215,6 +228,22 @@ export class FileWriter<D> {
     return this.enqueue(() => this.saveNext());
   }
 
+  /**
+   * Sends what is pending now as a save of its own, after any save in flight, and starts it at once (§10.3: an action
+   * that reads or replaces the saved file). An edit made after this call, such as that action's own, goes in the next
+   * save, not this one, even though this one starts later.
+   */
+  flushApart(): Promise<SaveResult> {
+    if (this.pending === null) return this.flush();
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    this.windowOpenedAt = null;
+    this.apart.push(this.takeEdits());
+    return this.enqueue(() => this.saveNext());
+  }
+
   /** Settles once the edits made so far are saved or have failed: one waiting for its commit window is saved now. */
   settled(): Promise<unknown> {
     return this.timer ? this.flush() : this.tail;
@@ -248,7 +277,7 @@ export class FileWriter<D> {
 
   /** An edit is waiting to be saved or a save is running. */
   get busy(): boolean {
-    return this.pending !== null || this.timer !== null || this.waiting > 0 || this.saving;
+    return this.pending !== null || this.apart.length > 0 || this.timer !== null || this.waiting > 0 || this.saving;
   }
 
   /** Why this file's last save failed, for as long as nothing has saved since (§3, §9.9); null otherwise. */
@@ -258,7 +287,7 @@ export class FileWriter<D> {
 
   /** An edit is waiting to be saved: typed or made, and no save has taken it yet. */
   get hasPending(): boolean {
-    return this.pending !== null;
+    return this.pending !== null || this.apart.length > 0;
   }
 
   /** The paths that changed in the edit that failed to save, against what is actually on GitHub (§9.9): only
@@ -393,6 +422,38 @@ export class FileWriter<D> {
   }
 
   /** The edits so far are written into a commit: they start afresh. */
+  /** The pending edit and its notes, taken out of the writer, which is left with none. */
+  private takeEdits(): EditBatch<D> {
+    const batch: EditBatch<D> = {
+      pending: this.pending,
+      notes: [...this.notes.values()],
+      extras: [...this.extras],
+      extraEntities: this.extraEntities,
+      replaced: this.replaced,
+      noted: this.noted,
+    };
+    this.pending = null;
+    this.clearEdits();
+    return batch;
+  }
+
+  /** Puts a batch taken by {@link takeEdits} back into a writer that holds none. */
+  private restoreEdits(batch: EditBatch<D>): void {
+    this.clearEdits();
+    this.addEdits(batch);
+  }
+
+  /** Adds a batch's edit after what the writer holds: its document is the newer one, its notes merge by field. */
+  private addEdits(batch: EditBatch<D>): void {
+    if (batch.pending !== null) this.pending = batch.pending;
+    const noted = this.noted || batch.noted;
+    for (const n of batch.notes) this.note(n);
+    this.noted = noted;
+    for (const [key, words] of batch.extras) this.extras.set(key, words);
+    this.extraEntities = [...this.extraEntities, ...batch.extraEntities];
+    this.replaced ||= batch.replaced;
+  }
+
   private clearEdits(): void {
     this.notes.clear();
     this.extras.clear();
@@ -403,6 +464,24 @@ export class FileWriter<D> {
 
   private async saveNext(): Promise<SaveResult> {
     await this.options.gate?.();
+    const batch = this.apart.shift();
+    if (batch) {
+      const later = this.takeEdits();
+      this.restoreEdits(batch);
+      try {
+        return await this.saveTaken();
+      } finally {
+        // Whatever is left (a refused save keeps its notes, an edit made during the save) joins what came later.
+        const left = this.takeEdits();
+        this.restoreEdits(later);
+        this.addEdits(left);
+      }
+    }
+    return this.saveTaken();
+  }
+
+  /** Saves what is pending now. */
+  private async saveTaken(): Promise<SaveResult> {
     if (this.disposed) return 'gone';
     if (this.pending === null) {
       this.reportIdle();
@@ -436,8 +515,9 @@ export class FileWriter<D> {
     for (let retries = MAX_RETRIES; ; retries -= 1) {
       if (retries < MAX_RETRIES) {
         await this.backoff(MAX_RETRIES - retries - 1);
-        // An edit made during the wait joins this write rather than starting one of its own.
-        if (this.pending !== null) {
+        // An edit made during the wait joins this write rather than starting one of its own, unless edits set apart
+        // are waiting: they are older, and go first.
+        if (this.pending !== null && this.apart.length === 0) {
           const newer = this.pending;
           this.pending = null;
           sent = this.rebase(mine, newer, sent, message);
@@ -634,7 +714,9 @@ export class FileWriter<D> {
   private discardLocal(): void {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    this.windowOpenedAt = null;
     this.pending = null;
+    this.apart.length = 0;
     this.notes.clear();
     this.extras.clear();
     this.extraEntities = [];

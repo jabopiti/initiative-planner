@@ -1405,6 +1405,8 @@ export class Repository {
   async duplicateInitiative(id: string, today: string = localToday()): Promise<DuplicateResult | null> {
     const source = this.state.initiatives.find((i) => i.id === id);
     if (!source) return null;
+    // The source's own edits are committed first (§10.3), so its file and the copy agree.
+    void this.initiativeWriters.get(id)?.flushApart();
     const result = duplicateInitiative(source, {
       process: this.brand.process,
       people: this.state.people,
@@ -1878,9 +1880,24 @@ export class Repository {
   private commitGateOutcome(name: string, result: GateRecorded, what: string): void {
     const { initiative, phase, record } = result;
     this.replaceInitiative(initiative);
-    this.initiativeWriters
-      .get(initiative.id)
-      ?.schedule(initiative, this.note('initiative', initiative.id, `gate:${phase.id}`, 'open', record.outcome, () => `${name}: ${phase.exitGate.label} ${what}`));
+    this.commitAtOnce(initiative.id, initiative, this.note('initiative', initiative.id, `gate:${phase.id}`, 'open', record.outcome, () => `${name}: ${phase.exitGate.label} ${what}`));
+  }
+
+  /**
+   * An action that reads or replaces the saved file (§10.3): the edits waiting in the file's commit window are sent
+   * first, as their own commit, and the action's own write follows at once instead of opening a new window.
+   */
+  private commitAtOnce(initiativeId: string, next: Initiative, note: CommitNote): void {
+    const writer = this.initiativeWriters.get(initiativeId);
+    if (!writer) return;
+    void writer.flushApart();
+    writer.schedule(next, note);
+    void writer.flush();
+  }
+
+  /** Sends the initiative's pending edits now (§10.3): the user left its page. */
+  flushInitiative(initiativeId: string): void {
+    void this.initiativeWriters.get(initiativeId)?.flush();
   }
 
   /**
@@ -1894,9 +1911,7 @@ export class Repository {
     if (!result) return;
     this.replaceInitiative(result.initiative);
     const [name, gateLabel] = [initiative.name, result.phase.exitGate.label];
-    this.initiativeWriters
-      .get(initiativeId)
-      ?.schedule(result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, result.record.outcome, 'open', () => `${name}: ${gateLabel} reopened`));
+    this.commitAtOnce(initiativeId, result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, result.record.outcome, 'open', () => `${name}: ${gateLabel} reopened`));
   }
 
   /** Put an Active initiative On Hold (§8.4): a plain status change, one click and no reason. A no-op for any other status. */
@@ -1924,9 +1939,7 @@ export class Repository {
     if (!initiative || !from.includes(initiative.status)) return;
     const next: Initiative = { ...initiative, status: to };
     this.replaceInitiative(next);
-    this.initiativeWriters
-      .get(initiativeId)
-      ?.schedule(next, this.note('initiative', initiativeId, 'status', initiative.status, to, () => words(initiative.name)));
+    this.commitAtOnce(initiativeId, next, this.note('initiative', initiativeId, 'status', initiative.status, to, () => words(initiative.name)));
   }
 
   /**
@@ -2006,7 +2019,7 @@ export class Repository {
       const tail = lost > 0 ? `, ${allocationCount(lost)} removed` : lost < 0 ? `, ${allocationCount(-lost)} restored` : '';
       return `${subject} from ${this.teamName(from?.teamId as string)} to ${this.teamName(to?.teamId as string)}${tail}`;
     };
-    this.initiativeWriters.get(next.id)?.schedule(next, this.note('initiative', next.id, 'team', state(before), state(next), words));
+    this.commitAtOnce(next.id, next, this.note('initiative', next.id, 'team', state(before), state(next), words));
   }
 
   /**

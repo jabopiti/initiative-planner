@@ -79,3 +79,61 @@ describe('commit window (slice 064, §10.3)', () => {
     await repo.flushPending();
   });
 });
+
+describe('actions that read or replace the saved file send pending edits first (slice 064, §10.3)', () => {
+  const contents = (fake: Fake) => fake.commits('initiatives/i1.json').map((c) => c.content as { name: string; status: string });
+
+  it('passing a gate: the pending edits as their own commit, then the gate, both at once', async () => {
+    const { repo } = await open(fake, { initiatives: [initiative()] });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    repo.renameInitiative('i1', 'Payments API v2');
+    repo.setChecklistItem('i1', 'discovery', 'g1-problem-statement', 'complete', '');
+    repo.setChecklistItem('i1', 'discovery', 'g1-stakeholders-aligned', 'complete', '');
+
+    expect(repo.passGate('i1', '2026-10-06')).toEqual({ ok: true });
+    await vi.advanceTimersByTimeAsync(0);
+    await repo.flushPending();
+
+    const [edits, gate] = fake.commits('initiatives/i1.json');
+    expect(fake.commits('initiatives/i1.json')).toHaveLength(2);
+    expect(edits.message).not.toMatch(/G1 passed/);
+    expect(edits.content).toMatchObject({ name: 'Payments API v2' });
+    expect(gate.message).toMatch(/G1 passed/);
+  });
+
+  it('a status change: pending edit first, then the status, without waiting out the window', async () => {
+    const { repo } = await open(fake, { initiatives: [initiative()] });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    repo.renameInitiative('i1', 'Renamed');
+    repo.putOnHold('i1');
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(contents(fake)).toEqual([expect.objectContaining({ name: 'Renamed', status: 'Active' }), expect.objectContaining({ status: 'On Hold' })]);
+  });
+
+  it('changing team: pending edit first, then the team change, without waiting out the window', async () => {
+    const teams = [
+      { id: 'team-1', name: 'Payments', active: true },
+      { id: 'team-2', name: 'Growth', active: true },
+    ];
+    const { repo } = await open(fake, { teams, initiatives: [initiative()] });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    repo.renameInitiative('i1', 'Renamed');
+    repo.changeTeam('i1', 'team-2');
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fake.commits('initiatives/i1.json').map((c) => (c.content as { teamId: string; name: string }).teamId)).toEqual(['team-1', 'team-2']);
+  });
+
+  it('flushInitiative (leaving its page) sends that file now', async () => {
+    const { repo } = await open(fake, { initiatives: [initiative()] });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    repo.renameInitiative('i1', 'Left');
+    repo.flushInitiative('i1');
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(puts(fake)).toBe(1);
+  });
+});

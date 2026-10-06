@@ -924,7 +924,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       expect(commits.map((c) => c.message)).toEqual(['Payments API: team changed from Payments to Growth']);
     });
 
-    it('reads two moves in one window as one, keeping the allocations lost on the first', async () => {
+    it('commits each move at once, as its own commit (§10.3, slice 064)', async () => {
       const { repo, initiative, growth } = await withTwoTeams();
       const third = repo.createTeam('Platform');
       await repo.flushPending();
@@ -932,7 +932,10 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       repo.changeTeam(initiative.id, growth.id);
       repo.changeTeam(initiative.id, third.id);
       await repo.flushPending();
-      expect(commits.map((c) => c.message)).toEqual(['Payments API: team changed from Payments to Platform, 3 allocations removed']);
+      expect(commits.map((c) => c.message)).toEqual([
+        'Payments API: team changed from Payments to Growth, 2 allocations removed',
+        'Payments API: team changed from Growth to Platform, 1 allocation removed',
+      ]);
     });
 
     it('says "1 allocation" for one', async () => {

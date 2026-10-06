@@ -77,6 +77,19 @@ describe('Settings → Connection (§5.9)', () => {
     expect(session.disconnect).toHaveBeenCalledOnce();
   });
 
+  it('sends a pending edit first and then disconnects in one click, with nothing to discard (slice 064)', async () => {
+    const user = userEvent.setup();
+    const fake = fakeGithub();
+    const { repo } = await open(fake);
+    repo.createTeam('Platform'); // waiting in its commit window
+    const session = renderConnection(repo);
+
+    await user.click(screen.getByRole('button', { name: 'Disconnect' }));
+
+    await vi.waitFor(() => expect(session.disconnect).toHaveBeenCalledOnce());
+    expect(fake.commits('teams.json')).toHaveLength(1);
+  });
+
   it('asks first, naming the count, when edits are unsaved, and Cancel keeps everything', async () => {
     const user = userEvent.setup();
     const fake = fakeGithub();
