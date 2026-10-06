@@ -122,6 +122,8 @@ export interface FileWriterOptions<D> {
   /** Uniform in [0, 1), for the retry jitter; `Math.random` by default. */
   random?: () => number;
   onStatus: (status: WriteStatus) => void;
+  /** An edit was made (see {@link FileWriter.schedule}). */
+  onSchedule?: () => void;
   /** The local cache refused a write because storage is full (§3 Storage limits); the save itself had succeeded. */
   onCacheFull?: () => void;
   onConflict: (conflict: FileConflict) => void;
@@ -220,6 +222,7 @@ export class FileWriter<D> {
     this.clearFailure();
     for (const n of note === undefined ? [] : [note].flat()) this.note(n);
     this.options.onStatus('syncing');
+    this.options.onSchedule?.();
     if (this.timer) clearTimeout(this.timer);
     const now = Date.now();
     this.windowOpenedAt ??= now;
@@ -301,9 +304,7 @@ export class FileWriter<D> {
 
   /** The share's edit and notes back in, before anything edited since. */
   private giveBack(part: JointPart<D>): void {
-    const later = this.takeEdits();
-    this.restoreEdits(part.batch);
-    this.addEdits(later);
+    this.addEdits(this.swapEdits(part.batch));
   }
 
   /** Settles once the edits made so far are saved or have failed: one waiting for its commit window is saved now. */
@@ -492,7 +493,6 @@ export class FileWriter<D> {
     return distinctEntities([...[...this.notes.values()].map((n) => n.entity), ...this.extraEntities]);
   }
 
-  /** The edits so far are written into a commit: they start afresh. */
   /** The pending edit and its notes, taken out of the writer, which is left with none. */
   private takeEdits(): EditBatch<D> {
     const batch: EditBatch<D> = {
@@ -508,10 +508,11 @@ export class FileWriter<D> {
     return batch;
   }
 
-  /** Puts a batch taken by {@link takeEdits} back into a writer that holds none. */
-  private restoreEdits(batch: EditBatch<D>): void {
-    this.clearEdits();
+  /** Puts `batch` in the writer's place, and returns what the writer held. */
+  private swapEdits(batch: EditBatch<D>): EditBatch<D> {
+    const held = this.takeEdits();
     this.addEdits(batch);
+    return held;
   }
 
   /** Adds a batch's edit after what the writer holds: its document is the newer one, its notes merge by field. */
@@ -525,6 +526,7 @@ export class FileWriter<D> {
     this.replaced ||= batch.replaced;
   }
 
+  /** The edits so far are written into a commit: they start afresh. */
   private clearEdits(): void {
     this.notes.clear();
     this.extras.clear();
@@ -537,15 +539,12 @@ export class FileWriter<D> {
     await this.options.gate?.();
     const batch = this.apart.shift();
     if (batch) {
-      const later = this.takeEdits();
-      this.restoreEdits(batch);
+      const later = this.swapEdits(batch);
       try {
         return await this.saveTaken();
       } finally {
         // Whatever is left (a refused save keeps its notes, an edit made during the save) joins what came later.
-        const left = this.takeEdits();
-        this.restoreEdits(later);
-        this.addEdits(left);
+        this.addEdits(this.swapEdits(later));
       }
     }
     return this.saveTaken();

@@ -74,7 +74,7 @@ describe('Load example data (slice 032)', () => {
   it('builds again on the new head when another user commits before the ref moves, and stops if they added data', async () => {
     const fake = fakeGithub();
     const repo = await openWith(fake);
-    fake.beforeRefUpdate(() => fake.seed('people.json', [person('p1', 'Ana')]));
+    fake.beforeCommit(() => fake.seed('people.json', [person('p1', 'Ana')]));
 
     await expect(repo.loadExampleData()).resolves.toBe('not-empty');
     expect(fake.gitCommits).toEqual([]);
@@ -148,7 +148,7 @@ describe('Reset (slice 032)', () => {
     const fake = fakeGithub();
     const repo = await openWith(fake, { initiatives: [initiative()] });
     const theirs: Initiative = initiative({ id: 'i9', name: 'Theirs' });
-    fake.beforeRefUpdate(() => fake.seed('initiatives/i9.json', theirs));
+    fake.beforeCommit(() => fake.seed('initiatives/i9.json', theirs));
 
     await expect(repo.resetDataset()).resolves.toBe('reset');
 

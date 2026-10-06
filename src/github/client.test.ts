@@ -109,11 +109,10 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
     expect(calledUrl).toBe('https://github.example.com/api/v3/user');
   });
 
-  it("does not produce an unhandled rejection when the ref GET fails while a blob upload is also failing", async () => {
+  it('sends nothing when the bootstrap cannot read the branch head', async () => {
     fetchMock.mockImplementation(async (url: string) => {
       const u = String(url);
       if (u.includes('/git/ref/heads/')) return new Response(JSON.stringify({ message: 'Server Error' }), { status: 500 });
-      if (u.endsWith('/git/blobs')) return new Response(JSON.stringify({ message: 'Forbidden' }), { status: 403 });
       throw new Error(`unexpected call: ${u}`);
     });
 
@@ -124,9 +123,7 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
         files: [{ path: 'dataset.json', content: '{}' }],
         message: 'init',
       }),
-    ).rejects.toThrow(GithubApiError);
-    // If the blob-upload promise's rejection were left unobserved, it would surface as an
-    // unhandled rejection — vitest reports that as a failure of this test.
+    ).rejects.toMatchObject({ cause_: 'unreachable' });
   });
 
   it.each(['data', 'planning/data'])(
@@ -167,7 +164,6 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
         if (refCallCount === 1) return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
         return new Response(JSON.stringify({ object: { sha: 'the-actual-winning-sha' } }), { status: 200 });
       }
-      if (method === 'POST' && u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob-1' }), { status: 200 });
       if (method === 'POST' && u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'tree-1' }), { status: 200 });
       if (method === 'POST' && u.endsWith('/git/commits')) return new Response(JSON.stringify({ sha: 'my-dangling-sha' }), { status: 200 });
       if (method === 'POST' && u.endsWith('/git/refs')) {

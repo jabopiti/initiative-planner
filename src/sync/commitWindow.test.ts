@@ -1,34 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { COMMIT_MAX_MS, COMMIT_QUIET_MS, commitWindow } from './FileWriter';
+import { COMMIT_MAX_MS, COMMIT_QUIET_MS } from './FileWriter';
+import { advance, withRealCommitWindow } from './testing/clock';
 import { fakeGithub, initiative, open, type Fake } from './testing/fakeGithub';
 
 /** Slice 064 item 1 (§10.3): a file's edits are committed 4 s after the last edit to it, and at most 20 s after its first. */
-
-/** Lets IndexedDB (the write budget's reservation, on real ticks) finish; the fake clock does not move meanwhile. */
-async function settle() {
-  for (let i = 0; i < 20; i += 1) await new Promise((resolve) => setImmediate(resolve));
-}
-
-/** Moves the fake clock on, then lets what became due reach the fake GitHub. */
-async function advance(ms: number) {
-  await vi.advanceTimersByTimeAsync(ms);
-  await settle();
-}
 
 const PUT_I1 = 'PUT /repos/jabopiti/initiative-planner/contents/initiatives/i1.json';
 const puts = (fake: Fake) => fake.requests().filter((r) => r === PUT_I1).length;
 
 let fake: Fake;
 
-const testWindow = { ...commitWindow };
+withRealCommitWindow();
 
 beforeEach(() => {
   fake = fakeGithub();
-  Object.assign(commitWindow, { quietMs: COMMIT_QUIET_MS, maxMs: COMMIT_MAX_MS });
 });
 
 afterEach(() => {
-  Object.assign(commitWindow, testWindow);
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });

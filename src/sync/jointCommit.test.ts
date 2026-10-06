@@ -41,7 +41,7 @@ describe('a new person with their membership (slice 064)', () => {
   it('a commit to a file it does not touch landing first: made again on the new head, still one commit', async () => {
     const fake = fakeGithub();
     const { repo } = await open(fake, { teams: [team] });
-    fake.beforeRefUpdate(() => fake.seed('teams.json', [team, { id: 'team-2', name: 'Growth', active: true }]));
+    fake.beforeCommit(() => fake.seed('teams.json', [team, { id: 'team-2', name: 'Growth', active: true }]));
 
     repo.createPersonInTeam({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' }, 'team-1');
     await landed(fake, repo);
@@ -55,7 +55,7 @@ describe('a new person with their membership (slice 064)', () => {
     const fake = fakeGithub();
     const { repo } = await open(fake, { teams: [team], people: [person('p0', 'Ana Ruiz')] });
     const theirs: Membership = { id: 'm0', personId: 'p0', teamId: 'team-1', teamFtePct: 50, active: true };
-    fake.beforeRefUpdate(() => fake.seed('memberships.json', [theirs]));
+    fake.beforeCommit(() => fake.seed('memberships.json', [theirs]));
 
     const created = repo.createPersonInTeam({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' }, 'team-1');
     await landed(fake, repo);

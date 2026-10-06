@@ -16,7 +16,7 @@ function contentsResponse(content: unknown, sha: string): Response {
 
 /**
  * Routes a mocked fetch by method + URL shape, since the baseline bootstrap
- * (blob -> tree -> commit -> ref) fires several requests whose exact
+ * (tree -> commit -> ref) fires several requests whose exact
  * sequencing isn't worth hard-coding call-by-call. `datasetExists: false`
  * simulates a brand-new repo: dataset.json 404s until the bootstrap commit's
  * ref-create call succeeds, then it "exists" for the re-read that follows.
@@ -25,7 +25,6 @@ function routingFetchMock(
   overrides: Record<string, (url: string, init?: RequestInit) => Response> = {},
   datasetExists = true,
 ) {
-  let blobCount = 0;
   let puts = 0;
   let exists = datasetExists;
   return vi.fn(async (url: string, init: RequestInit = {}) => {
@@ -37,10 +36,6 @@ function routingFetchMock(
     }
 
     if (method === 'GET' && url.includes('/git/ref/heads/data')) return jsonResponse({ message: 'Not Found' }, 404);
-    if (method === 'POST' && url.endsWith('/git/blobs')) {
-      blobCount += 1;
-      return jsonResponse({ sha: `blob-${blobCount}` });
-    }
     if (method === 'POST' && url.endsWith('/git/trees')) return jsonResponse({ sha: 'tree-1' });
     if (method === 'POST' && url.endsWith('/git/commits')) return jsonResponse({ sha: 'commit-1' });
     if (method === 'POST' && url.endsWith('/git/refs')) {

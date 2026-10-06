@@ -4,6 +4,7 @@ import type { Country, Initiative, Person, Role, Team } from '../../data/types';
 import { decodeBase64Utf8, encodeBase64Utf8 } from '../../github/base64';
 import { gitBlobSha } from '../../github/client';
 import { Repository, type RepositoryState } from '../Repository';
+import { answerCreateCommit } from './graphqlCommit';
 
 /**
  * An in-memory GitHub for tests that need the real rules: a stale sha is a 409, a missing sha on an
@@ -54,14 +55,12 @@ export function fakeGithub() {
   const tokenBehaviours = new Map<string, TokenBehaviour>();
   let counter = 0;
   let head = 1;
-  /** The Git data API (§10.3's many-file commits): blobs, trees and commits made, and commits that moved the branch. */
-  const blobs = new Map<string, string>();
-  const trees = new Map<string, { path: string; sha: string | null }[]>();
-  const newCommits = new Map<string, { message: string; tree: string; parents: string[] }>();
+  /** The bootstrap's trees and commits (§3 "System writes"), and every many-file commit that moved the branch (§10.3). */
+  const trees = new Map<string, { path: string; content: string }[]>();
+  const newCommits = new Map<string, { message: string; tree: string }>();
   const gitCommits: { message: string; files: string[]; deleted: string[] }[] = [];
   const graphqlCommits: { message: string; files: string[]; deleted: string[] }[] = [];
-  const gitFailures: { prefix: string; status: number }[] = [];
-  const beforeRefUpdates: (() => void)[] = [];
+  const beforeCommits: (() => void)[] = [];
   /** What each commit the branch moved to says and sits on, for a client checking whether its commit landed. */
   const commitInfo = new Map<string, { message: string; parents: string[] }>();
   /** How the next GraphQL commits are answered instead of normally: refused with a status, or made but answered 504. */
@@ -92,88 +91,47 @@ export function fakeGithub() {
 
     // GraphQL `createCommitOnBranch` (§10.3): one commit of many files, refused unless the branch is at the expected head.
     if (method === 'POST' && pathname === '/graphql') {
-      const { variables } = JSON.parse(init.body as string) as {
-        variables: { input: { branch: { branchName: string }; expectedHeadOid: string; message: { headline: string; body?: string }; fileChanges: { additions: { path: string; contents: string }[]; deletions: { path: string }[] } } };
-      };
-      const { input } = variables;
-      if (input.branch.branchName !== DATA_BRANCH) throw new Error(`A GraphQL commit named the wrong branch: ${input.branch.branchName}`);
       const failure = graphqlFailures.shift();
       if (failure && failure !== 'lost') return json({ message: 'failed' }, failure.status);
-      beforeRefUpdates.shift()?.();
-      if (input.expectedHeadOid !== `commit-${head}`) {
-        return json({ data: { createCommitOnBranch: null }, errors: [{ type: 'STALE_DATA', message: `Expected branch to point to "${input.expectedHeadOid}" but it did not.` }] });
-      }
-      const deletions = input.fileChanges.deletions.map((d) => d.path);
-      if (deletions.some((path) => !files.has(path))) {
-        return json({ data: { createCommitOnBranch: null }, errors: [{ type: 'NOT_FOUND', message: 'A path was requested for deletion which does not exist' }] });
-      }
-      for (const path of deletions) files.delete(path);
-      for (const addition of input.fileChanges.additions) {
-        const content = decodeBase64Utf8(addition.contents);
-        files.set(addition.path, { content, sha: await gitBlobSha(content) });
-      }
-      const parent = `commit-${head}`;
-      head += 1;
-      const message = [input.message.headline, input.message.body].filter(Boolean).join('\n\n');
-      commitInfo.set(`commit-${head}`, { message, parents: [parent] });
-      gitCommits.push({ message, files: input.fileChanges.additions.map((a) => a.path), deleted: deletions });
-      graphqlCommits.push({ message, files: input.fileChanges.additions.map((a) => a.path), deleted: deletions });
+      beforeCommits.shift()?.();
+      const body = await answerCreateCommit(init.body as string, {
+        name: DATA_BRANCH,
+        head: files.size === 0 ? null : `commit-${head}`,
+        has: (path) => files.has(path),
+        land: (commit) => {
+          for (const path of commit.deletes) files.delete(path);
+          for (const file of commit.files) files.set(file.path, { content: file.content, sha: file.sha });
+          const parent = `commit-${head}`;
+          head += 1;
+          commitInfo.set(`commit-${head}`, { message: commit.message, parents: [parent] });
+          const record = { message: commit.message, files: commit.files.map((f) => f.path), deleted: commit.deletes };
+          gitCommits.push(record);
+          graphqlCommits.push(record);
+          return `commit-${head}`;
+        },
+      });
       if (failure === 'lost') return json({ message: 'We couldn\'t respond to your request in time.' }, 504);
-      return json({ data: { createCommitOnBranch: { commit: { oid: `commit-${head}` } } } });
+      return json(body);
     }
 
-    const git = pathname.match(/\/git\/(blobs|trees|commits|refs)(?:\/(.*))?$/);
+    // The bootstrap onto a missing branch: a tree with its files' contents inline, a commit with no parent, the ref.
+    const git = pathname.match(/\/git\/(trees|commits|refs)(?:\/(.*))?$/);
     if (git && !(method === 'GET' && git[1] === 'refs')) {
       const [, kind, rest] = git;
-      const failure = take(gitFailures, kind);
-      if (failure) return json({ message: 'failed' }, failure.status);
-      const body = init.body ? (JSON.parse(init.body as string) as Record<string, unknown>) : {};
-      if (kind === 'commits' && method === 'GET') return json({ sha: rest, tree: { sha: `tree-of-${rest}` }, ...(commitInfo.get(rest) ?? { message: '', parents: [] }) });
+      if (kind === 'commits' && method === 'GET') return json({ sha: rest, ...(commitInfo.get(rest) ?? { message: '', parents: [] }) });
+      const body = JSON.parse(init.body as string) as Record<string, unknown>;
       const sha = `${kind}-${(counter += 1)}`;
-      if (kind === 'blobs') blobs.set(sha, decodeBase64Utf8(body.content as string));
-      if (kind === 'trees') {
-        // An entry may carry its content inline instead of a blob's sha (the bootstrap onto a missing branch).
-        const entries = body.tree as { path: string; sha?: string | null; content?: string }[];
-        const stored: { path: string; sha: string | null }[] = [];
-        for (const entry of entries) {
-          if (entry.content === undefined) stored.push({ path: entry.path, sha: entry.sha ?? null });
-          else {
-            const blob = await gitBlobSha(entry.content);
-            blobs.set(blob, entry.content);
-            stored.push({ path: entry.path, sha: blob });
-          }
-        }
-        trees.set(sha, stored);
-      }
-      if (kind === 'commits') newCommits.set(sha, body as { message: string; tree: string; parents: string[] });
-      if (kind === 'refs' && method === 'POST') {
-        // Creating the data branch, which does not exist yet (the bootstrap).
+      if (kind === 'trees') trees.set(sha, body.tree as { path: string; content: string }[]);
+      if (kind === 'commits') newCommits.set(sha, body as { message: string; tree: string });
+      if (kind === 'refs') {
         if (body.ref !== `refs/heads/${DATA_BRANCH}`) throw new Error(`A ref create named the wrong branch: ${String(body.ref)}`);
         if (files.size > 0) return json({ message: 'Reference already exists' }, 422);
         const commit = newCommits.get(body.sha as string)!;
         const entries = trees.get(commit.tree)!;
-        for (const entry of entries) files.set(entry.path, { content: blobs.get(entry.sha!)!, sha: entry.sha! });
+        for (const entry of entries) files.set(entry.path, { content: entry.content, sha: await gitBlobSha(entry.content) });
         head += 1;
         gitCommits.push({ message: commit.message, files: entries.map((e) => e.path), deleted: [] });
         return json({ object: { sha: `commit-${head}` } }, 201);
-      }
-      if (kind === 'refs') {
-        if (rest !== `heads/${DATA_BRANCH}`) throw new Error(`A ref update named the wrong branch: ${rest}`);
-        beforeRefUpdates.shift()?.();
-        const commit = newCommits.get(body.sha as string)!;
-        if (commit.parents[0] !== `commit-${head}`) return json({ message: 'Update is not a fast forward' }, 422);
-        const entries = trees.get(commit.tree)!;
-        for (const entry of entries) {
-          if (entry.sha === null) files.delete(entry.path);
-          else files.set(entry.path, { content: blobs.get(entry.sha)!, sha: entry.sha });
-        }
-        head += 1;
-        gitCommits.push({
-          message: commit.message,
-          files: entries.filter((e) => e.sha !== null).map((e) => e.path),
-          deleted: entries.filter((e) => e.sha === null).map((e) => e.path),
-        });
-        return json({ object: { sha: `commit-${head}` } });
       }
       return json({ sha }, 201);
     }
@@ -261,10 +219,8 @@ export function fakeGithub() {
     graphqlCommits,
     /** The next GraphQL commit is refused with `status`, or (`'lost'`) made but answered with a 504. */
     failGraphql: (failure: { status: number } | 'lost') => void graphqlFailures.push(failure),
-    /** The next Git data request of this kind (`blobs`, `trees`, `commits`, `refs`) is refused with `status`. */
-    failGit: (kind: 'blobs' | 'trees' | 'commits' | 'refs', status: number) => void gitFailures.push({ prefix: kind, status }),
-    /** Runs `act` (another writer's commit, say) just before the next ref update is decided. */
-    beforeRefUpdate: (act: () => void) => void beforeRefUpdates.push(act),
+    /** Runs `act` (another writer's commit, say) just before the next GraphQL commit is decided. */
+    beforeCommit: (act: () => void) => void beforeCommits.push(act),
     /** Every delete that reached the server, refused ones included. */
     deletes,
     has: (path: string) => files.has(path),

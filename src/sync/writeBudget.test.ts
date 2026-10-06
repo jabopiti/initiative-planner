@@ -1,20 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BUDGET_LINES, WriteBudget } from '../github/writeBudget';
+import { advance, settle } from './testing/clock';
 import { fakeGithub, initiative, open } from './testing/fakeGithub';
 
 /** Slice 064 items 2 and 3 (§10.3, §3 Sync failures): the write budget, and waiting out a limit GitHub sets. */
-
-/** Lets IndexedDB (on real ticks) finish; the fake clock does not move meanwhile. */
-async function settle() {
-  for (let i = 0; i < 20; i += 1) await new Promise((resolve) => setImmediate(resolve));
-}
-
-async function advance(ms: number, step = 250) {
-  for (let waited = 0; waited < ms; waited += step) {
-    await vi.advanceTimersByTimeAsync(Math.min(step, ms - waited));
-    await settle();
-  }
-}
 
 afterEach(() => {
   vi.useRealTimers();
@@ -38,6 +27,7 @@ describe('write budget (slice 064 item 2, §10.3)', () => {
     };
     await settledUntil(60);
     expect(sentAt).toHaveLength(60); // the 61st waits for a place
+    for (let i = 0; i < 100 && vi.getTimerCount() === 0; i += 1) await settle();
     await vi.advanceTimersByTimeAsync(60_000);
     await settledUntil(61);
     await Promise.all(all);
@@ -67,9 +57,9 @@ describe('write budget (slice 064 item 2, §10.3)', () => {
     await settle();
 
     repo.renameInitiative('i1', 'First');
-    await advance(5000);
+    await advance(5000, 250);
     repo.renameInitiative('i1', 'Second');
-    await advance(10_000);
+    await advance(10_000, 250);
 
     expect(repo.getState().syncing).toBe(true);
     expect(repo.getState().readOnly).toBeNull();
@@ -103,7 +93,7 @@ describe('waiting out a limit (slice 064 item 3, §3 Sync failures)', () => {
     await advance(59_000, 1000);
     expect(fake.requests().length).toBe(sentBefore);
 
-    await advance(2000);
+    await advance(2000, 250);
     await repo.flushPending();
     await repo.whenPulled();
     expect(fake.commits('initiatives/i1.json').at(-1)!.content).toMatchObject({ name: 'Limited' });
@@ -126,7 +116,7 @@ describe('waiting out a limit (slice 064 item 3, §3 Sync failures)', () => {
     await advance(reset * 1000 - Date.now() - 1000, 5000);
     expect(fake.requests().length).toBe(sentBefore);
 
-    await advance(2000);
+    await advance(2000, 250);
     await repo.flushPending();
     expect(fake.commits('initiatives/i1.json')).toHaveLength(1);
   });

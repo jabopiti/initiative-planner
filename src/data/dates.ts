@@ -183,6 +183,9 @@ export function formatDateEn(isoDate: string): string {
   return `${d} ${MONTHS_EN[m - 1]} ${y}`;
 }
 
+export const MINUTE_MS = 60_000;
+export const HOUR_MS = 3_600_000;
+
 /** Years a plan can sensibly name; a typo such as 1026 or 20266 is refused rather than costed month by month. */
 export const FIRST_YEAR = 2000;
 export const LAST_YEAR = 2100;

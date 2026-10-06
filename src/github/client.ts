@@ -1,4 +1,5 @@
 import type { GithubLocation } from '../brand/types';
+import { HOUR_MS, MINUTE_MS } from '../data/dates';
 import { decodeBase64Utf8, encodeBase64Utf8 } from './base64';
 import { GithubApiError, UNREACHABLE_MESSAGE, classifyFailure } from './errors';
 import type { WriteBudget } from './writeBudget';
@@ -70,8 +71,7 @@ function assertBranch(branch: string): void {
 export const REQUEST_TIMEOUT_MS = 30_000;
 
 /** How long to wait after a limit when GitHub names no time: doubled for each repeat within the hour (§10.3). */
-export const RATE_LIMIT_FALLBACK_MS = 60_000;
-const HOUR_MS = 3_600_000;
+export const RATE_LIMIT_FALLBACK_MS = MINUTE_MS;
 
 /** GitHub's own message in a failed response's body, or '' when there is none. */
 async function messageOf(response: Response): Promise<string> {
@@ -79,12 +79,12 @@ async function messageOf(response: Response): Promise<string> {
   return body && typeof body === 'object' && 'message' in body ? String(body.message) : '';
 }
 
-/** The labelled GithubApiError for a failed response, classified from its status, headers and message. */
-async function failure(response: Response, label: string, detail?: string): Promise<GithubApiError> {
-  const message = detail ?? (await messageOf(response));
+/** The GithubApiError for a failed response, classified from its status, headers and GitHub's message; `says` words it
+ * from that message unless GitHub can't be reached. */
+async function failure(response: Response, says: (message: string) => string): Promise<GithubApiError> {
+  const message = await messageOf(response);
   const cause = classifyFailure(response.status, response.headers, message);
-  if (cause === 'unreachable') return new GithubApiError(UNREACHABLE_MESSAGE, cause, response.status);
-  return new GithubApiError(`${label} failed (${response.status})`, cause, response.status);
+  return new GithubApiError(cause === 'unreachable' ? UNREACHABLE_MESSAGE : says(message), cause, response.status);
 }
 
 /** GitHub is limiting requests: nothing is sent before `until` (§3 Sync failures). */
@@ -95,7 +95,7 @@ function rateLimited(until: number, status?: number): GithubApiError {
 /** Throw a labelled GithubApiError unless the response is ok (or its status is explicitly allowed). */
 async function assertOk(response: Response, label: string, extraOkStatuses: number[] = []): Promise<void> {
   if (response.ok || extraOkStatuses.includes(response.status)) return;
-  throw await failure(response, label);
+  throw await failure(response, () => `${label} failed (${response.status})`);
 }
 
 /** A write at a sha that is no longer the file's (409): a conflict, re-read and retried by the writer (§10.3). */
@@ -118,6 +118,24 @@ export interface FileChanges {
 export interface CommitResult {
   commitSha: string;
   written: (FileChange & { sha: string })[];
+}
+
+/** What {@link GithubClient.commitOnHead} is asked to do. */
+export interface CommitOnHeadArgs<C extends FileChanges | null> {
+  branch: string;
+  message: string;
+  /** What to write against the head `at`; null stops without committing. */
+  build: (at: string) => Promise<C>;
+  /** The head the caller has just read, for the first attempt. */
+  head?: string;
+}
+
+/** The input of GraphQL `createCommitOnBranch`, as {@link GithubClient.commitOnBranch} sends it. */
+export interface CreateCommitOnBranchInput {
+  branch: { repositoryNameWithOwner: string; branchName: string };
+  expectedHeadOid: string;
+  message: { headline: string; body?: string };
+  fileChanges: { additions: { path: string; contents: string }[]; deletions: { path: string }[] };
 }
 
 const CREATE_COMMIT = `mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }`;
@@ -328,13 +346,23 @@ export class GithubClient {
     return { sha: body.object.sha, etag: response.headers.get('etag') };
   }
 
+  /** The commit the branch is at now; null when the branch does not exist. */
+  private async headOf(branch: string): Promise<string | null> {
+    const head = await this.getBranchHead({ branch, etag: null });
+    return head && head !== 'not-modified' ? head.sha : null;
+  }
+
+  /** The commit the branch is at now, which must exist. */
+  private async existingHeadOf(branch: string): Promise<string> {
+    const head = await this.headOf(branch);
+    if (head === null) throw new GithubApiError(`GET the head of ${branch} failed (404)`, 'not-found', 404);
+    return head;
+  }
+
   /** Checked-token validation (§5.10): who this token is, and whether it can write to the configured repo. */
   async checkToken(): Promise<{ login: string; scopesClassic: boolean }> {
     const userResponse = await this.request(`${this.location.apiBaseUrl}/user`, { method: 'GET' });
-    if (!userResponse.ok) {
-      const cause = (await failure(userResponse, 'GET /user')).cause_;
-      throw new GithubApiError(cause === 'unreachable' ? UNREACHABLE_MESSAGE : 'GitHub doesn\'t accept this token.', cause, userResponse.status);
-    }
+    if (!userResponse.ok) throw await failure(userResponse, () => 'GitHub doesn\'t accept this token.');
     const user = (await userResponse.json()) as { login: string };
 
     // A classic PAT's response carries an `X-OAuth-Scopes` header; a fine-grained token doesn't.
@@ -348,13 +376,9 @@ export class GithubClient {
     // No trailing slash: GitHub answers `/repos/{owner}/{repo}/` with a 404 even for a visible repo.
     const response = await this.request(this.repoUrl('').replace(/\/$/, ''), { method: 'GET' });
     if (response.status === 404) return { visible: false, canWrite: false };
-    if (!response.ok) {
-      // Surface GitHub's own message (e.g. a fine-grained token pending organisation
-      // approval names that state in its 403 body) so callers can distinguish causes.
-      const detail = await messageOf(response);
-      const cause = classifyFailure(response.status, response.headers, detail);
-      throw new GithubApiError(`GET repo failed (${response.status})${detail ? `: ${detail}` : ''}`, cause, response.status);
-    }
+    // Surface GitHub's own message (e.g. a fine-grained token pending organisation
+    // approval names that state in its 403 body) so callers can distinguish causes.
+    if (!response.ok) throw await failure(response, (detail) => `GET repo failed (${response.status})${detail ? `: ${detail}` : ''}`);
     const body = (await response.json()) as { permissions?: { push?: boolean } };
     return { visible: true, canWrite: Boolean(body.permissions?.push) };
   }
@@ -367,22 +391,12 @@ export class GithubClient {
    * head; then the whole commit is built again on the new head, up to three times. The written files come back with
    * their versions, computed here, so nobody needs to download them again.
    */
-  async commitOnHead(args: {
-    branch: string;
-    message: string;
-    build: (at: string) => Promise<FileChanges | null>;
-    /** The head the caller has just read, for the first attempt. */
-    head?: string;
-  }): Promise<CommitResult | 'stopped'> {
+  async commitOnHead(args: CommitOnHeadArgs<FileChanges>): Promise<CommitResult>;
+  async commitOnHead(args: CommitOnHeadArgs<FileChanges | null>): Promise<CommitResult | 'stopped'>;
+  async commitOnHead(args: CommitOnHeadArgs<FileChanges | null>): Promise<CommitResult | 'stopped'> {
     assertBranch(args.branch);
-    const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
     for (let attempt = 0; ; attempt += 1) {
-      let head = attempt === 0 ? args.head : undefined;
-      if (head === undefined) {
-        const refResponse = await this.request(refUrl, { method: 'GET' });
-        await assertOk(refResponse, 'GET ref');
-        head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
-      }
+      const head = (attempt === 0 ? args.head : undefined) ?? (await this.existingHeadOf(args.branch));
       const changes = await args.build(head);
       if (changes === null) return 'stopped';
       const outcome = await this.commitOnBranch({ branch: args.branch, expectedHeadOid: head, message: args.message, ...changes });
@@ -401,7 +415,7 @@ export class GithubClient {
   async commitOnBranch(args: { branch: string; expectedHeadOid: string; message: string } & FileChanges): Promise<{ commitSha: string } | 'moved'> {
     assertBranch(args.branch);
     const [headline, ...rest] = args.message.split('\n\n');
-    const input = {
+    const input: CreateCommitOnBranchInput = {
       branch: { repositoryNameWithOwner: `${this.location.owner}/${this.location.repo}`, branchName: args.branch },
       expectedHeadOid: args.expectedHeadOid,
       message: { headline, ...(rest.length > 0 ? { body: rest.join('\n\n') } : {}) },
@@ -417,7 +431,7 @@ export class GithubClient {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: CREATE_COMMIT, variables: { input } }),
       });
-      if (response.status >= 500) throw await failure(response, 'Commit');
+      if (response.status >= 500) throw await failure(response, () => `Commit failed (${response.status})`);
     } catch (error) {
       if (error instanceof GithubApiError && error.cause_ === 'unreachable') {
         const landed = await this.landedOn(args.branch, args.expectedHeadOid, headline).catch(() => null);
@@ -437,9 +451,7 @@ export class GithubClient {
 
   /** The branch's head, when it is a commit titled `headline` on `parent`: a commit of ours whose answer was lost. */
   private async landedOn(branch: string, parent: string, headline: string): Promise<string | null> {
-    const refResponse = await this.request(this.repoUrl(`git/ref/heads/${encodePath(branch)}`), { method: 'GET' });
-    await assertOk(refResponse, 'GET ref');
-    const head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
+    const head = await this.existingHeadOf(branch);
     if (head === parent) return null;
     const commitResponse = await this.request(this.repoUrl(`git/commits/${head}`), { method: 'GET' });
     await assertOk(commitResponse, 'GET commit');
@@ -455,13 +467,9 @@ export class GithubClient {
    */
   async createFilesCommit(args: { branch: string; files: FileChange[]; message: string }): Promise<CommitResult> {
     assertBranch(args.branch);
-    const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
-    const refResponse = await this.request(refUrl, { method: 'GET' });
-    if (refResponse.status !== 404) {
-      await assertOk(refResponse, 'GET ref');
-      const head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
-      const result = await this.commitOnHead({ branch: args.branch, message: args.message, head, build: async () => ({ files: args.files, deletes: [] }) });
-      return result as CommitResult;
+    const head = await this.headOf(args.branch);
+    if (head !== null) {
+      return this.commitOnHead({ branch: args.branch, message: args.message, head, build: async () => ({ files: args.files, deletes: [] }) });
     }
 
     const treeResponse = await this.request(this.repoUrl('git/trees'), {
@@ -486,12 +494,7 @@ export class GithubClient {
     });
     // 422 "Reference already exists" — another client won the bootstrap race (§3 "System writes": concurrent attempts
     // converge, no duplicates). Return the ref's actual (winning) commit, and nothing written by us.
-    if (createRefResponse.status === 422) {
-      const wonRefResponse = await this.request(refUrl, { method: 'GET' });
-      await assertOk(wonRefResponse, 'GET ref');
-      const wonRef = (await wonRefResponse.json()) as { object: { sha: string } };
-      return { commitSha: wonRef.object.sha, written: [] };
-    }
+    if (createRefResponse.status === 422) return { commitSha: await this.existingHeadOf(args.branch), written: [] };
     await assertOk(createRefResponse, 'Ref create');
     return { commitSha, written: await withVersions(args.files) };
   }

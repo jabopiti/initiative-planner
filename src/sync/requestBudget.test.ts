@@ -20,7 +20,7 @@ const PAST_ANY_WINDOW_MS = 25_000;
 
 const isContentCreating = (request: string) => !request.startsWith('GET ');
 
-/** What `act` sent: every request, the content-creating ones, blob uploads, and files downloaded. */
+/** What `act` sent: every request, the content-creating ones, and files downloaded. */
 async function measure(fake: Fake, act: () => Promise<unknown>) {
   const requestsBefore = fake.requests().length;
   const readsBefore = fake.reads.length;
@@ -29,7 +29,6 @@ async function measure(fake: Fake, act: () => Promise<unknown>) {
   return {
     requests: sent.length,
     contentCreating: sent.filter(isContentCreating).length,
-    blobs: sent.filter((r) => r === 'POST /repos/jabopiti/initiative-planner/git/blobs').length,
     downloads: fake.reads.slice(readsBefore),
     sent,
   };
@@ -150,11 +149,10 @@ describe('request budget at the volume ceiling (slice 064 baseline)', () => {
       await repo.resetDataset();
       await repo.whenPulled();
     });
-    expect({ requests: reset.requests, contentCreating: reset.contentCreating, blobs: reset.blobs, downloads: reset.downloads.length }).toEqual({
+    expect({ requests: reset.requests, contentCreating: reset.contentCreating, downloads: reset.downloads.length }).toEqual({
       // Slice 064: one GraphQL commit; the files it wrote are not downloaded again (was 21, 9 content-creating, 6 blobs, 6 downloads).
       requests: 6,
       contentCreating: 1,
-      blobs: 0,
       downloads: 0,
     });
   });
@@ -167,11 +165,10 @@ describe('request budget at the volume ceiling (slice 064 baseline)', () => {
       await repo.loadExampleData(new Date(2026, 9, 6));
       await repo.whenPulled();
     });
-    expect({ requests: loaded.requests, contentCreating: loaded.contentCreating, blobs: loaded.blobs, downloads: loaded.downloads.length }).toEqual({
+    expect({ requests: loaded.requests, contentCreating: loaded.contentCreating, downloads: loaded.downloads.length }).toEqual({
       // Slice 064: one GraphQL commit; only the 5 reads that check the branch is empty (was 26, 9 content-creating, 6 blobs, 11 downloads).
       requests: 11,
       contentCreating: 1,
-      blobs: 0,
       downloads: 5,
     });
   });
@@ -200,7 +197,7 @@ describe('request budget at the volume ceiling (slice 064 baseline)', () => {
 });
 
 describe('the bootstrap onto a missing data branch (slice 064)', () => {
-  it('is a tree with the contents inline, a commit and the ref: 3 content-creating requests, no blob, no download', async () => {
+  it('is a tree with the contents inline, a commit and the ref: 3 content-creating requests, no download', async () => {
     const fake = fakeGithub();
     vi.stubGlobal('fetch', fake.fetchMock);
     const repo = new Repository(defaultBrandPack, 'token');

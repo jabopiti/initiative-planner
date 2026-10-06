@@ -5,6 +5,7 @@
  */
 
 import type { SeenRecord } from '../data/seen';
+import { HOUR_MS, MINUTE_MS } from '../data/dates';
 
 const DB_NAME = 'initiative-planner';
 // 2, not 1: the pre-rebuild prototype (prototype/store.js, since removed from
@@ -194,9 +195,10 @@ export class FileCache {
 
   private serially<T>(write: () => Promise<T>): Promise<T> {
     const done = this.writes.then(write, write);
-    this.writes = done.catch(() => {});
-    writesInFlight.add(this.writes);
-    void this.writes.then(() => writesInFlight.delete(this.writes));
+    const tail = done.then(() => {}, () => {});
+    this.writes = tail;
+    writesInFlight.add(tail);
+    void tail.then(() => writesInFlight.delete(tail));
     return done;
   }
 
@@ -332,9 +334,6 @@ export interface BudgetLines {
   perHour: number;
 }
 
-const MINUTE_MS = 60_000;
-const HOUR_MS = 3_600_000;
-
 /**
  * The write budget's count (§10.3, §10.4): when this browser sent each content-creating request in the last hour,
  * kept outside the cache budget and shared by its tabs. A reservation reads and records in one transaction, which
@@ -347,7 +346,7 @@ export const budgetStore = {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(BUDGET_STORE, 'readwrite');
       const store = tx.objectStore(BUDGET_STORE);
-      let outcome: { sent: number[] } | { waitUntil: number } = { sent: [] };
+      let outcome!: { sent: number[] } | { waitUntil: number };
       const request = store.get(key);
       request.onsuccess = () => {
         const sent = ((request.result as number[] | undefined) ?? []).filter((at) => at > now - HOUR_MS);

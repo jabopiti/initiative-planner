@@ -1,6 +1,7 @@
-import { createHash } from 'node:crypto';
 import type { Page, Route } from '@playwright/test';
 import { decodeBase64Utf8 as unb64, encodeBase64Utf8 as b64 } from '../../src/github/base64';
+import { gitBlobSha } from '../../src/github/client';
+import { answerCreateCommit } from '../../src/sync/testing/graphqlCommit';
 
 /**
  * An in-memory GitHub for browser tests: just enough of the API the app uses (the token check, the Contents API, the
@@ -21,12 +22,10 @@ interface StoredFile {
 export function fakeGithub(page: Page, options: { login?: string; rejectedTokens?: string[]; classicTokens?: string[] } = {}) {
   const rejectedTokens = [...(options.rejectedTokens ?? [])];
   const files = new Map<string, StoredFile>();
-  const blobs = new Map<string, string>();
-  const trees = new Map<string, Map<string, string>>();
-  /** Each commit's tree, message and parent. */
-  const commits = new Map<string, { tree: string; message: string; parents: string[] }>();
-  /** A file's version as GitHub gives it: the git blob sha. */
-  const blobSha = (content: string) => createHash('sha1').update(`blob ${Buffer.byteLength(content)}\0`).update(content).digest('hex');
+  /** The bootstrap's trees, with their files' contents inline. */
+  const trees = new Map<string, { path: string; content: string }[]>();
+  /** Each commit's message and parents, and the bootstrap commit's tree. */
+  const commits = new Map<string, { tree?: string; message: string; parents: string[] }>();
   const writes: { path: string; message: string }[] = [];
   let headCommit: string | null = null;
   let counter = 0;
@@ -74,34 +73,29 @@ export function fakeGithub(page: Page, options: { login?: string; rejectedTokens
 
     // GraphQL `createCommitOnBranch`: one commit of several files, refused unless the branch is at the expected head.
     if (method === 'POST' && pathname === '/graphql') {
-      const { input } = (request.postDataJSON() as { variables: { input: { branch: { branchName: string }; expectedHeadOid: string; message: { headline: string; body?: string }; fileChanges: { additions: { path: string; contents: string }[]; deletions: { path: string }[] } } } }).variables;
-      if (input.branch.branchName !== BRANCH) throw new Error(`A GraphQL commit named the wrong branch: ${input.branch.branchName}`);
-      if (input.expectedHeadOid !== headCommit) return json(route, { data: { createCommitOnBranch: null }, errors: [{ type: 'STALE_DATA', message: 'Expected branch to point elsewhere' }] });
-      if (input.fileChanges.deletions.some((d) => !files.has(d.path))) return json(route, { data: { createCommitOnBranch: null }, errors: [{ type: 'NOT_FOUND', message: 'A path was requested for deletion which does not exist' }] });
-      for (const { path } of input.fileChanges.deletions) files.delete(path);
-      for (const { path, contents } of input.fileChanges.additions) {
-        const content = unb64(contents);
-        files.set(path, { content, sha: blobSha(content) });
-      }
-      const message = [input.message.headline, input.message.body].filter(Boolean).join('\n\n');
-      const sha = next('commit');
-      commits.set(sha, { tree: '', message, parents: headCommit ? [headCommit] : [] });
-      headCommit = sha;
-      for (const { path } of input.fileChanges.additions) writes.push({ path, message });
-      return json(route, { data: { createCommitOnBranch: { commit: { oid: sha } } } });
+      return json(
+        route,
+        await answerCreateCommit(request.postData() ?? '', {
+          name: BRANCH,
+          head: headCommit,
+          has: (path) => files.has(path),
+          land: (commit) => {
+            for (const path of commit.deletes) files.delete(path);
+            for (const file of commit.files) files.set(file.path, { content: file.content, sha: file.sha });
+            const sha = next('commit');
+            commits.set(sha, { message: commit.message, parents: headCommit ? [headCommit] : [] });
+            headCommit = sha;
+            for (const file of commit.files) writes.push({ path: file.path, message: commit.message });
+            return sha;
+          },
+        }),
+      );
     }
 
     // The bootstrap onto a missing branch: a tree with its files' contents inline, a commit with no parent, the ref.
     if (method === 'POST' && pathname.endsWith('/git/trees')) {
-      const body = request.postDataJSON() as { tree: { path: string; content: string }[] };
-      const tree = new Map<string, string>();
-      for (const entry of body.tree) {
-        const sha = blobSha(entry.content);
-        blobs.set(sha, entry.content);
-        tree.set(entry.path, sha);
-      }
       const sha = next('tree');
-      trees.set(sha, tree);
+      trees.set(sha, (request.postDataJSON() as { tree: { path: string; content: string }[] }).tree);
       return json(route, { sha }, 201);
     }
     if (method === 'POST' && pathname.endsWith('/git/commits')) {
@@ -113,13 +107,13 @@ export function fakeGithub(page: Page, options: { login?: string; rejectedTokens
     const commitMatch = pathname.match(/\/git\/commits\/(.+)$/);
     if (method === 'GET' && commitMatch) {
       const commit = commits.get(commitMatch[1]);
-      return json(route, { tree: { sha: commit?.tree }, message: commit?.message ?? '', parents: (commit?.parents ?? []).map((sha) => ({ sha })) });
+      return json(route, { message: commit?.message ?? '', parents: (commit?.parents ?? []).map((sha) => ({ sha })) });
     }
     if (method === 'POST' && pathname.endsWith('/git/refs')) {
       if (headCommit) return json(route, { message: 'Reference already exists' }, 422);
       const sha = request.postDataJSON().sha as string;
       headCommit = sha;
-      for (const [path, blob] of trees.get(commits.get(sha)!.tree)!) files.set(path, { content: blobs.get(blob)!, sha: blob });
+      for (const { path, content } of trees.get(commits.get(sha)!.tree!)!) files.set(path, { content, sha: await gitBlobSha(content) });
       return json(route, { ref: `refs/heads/${BRANCH}`, object: { sha } }, 201);
     }
 

@@ -19,7 +19,6 @@ function requestsText(limit: ReturnType<typeof useRateLimit>): string {
 function SavesThisHour() {
   const { writeBudget } = useRepository();
   const sent = useSyncExternalStore(writeBudget.subscribe, writeBudget.sentThisHour);
-  useEffect(() => void writeBudget.refresh(), [writeBudget]);
   return <>{`${numberFormat(0).format(sent)} of ${numberFormat(0).format(writeBudget.hourLine)} from this browser; saving slows down above that`}</>;
 }
 

@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider, useRepository } from '../state/DataContext';
-import { COMMIT_MAX_MS, COMMIT_QUIET_MS, commitWindow } from '../sync/FileWriter';
+import { COMMIT_QUIET_MS } from '../sync/FileWriter';
+import { withRealCommitWindow } from '../sync/testing/clock';
 import type { Repository } from '../sync/Repository';
 import { fakeGithub, initiative, seedDataset, type Fake } from '../sync/testing/fakeGithub';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -11,7 +12,6 @@ import { InitiativeDetail } from './InitiativeDetail';
 
 /** Slice 064 item 1 (§10.3): pending edits are sent at once, not at the end of the 4 s window, when the page is left. */
 
-const testWindow = { ...commitWindow };
 let fake: Fake;
 let repository: Repository;
 
@@ -37,8 +37,9 @@ async function renderApp(page: React.ReactNode) {
 
 const commits = () => fake.commits('initiatives/i1.json');
 
+withRealCommitWindow();
+
 beforeEach(() => {
-  Object.assign(commitWindow, { quietMs: COMMIT_QUIET_MS, maxMs: COMMIT_MAX_MS });
   fake = fakeGithub();
   seedDataset(fake, { initiatives: [initiative()] });
   Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
@@ -46,7 +47,6 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
-  Object.assign(commitWindow, testWindow);
   Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
   vi.unstubAllGlobals();
 });
