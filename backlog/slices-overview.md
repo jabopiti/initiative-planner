@@ -1,7 +1,7 @@
 ---
 generated_from: "Initiative Planner (white-label core) spec, v1 — 22 September 2026"
-total_slices: 70
-valid_slices: 67
+total_slices: 72
+valid_slices: 69
 flagged_slices: 0
 ---
 
@@ -139,6 +139,8 @@ for the AI-agent-driven build the team asked for:
 | 061b | Phase editing: cost item month strip, actuals that record in one click | ✅ valid | 056, 057, 059b, 060 |
 | 062 | Team capacity: split bar in the person panel, heatmap with fixes on the team page | ✅ valid | 048, 057 |
 | 063 | Changed since you last looked: dots on cards and rows, previous figures on the page | ✅ valid | 058, 059 |
+| 064 | Write budget: fewer commits, many-file commits in one request, pauses when GitHub limits | ✅ valid | 043, 045 |
+| 065 | Cheaper pulls: one listing request, no re-listing after own commits, batched first load | ✅ valid | 064 |
 
 ## Dependency chain
 
@@ -255,6 +257,19 @@ for the AI-agent-driven build the team asked for:
   → 058, 059, 059b; (4) editing: 060 → 061, 061b; 062; 063. The user then
   moved 057's theme control (F04, icon button with a menu) into 046, so
   it is built once.
+- **Request budget, 6 Oct 2026.** An analysis of the requests to the data
+  branch, measured against the in-memory fake GitHub at the volume
+  ceiling, found reads well within GitHub's limits and the risk on the
+  write side (80 content-creating requests a minute, 500 an hour). It
+  became 064 (commit window 4 s / 20 s, a write budget, waiting out a
+  limit, many-file commits in a fixed number of requests, one commit per
+  multi-file action, the budget in Settings) and the optional 065 (cheaper
+  pulls). 064 waits on 043, which fixes the rate-limit 403 it builds on
+  (043 is not built yet, although a mislabelled `Slice 043:` commit makes
+  the backlog tooling count it as done),
+  and on 045's unload handling; it opens with a GraphQL spike
+  (`scripts/spike-graphql.mjs`) that must run outside a Claude Code cloud
+  session, whose proxy refuses GraphQL.
 
 ## Build plan (slices 012 to 041, parallel sessions)
 
