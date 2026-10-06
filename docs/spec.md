@@ -2140,9 +2140,10 @@ uncommitted edit. Pending edits are sent at once when the user leaves an
 initiative's page (that file), the tab is hidden or closed, on Disconnect
 (before it counts what would be discarded), and before any action that reads
 or replaces the saved file: passing, skipping or reopening a gate, putting
-on hold, cancelling, reopening, duplicating (the source), deleting, changing
-team, Reset and Load example data. These send the pending edits as their
-own commit, and the action's own write follows at once. One write is in
+on hold, cancelling, reopening, duplicating (the source), changing team and
+Load example data. These send the pending edits as their own commit, and the
+action's own write follows at once. Deleting an initiative and Reset drop
+the pending edits to what they erase instead (§9.3, §5.9). One write is in
 flight at a time, and closing the tab while a write is pending shows a
 warning. A stale version is rejected with a 409: the client re-reads the
 file, re-applies the change with the merge rule of §10.5 and retries up to

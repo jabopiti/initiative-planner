@@ -155,8 +155,10 @@ save on blur, drag bars on pointer-up, the 1-file-1-commit merge path.
     for them; only edits that then still fail count in its "Disconnect
     and discard N unsaved changes" offer;
   - before pass, skip or reopen a gate; put on hold, cancel, reopen;
-    duplicate (the source file); delete; change team; Reset; Load example
-    data.
+    duplicate (the source file); change team; Load example data. Delete
+    and Reset keep dropping the pending edits to what they erase (settled
+    during implementation, 6 Oct 2026: flushing would commit edits that
+    are erased a moment later).
 
   Each of these sends the pending edits as their own commit, and the
   action's own write is then committed at once, without a window.
