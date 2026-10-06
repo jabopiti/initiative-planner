@@ -79,32 +79,32 @@ same record and display but a different entry point.
 
 ## Acceptance criteria
 
-- [ ] Given the current gate is skippable and the initiative Active, then the
+- [x] Given the current gate is skippable and the initiative Active, then the
       bar shows "Skip <gate>" beside Pass gate; given it is not skippable, it
       does not.
-- [ ] Given the initiative is On Hold, then Skip <gate> is muted, and
+- [x] Given the initiative is On Hold, then Skip <gate> is muted, and
       selecting it shows "<name> is on hold. Resume it to skip <gate>." and
       saves nothing.
-- [ ] Given Skip G1 is chosen, then the guidance line becomes a focused field
+- [x] Given Skip G1 is chosen, then the guidance line becomes a focused field
       labelled "Reason for skipping G1", with Skip G1 disabled and Cancel.
-- [ ] Given only spaces are typed, then Skip G1 stays disabled.
-- [ ] Given Esc or Cancel, then the bar returns to its previous state and
+- [x] Given only spaces are typed, then Skip G1 stays disabled.
+- [x] Given Esc or Cancel, then the bar returns to its previous state and
       nothing is saved.
-- [ ] Given a reason and Skip G1 (or Enter), then a gate record with outcome
+- [x] Given a reason and Skip G1 (or Enter), then a gate record with outcome
       "skipped" and the trimmed reason is saved in one commit "<name>: G1
       skipped", with incomplete checklist items and a missing estimate not
       blocking it.
-- [ ] Given a skipped gate, then its exited phase is not frozen, records no
+- [x] Given a skipped gate, then its exited phase is not frozen, records no
       figure or approval track, and the cost summary's "approved at" and the
       escalation baseline are unchanged.
-- [ ] Given the skip succeeds, then the bar shows "Skipped G1" and Reopen for
+- [x] Given the skip succeeds, then the bar shows "Skipped G1" and Reopen for
       the same duration as after a pass; Reopen removes the record.
-- [ ] Given a skipped phase, then its collapsed line reads "Skipped G1" with
+- [x] Given a skipped phase, then its collapsed line reads "Skipped G1" with
       the skip icon and the reason as tooltip; expanded, the reason shows above
       its checklist, and its fields are editable.
-- [ ] Given a skippable final gate is skipped (fixture), then the initiative
+- [x] Given a skippable final gate is skipped (fixture), then the initiative
       is Closed.
-- [ ] Given a screen reader, then the reason field has the label "Reason for
+- [x] Given a screen reader, then the reason field has the label "Reason for
       skipping G1" and the skip icon on the phase line has the accessible name
       "Skipped".
 

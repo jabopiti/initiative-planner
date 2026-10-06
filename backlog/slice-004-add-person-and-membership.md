@@ -72,17 +72,17 @@ because nothing in this slice's core behaviour requires changing it.
 
 ## Acceptance criteria
 
-- [ ] Given the People overview, when a name is typed into the quick-add
+- [x] Given the People overview, when a name is typed into the quick-add
       row and submitted, then the person appears in the table with a
       default country, role and 100% capacity.
-- [ ] Given a person and a team both exist, when the person is added as a
+- [x] Given a person and a team both exist, when the person is added as a
       member from the team detail, then their Team FTE % defaults to
       their full unclaimed capacity.
-- [ ] Given a person already holds Team FTE % on one team, when they are
+- [x] Given a person already holds Team FTE % on one team, when they are
       added to a second team, then the second membership's Team FTE % is
       capped at the remaining unclaimed capacity and cannot be set higher
       in the person panel.
-- [ ] Given a person is deactivated, when the People overview loads with
+- [x] Given a person is deactivated, when the People overview loads with
       its default filter, then the person no longer appears.
 
 ## Flags and compromises

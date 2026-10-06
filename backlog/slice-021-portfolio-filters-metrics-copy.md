@@ -76,36 +76,36 @@ from the board, not rebuilt in a spreadsheet.
 
 ## Acceptance criteria
 
-- [ ] Given the Portfolio opens, then the chip row shows Team, Phase, Year,
+- [x] Given the Portfolio opens, then the chip row shows Team, Phase, Year,
       Initiatives, Approval track and Status, with Status active on "Active".
-- [ ] Given Status widened to On Hold, then On Hold initiatives appear in
+- [x] Given Status widened to On Hold, then On Hold initiatives appear in
       their phase columns with the On Hold icon (tooltip "On Hold").
-- [ ] Given one value picked in a chip, then the chip reads "<Chip>: <value>";
+- [x] Given one value picked in a chip, then the chip reads "<Chip>: <value>";
       two or more read "<Chip>: <n>" — on the Portfolio and the Initiatives
       table.
-- [ ] Given Clear filters, then every chip clears except Status, which returns
+- [x] Given Clear filters, then every chip clears except Status, which returns
       to Active.
-- [ ] Given a filter set on the Portfolio, then the Initiatives table's filters
+- [x] Given a filter set on the Portfolio, then the Initiatives table's filters
       are unchanged, and vice versa.
-- [ ] Given the Initiatives chip, then typing narrows the list of initiative
+- [x] Given the Initiatives chip, then typing narrows the list of initiative
       names and ticking two shows only those.
-- [ ] Given Year: 2026, then each card and column header shows only cost in
+- [x] Given Year: 2026, then each card and column header shows only cost in
       2026, initiatives with no 2026 cost are hidden, and the approval track
       badge is unchanged.
-- [ ] Given a phase spanning Nov 2026 to Feb 2027 (fixture), then Year 2026
+- [x] Given a phase spanning Nov 2026 to Feb 2027 (fixture), then Year 2026
       counts Nov and Dec only, and 2027 counts Jan and Feb only.
-- [ ] Given the initiatives shown, then Total cost is the sum of their (in-year)
+- [x] Given the initiatives shown, then Total cost is the sum of their (in-year)
       cost and Deviation the sum of actual minus estimate over months with a
       recorded actual (in that year), signed, overspend in Warning.
-- [ ] Given Copy, then the shown initiatives and, after a blank row, "Total
+- [x] Given Copy, then the shown initiatives and, after a blank row, "Total
       cost" and "Deviation" rows are copied as plain text and HTML with full
       amounts; with a year picked the cost header is "Cost in <year>".
-- [ ] Given filters matching nothing, then the columns stay, "No
+- [x] Given filters matching nothing, then the columns stay, "No
       initiatives match these filters." shows with Clear filters, and the
       metrics read €0.
-- [ ] Given only the default Status: Active, then the count reads "x of n
+- [x] Given only the default Status: Active, then the count reads "x of n
       initiatives" over every initiative and Clear filters is hidden.
-- [ ] Given a reload, then every filter is back to its default.
+- [x] Given a reload, then every filter is back to its default.
 
 ## Flags and compromises
 

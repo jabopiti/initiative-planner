@@ -79,39 +79,39 @@ a developer tool.
 
 ## Acceptance criteria
 
-- [ ] Given Danger zone locked, then both actions are disabled.
-- [ ] Given an empty dataset, then Load example data is enabled; given any
+- [x] Given Danger zone locked, then both actions are disabled.
+- [x] Given an empty dataset, then Load example data is enabled; given any
       person, team or initiative, it is disabled with "Reset first".
-- [ ] Given Load example data, then the example teams, people, memberships and
+- [x] Given Load example data, then the example teams, people, memberships and
       initiatives are written in one commit, with dates relative to this month,
       and the Portfolio opens.
-- [ ] Given Reset, then the button becomes "Confirm reset" with Cancel and the
+- [x] Given Reset, then the button becomes "Confirm reset" with Cancel and the
       counted line "This removes <n> initiatives, <n> people and <n> teams,
       and sets roles, countries and rates back to their defaults. This can't
       be undone." (a zero count left out, the singular for 1).
-- [ ] Given Load example data, then Checkout Redesign is in Development and
+- [x] Given Load example data, then Checkout Redesign is in Development and
       Onboarding Flow v2 in Validation with their earlier gates passed (frozen
       snapshot and approval track from the dataset's rates), and Fraud
       Detection Upgrade is in Discovery.
-- [ ] Given a role abbreviation or country name the example needs is missing
+- [x] Given a role abbreviation or country name the example needs is missing
       or inactive, then Load adds it from the brand pack's baseline in the
       same commit.
-- [ ] Given someone adds a person, team or initiative between the check and
+- [x] Given someone adds a person, team or initiative between the check and
       the commit, then Load stops with "Not loaded: someone added data
       meanwhile. Reset first." and writes nothing.
-- [ ] Given Confirm reset, then one commit leaves only the baseline (roles,
+- [x] Given Confirm reset, then one commit leaves only the baseline (roles,
       countries, rates, empty teams/people/memberships, no initiative files),
       and the Portfolio empty state opens.
-- [ ] Given another user commits between reading the head and moving the ref
+- [x] Given another user commits between reading the head and moving the ref
       (fake repository), then the operation retries on the new head and still
       makes exactly one commit.
-- [ ] Given a failure mid-way (fake), then the data branch is unchanged (no
+- [x] Given a failure mid-way (fake), then the data branch is unchanged (no
       partial dataset).
-- [ ] Given pending edits, then Reset drops them and they are not pushed
+- [x] Given pending edits, then Reset drops them and they are not pushed
       afterwards.
-- [ ] Given Reset after rates were confirmed, then `ratesReviewed` is false
+- [x] Given Reset after rates were confirmed, then `ratesReviewed` is false
       again.
-- [ ] Given another user's client pulls after a Reset, then their lists empty
+- [x] Given another user's client pulls after a Reset, then their lists empty
       and an open initiative shows "This initiative couldn't be found."
 
 ## Flags and compromises

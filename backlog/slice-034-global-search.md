@@ -66,25 +66,25 @@ fields; recent searches.
 
 ## Acceptance criteria
 
-- [ ] Given the search icon, ⌘/Ctrl+K anywhere, or / outside a text field,
+- [x] Given the search icon, ⌘/Ctrl+K anywhere, or / outside a text field,
       then the overlay opens with the field focused; / typed inside a field
       types a slash.
-- [ ] Given "fra", then Fraud Detection Upgrade appears under Initiatives.
-- [ ] Given a word only in an initiative's description, then it appears after
+- [x] Given "fra", then Fraud Detection Upgrade appears under Initiatives.
+- [x] Given a word only in an initiative's description, then it appears after
       name matches.
-- [ ] Given "sofia", then Sofia Molina appears under People; Enter opens the
+- [x] Given "sofia", then Sofia Molina appears under People; Enter opens the
       People page with that person's side panel open.
-- [ ] Given "plat", then Platform appears under Teams; Enter opens its page.
-- [ ] Given "lucia" (no accent), then Lucía Ramos is found.
-- [ ] Given an inactive person or team, then it is listed with "(inactive)".
-- [ ] Given more than 5 matches in a group, then 5 show.
-- [ ] Given no match, then "No matches for '<text>'" shows.
-- [ ] Given Esc or a click outside, then the overlay closes and focus returns
+- [x] Given "plat", then Platform appears under Teams; Enter opens its page.
+- [x] Given "lucia" (no accent), then Lucía Ramos is found.
+- [x] Given an inactive person or team, then it is listed with "(inactive)".
+- [x] Given more than 5 matches in a group, then 5 show.
+- [x] Given no match, then "No matches for '<text>'" shows.
+- [x] Given Esc or a click outside, then the overlay closes and focus returns
       to the element focused before.
-- [ ] Given a description-only match, then its row shows the excerpt; given
+- [x] Given a description-only match, then its row shows the excerpt; given
       a non-Active initiative, then its row shows the status chip; given more
       than 5 matches in a group, then its header reads "5 of 12".
-- [ ] Given a screen reader, then the dialog has the name "Search", results
+- [x] Given a screen reader, then the dialog has the name "Search", results
       are announced with their group, and the arrow keys move between them.
 
 ## Flags and compromises

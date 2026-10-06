@@ -47,17 +47,17 @@ survives a reload, and users who ask for less motion get none.
 
 ## Acceptance criteria
 
-- [ ] Given System with OS dark, then `.dark` is on the root; Light and Dark
+- [x] Given System with OS dark, then `.dark` is on the root; Light and Dark
       force it off and on.
-- [ ] Given a chosen mode and a reload, then it is restored; with storage
+- [x] Given a chosen mode and a reload, then it is restored; with storage
       blocked, System is used.
-- [ ] Given the control, then its name reads "Theme: System", its menu
+- [x] Given the control, then its name reads "Theme: System", its menu
       offers System, Light and Dark with a check on the current one, and it
       works by keyboard.
-- [ ] Given the production build under the strict CSP, then a reload in
+- [x] Given the production build under the strict CSP, then a reload in
       Dark shows no flash of Light (`.dark` is on the root before first paint).
-- [ ] Given reduced motion, then the tint changes instantly.
-- [ ] Given axe in dark mode on Portfolio, Initiatives, an initiative page
+- [x] Given reduced motion, then the tint changes instantly.
+- [x] Given axe in dark mode on Portfolio, Initiatives, an initiative page
       and Settings, then there are no violations.
 
 ## Decided in review (pre-implementation)

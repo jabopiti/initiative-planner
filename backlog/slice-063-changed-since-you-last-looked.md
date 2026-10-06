@@ -55,26 +55,26 @@ value beside the new.
 
 ## Acceptance criteria
 
-- [ ] Given an initiative opened before and changed since, then its card
+- [x] Given an initiative opened before and changed since, then its card
       and row carry the dot, with an accessible name ("Changed since you
       last looked").
-- [ ] Given two such initiatives, then the Portfolio line names 2 and the
+- [x] Given two such initiatives, then the Portfolio line names 2 and the
       date of the earliest last visit; **Mark as seen** clears all dots.
-- [ ] Given the page opened, then each changed key figure shows its
+- [x] Given the page opened, then each changed key figure shows its
       previous value struck through, and on return to the Portfolio its
       dot is gone.
-- [ ] Given an initiative never opened, then nothing marks it.
-- [ ] Given IndexedDB unavailable, then nothing is marked and nothing
+- [x] Given an initiative never opened, then nothing marks it.
+- [x] Given IndexedDB unavailable, then nothing is marked and nothing
       fails.
-- [ ] Given any mark, then no text names who made the change.
-- [ ] Given the user's own edit on the initiative page, then no dot appears
+- [x] Given any mark, then no text names who made the change.
+- [x] Given the user's own edit on the initiative page, then no dot appears
       on its card or row afterwards and the edited figure shows no previous
       value.
-- [ ] Given a changed initiative the filters hide, then the Portfolio line
+- [x] Given a changed initiative the filters hide, then the Portfolio line
       still counts it, and **Mark as seen** clears it.
-- [ ] Given Settings → Danger zone → Reset, then the store is emptied and
+- [x] Given Settings → Danger zone → Reset, then the store is emptied and
       nothing is marked.
-- [ ] Given the e2e axe scan, then the Portfolio line, a dot and a struck
+- [x] Given the e2e axe scan, then the Portfolio line, a dot and a struck
       figure pass in both themes.
 
 ## Flags and compromises

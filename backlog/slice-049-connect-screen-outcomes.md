@@ -43,14 +43,14 @@ the real app, and agrees with the Replace-token field.
 
 ## Acceptance criteria
 
-- [ ] Given a token pasted, then it is checked without pressing Connect.
-- [ ] Given a classic token, then the app opens and shows the warning with the
+- [x] Given a token pasted, then it is checked without pressing Connect.
+- [x] Given a classic token, then the app opens and shows the warning with the
       fine-grained link until dismissed.
-- [ ] Given a token that cannot see the repository, then the message reads
+- [x] Given a token that cannot see the repository, then the message reads
       "This token can't see owner/repo." (copy per §5.10).
-- [ ] Given a rejected token (401), then the error names the likely cause
+- [x] Given a rejected token (401), then the error names the likely cause
       and links "Create a new token".
-- [ ] Given each outcome of the §5.10 table, then an App-level test asserts
+- [x] Given each outcome of the §5.10 table, then an App-level test asserts
       its message and whether the app opens.
 
 ## Flags and compromises

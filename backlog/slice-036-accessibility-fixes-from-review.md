@@ -67,19 +67,19 @@ reader, and a deactivated membership can be taken up again.
 
 ## Acceptance criteria
 
-- [ ] Given Add member with matches, then ArrowDown/ArrowUp move the active
+- [x] Given Add member with matches, then ArrowDown/ArrowUp move the active
       option (announced), Enter adds that person, Esc clears the field.
-- [ ] Given no exact match, then "Create '<name>'" is reachable by arrow keys
+- [x] Given no exact match, then "Create '<name>'" is reachable by arrow keys
       and Enter creates the person.
-- [ ] Given a person whose Platform membership is inactive, then the panel's
+- [x] Given a person whose Platform membership is inactive, then the panel's
       Add to team lists Platform; choosing it reactivates the same membership
       (same id), capped at unclaimed capacity with the cap message.
-- [ ] Given that, then no second Platform membership exists.
-- [ ] Given read-only, then the sync indicator's visible label includes the
+- [x] Given that, then no second Platform membership exists.
+- [x] Given read-only, then the sync indicator's visible label includes the
       short cause, in the Warning colour.
-- [ ] Given synced, then the indicator has the accessible name "Synced" (or
+- [x] Given synced, then the indicator has the accessible name "Synced" (or
       "Synced, updated by others").
-- [ ] Given axe (or equivalent) on Team detail and the top bar, then no
+- [x] Given axe (or equivalent) on Team detail and the top bar, then no
       violations for these elements.
 
 ## Flags and compromises

@@ -87,29 +87,29 @@ Initiatives table (slice 013); searching by description (slice 034).
 
 ## Acceptance criteria
 
-- [ ] Given an initiative without a description, then the header shows the
+- [x] Given an initiative without a description, then the header shows the
       placeholder "Add a description" under the name.
-- [ ] Given a description is typed and Enter pressed, then it is saved and
+- [x] Given a description is typed and Enter pressed, then it is saved and
       shown under the name, wrapping to at most two lines.
-- [ ] Given text with line breaks is pasted, then it is saved with spaces in
+- [x] Given text with line breaks is pasted, then it is saved with spaces in
       their place.
-- [ ] Given the description is cleared and committed, then the field is
+- [x] Given the description is cleared and committed, then the field is
       removed from the initiative file and the placeholder shows again.
-- [ ] Given the owner select is opened, then it lists "No owner", then the
+- [x] Given the owner select is opened, then it lists "No owner", then the
       team's active members by name, then every other active person by name;
       inactive people are not listed.
-- [ ] Given Mara Voss is chosen, then the select reads "Mara Voss" and the
+- [x] Given Mara Voss is chosen, then the select reads "Mara Voss" and the
       commit reads "Checkout Redesign: owner set to Mara Voss".
-- [ ] Given "No owner" is chosen, then `ownerId` is removed and the select
+- [x] Given "No owner" is chosen, then `ownerId` is removed and the select
       reads "No owner".
-- [ ] Given the owner is deactivated later, then the header reads "Mara Voss
+- [x] Given the owner is deactivated later, then the header reads "Mara Voss
       (inactive)" and the owner is kept until someone changes it.
-- [ ] Given a grand estimate of €120,000 with the example tracks, then the
+- [x] Given a grand estimate of €120,000 with the example tracks, then the
       badge reads "Standard" with the tooltip "Requires department head
       approval"; given a total no band covers, it reads "No approval track".
-- [ ] Given an allocation change moves the total into another band, then the
+- [x] Given an allocation change moves the total into another band, then the
       badge changes without a reload.
-- [ ] Given a screen reader, then the description field and the owner select
+- [x] Given a screen reader, then the description field and the owner select
       have the accessible names "Description" and "Owner", and the badge's
       text is read, not only its colour.
 

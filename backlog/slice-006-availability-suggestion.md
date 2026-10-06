@@ -69,14 +69,14 @@ exists, not what's shown after.
 
 ## Acceptance criteria
 
-- [ ] Given a team with members at varying capacity, when the add-person
+- [x] Given a team with members at varying capacity, when the add-person
       picker opens, then members are listed most-free-capacity first.
-- [ ] Given a selected person, when they are added, then Allocation % is
+- [x] Given a selected person, when they are added, then Allocation % is
       prefilled with their computed free capacity for the phase's months.
-- [ ] Given a person is fully committed elsewhere, when the picker opens,
+- [x] Given a person is fully committed elsewhere, when the picker opens,
       then they appear with a free capacity of 0% rather than being
       hidden.
-- [ ] Given the prefilled Allocation % is accepted unchanged, when the
+- [x] Given the prefilled Allocation % is accepted unchanged, when the
       allocation is saved, then it does not exceed the person's Team FTE %
       or Capacity % for any month of the phase.
 

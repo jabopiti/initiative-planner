@@ -78,12 +78,12 @@ follows the brand pack's API host.
 
 ## Acceptance criteria
 
-- [ ] Given CI, then each §10.8 item above runs, and fails on a violation.
-- [ ] Given `apiBaseUrl` set to another host, then the built CSP allows that
+- [x] Given CI, then each §10.8 item above runs, and fails on a violation.
+- [x] Given `apiBaseUrl` set to another host, then the built CSP allows that
       host and not `api.github.com`.
-- [ ] Given a generated max-size dataset, then it is at most half the smallest
+- [x] Given a generated max-size dataset, then it is at most half the smallest
       quota.
-- [ ] Given each new axe scan, then no violations.
+- [x] Given each new axe scan, then no violations.
 
 ## Flags and compromises
 
