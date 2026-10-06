@@ -396,9 +396,9 @@ because each needs a different fix:
 
 | Cause | The message says | Recovery |
 |---|---|---|
-| GitHub unreachable or offline | Cannot reach GitHub; changes are paused | Automatic retry, or Retry |
+| GitHub unreachable or offline, a server error (5xx), or no answer within 30 s | Cannot reach GitHub; changes are paused | Automatic retry, or Retry |
 | Access denied | The token check (§5.10) runs once on the failure and the message is its outcome: "GitHub doesn't accept this token. It has expired or been revoked; create a new one.", "This token can read but not write. Set Contents to Read and write.", "This token can't see <repository>. Create it with access to that repository.", or "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." | Paste a new token into the banner (below), or fix the token in GitHub and Retry |
-| Rate limited by GitHub | "GitHub is limiting requests. Saving resumes by itself at <time>." | Automatic: no request goes to GitHub until the time GitHub names (§10.3), then the pull and the failed edits resume by themselves. No Retry while the wait lasts |
+| Rate limited by GitHub: a 429, or a 403 with a `retry-after`, a message naming a rate limit, or no requests left and no message of its own (any other 403, such as one whose message names a missing permission, is Access denied) | "GitHub is limiting requests. Saving resumes by itself at <time>." | Automatic: no request goes to GitHub until the time GitHub names (§10.3), then the pull and the failed edits resume by themselves. No Retry while the wait lasts |
 | Process mismatch, or dataset newer than this build | Which of the two failed (see Data integrity) | Matching build or dataset; reload to update |
 | Dataset damaged | "Dataset damaged: <file>: <what>. Ask the repository owner to restore an earlier version from the commit history." with **Open commit history** (see Damaged data) | The owner restores the files; the next pull recovers, or Retry |
 
@@ -1251,7 +1251,7 @@ A pasted token is checked immediately, and the result is specific:
 | Waiting for approval | "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." |
 | Expired or invalid (a 401) | "GitHub doesn't accept this token. It has probably expired or been revoked, or part of it is missing from the paste.", then a **Create a new token** link opening GitHub's token page as in step 1 |
 | Network failure or a server error while checking | "Couldn't reach GitHub to check the token. Check your connection and try again." The token stays in the field and the check can be run again. |
-| GitHub limiting requests while checking (a 429, or a 403 that names a rate limit) | "GitHub is limiting requests; try again shortly." The token stays in the field and the check can be run again. |
+| Rate limited while checking | "GitHub is limiting requests; try again shortly." The token stays in the field and the check can be run again. |
 
 ### 5.11 Suggestions and shortcuts
 

@@ -31,17 +31,18 @@ interface DeleteRecord {
   status: number;
 }
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status });
+function json(body: unknown, status = 200, headers?: HeadersInit): Response {
+  return new Response(JSON.stringify(body), { status, headers });
 }
 
-/** A refused write, with the headers and message GitHub would send (a rate limit's `retry-after`, say). */
-function refusal(status: number, failure?: { headers?: Record<string, string>; message?: string }): Response {
-  return new Response(JSON.stringify({ message: failure?.message ?? 'failed' }), { status, headers: failure?.headers });
+/** How a refusal reads beyond its status: GitHub's message and headers (a rate limit's `retry-after`, say). */
+interface Refusal {
+  message?: string;
+  headers?: HeadersInit;
 }
 
 /** A repository on the data branch: files with shas, held or failed writes on demand, and "the other writer". */
-export type TokenBehaviour = 'invalid' | 'read-only' | 'cannot-see' | 'classic' | 'pending-approval';
+export type TokenBehaviour = 'invalid' | 'read-only' | 'cannot-see' | 'classic' | 'pending-approval' | 'rate-limited';
 
 export function fakeGithub() {
   const files = new Map<string, { content: string; sha: string }>();
@@ -49,7 +50,7 @@ export function fakeGithub() {
   const deletes: DeleteRecord[] = [];
   const arrivals = new Map<string, number>();
   const holds: { prefix: string; gate: Promise<void> }[] = [];
-  const failures: { prefix: string; status: number; headers?: Record<string, string>; message?: string }[] = [];
+  const failures: { prefix: string; status: number; refusal: Refusal }[] = [];
   const reads: string[] = [];
   const failReads: { path: string; status: number }[] = [];
   const tokenBehaviours = new Map<string, TokenBehaviour>();
@@ -140,6 +141,7 @@ export function fakeGithub() {
     const behaviour = tokenBehaviours.get((new Headers(init.headers).get('Authorization') ?? '').replace('Bearer ', ''));
     if (method === 'GET' && pathname === '/user') {
       if (behaviour === 'invalid') return json({ message: 'Bad credentials' }, 401);
+      if (behaviour === 'rate-limited') return json({ message: 'API rate limit exceeded' }, 403, { 'x-ratelimit-remaining': '0' });
       // A classic token's response carries X-OAuth-Scopes; a fine-grained token's doesn't.
       return behaviour === 'classic'
         ? new Response(JSON.stringify({ login: 'jmustermann' }), { status: 200, headers: { 'X-OAuth-Scopes': 'repo' } })
@@ -185,7 +187,7 @@ export function fakeGithub() {
       const failure = take(failures, path);
       const existing = files.get(path);
       record.status = failure?.status ?? (!existing ? 404 : body.sha !== existing.sha ? 409 : 200);
-      if (record.status !== 200) return refusal(record.status, failure);
+      if (record.status !== 200) return json({ message: failure?.refusal.message ?? 'failed' }, record.status, failure?.refusal.headers);
       files.delete(path);
       head += 1;
       return json({ commit: { sha: `commit-${head}` } });
@@ -197,7 +199,7 @@ export function fakeGithub() {
     const failure = take(failures, path);
     if (failure) {
       record.status = failure.status;
-      return refusal(failure.status, failure);
+      return json({ message: failure.refusal.message ?? 'failed' }, failure.status, failure.refusal.headers);
     }
     const existing = files.get(path);
     if (existing && body.sha !== existing.sha) {
@@ -248,11 +250,10 @@ export function fakeGithub() {
       holds.push({ prefix, gate: new Promise<void>((resolve) => (release = resolve)) });
       return release;
     },
-    /** What the token check (§5.10) finds for this token: rejected, read-only, unable to see the repository, classic, or awaiting approval. Every other token works. */
+    /** What the token check (§5.10) finds for this token: rejected, read-only, unable to see the repository, classic, awaiting approval, or rate limited. Every other token works. */
     setTokenBehaviour: (token: string, behaviour: TokenBehaviour) => void tokenBehaviours.set(token, behaviour),
-    /** The next write (put or delete) to a path starting with `prefix` is refused with `status` (and GitHub's `headers` and `message`, if given) and changes nothing. */
-    fail: (prefix: string, status: number, response: { headers?: Record<string, string>; message?: string } = {}) =>
-      void failures.push({ prefix, status, ...response }),
+    /** The next write (put or delete) to a path starting with `prefix` is refused with `status` (and `refusal`'s message and headers) and changes nothing. */
+    fail: (prefix: string, status: number, refusal: Refusal = {}) => void failures.push({ prefix, status, refusal }),
   };
 }
 

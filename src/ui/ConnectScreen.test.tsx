@@ -134,7 +134,7 @@ describe('ConnectScreen — checked-token outcomes (§5.10)', () => {
     expect(alert.textContent).toBe("Couldn't reach GitHub to check the token. Check your connection and try again.");
   });
 
-  it('a rate-limited token check says GitHub is limiting requests, not that the token or connection is at fault (slice 043)', async () => {
+  it('a rate-limited token check says GitHub is limiting requests, in the warning styling, and keeps the token (slice 043)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ message: 'You have exceeded a secondary rate limit.' }, 403)));
     renderConnectScreen();
 
@@ -144,6 +144,7 @@ describe('ConnectScreen — checked-token outcomes (§5.10)', () => {
     expect(alert.textContent).toBe('GitHub is limiting requests; try again shortly.');
     expect(alert.className).toContain('bg-warning-tint');
     expect(screen.getByLabelText('GitHub token')).toHaveValue('a-token');
+    expect(screen.getByRole('button', { name: 'Connect' })).toBeEnabled();
   });
 });
 

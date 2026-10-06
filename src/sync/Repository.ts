@@ -30,7 +30,7 @@ import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
 import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, GithubApiError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { GithubClient, type BranchHead, type CommitResult } from '../github/client';
+import { GithubClient, type BranchHead, type CommitOnHeadArgs, type CommitResult } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { WriteBudget } from '../github/writeBudget';
 import { unclaimedCapacityPct } from '../data/capacity';
@@ -2257,7 +2257,7 @@ export class Repository {
   private async commitDataset(
     message: string,
     failureText: string,
-    build: Parameters<GithubClient['commitOnHead']>[0]['build'],
+    build: CommitOnHeadArgs['build'],
   ): Promise<'done' | 'stopped' | { failed: ReadOnlyState }> {
     let result: CommitResult | 'stopped';
     try {

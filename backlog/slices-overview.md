@@ -265,8 +265,8 @@ for the AI-agent-driven build the team asked for:
   limit, many-file commits in a fixed number of requests, one commit per
   multi-file action, the budget in Settings) and the optional 065 (cheaper
   pulls). 064 waits on 043, which fixes the rate-limit 403 it builds on
-  (043 is not built yet, although a mislabelled `Slice 043:` commit makes
-  the backlog tooling count it as done),
+  (built on 6 Oct 2026; an earlier `Slice 043:` commit had only edited the
+  slice file, so the tooling counted it as done before it was),
   and on 045's unload handling; it opens with a GraphQL spike
   (`scripts/spike-graphql.mjs`) that must run outside a Claude Code cloud
   session, whose proxy refuses GraphQL.

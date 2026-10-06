@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { tokenCreationUrl, tokenManagementUrl } from '../auth/tokenCreationUrl';
 import { CommitHistoryLink } from './CommitHistoryLink';
-import { repoLabel, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
+import { isTransient, repoLabel, TOKEN_CHECK_MESSAGES, type TokenCheckResult } from '../auth/validateToken';
 import { useBrand } from '../state/BrandContext';
 import { useRepository, useRepositoryState } from '../state/DataContext';
+import { PULL_RETRY_MS } from '../sync/Repository';
 import { Button } from '@/components/ui/button';
 import { ReplaceTokenField } from './ReplaceTokenField';
 import { TokenSteps } from './TokenSteps';
@@ -45,22 +46,29 @@ export function ReadOnlyBanner() {
     setChecked(false);
     if (!denied) return;
     let cancelled = false;
+    let resend: ReturnType<typeof setTimeout> | undefined;
     void repository.checkAccess().then((result) => {
       if (cancelled) return;
-      // A token that now works, or a check that could not reach GitHub or was rate limited, says nothing about the
-      // token: resend, and the real cause (or the automatic retry for "unreachable" and "rate limited") takes over.
-      // If the save is refused again, the banner falls back to GitHub's own message with Retry rather than waiting
-      // on this check.
-      const saysNothing = ['works', 'classic-warning', 'unreachable', 'rate-limited'].includes(result.outcome);
-      if (saysNothing) {
+      if (result.outcome === 'works' || result.outcome === 'classic-warning') {
+        // The token works: resend. If the save is refused again, the banner falls back to GitHub's own message with
+        // Retry rather than waiting on this check.
         repository.retryAll();
       } else {
         setDiagnosis(result);
+        // A check that could not reach GitHub, or was rate limited, says nothing about the token: say so, and resend
+        // on §3's automatic retry cadence, not at once into the limit. Refused again, it falls back as above.
+        if (isTransient(result)) {
+          resend = setTimeout(() => {
+            setDiagnosis(null);
+            repository.retryAll();
+          }, PULL_RETRY_MS);
+        }
       }
       setChecked(true);
     });
     return () => {
       cancelled = true;
+      clearTimeout(resend);
     };
   }, [denied, attempt, repository]);
 
@@ -78,7 +86,7 @@ export function ReadOnlyBanner() {
         : 'Checking your token…';
     const link = rejected
       ? { href: creationUrl, label: 'Create a new token' }
-      : checked && diagnosis?.outcome !== 'pending-approval'
+      : checked && diagnosis?.outcome !== 'pending-approval' && !(diagnosis && isTransient(diagnosis))
         ? { href: tokenManagementUrl(brand.github), label: 'Edit this token in GitHub' }
         : null;
     return (
