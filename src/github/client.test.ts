@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
-import { GithubClient } from './client';
+import { GithubClient, REQUEST_TIMEOUT_MS } from './client';
 import { GithubApiError } from './errors';
 
 const location: GithubLocation = {
@@ -286,5 +286,120 @@ describe('GithubClient — putFile on a file that is gone (slice 017)', () => {
 
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'sha-3' } }), { status: 200 }));
     await expect(client.putFile(args)).resolves.toEqual({ sha: 'sha-3', created: false });
+  });
+});
+
+describe('GithubClient — failure classification (slice 043, §3 Sync failures)', () => {
+  const putArgs = { path: 'teams.json', branch: location.dataBranch, content: '[]', message: 'x', sha: 'sha-1' };
+  const refused = (status: number, headers: Record<string, string> = {}, message = 'Forbidden') =>
+    new Response(JSON.stringify({ message }), { status, headers });
+
+  it.each([
+    ['remaining 0', refused(403, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1767225600' })],
+    ['a retry-after', refused(403, { 'retry-after': '60' })],
+    ['a body naming a secondary rate limit', refused(403, {}, 'You have exceeded a secondary rate limit. Please wait a few minutes before you try again.')],
+    ['a body naming the primary rate limit', refused(403, {}, 'API rate limit exceeded for user ID 1.')],
+    ['a 429', refused(429, { 'retry-after': '30' })],
+  ])('reads a 403 or 429 with %s as rate-limited', async (_, response) => {
+    fetchMock.mockResolvedValueOnce(response);
+    await expect(new GithubClient(location, () => 'token').putFile(putArgs)).rejects.toMatchObject({ cause_: 'rate-limited' });
+  });
+
+  it('reads a plain 403 as access denied', async () => {
+    fetchMock.mockResolvedValueOnce(refused(403, { 'x-ratelimit-remaining': '4999' }, 'Resource not accessible by personal access token'));
+    await expect(new GithubClient(location, () => 'token').putFile(putArgs)).rejects.toMatchObject({ cause_: 'access-denied', status: 403 });
+  });
+
+  it.each([500, 502, 503])('reads a %i as unreachable, in the words §3 uses for it', async (status) => {
+    fetchMock.mockResolvedValueOnce(refused(status, {}, 'Server Error'));
+    await expect(new GithubClient(location, () => 'token').putFile(putArgs)).rejects.toMatchObject({
+      cause_: 'unreachable',
+      status,
+      message: 'Cannot reach GitHub; changes are paused.',
+    });
+  });
+
+  it('reads a network error as unreachable', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    await expect(new GithubClient(location, () => 'token').getFile({ path: 'teams.json', branch: location.dataBranch })).rejects.toMatchObject({
+      cause_: 'unreachable',
+    });
+  });
+
+  it('aborts a request that never settles at the timeout, as unreachable', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockImplementationOnce(
+        (_url: string, init: RequestInit) =>
+          new Promise((_, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))),
+      );
+      const client = new GithubClient(location, () => 'token');
+      const put = client.putFile(putArgs);
+      const outcome = expect(put).rejects.toMatchObject({ cause_: 'unreachable' });
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS - 1);
+      expect((fetchMock.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await outcome;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('takes a shorter timeout when one is given', async () => {
+    vi.useFakeTimers();
+    try {
+      fetchMock.mockImplementationOnce(
+        (_url: string, init: RequestInit) =>
+          new Promise((_, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))),
+      );
+      const put = new GithubClient(location, () => 'token', undefined, { timeoutMs: 1000 }).putFile(putArgs);
+      const outcome = expect(put).rejects.toMatchObject({ cause_: 'unreachable' });
+      await vi.advanceTimersByTimeAsync(1000);
+      await outcome;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('classifies the token check’s own /user call the same way', async () => {
+    fetchMock.mockResolvedValueOnce(refused(403, { 'retry-after': '60' }, 'You have exceeded a secondary rate limit.'));
+    await expect(new GithubClient(location, () => 'token').checkToken()).rejects.toMatchObject({ cause_: 'rate-limited' });
+  });
+
+  it('builds the bootstrap commit again once when another commit moved the existing branch first (422)', async () => {
+    let refGets = 0;
+    let patches = 0;
+    const parents: string[] = [];
+    fetchMock.mockImplementation(async (url: string, init: RequestInit = {}) => {
+      const u = String(url);
+      const method = init.method ?? 'GET';
+      if (method === 'GET' && u.endsWith('/git/ref/heads/data')) {
+        refGets += 1;
+        return new Response(JSON.stringify({ object: { sha: `head-${refGets}` } }), { status: 200 });
+      }
+      if (method === 'GET' && u.includes('/git/commits/head-')) return new Response(JSON.stringify({ tree: { sha: 'base-tree' } }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob-1' }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'tree-1' }), { status: 200 });
+      if (method === 'POST' && u.endsWith('/git/commits')) {
+        parents.push(...(JSON.parse(init.body as string) as { parents: string[] }).parents);
+        return new Response(JSON.stringify({ sha: `commit-on-${parents.at(-1)}` }), { status: 200 });
+      }
+      if (method === 'PATCH' && u.endsWith('/git/refs/heads/data')) {
+        patches += 1;
+        return patches === 1
+          ? new Response(JSON.stringify({ message: 'Update is not a fast forward' }), { status: 422 })
+          : new Response(JSON.stringify({ object: { sha: 'x' } }), { status: 200 });
+      }
+      throw new Error(`unexpected call: ${method} ${u}`);
+    });
+
+    const result = await new GithubClient(location, () => 'token').createFilesCommit({
+      branch: location.dataBranch,
+      files: [{ path: 'dataset.json', content: '{}' }],
+      message: 'init',
+    });
+
+    expect(parents).toEqual(['head-1', 'head-2']);
+    expect(result.commitSha).toBe('commit-on-head-2');
   });
 });

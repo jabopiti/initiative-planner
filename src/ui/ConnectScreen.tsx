@@ -18,6 +18,7 @@ const MESSAGE_STYLES: Record<TokenCheckResult['outcome'], string> = {
   'pending-approval': 'bg-alarm-tint text-alarm-text',
   invalid: 'bg-alarm-tint text-alarm-text',
   unreachable: 'bg-warning-tint text-warning-text',
+  'rate-limited': 'bg-warning-tint text-warning-text',
 };
 
 export function ConnectScreen({ onConnected }: { onConnected: (token: string, remember: boolean, login: string, classic: boolean) => void }) {

@@ -111,7 +111,7 @@ describe('checkToken — the outcomes table (§5.10)', () => {
     expect(result).toEqual({ outcome: 'unreachable' });
   });
 
-  it('unreachable: a 429 on the repo access step is not read as "cannot see the repository" either', async () => {
+  it('rate-limited: a 429 on the repo access step is not read as "cannot see the repository" either', async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url.endsWith('/user')) return jsonResponse({ login: 'bo' });
       return jsonResponse({ message: 'API rate limit exceeded' }, 429);
@@ -119,6 +119,17 @@ describe('checkToken — the outcomes table (§5.10)', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await checkToken(location, 'token');
-    expect(result).toEqual({ outcome: 'unreachable' });
+    expect(result).toEqual({ outcome: 'rate-limited' });
+  });
+
+  it.each([
+    ['a secondary-limit 403', jsonResponse({ message: 'You have exceeded a secondary rate limit.' }, 403, { 'retry-after': '60' })],
+    ['a 403 with no requests remaining', jsonResponse({ message: 'API rate limit exceeded' }, 403, { 'x-ratelimit-remaining': '0' })],
+    ['a 429', jsonResponse({ message: 'Too many requests' }, 429)],
+  ])('rate-limited: %s on /user reads as neither unreachable nor a rejected token (slice 043)', async (_, response) => {
+    vi.stubGlobal('fetch', vi.fn(async () => response));
+
+    const result = await checkToken(location, 'token');
+    expect(result).toEqual({ outcome: 'rate-limited' });
   });
 });

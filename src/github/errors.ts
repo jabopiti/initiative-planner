@@ -36,13 +36,25 @@ export class DamagedDataError extends Error {
   }
 }
 
-export function classifyStatus(status: number): GithubFailureCause {
+/**
+ * Why a request failed (§3 Sync failures), from its status, headers and GitHub's message. A 403 is a rate limit when
+ * no requests remain, GitHub names a time to retry after, or its message says so (a secondary limit has neither
+ * header always); any other 403 is access denied. A 5xx is GitHub being unreachable, as a network error is.
+ */
+export function classifyFailure(status: number, headers: Headers, message: string): GithubFailureCause {
+  if (status === 429) return 'rate-limited';
+  if (status === 403 && (headers.get('x-ratelimit-remaining') === '0' || headers.has('retry-after') || /rate limit/i.test(message))) {
+    return 'rate-limited';
+  }
   if (status === 401 || status === 403) return 'access-denied';
   if (status === 404) return 'not-found';
   if (status === 409) return 'conflict';
-  if (status === 429) return 'rate-limited';
+  if (status >= 500) return 'unreachable';
   return 'unknown';
 }
+
+/** The words §3 uses when GitHub cannot be reached, for a network error, a timeout or a 5xx alike. */
+export const UNREACHABLE_MESSAGE = 'Cannot reach GitHub; changes are paused.';
 
 export interface ReadOnlyState {
   cause: GithubFailureCause;

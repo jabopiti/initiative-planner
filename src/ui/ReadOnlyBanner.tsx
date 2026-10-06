@@ -37,10 +37,12 @@ export function ReadOnlyBanner() {
     let cancelled = false;
     void repository.checkAccess().then((result) => {
       if (cancelled) return;
-      // A token that now works, or a check that could not reach GitHub, says nothing about the token: resend,
-      // and the real cause (or the automatic retry for "unreachable") takes over. If the save is refused
-      // again, the banner falls back to GitHub's own message with Retry rather than waiting on this check.
-      if (result.outcome === 'works' || result.outcome === 'classic-warning' || result.outcome === 'unreachable') {
+      // A token that now works, or a check that could not reach GitHub or was rate limited, says nothing about the
+      // token: resend, and the real cause (or the automatic retry for "unreachable" and "rate limited") takes over.
+      // If the save is refused again, the banner falls back to GitHub's own message with Retry rather than waiting
+      // on this check.
+      const saysNothing = ['works', 'classic-warning', 'unreachable', 'rate-limited'].includes(result.outcome);
+      if (saysNothing) {
         repository.retryAll();
       } else {
         setDiagnosis(result);

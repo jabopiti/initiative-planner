@@ -33,6 +33,11 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
 }
 
+/** A refused write, with the headers and message GitHub would send (a rate limit's `retry-after`, say). */
+function refusal(status: number, failure?: { headers?: Record<string, string>; message?: string }): Response {
+  return new Response(JSON.stringify({ message: failure?.message ?? 'failed' }), { status, headers: failure?.headers });
+}
+
 /** A repository on the data branch: files with shas, held or failed writes on demand, and "the other writer". */
 export type TokenBehaviour = 'invalid' | 'read-only' | 'cannot-see' | 'classic' | 'pending-approval';
 
@@ -42,7 +47,7 @@ export function fakeGithub() {
   const deletes: DeleteRecord[] = [];
   const arrivals = new Map<string, number>();
   const holds: { prefix: string; gate: Promise<void> }[] = [];
-  const failures: { prefix: string; status: number }[] = [];
+  const failures: { prefix: string; status: number; headers?: Record<string, string>; message?: string }[] = [];
   const reads: string[] = [];
   const failReads: { path: string; status: number }[] = [];
   const tokenBehaviours = new Map<string, TokenBehaviour>();
@@ -160,7 +165,7 @@ export function fakeGithub() {
       const failure = take(failures, path);
       const existing = files.get(path);
       record.status = failure?.status ?? (!existing ? 404 : body.sha !== existing.sha ? 409 : 200);
-      if (record.status !== 200) return json({ message: 'failed' }, record.status);
+      if (record.status !== 200) return refusal(record.status, failure);
       files.delete(path);
       head += 1;
       return json({ commit: { sha: `commit-${head}` } });
@@ -172,7 +177,7 @@ export function fakeGithub() {
     const failure = take(failures, path);
     if (failure) {
       record.status = failure.status;
-      return json({ message: 'failed' }, failure.status);
+      return refusal(failure.status, failure);
     }
     const existing = files.get(path);
     if (existing && body.sha !== existing.sha) {
@@ -223,8 +228,9 @@ export function fakeGithub() {
     },
     /** What the token check (§5.10) finds for this token: rejected, read-only, unable to see the repository, classic, or awaiting approval. Every other token works. */
     setTokenBehaviour: (token: string, behaviour: TokenBehaviour) => void tokenBehaviours.set(token, behaviour),
-    /** The next write (put or delete) to a path starting with `prefix` is refused with `status` and changes nothing. */
-    fail: (prefix: string, status: number) => void failures.push({ prefix, status }),
+    /** The next write (put or delete) to a path starting with `prefix` is refused with `status` (and GitHub's `headers` and `message`, if given) and changes nothing. */
+    fail: (prefix: string, status: number, response: { headers?: Record<string, string>; message?: string } = {}) =>
+      void failures.push({ prefix, status, ...response }),
   };
 }
 

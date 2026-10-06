@@ -1,6 +1,6 @@
 import type { GithubLocation } from '../brand/types';
 import { decodeBase64Utf8, encodeBase64Utf8 } from './base64';
-import { GithubApiError, classifyStatus } from './errors';
+import { GithubApiError, UNREACHABLE_MESSAGE, classifyFailure } from './errors';
 
 /**
  * Thin wrapper over the GitHub Contents API. `branch` is a required,
@@ -64,10 +64,28 @@ function assertBranch(branch: string): void {
   }
 }
 
+/** How long a request may take before it is abandoned as unreachable (§3 Sync failures), so a hung request can't
+ * wedge the write queue. */
+export const REQUEST_TIMEOUT_MS = 30_000;
+
+/** GitHub's own message in a failed response's body, or '' when there is none. */
+async function messageOf(response: Response): Promise<string> {
+  const body: unknown = await response.json().catch(() => null);
+  return body && typeof body === 'object' && 'message' in body ? String(body.message) : '';
+}
+
+/** The labelled GithubApiError for a failed response, classified from its status, headers and message. */
+async function failure(response: Response, label: string, detail?: string): Promise<GithubApiError> {
+  const message = detail ?? (await messageOf(response));
+  const cause = classifyFailure(response.status, response.headers, message);
+  if (cause === 'unreachable') return new GithubApiError(UNREACHABLE_MESSAGE, cause, response.status);
+  return new GithubApiError(`${label} failed (${response.status})`, cause, response.status);
+}
+
 /** Throw a labelled GithubApiError unless the response is ok (or its status is explicitly allowed). */
-function assertOk(response: Response, label: string, extraOkStatuses: number[] = []): void {
+async function assertOk(response: Response, label: string, extraOkStatuses: number[] = []): Promise<void> {
   if (response.ok || extraOkStatuses.includes(response.status)) return;
-  throw new GithubApiError(`${label} failed (${response.status})`, classifyStatus(response.status), response.status);
+  throw await failure(response, label);
 }
 
 /** A write at a sha that is no longer the file's (409): a conflict, re-read and retried by the writer (§10.3). */
@@ -81,6 +99,7 @@ export class GithubClient {
     private readonly getToken: () => string | null,
     /** Told of every response's headers, so the rate-limit budget is read without a request of its own (§5.9). */
     private readonly onResponse?: (headers: Headers) => void,
+    private readonly options: { timeoutMs?: number } = {},
   ) {}
 
   private repoUrl(path: string): string {
@@ -94,13 +113,24 @@ export class GithubClient {
     headers.set('X-GitHub-Api-Version', '2022-11-28');
     if (token) headers.set('Authorization', `Bearer ${token}`);
 
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // Raced as well as signalled, so a request ends at the timeout even where aborting doesn't settle the fetch.
+    const timedOut = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new Error('timed out'));
+      }, this.options.timeoutMs ?? REQUEST_TIMEOUT_MS);
+    });
     try {
       // no-store: GitHub's Contents API answers with max-age=60, and a re-read after a 409 must see the other writer's commit.
-      const response = await fetch(input, { cache: 'no-store', ...init, headers });
+      const response = await Promise.race([fetch(input, { cache: 'no-store', ...init, headers, signal: controller.signal }), timedOut]);
       this.onResponse?.(response.headers);
       return response;
     } catch {
-      throw new GithubApiError('Cannot reach GitHub; changes are paused.', 'unreachable');
+      throw new GithubApiError(UNREACHABLE_MESSAGE, 'unreachable');
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -111,7 +141,7 @@ export class GithubClient {
     const response = await this.request(url, { method: 'GET' });
 
     if (response.status === 404) return null;
-    assertOk(response, `GET ${args.path}`);
+    await assertOk(response, `GET ${args.path}`);
 
     const body = (await response.json()) as { content: string; encoding: string; sha: string };
     let rawContent = body.content;
@@ -122,7 +152,7 @@ export class GithubClient {
       // The blob can itself 404 if the file was deleted between the two requests — keep getFile's
       // "null means the file doesn't exist" contract instead of throwing here.
       if (blobResponse.status === 404) return null;
-      assertOk(blobResponse, `GET blob ${args.path}`);
+      await assertOk(blobResponse, `GET blob ${args.path}`);
       rawContent = ((await blobResponse.json()) as { content: string }).content;
     }
     return { content: decodeBase64Utf8(rawContent), sha: body.sha };
@@ -144,7 +174,7 @@ export class GithubClient {
     });
 
     assertNotStale(response);
-    assertOk(response, `PUT ${args.path}`);
+    await assertOk(response, `PUT ${args.path}`);
 
     const body = (await response.json()) as { content: { sha: string } };
     return { sha: body.content.sha, created: response.status === 201 };
@@ -165,7 +195,7 @@ export class GithubClient {
 
     if (response.status === 404) return 'gone';
     assertNotStale(response);
-    assertOk(response, `DELETE ${args.path}`);
+    await assertOk(response, `DELETE ${args.path}`);
     return 'deleted';
   }
 
@@ -176,7 +206,7 @@ export class GithubClient {
     const response = await this.request(url, { method: 'GET' });
 
     if (response.status === 404) return [];
-    assertOk(response, `GET ${args.path || 'the repository root'}`);
+    await assertOk(response, `GET ${args.path || 'the repository root'}`);
 
     const body = (await response.json()) as unknown;
     if (!Array.isArray(body)) return [];
@@ -198,7 +228,7 @@ export class GithubClient {
 
     if (response.status === 304) return 'not-modified';
     if (response.status === 404) return null;
-    assertOk(response, `GET the head of ${args.branch}`);
+    await assertOk(response, `GET the head of ${args.branch}`);
 
     const body = (await response.json()) as { object: { sha: string } };
     return { sha: body.object.sha, etag: response.headers.get('etag') };
@@ -208,7 +238,8 @@ export class GithubClient {
   async checkToken(): Promise<{ login: string; scopesClassic: boolean }> {
     const userResponse = await this.request(`${this.location.apiBaseUrl}/user`, { method: 'GET' });
     if (!userResponse.ok) {
-      throw new GithubApiError('GitHub doesn\'t accept this token.', classifyStatus(userResponse.status), userResponse.status);
+      const cause = (await failure(userResponse, 'GET /user')).cause_;
+      throw new GithubApiError(cause === 'unreachable' ? UNREACHABLE_MESSAGE : 'GitHub doesn\'t accept this token.', cause, userResponse.status);
     }
     const user = (await userResponse.json()) as { login: string };
 
@@ -226,9 +257,9 @@ export class GithubClient {
     if (!response.ok) {
       // Surface GitHub's own message (e.g. a fine-grained token pending organisation
       // approval names that state in its 403 body) so callers can distinguish causes.
-      const body = await response.json().catch(() => null);
-      const detail = body && typeof body === 'object' && 'message' in body ? String((body as { message: unknown }).message) : '';
-      throw new GithubApiError(`GET repo failed (${response.status})${detail ? `: ${detail}` : ''}`, classifyStatus(response.status), response.status);
+      const detail = await messageOf(response);
+      const cause = classifyFailure(response.status, response.headers, detail);
+      throw new GithubApiError(`GET repo failed (${response.status})${detail ? `: ${detail}` : ''}`, cause, response.status);
     }
     const body = (await response.json()) as { permissions?: { push?: boolean } };
     return { visible: true, canWrite: Boolean(body.permissions?.push) };
@@ -250,7 +281,7 @@ export class GithubClient {
     const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
     for (let attempt = 0; ; attempt += 1) {
       const refResponse = await this.request(refUrl, { method: 'GET' });
-      assertOk(refResponse, 'GET ref');
+      await assertOk(refResponse, 'GET ref');
       const head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
       // The base tree only matters once there is something to write; fetch it while `build` reads.
       const baseTree = this.treeOf(head);
@@ -267,14 +298,14 @@ export class GithubClient {
       const updateResponse = await this.updateRef(args.branch, commitSha);
       if (updateResponse.status === 422 && attempt < 3) continue; // the head moved: build again on the new one
       if (updateResponse.status === 422) throw new GithubApiError('The data branch kept changing — please retry.', 'conflict', 422);
-      assertOk(updateResponse, 'Ref update');
+      await assertOk(updateResponse, 'Ref update');
       return { commitSha };
     }
   }
 
   private async treeOf(commitSha: string): Promise<string> {
     const commitResponse = await this.request(this.repoUrl(`git/commits/${commitSha}`), { method: 'GET' });
-    assertOk(commitResponse, 'GET commit');
+    await assertOk(commitResponse, 'GET commit');
     return ((await commitResponse.json()) as { tree: { sha: string } }).tree.sha;
   }
 
@@ -286,7 +317,7 @@ export class GithubClient {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ content: encodeBase64Utf8(file.content), encoding: 'base64' }),
         });
-        assertOk(blobResponse, 'Blob create');
+        await assertOk(blobResponse, 'Blob create');
         return { path: file.path, sha: ((await blobResponse.json()) as { sha: string }).sha };
       }),
     );
@@ -307,7 +338,7 @@ export class GithubClient {
         tree: args.entries.map((e) => ({ path: e.path, mode: '100644', type: 'blob', sha: e.sha })),
       }),
     });
-    assertOk(treeResponse, 'Tree create');
+    await assertOk(treeResponse, 'Tree create');
     const tree = ((await treeResponse.json()) as { sha: string }).sha;
 
     const commitResponse = await this.request(this.repoUrl('git/commits'), {
@@ -315,7 +346,7 @@ export class GithubClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: args.message, tree, parents: args.parent ? [args.parent] : [] }),
     });
-    assertOk(commitResponse, 'Commit create');
+    await assertOk(commitResponse, 'Commit create');
     return ((await commitResponse.json()) as { sha: string }).sha;
   }
 
@@ -352,24 +383,22 @@ export class GithubClient {
     blobsPromise.catch(() => {});
 
     const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
-    const refResponse = await this.request(refUrl, { method: 'GET' });
-
-    let baseTree: string | undefined;
-    let parent: string | undefined;
-    const branchExists = refResponse.status !== 404;
-
-    if (branchExists) {
-      assertOk(refResponse, 'GET ref');
-      parent = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
-      baseTree = await this.treeOf(parent);
-    }
-
-    const commitSha = await this.createCommit({ baseTree, parent, entries: await blobsPromise, message: args.message });
-
-    if (branchExists) {
-      assertOk(await this.updateRef(args.branch, commitSha), 'Ref update');
+    // Once more if another commit lands on an existing branch first: the ref update is then refused as not a
+    // fast-forward (422), and the commit is made again on the new head, as commitOnHead does.
+    for (let attempt = 0; ; attempt += 1) {
+      const refResponse = await this.request(refUrl, { method: 'GET' });
+      if (refResponse.status === 404) break;
+      await assertOk(refResponse, 'GET ref');
+      const parent = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
+      const baseTree = await this.treeOf(parent);
+      const commitSha = await this.createCommit({ baseTree, parent, entries: await blobsPromise, message: args.message });
+      const updateResponse = await this.updateRef(args.branch, commitSha);
+      if (updateResponse.status === 422 && attempt < 1) continue;
+      await assertOk(updateResponse, 'Ref update');
       return { commitSha };
     }
+
+    const commitSha = await this.createCommit({ entries: await blobsPromise, message: args.message });
 
     const createRefResponse = await this.request(this.repoUrl('git/refs'), {
       method: 'POST',
@@ -382,11 +411,11 @@ export class GithubClient {
     // (winning) commit instead of our own, so a future caller never trusts an unreachable sha.
     if (createRefResponse.status === 422) {
       const wonRefResponse = await this.request(refUrl, { method: 'GET' });
-      assertOk(wonRefResponse, 'GET ref');
+      await assertOk(wonRefResponse, 'GET ref');
       const wonRef = (await wonRefResponse.json()) as { object: { sha: string } };
       return { commitSha: wonRef.object.sha };
     }
-    assertOk(createRefResponse, 'Ref create');
+    await assertOk(createRefResponse, 'Ref create');
     return { commitSha };
   }
 }

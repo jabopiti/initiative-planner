@@ -106,6 +106,24 @@ describe('Read-only banner (§3, §9.9)', () => {
       expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     });
 
+    it('resends rather than blaming the token when the check itself is rate limited (slice 043)', async () => {
+      const fake = fakeGithub();
+      const { repo } = await open(fake);
+      fake.fail('teams.json', 403);
+      repo.createTeam('Platform');
+      await repo.flushPending();
+      vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
+        new URL(url).pathname === '/user'
+          ? Promise.resolve(new Response(JSON.stringify({ message: 'You have exceeded a secondary rate limit.' }), { status: 403 }))
+          : fake.fetchMock(url, init),
+      );
+      renderBanner(repo);
+
+      await vi.waitFor(() => expect(fake.commits('teams.json')).toHaveLength(1));
+      await vi.waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+      expect(screen.queryByText(/limiting requests/)).toBeNull();
+    });
+
     it('shows the four steps behind Show steps', async () => {
       await denied('invalid');
       await screen.findByText(/expired or been revoked/);
