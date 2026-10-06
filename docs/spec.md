@@ -1232,6 +1232,7 @@ A pasted token is checked immediately, and the result is specific:
 | Waiting for approval | "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." |
 | Expired or invalid (a 401) | "GitHub doesn't accept this token. It has probably expired or been revoked, or part of it is missing from the paste.", then a **Create a new token** link opening GitHub's token page as in step 1 |
 | Network failure or a server error while checking | "Couldn't reach GitHub to check the token. Check your connection and try again." The token stays in the field and the check can be run again. |
+| GitHub limiting requests while checking (a 429, or a 403 that names a rate limit) | "GitHub is limiting requests; try again shortly." The token stays in the field and the check can be run again. |
 
 ### 5.11 Suggestions and shortcuts
 
