@@ -38,7 +38,11 @@ cause and message the spec names, and a hung request ends.
 - A request timeout (default 30 s, injectable) aborts the fetch and counts as
   `unreachable`; the write queue moves on.
 - A 422 non-fast-forward on updateRef while bootstrapping an existing branch
-  commits again on the new head, through the same retry as `commitOnHead`.
+  means another client's commit landed first: the bootstrap never commits
+  over it and returns that head, as a refused ref create already does (§3
+  "System writes": concurrent attempts converge, no duplicates).
+- The timeout also covers reading the response body, and a request sending
+  or receiving more than 64 kB gets longer, as for a 16 kB/s link.
 
 ## Execution path
 

@@ -1,6 +1,6 @@
 import type { GithubLocation } from '../brand/types';
 import { decodeBase64Utf8, encodeBase64Utf8 } from './base64';
-import { CAUSE_MESSAGES, GithubApiError, classifyFailure } from './errors';
+import { CAUSE_MESSAGES, GithubApiError, classifyFailure, githubMessage } from './errors';
 
 /**
  * Thin wrapper over the GitHub Contents API. `branch` is a required,
@@ -82,17 +82,17 @@ async function failure(response: Response, label: string): Promise<GithubApiErro
   return new GithubApiError(`${label} failed (${response.status})${detail ? `: ${detail}` : ''}`, cause, response.status);
 }
 
-function githubMessage(body: string): string {
-  try {
-    const parsed = JSON.parse(body) as unknown;
-    return parsed && typeof parsed === 'object' && 'message' in parsed ? String(parsed.message) : '';
-  } catch {
-    return '';
-  }
-}
-
 /** How long a request may take to answer before it counts as GitHub unreachable (§3 Sync failures). */
 export const REQUEST_TIMEOUT_MS = 30_000;
+
+/** The time limit covers this many bytes sent or received; beyond it, a request gets as long more as the slowest
+ * transfer still allowed for (16 kB/s) needs, so a large file on a slow link is not cut off and resent for ever. */
+const BYTES_WITHIN_TIMEOUT = 64 * 1024;
+const MIN_BYTES_PER_MS = 16;
+
+function transferAllowanceMs(bytes: number): number {
+  return Number.isFinite(bytes) && bytes > BYTES_WITHIN_TIMEOUT ? (bytes - BYTES_WITHIN_TIMEOUT) / MIN_BYTES_PER_MS : 0;
+}
 
 /** A write at a sha that is no longer the file's (409): a conflict, re-read and retried by the writer (§10.3). */
 function assertNotStale(response: Response): void {
@@ -122,16 +122,33 @@ export class GithubClient {
 
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let timeOut: (error: Error) => void = () => {};
     // Raced as well as aborted, so a fetch that ignores its signal still ends.
     const timedOut = new Promise<never>((_, reject) => {
+      timeOut = reject;
+    });
+    const allow = (ms: number) => {
+      clearTimeout(timer);
       timer = setTimeout(() => {
         controller.abort();
-        reject(new Error('timed out'));
-      }, this.timeoutMs);
-    });
+        timeOut(new Error('timed out'));
+      }, ms);
+    };
+    // The upload counts against the time, so a large body gets longer to send.
+    allow(this.timeoutMs + transferAllowanceMs(typeof init.body === 'string' ? init.body.length : 0));
     try {
-      // no-store: GitHub's Contents API answers with max-age=60, and a re-read after a 409 must see the other writer's commit.
-      const response = await Promise.race([fetch(input, { cache: 'no-store', ...init, headers, signal: controller.signal }), timedOut]);
+      const response = await Promise.race([
+        (async () => {
+          // no-store: GitHub's Contents API answers with max-age=60, and a re-read after a 409 must see the other writer's commit.
+          const answered = await fetch(input, { cache: 'no-store', ...init, headers, signal: controller.signal });
+          // The body is read within the time too, given longer for a large one: a connection that stalls after the
+          // headers would otherwise hang its reader, and the write queue behind it, for ever.
+          allow(this.timeoutMs + transferAllowanceMs(Number(answered.headers.get('content-length'))));
+          const body = answered.status === 204 || answered.status === 304 ? null : await answered.arrayBuffer();
+          return new Response(body, { status: answered.status, statusText: answered.statusText, headers: answered.headers });
+        })(),
+        timedOut,
+      ]);
       this.onResponse?.(response.headers);
       return response;
     } catch {
@@ -276,41 +293,23 @@ export class GithubClient {
     build: (at: string) => Promise<{ files: { path: string; content: string }[]; deletes: string[] } | null>;
   }): Promise<{ commitSha: string } | 'stopped'> {
     assertBranch(args.branch);
-    return this.commitAndFastForward(args.branch, args.message, undefined, async (head) => {
+    const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
+    for (let attempt = 0; ; attempt += 1) {
+      const head = await this.headOf(refUrl);
+      if (head === null) throw new GithubApiError(`The data branch ${args.branch} does not exist.`, 'not-found', 404);
+      // The base tree only matters once there is something to write; fetch it while `build` reads.
+      const baseTree = this.treeOf(head);
+      baseTree.catch(() => {}); // awaited below unless `build` stops or throws first
+
       const changes = await args.build(head);
-      if (changes === null) return null;
+      if (changes === null) return 'stopped';
       const blobs = await this.createBlobs(changes.files);
       // A null sha removes the path from the base tree.
-      return [...blobs, ...changes.deletes.map((path) => ({ path, sha: null }))];
-    });
-  }
+      const entries = [...blobs, ...changes.deletes.map((path) => ({ path, sha: null }))];
+      const commitSha = await this.createCommit({ baseTree: await baseTree, parent: head, entries, message: args.message });
 
-  /**
-   * Commit `entries` on the branch's head and move the branch to it. When another commit lands first, the ref update
-   * is refused as not a fast-forward (422) and the commit is made again on the new head, up to three times.
-   * `firstRef` is a ref read the caller already made. A null from `entries` stops without committing.
-   */
-  private async commitAndFastForward(
-    branch: string,
-    message: string,
-    firstRef: Response | undefined,
-    entries: (head: string) => Promise<{ path: string; sha: string | null }[] | null>,
-  ): Promise<{ commitSha: string } | 'stopped'> {
-    const refUrl = this.repoUrl(`git/ref/heads/${encodePath(branch)}`);
-    for (let attempt = 0; ; attempt += 1) {
-      const refResponse = attempt === 0 && firstRef ? firstRef : await this.request(refUrl, { method: 'GET' });
-      await assertOk(refResponse, 'GET ref');
-      const head = ((await refResponse.json()) as { object: { sha: string } }).object.sha;
-      // The base tree only matters once there is something to write; fetch it while `entries` reads.
-      const baseTree = this.treeOf(head);
-      baseTree.catch(() => {}); // awaited below unless `entries` stops or throws first
-
-      const written = await entries(head);
-      if (written === null) return 'stopped';
-      const commitSha = await this.createCommit({ baseTree: await baseTree, parent: head, entries: written, message });
-
-      const updateResponse = await this.updateRef(branch, commitSha);
-      if (updateResponse.status === 422 && attempt < 3) continue; // the head moved: commit again on the new one
+      const updateResponse = await this.updateRef(args.branch, commitSha);
+      if (updateResponse.status === 422 && attempt < 3) continue; // the head moved: build again on the new one
       if (updateResponse.status === 422) throw new GithubApiError('The data branch kept changing — please retry.', 'conflict', 422);
       await assertOk(updateResponse, 'Ref update');
       return { commitSha };
@@ -380,6 +379,12 @@ export class GithubClient {
    * (§3 "System writes"). If the branch doesn't exist yet, it's created as
    * an orphan (no parent commit, no base tree) — confirmed viable against
    * the real API in slice 002's spike.
+   *
+   * When another commit reaches the branch first, ours is never put on top of it: the ref create ("Reference already
+   * exists") or the fast-forward is refused with a 422, and the branch's actual head is returned instead. The
+   * concurrent attempts converge on the winner's baseline, with no duplicate (§3 "System writes"); a second baseline
+   * over it would replace its roles' and countries' ids under data already pointing at them. The caller re-reads the
+   * branch either way.
    */
   async createFilesCommit(args: {
     branch: string;
@@ -397,29 +402,36 @@ export class GithubClient {
     blobsPromise.catch(() => {});
 
     const refUrl = this.repoUrl(`git/ref/heads/${encodePath(args.branch)}`);
-    const refResponse = await this.request(refUrl, { method: 'GET' });
-    if (refResponse.status !== 404) {
-      // The blobs are the same whichever head the commit ends up on; never 'stopped', as the entries are never null.
-      return this.commitAndFastForward(args.branch, args.message, refResponse, () => blobsPromise) as Promise<{ commitSha: string }>;
+    const head = await this.headOf(refUrl);
+    let commitSha: string;
+    let landed: Response;
+    if (head === null) {
+      commitSha = await this.createCommit({ entries: await blobsPromise, message: args.message });
+      landed = await this.request(this.repoUrl('git/refs'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ref: `refs/heads/${args.branch}`, sha: commitSha }),
+      });
+    } else {
+      const baseTree = await this.treeOf(head);
+      commitSha = await this.createCommit({ baseTree, parent: head, entries: await blobsPromise, message: args.message });
+      landed = await this.updateRef(args.branch, commitSha);
     }
-
-    const commitSha = await this.createCommit({ entries: await blobsPromise, message: args.message });
-    const createRefResponse = await this.request(this.repoUrl('git/refs'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ref: `refs/heads/${args.branch}`, sha: commitSha }),
-    });
-    // 422 "Reference already exists" — another client won the bootstrap race (§3 "System writes":
-    // concurrent attempts converge, no duplicates). Our own commit never got attached to the
-    // branch in that case, so `commitSha` would be a dangling sha — return the ref's actual
-    // (winning) commit instead of our own, so a future caller never trusts an unreachable sha.
-    if (createRefResponse.status === 422) {
-      const wonRefResponse = await this.request(refUrl, { method: 'GET' });
-      await assertOk(wonRefResponse, 'GET ref');
-      const wonRef = (await wonRefResponse.json()) as { object: { sha: string } };
-      return { commitSha: wonRef.object.sha };
+    // Our commit never got attached to the branch, so return the winner's rather than a dangling sha.
+    if (landed.status === 422) {
+      const winner = await this.headOf(refUrl);
+      if (winner === null) throw new GithubApiError('The data branch changed during setup — please retry.', 'conflict', 422);
+      return { commitSha: winner };
     }
-    await assertOk(createRefResponse, 'Ref create');
+    await assertOk(landed, head === null ? 'Ref create' : 'Ref update');
     return { commitSha };
+  }
+
+  /** The branch's head commit, or null when the branch doesn't exist. */
+  private async headOf(refUrl: string): Promise<string | null> {
+    const response = await this.request(refUrl, { method: 'GET' });
+    if (response.status === 404) return null;
+    await assertOk(response, 'GET ref');
+    return ((await response.json()) as { object: { sha: string } }).object.sha;
   }
 }

@@ -344,6 +344,31 @@ describe('GithubClient — failures are classified and requests end (slice 043)'
       await expect(next).resolves.toEqual({ sha: 'new', created: false });
     });
 
+    it('times out a response whose body stalls after the headers, so its reader never hangs', async () => {
+      fetchMock.mockResolvedValue(new Response(new ReadableStream({ start() {} }), { status: 200 }));
+      const settled = expect(put(new GithubClient(location, () => 'token'))).rejects.toMatchObject({ cause_: 'unreachable' });
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+      await settled;
+    });
+
+    it('gives a large upload longer than the timeout to send, as for a slow link', async () => {
+      fetchMock.mockImplementation(() => new Promise(() => {}));
+      const client = new GithubClient(location, () => 'token');
+      let settled = false;
+      const result = client
+        .putFile({ path: 'teams.json', branch: 'data', content: 'x'.repeat(1_000_000), message: 'm', sha: 's' })
+        .catch((error: unknown) => {
+          settled = true;
+          throw error;
+        });
+      const rejected = expect(result).rejects.toMatchObject({ cause_: 'unreachable' });
+
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 30_000);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(120_000);
+      await rejected;
+    });
+
     it('defaults the timeout to 30 s', async () => {
       fetchMock.mockImplementation(() => new Promise(() => {}));
       const settled = expect(put(new GithubClient(location, () => 'token'))).rejects.toMatchObject({ cause_: 'unreachable' });
@@ -353,31 +378,30 @@ describe('GithubClient — failures are classified and requests end (slice 043)'
     });
   });
 
-  it('bootstrapping an existing branch commits again on the new head when another commit lands first', async () => {
+  it('bootstrapping an existing branch never commits over another client\'s commit that lands first: it returns that head', async () => {
     const fake = fakeGithub();
     vi.stubGlobal('fetch', fake.fetchMock);
     fake.seed('roles.json', []);
-    fake.beforeRefUpdate(() => fake.seed('countries.json', []));
+    fake.beforeRefUpdate(() => fake.seed('countries.json', [])); // the other client's baseline lands first
+
+    const client = new GithubClient(defaultBrandPack.github, () => 'token');
+    const result = await client.createFilesCommit({ branch: 'data', files: [{ path: 'dataset.json', content: '{}' }], message: 'm' });
+
+    expect(fake.gitCommits).toEqual([]);
+    expect(fake.has('dataset.json')).toBe(false);
+    expect(result).toEqual({ commitSha: 'commit-3' });
+    expect(fake.requests().filter((r) => r.startsWith('PATCH'))).toHaveLength(1);
+  });
+
+  it('bootstrapping an existing branch commits on its head when nothing else lands', async () => {
+    const fake = fakeGithub();
+    vi.stubGlobal('fetch', fake.fetchMock);
+    fake.seed('roles.json', []);
 
     const client = new GithubClient(defaultBrandPack.github, () => 'token');
     await client.createFilesCommit({ branch: 'data', files: [{ path: 'dataset.json', content: '{}' }], message: 'm' });
 
     expect(fake.gitCommits).toEqual([{ message: 'm', files: ['dataset.json'], deleted: [] }]);
-    expect(fake.has('countries.json')).toBe(true);
-    expect(fake.requests().filter((r) => r.endsWith('/git/blobs'))).toHaveLength(1);
-  });
-
-  it('bootstrapping gives up as a conflict when the branch keeps moving', async () => {
-    const fake = fakeGithub();
-    vi.stubGlobal('fetch', fake.fetchMock);
-    fake.seed('roles.json', []);
-    for (let i = 0; i < 4; i += 1) fake.beforeRefUpdate(() => fake.seed('countries.json', [i]));
-
-    const client = new GithubClient(defaultBrandPack.github, () => 'token');
-    await expect(client.createFilesCommit({ branch: 'data', files: [{ path: 'dataset.json', content: '{}' }], message: 'm' })).rejects.toMatchObject({
-      cause_: 'conflict',
-      status: 422,
-    });
-    expect(fake.gitCommits).toEqual([]);
+    expect(fake.has('roles.json')).toBe(true);
   });
 });
