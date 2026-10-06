@@ -396,7 +396,7 @@ because each needs a different fix:
 |---|---|---|
 | GitHub unreachable or offline, a server error (5xx), or no answer within 30 s | Cannot reach GitHub; changes are paused | Automatic retry, or Retry |
 | Access denied | The token check (§5.10) runs once on the failure and the message is its outcome: "GitHub doesn't accept this token. It has expired or been revoked; create a new one.", "This token can read but not write. Set Contents to Read and write.", "This token can't see <repository>. Create it with access to that repository.", or "Your GitHub organisation needs to approve this token first. Ask your GitHub owner." | Paste a new token into the banner (below), or fix the token in GitHub and Retry |
-| Rate limited by GitHub: a 429, or a 403 with no requests left, a `retry-after` or a message naming a rate limit (any other 403 is Access denied) | GitHub is limiting requests; try again shortly | Automatic once the limit resets, or Retry |
+| Rate limited by GitHub: a 429, or a 403 with a `retry-after`, a message naming a rate limit, or no requests left and no message of its own (any other 403, such as one whose message names a missing permission, is Access denied) | GitHub is limiting requests; try again shortly | Automatic once the limit resets, or Retry |
 | Process mismatch, or dataset newer than this build | Which of the two failed (see Data integrity) | Matching build or dataset; reload to update |
 | Dataset damaged | "Dataset damaged: <file>: <what>. Ask the repository owner to restore an earlier version from the commit history." with **Open commit history** (see Damaged data) | The owner restores the files; the next pull recovers, or Retry |
 
