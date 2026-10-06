@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { formatClock } from '../data/dates';
 import { useBrand } from '../state/BrandContext';
 import { useRateLimit, useRepository } from '../state/DataContext';
@@ -13,6 +13,14 @@ import { cardClass } from './cardClass';
 function requestsText(limit: ReturnType<typeof useRateLimit>): string {
   if (!limit) return 'Not known yet';
   return `${numberFormat(0).format(limit.remaining)} of ${numberFormat(0).format(limit.limit)} API requests left this hour, resets at ${formatClock(limit.resetsAt)}`;
+}
+
+/** "38 of 400 from this browser; saving slows down above that": the write budget (§5.9, §10.3). */
+function SavesThisHour() {
+  const { writeBudget } = useRepository();
+  const sent = useSyncExternalStore(writeBudget.subscribe, writeBudget.sentThisHour);
+  useEffect(() => void writeBudget.refresh(), [writeBudget]);
+  return <>{`${numberFormat(0).format(sent)} of ${numberFormat(0).format(writeBudget.hourLine)} from this browser; saving slows down above that`}</>;
 }
 
 /** Settings' Connection section (§5.9): who and what is connected, the request budget, replacing the token and Disconnect. */
@@ -54,6 +62,7 @@ export function ConnectionSection() {
           ['GitHub user', login ?? 'Not known yet'],
           ['Repository', `${brand.github.owner}/${brand.github.repo} (${brand.github.dataBranch})`],
           ['API requests', requestsText(limit)],
+          ['Saves this hour', <SavesThisHour />],
         ]}
       />
 

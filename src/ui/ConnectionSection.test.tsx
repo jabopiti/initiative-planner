@@ -61,6 +61,19 @@ describe('Settings → Connection (§5.9)', () => {
     expect(fake.requests().filter((r) => r === 'GET /user')).toHaveLength(0);
   });
 
+  it('shows the saves this browser made this hour against the line where saving slows (slice 064)', async () => {
+    const fake = fakeGithub();
+    const { repo } = await open(fake);
+    renderConnection(repo);
+    expect(screen.getByText('0 of 400 from this browser; saving slows down above that')).toBeInTheDocument();
+
+    repo.createTeam('Platform');
+    await repo.flushPending();
+
+    expect(await screen.findByText('1 of 400 from this browser; saving slows down above that')).toBeInTheDocument();
+    expect(screen.getByText('Saves this hour')).toBeInTheDocument();
+  });
+
   it('fetches the user once when the session never recorded it', async () => {
     const fake = fakeGithub();
     const { repo } = await open(fake);
