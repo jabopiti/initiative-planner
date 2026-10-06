@@ -117,18 +117,19 @@ describe('request budget at the volume ceiling (slice 064 baseline)', () => {
     expect(burst.contentCreating).toBe(5);
   });
 
-  it('a new person and their membership: two PUTs, the person first', async () => {
+  it('a new person and their membership: one GraphQL commit after reading the head and the root (was two PUTs, slice 064)', async () => {
     const { fake, repo } = await openAtCeiling();
-    const added = await measure(fake, () =>
-      edited(repo, () => {
-        const created = repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
-        repo.addMembership(created.id, 'team-1');
-      }),
-    );
+    const added = await measure(fake, async () => {
+      repo.createPersonInTeam({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' }, 'team-1');
+      await vi.waitFor(() => expect(fake.graphqlCommits).toHaveLength(1));
+      await repo.flushPending();
+    });
     expect(added.sent).toEqual([
-      'PUT /repos/jabopiti/initiative-planner/contents/people.json',
-      'PUT /repos/jabopiti/initiative-planner/contents/memberships.json',
+      'GET /repos/jabopiti/initiative-planner/git/ref/heads/data',
+      'GET /repos/jabopiti/initiative-planner/contents/',
+      'POST /graphql',
     ]);
+    expect(added.contentCreating).toBe(1);
   });
 
   it('an edit on a stale version: PUT refused (409), re-read, PUT', async () => {

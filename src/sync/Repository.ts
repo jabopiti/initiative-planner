@@ -30,14 +30,14 @@ import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
 import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { GithubClient, type BranchHead, type CommitResult } from '../github/client';
+import { gitBlobSha, GithubClient, type BranchHead, type CommitResult } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { WriteBudget } from '../github/writeBudget';
 import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
-import { FileWriter, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
+import { distinctEntities, FileWriter, renderMessage, type JointPart, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { MASTER_FILES, parseDataFile, validateDataset, validateRecords } from './validateDataset';
 import { WriteQueue } from './WriteQueue';
@@ -688,6 +688,7 @@ export class Repository {
     if (countries) this.commitCountries(countries, note());
     const people = peopleRolledForward(this.state.people, tracked);
     if (people) this.commitPeople(people, note());
+    if (countries && people) this.commitJointly([FILE_PATHS.countries, FILE_PATHS.people]);
   }
 
   /**
@@ -1165,7 +1166,8 @@ export class Repository {
       this.state.countries.map((c) => (c.id === id ? updated : c)),
       this.note('country', id, field, get(record), get(next), (_, to) => words(country.name, to)),
     );
-    this.markRatesReviewed('Rates marked as reviewed');
+    // The first rate edit also marks the rates reviewed: both files in one commit (§10.3).
+    if (this.markRatesReviewed('Rates marked as reviewed')) this.commitJointly([FILE_PATHS.countries, FILE_PATHS.datasetFlags]);
   }
 
   /** Rates are correct (§5.9): confirms the rates without editing them, which clears Review rates (§5.2). */
@@ -1173,12 +1175,65 @@ export class Repository {
     this.markRatesReviewed('Rates confirmed as correct');
   }
 
-  private markRatesReviewed(words: string): void {
+  /** Marks the rates reviewed (§5.2) unless they already are; says whether it did. */
+  private markRatesReviewed(words: string): boolean {
     const flags = this.state.datasetFlags;
-    if (!flags || flags.ratesReviewed || !this.flagsWriter) return;
+    if (!flags || flags.ratesReviewed || !this.flagsWriter) return false;
     const next = { ...flags, ratesReviewed: true };
     this.setState({ datasetFlags: next });
     this.flagsWriter.schedule(next, this.note('dataset', 'flags', 'ratesReviewed', false, true, () => words));
+    return true;
+  }
+
+  /**
+   * A user action that writes several files, as one commit sent at once (§10.3): a new person with their membership, a
+   * rate edit that marks the rates reviewed, the roll-forward of rates. It goes ahead only while every file is still at
+   * the version its edit was made on, read at the head the commit is pinned to; otherwise, or when the branch moves
+   * first, each file saves on its own and merges with the newer version as any save does (§10.5).
+   */
+  private commitJointly(paths: string[]): void {
+    void this.firstPullDone.then(() =>
+      this.queue.run(async () => {
+        const writers = paths.map((path) => this.allWriters().find(([p]) => p === path)?.[1]);
+        const parts: [FileWriter<unknown>, JointPart<unknown>][] = [];
+        for (const writer of writers) {
+          const part = writer?.takeJoint();
+          if (writer && part) parts.push([writer, part]);
+        }
+        const giveBack = () => {
+          for (const [writer, part] of parts) writer.jointReturned(part);
+        };
+        if (parts.length < paths.length) {
+          giveBack();
+          for (const writer of writers) void writer?.flush();
+          return;
+        }
+        const branch = this.brand.github.dataBranch;
+        const message = renderMessage({
+          subject: [...new Set(parts.map(([, part]) => part.message.subject))].join('; '),
+          entities: distinctEntities(parts.flatMap(([, part]) => part.message.entities)),
+        });
+        const files = parts.map(([, part]) => ({ path: part.path, content: part.content }));
+        try {
+          // Another commit landing first moves the branch: when it touched none of these files, the commit is made
+          // again on the new head, up to three times.
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            const head = await this.github.getBranchHead({ branch, etag: null });
+            if (!head || head === 'not-modified') return giveBack();
+            const root = await this.github.listDirectory({ path: '', branch: head.sha });
+            if (parts.some(([, part]) => root.find((entry) => entry.path === part.path)?.sha !== part.sha)) return giveBack();
+            const outcome = await this.github.commitOnBranch({ branch, expectedHeadOid: head.sha, message, files, deletes: [] });
+            if (outcome === 'moved') continue;
+            for (const [writer, part] of parts) writer.jointLanded(part, await gitBlobSha(part.content));
+            return;
+          }
+          giveBack();
+        } catch (error) {
+          const cause = toReadOnlyState(error, 'Something went wrong saving this change.');
+          for (const [writer, part] of parts) writer.jointFailed(part, cause);
+        }
+      }),
+    );
   }
 
   private commitCountries(next: Country[], note?: CommitNote): void {
@@ -1209,6 +1264,14 @@ export class Repository {
   }
 
   /** New person (§5.5): Capacity % defaults to 100, active. */
+  /** A new person added straight to a team (§5.8): the person and the membership in one commit (§10.3). */
+  createPersonInTeam(input: NewPersonInput, teamId: string): Person {
+    const person = this.createPerson(input);
+    this.addMembership(person.id, teamId);
+    this.commitJointly([FILE_PATHS.people, FILE_PATHS.memberships]);
+    return person;
+  }
+
   createPerson(input: NewPersonInput): Person {
     const person: Person = {
       id: newId(),

@@ -131,9 +131,8 @@ export function TeamDetail({ id }: { id: string }) {
     const countryId = defaultCountryId(countries);
     const roleId = defaultRoleId(roles);
     if (!trimmed || !countryId || !roleId) return;
-    const person = repository.createPerson({ name: trimmed, countryId, roleId });
+    repository.createPersonInTeam({ name: trimmed, countryId, roleId }, team!.id);
     rememberPersonDefaults(countryId, roleId);
-    repository.addMembership(person.id, team!.id);
     setQuery('');
   }
 

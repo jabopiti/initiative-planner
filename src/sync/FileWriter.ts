@@ -59,7 +59,7 @@ export function renderMessage({ subject, entities }: CommitMessage): string {
 }
 
 /** Entities in first-seen order, each once. */
-function distinctEntities(entities: EntityRef[]): EntityRef[] {
+export function distinctEntities(entities: EntityRef[]): EntityRef[] {
   const seen = new Set<string>();
   return entities.filter((e) => {
     const key = `${e.kind}/${e.id}`;
@@ -129,6 +129,18 @@ export interface FileWriterOptions<D> {
   onConflictClosed?: (conflict: FileConflict) => void;
   /** The document on screen should now be this one: a save landed, or a merge brought in the other writer's changes. */
   onDocument: (doc: D) => void;
+}
+
+/** One file's share of a commit of several files (§10.3), taken by {@link FileWriter.takeJoint}. */
+export interface JointPart<D> {
+  path: string;
+  /** What is committed: the file's text. */
+  content: string;
+  /** The version the edit was made on: the commit goes ahead only while the file is still at it. */
+  sha: string;
+  message: CommitMessage;
+  mine: D;
+  batch: EditBatch<D>;
 }
 
 /** An edit taken out of a writer to be saved apart from those made after it (see {@link FileWriter.flushApart}). */
@@ -242,6 +254,56 @@ export class FileWriter<D> {
     this.windowOpenedAt = null;
     this.apart.push(this.takeEdits());
     return this.enqueue(() => this.saveNext());
+  }
+
+  /**
+   * Takes the pending edit for a commit of several files (§10.3), at once and without its window: null when nothing is
+   * pending, the file does not exist yet, a save of it is queued or running, a choice is open or the edit is refused,
+   * and the caller then lets each file save on its own. Until {@link jointLanded}, {@link jointFailed} or
+   * {@link jointReturned}, the file counts as saving.
+   */
+  takeJoint(): JointPart<D> | null {
+    const mine = this.pending;
+    if (mine === null || this.synced === null || this.saving || this.waiting > 0 || this.disposed) return null;
+    if (this.openConflicts.length > 0 || this.options.refused?.(mine)) return null;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.windowOpenedAt = null;
+    const message = this.commitMessage();
+    const batch = this.takeEdits();
+    this.saving = true;
+    return { path: this.options.path, content: JSON.stringify(mine), sha: this.synced.sha, message, mine, batch };
+  }
+
+  /** The commit holding this file's share landed: `sha` is the file's new version. */
+  jointLanded(part: JointPart<D>, sha: string): void {
+    this.saving = false;
+    this.synced = { content: part.mine, sha };
+    this.clearFailure();
+    this.landed(part.mine, part.mine, false, part.message);
+    void this.cache(part.mine, sha);
+  }
+
+  /** The commit failed: the edit is this file's failure, resent by Retry or the automatic retry as its own save. */
+  jointFailed(part: JointPart<D>, cause: ReadOnlyState): void {
+    this.saving = false;
+    // Its notes stay for the resend; an edit made since stays pending, on top of it.
+    this.giveBack({ ...part, batch: { ...part.batch, pending: null } });
+    this.failWith(cause, part.mine);
+  }
+
+  /** No commit was made (the file changed meanwhile): the edit goes back and is saved on its own, now. */
+  jointReturned(part: JointPart<D>): void {
+    this.saving = false;
+    this.giveBack(part);
+    void this.flush();
+  }
+
+  /** The share's edit and notes back in, before anything edited since. */
+  private giveBack(part: JointPart<D>): void {
+    const later = this.takeEdits();
+    this.restoreEdits(part.batch);
+    this.addEdits(later);
   }
 
   /** Settles once the edits made so far are saved or have failed: one waiting for its commit window is saved now. */

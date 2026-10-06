@@ -44,7 +44,7 @@ tool waits as told and resumes by itself.
 | 3 edits to one initiative within 1 s | 1 PUT | 1 |
 | Poll after own commits only | 3 (head, 2 listings) | 0 |
 | Same field on 5 initiatives in one burst | 5 PUTs | 5 |
-| New person + membership | 2 PUTs, in order | 2 |
+| New person + membership | 2 PUTs, in order → **3**: head, root listing, one GraphQL commit | 2 → **1** |
 | Edit on a stale version (409) | PUT, re-read, PUT | 2 |
 | Reset | 21, incl. 6 blob POSTs, then re-downloads the 6 files it wrote → **6**: ref, listing, one GraphQL commit, then head and 2 listings, no download | 9 → **1** |
 | Load example data | 26, incl. 6 blob POSTs, 5 reads to check the branch is empty, then re-downloads the 6 files it wrote → **11**: no blob, no re-download | 9 → **1** |
