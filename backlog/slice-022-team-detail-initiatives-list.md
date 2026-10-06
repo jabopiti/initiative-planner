@@ -60,16 +60,16 @@ them, 013).
 
 ## Acceptance criteria
 
-- [ ] Given Platform, then its Initiatives section lists its initiatives in
+- [x] Given Platform, then its Initiatives section lists its initiatives in
       every status, with Name, Phase and Status, sorted by phase then name.
-- [ ] Given a row's name is clicked, then the initiative opens.
-- [ ] Given New initiative, then the draft page opens with Platform selected,
+- [x] Given a row's name is clicked, then the initiative opens.
+- [x] Given New initiative, then the draft page opens with Platform selected,
       the name focused and "Next: name the initiative." as the next step.
-- [ ] Given the draft opened from the top bar, then it still starts on "Select
+- [x] Given the draft opened from the top bar, then it still starts on "Select
       team" (§5.1 unchanged).
-- [ ] Given a team with no initiatives, then the section reads "No initiatives
+- [x] Given a team with no initiatives, then the section reads "No initiatives
       yet" with New initiative.
-- [ ] Given an inactive team, then New initiative is absent.
+- [x] Given an inactive team, then New initiative is absent.
 
 ## Flags and compromises
 

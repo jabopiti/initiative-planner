@@ -67,37 +67,37 @@ the first phase); duplicating to another team.
 
 ## Acceptance criteria
 
-- [ ] Given any status, then the Actions menu lists Duplicate.
-- [ ] Given Duplicate on Checkout Redesign, then a new Active initiative
+- [x] Given any status, then the Actions menu lists Duplicate.
+- [x] Given Duplicate on Checkout Redesign, then a new Active initiative
       "Checkout Redesign copy" with the same team, description and (active)
       owner opens in place, in one commit.
-- [ ] Given Validation lasted 3 months and Development 6, then the copy's
+- [x] Given Validation lasted 3 months and Development 6, then the copy's
       Validation starts today and lasts 3 months, and Development follows for
       6 (005c's chaining rule).
-- [ ] Given allocations of an active and an inactive/non-member person, then
+- [x] Given allocations of an active and an inactive/non-member person, then
       only the active member's allocation is copied, with the same %.
-- [ ] Given a one-month cost item in the 3rd month of Development, then the
+- [x] Given a one-month cost item in the 3rd month of Development, then the
       copy's item is in the 3rd month of the copy's Development; a spread item
       stays spread.
-- [ ] Given a passed phase, then its frozen snapshot's values are copied.
-- [ ] Given the original has gate records, checklist state and actuals, then
+- [x] Given a passed phase, then its frozen snapshot's values are copied.
+- [x] Given the original has gate records, checklist state and actuals, then
       the copy has none.
-- [ ] Given "Checkout Redesign copy" exists, then the new one is named
+- [x] Given "Checkout Redesign copy" exists, then the new one is named
       "Checkout Redesign copy 2".
-- [ ] Given Back after duplicating, then the original opens.
-- [ ] Given an owner who is deactivated, then the copy has no owner.
-- [ ] Given a costed phase without a valid period, then the copy's phase has
+- [x] Given Back after duplicating, then the original opens.
+- [x] Given an owner who is deactivated, then the copy has no owner.
+- [x] Given a costed phase without a valid period, then the copy's phase has
       no period but keeps its allocations and cost items, and is left out of the chaining.
-- [ ] Given a period that is not a whole number of months (1 Jan to 20 Mar),
+- [x] Given a period that is not a whole number of months (1 Jan to 20 Mar),
       then the copy's period has the same number of days.
-- [ ] Given a one-month item outside its phase's period, then it keeps its
+- [x] Given a one-month item outside its phase's period, then it keeps its
       distance in months from the period's start in the copy.
-- [ ] Given someone was left out of the copy's allocations, then a toast on
+- [x] Given someone was left out of the copy's allocations, then a toast on
       the new page reads "Not copied: Lucía Ramos, no longer on Platform."
       (names joined with commas); with nobody left out, no toast.
-- [ ] Given Duplicate on a Closed, Cancelled or On Hold initiative, then it
+- [x] Given Duplicate on a Closed, Cancelled or On Hold initiative, then it
       works and the copy is Active.
-- [ ] Given the save fails, then nothing opens and the read-only banner shows.
+- [x] Given the save fails, then nothing opens and the read-only banner shows.
 
 ## Flags and compromises
 

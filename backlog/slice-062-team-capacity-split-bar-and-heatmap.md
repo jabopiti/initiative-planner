@@ -62,32 +62,32 @@ fixes them where they are seen.
 
 ## Acceptance criteria
 
-- [ ] Given Lucía at 60/40, then the bar shows two segments in team
+- [x] Given Lucía at 60/40, then the bar shows two segments in team
       colours and no hatched rest; at 60/20 a 20% hatched rest.
-- [ ] Given a divider drag from 60 to 70, then one write changes both
+- [x] Given a divider drag from 60 to 70, then one write changes both
       memberships and the commit names both.
-- [ ] Given the last divider, then it cannot pass the Capacity %.
-- [ ] Given arrow keys on a focused divider, then it steps 5% and announces
+- [x] Given the last divider, then it cannot pass the Capacity %.
+- [x] Given arrow keys on a focused divider, then it steps 5% and announces
       both teams' values ("Platform 70%, Growth 30%"; the last divider
       "Growth 30%, 10% unclaimed").
-- [ ] Given a drag or keys towards a neighbour, then no segment goes below
+- [x] Given a drag or keys towards a neighbour, then no segment goes below
       5%.
-- [ ] Given a segment's legend chip, then its popover shows the exact Team
+- [x] Given a segment's legend chip, then its popover shows the exact Team
       FTE % field (cap rule) and **Remove from team**.
-- [ ] Given Team FTE %s summing above Capacity %, then per-team fields show
+- [x] Given Team FTE %s summing above Capacity %, then per-team fields show
       instead of the bar.
-- [ ] Given **Remove from team** on a segment, then "Removed. Undo"
+- [x] Given **Remove from team** on a segment, then "Removed. Undo"
       appears and Undo restores the membership (048).
-- [ ] Given an over cell, then it has the full Warning wash, its icon and
+- [x] Given an over cell, then it has the full Warning wash, its icon and
       its number; a cell at its Team FTE % is filled to the top, and one at
       half of it halfway; colour is never the only cue.
-- [ ] Given the accent and Warning washes, then text on them meets 4.5:1 in
+- [x] Given the accent and Warning washes, then text on them meets 4.5:1 in
       both themes.
-- [ ] Given a selected over cell, then its detail lists the contributing
+- [x] Given a selected over cell, then its detail lists the contributing
       initiatives with the §5.11 fix buttons, and a fix updates the cell.
-- [ ] Given Copy on the grid, then the copied table holds the numbers as
+- [x] Given Copy on the grid, then the copied table holds the numbers as
       today.
-- [ ] Given the e2e axe scan, then the person panel and team page pass in
+- [x] Given the e2e axe scan, then the person panel and team page pass in
       both themes.
 
 ## Flags and compromises

@@ -79,27 +79,27 @@ recovery (§3, §9.9), which is listed in the backlog tail; loading and pulling
 
 ## Acceptance criteria
 
-- [ ] Given a save in flight, when another edit is made and its save is
+- [x] Given a save in flight, when another edit is made and its save is
       queued, then the value on screen never returns to the first save's
       value and the second save carries the first save's sha.
-- [ ] Given a save in flight, when the repository answers 409 and the user
+- [x] Given a save in flight, when the repository answers 409 and the user
       has edited meanwhile, then the merge with the repository's version is
       applied to the newer edit too, and a change made by the other writer is
       not reverted.
-- [ ] Given two files saving, when one fails and the other succeeds, then the
+- [x] Given two files saving, when one fails and the other succeeds, then the
       status stays read-only until the failed file is saved; and while any
       file has unsaved changes the status is syncing.
-- [ ] Given a new initiative, when Create initiative is chosen, then one
+- [x] Given a new initiative, when Create initiative is chosen, then one
       commit "<name>: created" is written by the initiative's own writer, an
       edit made straight afterwards is saved by that same writer, and a failed
       creation leaves no initiative in the list.
-- [ ] Given a conflict, when Keep theirs or Use mine is chosen, then the
+- [x] Given a conflict, when Keep theirs or Use mine is chosen, then the
       choice is written once per conflict, the conflict leaves the banner
       only after the write succeeds, and a failed write leaves it there.
-- [ ] Given the master files and the initiative files, when the code is
+- [x] Given the master files and the initiative files, when the code is
       read, then there is one writer implementation and no path that puts a
       file without it.
-- [ ] Given the existing tests for both writers, when they run against the
+- [x] Given the existing tests for both writers, when they run against the
       new one, then they pass without changes to their expectations.
 
 ## Flags and compromises

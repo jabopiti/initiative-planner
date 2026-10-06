@@ -78,24 +78,24 @@ the draft.
 
 ## Acceptance criteria
 
-- [ ] Given no team exists and no initiative, when the Portfolio renders,
+- [x] Given no team exists and no initiative, when the Portfolio renders,
       then it shows "No initiatives yet", "No teams yet." and **Create a
       team** as its only action, which opens Teams.
-- [ ] Given teams exist and every one is inactive, and no initiative, when
+- [x] Given teams exist and every one is inactive, and no initiative, when
       the Portfolio renders, then it shows "All your teams are inactive."
       and **Reactivate a team**, which opens the Teams overview.
-- [ ] Given an active team exists and no initiative, when the Portfolio
+- [x] Given an active team exists and no initiative, when the Portfolio
       renders, then it shows no reason line and offers **Create your first
       initiative**, which opens the draft.
-- [ ] Given no team, or only inactive teams, when the top bar renders, then
+- [x] Given no team, or only inactive teams, when the top bar renders, then
       its button reads **Create a team** or **Reactivate a team**
       respectively, is enabled, and opens Teams; with an active team it
       reads **New initiative** and opens the draft.
-- [ ] Given a team, when **Deactivate team** is chosen on its detail page,
+- [x] Given a team, when **Deactivate team** is chosen on its detail page,
       then it becomes inactive at once, shows an **Inactive** chip, and
       offers **Reactivate team**; choosing that reverses it. Each change
       commits with the team's name.
-- [ ] Given the only team is reactivated from its detail page, when the top
+- [x] Given the only team is reactivated from its detail page, when the top
       bar and the Portfolio render, then they offer **New initiative** and
       **Create your first initiative**.
 

@@ -103,19 +103,19 @@ Settled with the user on 3 Oct 2026, from mockups:
 
 ## Acceptance criteria
 
-- [ ] Given a branch with people.json but no dataset.json, then no commit is
+- [x] Given a branch with people.json but no dataset.json, then no commit is
       made and the banner reads "Dataset damaged: dataset.json is missing".
-- [ ] Given an empty branch, then the baseline is committed once (as today).
-- [ ] Given `{}` where an array is expected, a person referencing a missing
+- [x] Given an empty branch, then the baseline is committed once (as today).
+- [x] Given `{}` where an array is expected, a person referencing a missing
       team, duplicate ids, and a `__proto__` key, then each yields a `damaged`
       read-only state naming file and problem; none reaches the UI.
-- [ ] Given a newer or older `schemaVersion` or `structureVersion`, or another
+- [x] Given a newer or older `schemaVersion` or `structureVersion`, or another
       process id, or a damaged dataset, when a field is edited, then no write
       is attempted and the field shows "Not saved: <short cause>." with the
       typed value kept.
-- [ ] Given a damaged dataset, then the banner carries an Open commit history
+- [x] Given a damaged dataset, then the banner carries an Open commit history
       link to the data branch's commits, on a warm and a cold client.
-- [ ] Given a hostile dataset (§10.8), then `Object.prototype` is unchanged
+- [x] Given a hostile dataset (§10.8), then `Object.prototype` is unchanged
       after a pull and a merge.
 
 ## Flags and compromises

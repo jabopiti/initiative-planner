@@ -65,27 +65,27 @@ and for allocations that outlived a membership (§5.11 lists only the two).
 
 ## Acceptance criteria
 
-- [ ] Given an over Team FTE % warning where 60% fits every month, then "Set to
+- [x] Given an over Team FTE % warning where 60% fits every month, then "Set to
       60%" shows; clicking it sets 60% and the warning clears.
-- [ ] Given the fitting value varies by month, then the button offers the
+- [x] Given the fitting value varies by month, then the button offers the
       minimum over the phase's months from the current month on, rounded
       down to a whole percent.
-- [ ] Given the person is over Team FTE % in several phases on this team,
+- [x] Given the person is over Team FTE % in several phases on this team,
       then the raise covers the highest month of all of them (rounded up),
       and applying it clears every one of those warnings.
-- [ ] Given an over Capacity % warning, then only the reduce fix is offered.
-- [ ] Given raising Team FTE % to cover the peak would exceed Capacity % minus
+- [x] Given an over Capacity % warning, then only the reduce fix is offered.
+- [x] Given raising Team FTE % to cover the peak would exceed Capacity % minus
       other teams' Team FTE %s, then the raise fix is not offered.
-- [ ] Given no positive value fits (someone else fills the capacity), then the
+- [x] Given no positive value fits (someone else fills the capacity), then the
       reduce fix is not offered.
-- [ ] Given Provisional phases or On Hold initiatives among the loads, then they
+- [x] Given Provisional phases or On Hold initiatives among the loads, then they
       don't affect the suggested values.
-- [ ] Given the capacity grid's cell or row detail, then the same fixes are offered for
+- [x] Given the capacity grid's cell or row detail, then the same fixes are offered for
       this team's contributing allocations, and applying one updates the grid.
-- [ ] Given a frozen phase's allocation, then no reduce fix is offered for it.
-- [ ] Given a row with both warnings, then one reduce fix shows, on one line
+- [x] Given a frozen phase's allocation, then no reduce fix is offered for it.
+- [x] Given a row with both warnings, then one reduce fix shows, on one line
       under the warnings, and it clears both.
-- [ ] Given each fix, then it is one commit with plain-words message.
+- [x] Given each fix, then it is one commit with plain-words message.
 
 ## Flags and compromises
 

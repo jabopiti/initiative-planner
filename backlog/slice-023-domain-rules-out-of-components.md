@@ -58,14 +58,14 @@ result — with no visible change.
 
 ## Acceptance criteria
 
-- [ ] Given the audit, then the slice's commit lists every rule moved, by
+- [x] Given the audit, then the slice's commit lists every rule moved, by
       name and former location.
-- [ ] Given `src/ui`, then no component decides who is allocatable, a phase's
+- [x] Given `src/ui`, then no component decides who is allocatable, a phase's
       coverage or totals, or whether a load is over Team FTE % or Capacity %;
       it calls a `src/data` function.
-- [ ] Given each moved function, then it has unit tests in `src/data` covering
+- [x] Given each moved function, then it has unit tests in `src/data` covering
       every branch it had in the component.
-- [ ] Given the full test suite, then every existing component test passes
+- [x] Given the full test suite, then every existing component test passes
       unchanged.
 
 ## Flags and compromises

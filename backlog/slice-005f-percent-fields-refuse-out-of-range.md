@@ -89,23 +89,23 @@ as today.
 
 ## Acceptance criteria
 
-- [ ] Given an Allocation % field, when 120 is entered and committed, then
+- [x] Given an Allocation % field, when 120 is entered and committed, then
       nothing is saved, the field keeps "120" and is marked invalid, and
       "Enter a percentage from 0 to 100." is shown and announced.
-- [ ] Given the same for a negative number, text, and an empty field, then
+- [x] Given the same for a negative number, text, and an empty field, then
       each is refused with the same message and none reverts silently.
-- [ ] Given a refused entry, when Esc is pressed, then the last saved value
+- [x] Given a refused entry, when Esc is pressed, then the last saved value
       returns and the message clears.
-- [ ] Given a refused entry, when a valid value is entered and committed,
+- [x] Given a refused entry, when a valid value is entered and committed,
       then it saves with one commit and the message clears.
-- [ ] Given the person panel's Team FTE % above the person's unclaimed
+- [x] Given the person panel's Team FTE % above the person's unclaimed
       capacity, when it is committed, then the value is set to the cap and
       the message naming the cap stays visible until the field is edited.
-- [ ] Given the team detail's Team FTE % above the unclaimed capacity, when
+- [x] Given the team detail's Team FTE % above the unclaimed capacity, when
       it is committed, then it saves and the over-capacity warning shows, as
       today.
-- [ ] Given Capacity % of 0 to 100, when committed, then it saves as today.
-- [ ] Given any invalid entry, when read by a screen reader, then the field
+- [x] Given Capacity % of 0 to 100, when committed, then it saves as today.
+- [x] Given any invalid entry, when read by a screen reader, then the field
       is reported as invalid with the message as its description.
 
 ## Flags and compromises

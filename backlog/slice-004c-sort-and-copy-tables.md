@@ -73,20 +73,20 @@ summary (§9.2) is added by the slice that builds each of them.
 
 ## Acceptance criteria
 
-- [ ] Given the People overview, when a column header is clicked, then
+- [x] Given the People overview, when a column header is clicked, then
       the rows sort by that column, a second click reverses the order,
       and rows with equal values keep their previous relative order.
-- [ ] Given the Teams overview, the People overview and the Members
+- [x] Given the Teams overview, the People overview and the Members
       list, when they first load, then they are sorted by name.
-- [ ] Given a name too long for its cell, when the row renders, then the
+- [x] Given a name too long for its cell, when the row renders, then the
       name is cut with an ellipsis and its full text is available in a
       tooltip.
-- [ ] Given the People table with a filter and a sort applied, when Copy
+- [x] Given the People table with a filter and a sort applied, when Copy
       is clicked, then the clipboard holds plain text and HTML containing
       exactly the shown rows and columns in the shown order.
-- [ ] Given Copy succeeded or failed, when the click finishes, then the
+- [x] Given Copy succeeded or failed, when the click finishes, then the
       user sees a confirmation or an error message.
-- [ ] Given a sortable header, when it is used with the keyboard only,
+- [x] Given a sortable header, when it is used with the keyboard only,
       then it can be sorted and its direction is announced.
 
 ## Flags and compromises
