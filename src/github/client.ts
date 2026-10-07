@@ -33,10 +33,19 @@ export interface PutFileArgs {
   sha?: string;
 }
 
+/** A commit this client made, and the commit it sits on (§10.2): a pull can tell from these alone that the head moved
+ * only through its own saves. */
+export interface CommitLink {
+  sha: string;
+  parent: string;
+}
+
 export interface PutFileResult {
   sha: string;
   /** The file did not exist (201): a new file, or one deleted since its sha was read, which GitHub recreates. */
   created: boolean;
+  /** The commit the write made, or null when GitHub's answer does not name it. */
+  commit: CommitLink | null;
 }
 
 export interface DirectoryEntry {
@@ -46,6 +55,17 @@ export interface DirectoryEntry {
   sha: string;
   type: 'file' | 'dir';
 }
+
+/** One file of a commit's tree, recursively listed (§10.2). */
+export interface TreeEntry {
+  path: string;
+  /** The file's version: the same value a read of the file gives. */
+  sha: string;
+  type: 'blob' | 'tree' | 'commit';
+}
+
+/** A file a GraphQL read could not give whole: too large for the query (over 512,000 bytes), read on its own instead. */
+export const TRUNCATED = 'truncated';
 
 export interface BranchHead {
   sha: string;
@@ -124,6 +144,8 @@ export interface FileChanges {
 /** A many-file commit that landed, with each written file's version (its git blob sha). */
 export interface CommitResult {
   commitSha: string;
+  /** The commit it sits on; null for the first commit of a new branch, or when another client's commit won. */
+  parent: string | null;
   written: (FileChange & { sha: string })[];
 }
 
@@ -144,6 +166,25 @@ export interface CreateCommitOnBranchInput {
 }
 
 const CREATE_COMMIT = `mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }`;
+
+/** How many files one GraphQL read asks for (§10.2). */
+export const FILES_PER_QUERY = 100;
+
+/** A GraphQL read of `count` files of one repository, each by a `"<commit>:<path>"` expression passed as a variable. */
+function filesQuery(count: number): string {
+  const indices = Array.from({ length: count }, (_, i) => i);
+  const variables = indices.map((i) => `$e${i}: String!`).join(', ');
+  const fields = indices.map((i) => `f${i}: object(expression: $e${i}) { ... on Blob { oid text isTruncated } }`).join(' ');
+  return `query($owner: String!, $name: String!, ${variables}) { repository(owner: $owner, name: $name) { ${fields} } }`;
+}
+
+/** The commit a Contents write made, from its answer (`commit.sha`, `commit.parents[0].sha`). */
+function commitOf(body: unknown): CommitLink | null {
+  const commit = (body as { commit?: { sha?: unknown; parents?: { sha?: unknown }[] } } | null)?.commit;
+  const sha = commit?.sha;
+  const parent = commit?.parents?.[0]?.sha;
+  return typeof sha === 'string' && typeof parent === 'string' ? { sha, parent } : null;
+}
 
 /** GitHub's GraphQL endpoint for an API base URL: derived, not appended (§2). `https://api.github.com/graphql`, or on
  * GitHub Enterprise `https://<host>/api/graphql` for `https://<host>/api/v3`. */
@@ -320,14 +361,15 @@ export class GithubClient {
     await assertOk(response, `PUT ${args.path}`);
 
     const body = (await response.json()) as { content: { sha: string } };
-    return { sha: body.content.sha, created: response.status === 201 };
+    return { sha: body.content.sha, created: response.status === 201, commit: commitOf(body) };
   }
 
   /**
    * DELETE .../contents/{path} at `sha`, with `branch` in the request body (§10.2, §10.3). A stale sha is a
    * conflict, as for a put; `'gone'` when the file no longer exists, so a delete someone else already made counts.
+   * Deleted, it gives the commit the delete made, or null when GitHub's answer does not name it.
    */
-  async deleteFile(args: { path: string; branch: string; message: string; sha: string }): Promise<'deleted' | 'gone'> {
+  async deleteFile(args: { path: string; branch: string; message: string; sha: string }): Promise<CommitLink | null | 'gone'> {
     assertBranch(args.branch);
     const url = this.repoUrl(`contents/${encodePath(args.path)}`);
     const response = await this.request(url, {
@@ -339,7 +381,7 @@ export class GithubClient {
     if (response.status === 404) return 'gone';
     assertNotStale(response);
     await assertOk(response, `DELETE ${args.path}`);
-    return 'deleted';
+    return commitOf(await response.json().catch(() => null));
   }
 
   /** GET .../contents/{dir}?ref={branch} as a directory listing, each entry with its version. Empty array if the directory doesn't exist yet. */
@@ -357,6 +399,51 @@ export class GithubClient {
       const { name, path, sha, type } = entry as DirectoryEntry;
       return { name, path, sha, type };
     });
+  }
+
+  /**
+   * GET .../git/trees/{ref}?recursive=1: every file at `ref` (a commit or the branch) with its version, in one request
+   * (§10.2). `truncated` when GitHub could not list them all (over 100,000 entries); the caller then lists another way.
+   * Empty when the branch does not exist (404) or the repository is empty (409).
+   */
+  async listTree(args: { ref: string }): Promise<{ entries: TreeEntry[]; truncated: boolean }> {
+    assertBranch(args.ref);
+    const response = await this.request(`${this.repoUrl(`git/trees/${encodePath(args.ref)}`)}?recursive=1`, { method: 'GET' });
+    if (response.status === 404 || response.status === 409) return { entries: [], truncated: false };
+    await assertOk(response, `GET the files of ${args.ref}`);
+    const body = (await response.json()) as { tree?: TreeEntry[]; truncated?: boolean };
+    const entries = (body.tree ?? []).map(({ path, sha, type }) => ({ path, sha, type }));
+    return { entries, truncated: Boolean(body.truncated) };
+  }
+
+  /**
+   * Up to {@link FILES_PER_QUERY} files at `ref` (a commit or the branch) in one GraphQL query (§10.2). It only reads,
+   * so it takes no place in the write budget. A file over GraphQL's limit is {@link TRUNCATED}, for the caller to read
+   * on its own; one that does not exist at `ref` is left out. A limit GitHub names in the answer pauses requests as a
+   * REST limit does.
+   */
+  async readFiles(args: { ref: string; paths: string[] }): Promise<Map<string, GetFileResult | typeof TRUNCATED>> {
+    assertBranch(args.ref);
+    if (args.paths.length > FILES_PER_QUERY) throw new Error(`At most ${FILES_PER_QUERY} files are read in one query.`);
+    const read = new Map<string, GetFileResult | typeof TRUNCATED>();
+    if (args.paths.length === 0) return read;
+    const variables: Record<string, string> = { owner: this.location.owner, name: this.location.repo };
+    args.paths.forEach((path, i) => (variables[`e${i}`] = `${args.ref}:${path}`));
+    const response = await this.request(
+      graphqlUrl(this.location.apiBaseUrl),
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: filesQuery(args.paths.length), variables }) },
+      false,
+    );
+    type Blob = { oid: string; text: string | null; isTruncated: boolean } | null;
+    const { data, errors } = await this.graphqlAnswer<{ repository?: Record<string, Blob> | null }>(response, 'GET files');
+    const repository = data?.repository;
+    if (errors.length > 0 || !repository) throw new GithubApiError(`GET files failed: ${errors[0]?.message ?? 'no repository'}`, 'unknown', response.status);
+    args.paths.forEach((path, i) => {
+      const blob = repository[`f${i}`];
+      if (!blob) return;
+      read.set(path, blob.isTruncated || blob.text === null ? TRUNCATED : { content: blob.text, sha: blob.oid });
+    });
+    return read;
   }
 
   /**
@@ -429,7 +516,7 @@ export class GithubClient {
       const outcome = await this.commitOnBranch({ branch: args.branch, expectedHeadOid: head, message: args.message, ...changes });
       if (outcome === 'moved' && attempt < 3) continue; // another commit landed first: build again on the new head
       if (outcome === 'moved') throw new GithubApiError('The data branch kept changing — please retry.', 'conflict', 422);
-      return { commitSha: outcome.commitSha, written: await withVersions(changes.files) };
+      return { commitSha: outcome.commitSha, parent: head, written: await withVersions(changes.files) };
     }
   }
 
@@ -466,14 +553,21 @@ export class GithubClient {
       }
       throw error;
     }
-    await assertOk(response, 'Commit');
-    const body = (await response.json()) as { data?: { createCommitOnBranch?: { commit?: { oid: string } } | null }; errors?: { type?: string; message?: string }[] };
+    const { data, errors } = await this.graphqlAnswer<{ createCommitOnBranch?: { commit?: { oid: string } } | null }>(response, 'Commit');
     // A refusal is a 200 with errors, told apart by type (spike-findings.md).
-    const errors = body.errors ?? [];
     if (errors.some((e) => e.type === 'STALE_DATA' || e.type === 'NOT_FOUND')) return 'moved';
-    const oid = body.data?.createCommitOnBranch?.commit?.oid;
+    const oid = data?.createCommitOnBranch?.commit?.oid;
     if (errors.length > 0 || !oid) throw new GithubApiError(`Commit failed: ${errors[0]?.message ?? 'no commit'}`, 'unknown', response.status);
     return { commitSha: oid };
+  }
+
+  /** A GraphQL answer's data and errors; a limit GitHub names in them pauses requests as a REST limit does (§10.2). */
+  private async graphqlAnswer<D>(response: Response, what: string): Promise<{ data: D | null; errors: { type?: string; message?: string }[] }> {
+    await assertOk(response, what);
+    const body = (await response.json()) as { data?: D | null; errors?: { type?: string; message?: string }[] };
+    const errors = body.errors ?? [];
+    if (errors.some((e) => e.type === 'RATE_LIMITED')) throw rateLimited(this.limitHit(response.headers), response.status, errors[0]?.message ?? '');
+    return { data: body.data ?? null, errors };
   }
 
   /** The branch's head, when it is a commit titled `headline` on `parent`: a commit of ours whose answer was lost. */
@@ -502,7 +596,7 @@ export class GithubClient {
     if (head !== null) {
       const outcome = await this.commitOnBranch({ branch: args.branch, expectedHeadOid: head, message: args.message, files: args.files, deletes: [] });
       if (outcome === 'moved') return this.lostTo(args.branch);
-      return { commitSha: outcome.commitSha, written: await withVersions(args.files) };
+      return { commitSha: outcome.commitSha, parent: head, written: await withVersions(args.files) };
     }
 
     const treeResponse = await this.request(this.repoUrl('git/trees'), {
@@ -527,13 +621,13 @@ export class GithubClient {
     });
     if (createRefResponse.status === 422) return this.lostTo(args.branch);
     await assertOk(createRefResponse, 'Ref create');
-    return { commitSha, written: await withVersions(args.files) };
+    return { commitSha, parent: null, written: await withVersions(args.files) };
   }
 
   /** Another client's bootstrap won: its commit, rather than a dangling sha of ours, and nothing written by us. */
   private async lostTo(branch: string): Promise<CommitResult> {
     const winner = await this.headOf(branch);
     if (winner === null) throw new GithubApiError('The data branch changed during setup — please retry.', 'conflict', 422);
-    return { commitSha: winner, written: [] };
+    return { commitSha: winner, parent: null, written: [] };
   }
 }

@@ -5,6 +5,7 @@ import { lostEditKey, Repository } from './Repository';
 import { splitMessage, subjectOf } from './testing/commitMessage';
 import { rootListing } from './testing/rootListing';
 import { FIXTURE_ROLE } from './testing/fakeGithub';
+import { contentsBacked } from './testing/contentsBacked';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status });
@@ -76,7 +77,7 @@ describe('Repository — slice 003 acceptance flows', () => {
 
   it('bootstraps the fresh-install baseline as one commit when no dataset exists, then loads empty teams/initiatives', async () => {
     fetchMock = routingFetchMock({}, false);
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('fetch', contentsBacked(fetchMock));
 
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
@@ -99,7 +100,7 @@ describe('Repository — slice 003 acceptance flows', () => {
         return jsonResponse({ content: { sha: 'teams-sha-2' } });
       },
     });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('fetch', contentsBacked(fetchMock));
 
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
@@ -120,7 +121,7 @@ describe('Repository — slice 003 acceptance flows', () => {
     fetchMock = routingFetchMock({
       'PUT /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ message: 'Server Error' }, 500),
     });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('fetch', contentsBacked(fetchMock));
 
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
@@ -136,7 +137,7 @@ describe('Repository — slice 003 acceptance flows', () => {
       'PUT /repos/jabopiti/initiative-planner/contents/teams.json': () => jsonResponse({ message: 'Forbidden' }, 403),
       'PUT /repos/jabopiti/initiative-planner/contents/people.json': () => jsonResponse({ content: { sha: 'people-sha-2' } }),
     });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('fetch', contentsBacked(fetchMock));
 
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
@@ -153,7 +154,7 @@ describe('Repository — slice 003 acceptance flows', () => {
     fetchMock = routingFetchMock({
       'GET /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ message: 'Server Error' }, 500),
     });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('fetch', contentsBacked(fetchMock));
 
     const repo = new Repository(defaultBrandPack, 'token');
     await expect(repo.initialize()).resolves.toBeUndefined();
@@ -165,7 +166,7 @@ describe('Repository — slice 003 acceptance flows', () => {
     fetchMock = routingFetchMock({
       'PUT /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ content: { sha: 'init-sha' } }),
     });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('fetch', contentsBacked(fetchMock));
 
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
@@ -189,7 +190,7 @@ describe('Repository — slice 003 acceptance flows', () => {
     fetchMock = routingFetchMock({
       'PUT /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ content: { sha: 'init-sha' } }),
     });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('fetch', contentsBacked(fetchMock));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
 
@@ -214,7 +215,7 @@ describe('Repository — slice 004 people and memberships', () => {
   });
 
   async function readyRepo() {
-    vi.stubGlobal('fetch', routingFetchMock());
+    vi.stubGlobal('fetch', contentsBacked(routingFetchMock()));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
     return repo;
@@ -341,7 +342,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
 
   it('says which team was renamed to what', async () => {
     const mock = routingFetchMock();
-    vi.stubGlobal('fetch', mock);
+    vi.stubGlobal('fetch', contentsBacked(mock));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
     const team = repo.createTeam('Payments');
@@ -353,7 +354,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
 
   it('says who was added, changed and added to which team', async () => {
     const mock = routingFetchMock();
-    vi.stubGlobal('fetch', mock);
+    vi.stubGlobal('fetch', contentsBacked(mock));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
     const team = repo.createTeam('Payments');
@@ -388,7 +389,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
 
   it('moves Team FTE % between two teams in one commit naming both (§5.6, slice 062)', async () => {
     const mock = routingFetchMock();
-    vi.stubGlobal('fetch', mock);
+    vi.stubGlobal('fetch', contentsBacked(mock));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
     const platform = repo.createTeam('Platform');
@@ -439,7 +440,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
 
   it('rejoins an inactive membership: same id, Team FTE % kept but capped at what is unclaimed, one record', async () => {
     const mock = routingFetchMock();
-    vi.stubGlobal('fetch', mock);
+    vi.stubGlobal('fetch', contentsBacked(mock));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
     const team = repo.createTeam('Platform');
@@ -461,7 +462,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
 
   it('words every inactive-to-active membership change as a rejoin', async () => {
     const mock = routingFetchMock();
-    vi.stubGlobal('fetch', mock);
+    vi.stubGlobal('fetch', contentsBacked(mock));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
     const team = repo.createTeam('Platform');
@@ -476,7 +477,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
 
   it('says which team was deactivated and reactivated (§9.3)', async () => {
     const mock = routingFetchMock();
-    vi.stubGlobal('fetch', mock);
+    vi.stubGlobal('fetch', contentsBacked(mock));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
     const team = repo.createTeam('Payments');
@@ -496,7 +497,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
 
   it('says what changed about a custom role, one edit at a time (§5.6)', async () => {
     const mock = routingFetchMock();
-    vi.stubGlobal('fetch', mock);
+    vi.stubGlobal('fetch', contentsBacked(mock));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
     const cai = repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
@@ -524,7 +525,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
 
   it('says what changed about a role, prefixed "Roles:" (§5.9)', async () => {
     const mock = routingFetchMock();
-    vi.stubGlobal('fetch', mock);
+    vi.stubGlobal('fetch', contentsBacked(mock));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
     const role = repo.createRole({ name: 'Designer', abbreviation: 'Des', costFactor: 1 });
@@ -547,7 +548,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
 
   it('names every changed field of a role in one commit, and skips a no-op patch', async () => {
     const mock = routingFetchMock();
-    vi.stubGlobal('fetch', mock);
+    vi.stubGlobal('fetch', contentsBacked(mock));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
     const role = repo.createRole({ name: 'Designer', abbreviation: 'Des', costFactor: 1 });
@@ -587,7 +588,7 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
       'PUT /repos/jabopiti/initiative-planner/contents/people.json': okPut,
       ...overrides,
     });
-    vi.stubGlobal('fetch', mock);
+    vi.stubGlobal('fetch', contentsBacked(mock));
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
     return { mock, repo };
@@ -705,13 +706,13 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     commits.length = 0;
     vi.stubGlobal(
       'fetch',
-      routingFetchMock({
+      contentsBacked(routingFetchMock({
         'PUT /repos/jabopiti/initiative-planner/contents/initiatives': (_url, init) => {
           const body = JSON.parse(init!.body as string) as { message: string; content: string };
           commits.push({ message: subjectOf(body.message), trailers: splitMessage(body.message).trailers, content: JSON.parse(atob(body.content)) });
           return jsonResponse({ content: { sha: `sha-${commits.length}` } });
         },
-      }),
+      })),
     );
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
@@ -1024,13 +1025,13 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     commits.length = 0;
     vi.stubGlobal(
       'fetch',
-      routingFetchMock({
+      contentsBacked(routingFetchMock({
         'PUT /repos/jabopiti/initiative-planner/contents/initiatives': (_url, init) => {
           const body = JSON.parse(init!.body as string) as { message: string; content: string };
           commits.push({ message: subjectOf(body.message), trailers: splitMessage(body.message).trailers, content: JSON.parse(atob(body.content)) });
           return jsonResponse({ content: { sha: `sha-${commits.length}` } });
         },
-      }),
+      })),
     );
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();

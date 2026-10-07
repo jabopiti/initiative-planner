@@ -10,6 +10,7 @@ import { NewInitiativeControl } from './NewInitiativeControl';
 import { NewInitiativeDraft } from './NewInitiativeDraft';
 import { PortfolioBoard } from './PortfolioBoard';
 import { rootListing } from '../sync/testing/rootListing';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const ONE_TEAM = [{ id: 't1', name: 'Payments', active: true }];
@@ -32,7 +33,7 @@ beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') {
         if (failInitiativePut && url.includes('/initiatives/')) return json({ message: 'Server Error' }, 500);
         puts.push({ url, body: JSON.parse(String(init.body)) });
@@ -46,7 +47,7 @@ beforeAll(() => {
       if (url.includes('/contents/people.json')) return file([], 'p');
       if (url.includes('/contents/memberships.json')) return file([], 'm');
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

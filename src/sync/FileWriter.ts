@@ -1,5 +1,5 @@
 import { isQuotaError, type FileCache } from '../cache/db';
-import type { GithubClient } from '../github/client';
+import type { CommitLink, GithubClient } from '../github/client';
 import { GithubApiError, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { changedPaths, getAtPath, pathKey, sameValue, setAtPath, type DocumentMerge, type MergeConflict, type Path } from './merge';
 import { parseDataFile } from './validateDataset';
@@ -124,6 +124,8 @@ export interface FileWriterOptions<D> {
   onStatus: (status: WriteStatus) => void;
   /** An edit was made (see {@link FileWriter.schedule}). */
   onSchedule?: () => void;
+  /** A save or delete of this file made `commit` (§10.2), told once the cache has been asked to keep what it wrote. */
+  onCommitted?: (commit: CommitLink) => void;
   /** The local cache refused a write because storage is full (§3 Storage limits); the save itself had succeeded. */
   onCacheFull?: () => void;
   onConflict: (conflict: FileConflict) => void;
@@ -619,7 +621,7 @@ export class FileWriter<D> {
         if (refusal) return this.failWith(refusal, sent);
       }
       try {
-        const { sha, created } = await this.options.queue.run(() =>
+        const { sha, created, commit } = await this.options.queue.run(() =>
           this.options.github.putFile({
             path: this.options.path,
             branch: this.options.branch,
@@ -633,6 +635,7 @@ export class FileWriter<D> {
         this.clearFailure();
         this.landed(mine, sent, merged, message);
         void this.cache(sent, sha); // Not waited for: the save is done, and the cache only helps the next open.
+        if (commit) this.options.onCommitted?.(commit);
         return 'saved';
       } catch (error) {
         const stale = error instanceof GithubApiError && error.cause_ === 'conflict';
@@ -746,7 +749,12 @@ export class FileWriter<D> {
       if (retries < MAX_RETRIES) await this.backoff(MAX_RETRIES - retries - 1);
       const at = sha;
       try {
-        await this.options.queue.run(() => this.options.github.deleteFile({ path: this.options.path, branch: this.options.branch, message: renderMessage(message), sha: at }));
+        const deleted = await this.options.queue.run(() =>
+          this.options.github.deleteFile({ path: this.options.path, branch: this.options.branch, message: renderMessage(message), sha: at }),
+        );
+        // Out of the cache before the commit is told, so a pull that ends at it never leaves the file cached.
+        void this.options.cache.delete(this.options.path).catch(() => {});
+        if (deleted !== 'gone' && deleted) this.options.onCommitted?.(deleted);
         return 'deleted';
       } catch (error) {
         const stale = error instanceof GithubApiError && error.cause_ === 'conflict';

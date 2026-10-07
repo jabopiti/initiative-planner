@@ -2,10 +2,12 @@ import type { Page, Route } from '@playwright/test';
 import { decodeBase64Utf8 as unb64, encodeBase64Utf8 as b64 } from '../../src/github/base64';
 import { gitBlobSha } from '../../src/github/client';
 import { answerCreateCommit } from '../../src/sync/testing/graphqlCommit';
+import { answerFilesQuery, answerTree, isFilesQuery } from '../../src/sync/testing/graphqlRead';
 
 /**
  * An in-memory GitHub for browser tests: just enough of the API the app uses (the token check, the Contents API, the
- * Git Data API a fresh install bootstraps with, and GraphQL `createCommitOnBranch` for commits of several files) behind
+ * Git Data API a fresh install bootstraps with and a pull lists with, GraphQL `createCommitOnBranch` for commits of
+ * several files, and GraphQL reads of files) behind
  * `page.route`, so a flow runs
  * against the production build with no network and no real repository. Like the real thing, a stale `sha`
  * on a write is a 409 and an existing file written without one is a 422.
@@ -71,6 +73,17 @@ export function fakeGithub(page: Page, options: { login?: string; rejectedTokens
       return json(route, { object: { sha: headCommit } }, 200, { etag });
     }
 
+    // Every file of the branch in one listing (§10.2). The fake keeps no history: any ref lists the files as they are.
+    if (method === 'GET' && /\/git\/trees\/[^/]+$/.test(pathname)) {
+      if (!headCommit) return json(route, { message: 'Not Found' }, 404);
+      return json(route, answerTree(headCommit, [...files].map(([path, file]) => [path, file.sha])));
+    }
+
+    // A GraphQL read of files (§10.2).
+    if (method === 'POST' && pathname === '/graphql' && isFilesQuery(request.postData() ?? '')) {
+      return json(route, await answerFilesQuery(request.postData() ?? '', (path) => files.get(path) ?? null));
+    }
+
     // GraphQL `createCommitOnBranch`: one commit of several files, refused unless the branch is at the expected head.
     if (method === 'POST' && pathname === '/graphql') {
       return json(
@@ -134,8 +147,10 @@ export function fakeGithub(page: Page, options: { login?: string; rejectedTokens
         const sha = next('sha');
         files.set(path, { content: unb64(body.content), sha });
         writes.push({ path, message: body.message });
+        const parent = headCommit!;
         headCommit = next('commit');
-        return json(route, { content: { sha } });
+        commits.set(headCommit, { message: body.message, parents: [parent] });
+        return json(route, { content: { sha }, commit: { sha: headCommit, parents: [{ sha: parent }] } });
       }
     }
 

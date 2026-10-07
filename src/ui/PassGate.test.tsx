@@ -11,6 +11,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
 import { rootListing } from '../sync/testing/rootListing';
 import { findPhases, phases } from '../test/phases';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const twenty = Array(12).fill(20);
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
@@ -46,7 +47,7 @@ beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') {
         const body = JSON.parse(String(init.body)) as { message: string; content: string };
         puts.push({ message: body.message, content: JSON.parse(atob(body.content)) });
@@ -62,7 +63,7 @@ beforeAll(() => {
       if (url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
       if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

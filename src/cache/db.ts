@@ -66,6 +66,9 @@ function openDb(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
+/** Why a transaction failed: a failing request's error bubbles to it before the transaction aborts and sets its own. */
+const errorOf = (event: Event, tx: IDBTransaction): DOMException | null => (event.target as IDBRequest | null)?.error ?? tx.error;
+
 async function get<T>(store: string, key: string): Promise<T | null> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -81,7 +84,7 @@ async function set<T>(store: string, key: string, value: T): Promise<void> {
     const tx = db.transaction(store, 'readwrite');
     tx.objectStore(store).put(value, key);
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = (event) => reject(errorOf(event, tx));
   });
 }
 
@@ -91,27 +94,37 @@ async function del(store: string, key: string): Promise<void> {
     const tx = db.transaction(store, 'readwrite');
     tx.objectStore(store).delete(key);
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = (event) => reject(errorOf(event, tx));
   });
 }
 
-/** Every entry of `store` whose key starts with `prefix`, by key. */
-async function entriesWithPrefix<T>(store: string, prefix: string): Promise<Map<string, T>> {
-  const db = await openDb();
+/** What an IndexedDB request gives, as a promise; awaited within a transaction, it keeps the transaction open. */
+function request<T>(req: IDBRequest): Promise<T> {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = () => resolve(req.result as T);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+/** Every entry of `store` whose key starts with `prefix`, by key after the prefix, within the caller's transaction. */
+function scan<T>(store: IDBObjectStore, prefix: string): Promise<Map<string, T>> {
   return new Promise((resolve, reject) => {
     const found = new Map<string, T>();
-    const request = db
-      .transaction(store, 'readonly')
-      .objectStore(store)
-      .openCursor(IDBKeyRange.bound(prefix, `${prefix}￿`));
-    request.onsuccess = () => {
-      const cursor = request.result;
+    const req = store.openCursor(IDBKeyRange.bound(prefix, `${prefix}\uffff`));
+    req.onsuccess = () => {
+      const cursor = req.result;
       if (!cursor) return resolve(found);
-      found.set(cursor.key as string, cursor.value as T);
+      found.set((cursor.key as string).slice(prefix.length), cursor.value as T);
       cursor.continue();
     };
-    request.onerror = () => reject(request.error);
+    req.onerror = () => reject(req.error);
   });
+}
+
+/** Every entry of `store` whose key starts with `prefix`, by key after the prefix. */
+async function entriesWithPrefix<T>(store: string, prefix: string): Promise<Map<string, T>> {
+  const db = await openDb();
+  return scan<T>(db.transaction(store, 'readonly').objectStore(store), prefix);
 }
 
 async function clearStore(store: string): Promise<void> {
@@ -120,7 +133,7 @@ async function clearStore(store: string): Promise<void> {
     const tx = db.transaction(store, 'readwrite');
     tx.objectStore(store).clear();
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = (event) => reject(errorOf(event, tx));
   });
 }
 
@@ -150,6 +163,8 @@ const encoder = new TextEncoder();
 
 /** A file's size in the cache: its UTF-8 encoded length in bytes, not UTF-16 units (§3 Storage limits, §10.4). */
 const byteLength = (content: string): number => encoder.encode(content).length;
+
+const bytesOf = (files: Iterable<CachedFile>): number => [...files].reduce((sum, file) => sum + byteLength(file.content), 0);
 
 /** A write the browser refused because storage is full (§3 Storage limits). */
 export const isQuotaError = (error: unknown): boolean => (error as { name?: unknown } | null)?.name === 'QuotaExceededError';
@@ -188,9 +203,8 @@ export class FileCache {
     return get<CachedFile>(FILES_STORE, this.key(path));
   }
 
-  async all(): Promise<Map<string, CachedFile>> {
-    const found = await entriesWithPrefix<CachedFile>(FILES_STORE, this.prefix);
-    return new Map([...found].map(([key, file]) => [key.slice(this.prefix.length), file]));
+  all(): Promise<Map<string, CachedFile>> {
+    return entriesWithPrefix<CachedFile>(FILES_STORE, this.prefix);
   }
 
   private serially<T>(write: () => Promise<T>): Promise<T> {
@@ -203,34 +217,93 @@ export class FileCache {
   }
 
   set(path: string, value: { content: string; sha: string }): Promise<void> {
-    return this.serially(() => this.put(path, value));
-  }
-
-  private async put(path: string, value: { content: string; sha: string }): Promise<void> {
-    // Counted before the write, so a first write is not counted twice.
-    const before = this.total ?? (await this.size());
-    const previous = await this.get(path);
-    await set<CachedFile>(FILES_STORE, this.key(path), { ...value, at: Date.now() });
-    this.total = before - (previous ? byteLength(previous.content) : 0) + byteLength(value.content);
-    const budget = await this.budget();
-    if (this.total > budget) await this.evict(path, budget);
+    return this.serially(() =>
+      this.write([[path, value]], undefined, path).then(
+        () => {},
+        async (error: unknown) => {
+          // The cache now lacks a file the dataset has: it is not taken as complete again until cleared.
+          this.incomplete = true;
+          await del(META_STORE, this.prefix).catch(() => {});
+          throw error;
+        },
+      ),
+    );
   }
 
   /**
-   * Keeps the files of a pull and, with them, what the pull saw (§10.4), as one step: `meta` is recorded only when it
-   * is given and the cache holds the whole dataset, that is, nothing was ever dropped for the budget. Resolves to
-   * whether it was recorded. A cache without it is loaded from scratch on the next open.
+   * Keeps the files of a pull and, with them, what the pull saw (§10.4), in one IndexedDB transaction with one storage
+   * estimate: `meta` is recorded only when it is given and the cache holds the whole dataset, that is, nothing was
+   * ever dropped for the budget. Resolves to whether `meta` was recorded. A cache without it is loaded from scratch on
+   * the next open.
    */
   commitPull(files: Iterable<[string, { content: string; sha: string }]>, meta: CacheMeta | null): Promise<boolean> {
-    return this.serially(async () => {
-      for (const [path, file] of files) await this.put(path, file);
-      if (!meta || this.incomplete) {
-        await del(META_STORE, this.prefix);
-        return false;
-      }
-      await set(META_STORE, this.prefix, meta);
-      return true;
+    const pulled = [...files];
+    return this.serially(() => this.write(pulled, meta, null));
+  }
+
+  /**
+   * Writes `files` in one transaction. Over the budget, the oldest files are dropped, initiative files first, never
+   * `keep`, and the cache is no longer complete. `meta` is recorded (or, null, removed) unless it is undefined: then
+   * it is left as it is, unless files were dropped. Resolves to whether the cache holds `meta` now.
+   */
+  private async write(files: [string, { content: string; sha: string }][], meta: CacheMeta | null | undefined, keep: string | null): Promise<boolean> {
+    // Writing no file cannot go over the budget: no storage estimate for it.
+    const budget = files.length > 0 ? await this.budget() : Infinity;
+    const db = await openDb();
+    const tx = db.transaction([FILES_STORE, META_STORE], 'readwrite');
+    const done = new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = (event) => reject(errorOf(event, tx));
+      tx.onabort = () => reject(tx.error ?? new Error('The cache write was aborted.'));
     });
+    let incomplete = this.incomplete;
+    let total = this.total;
+    try {
+      // Only IndexedDB requests are waited for from here on, or the transaction would close under them.
+      const store = tx.objectStore(FILES_STORE);
+      // Counting the cache from scratch reads every file anyway: their previous sizes come from that one scan.
+      let cached = total === null ? await scan<CachedFile>(store, this.prefix) : null;
+      total ??= bytesOf(cached!.values());
+      const previous = cached
+        ? files.map(([path]) => cached!.get(path))
+        : await Promise.all(files.map(([path]) => request<CachedFile | undefined>(store.get(this.key(path)))));
+      const now = Date.now();
+      files.forEach(([path, file], i) => {
+        const record: CachedFile = { ...file, at: now };
+        store.put(record, this.key(path));
+        cached?.set(path, record);
+        total! += byteLength(file.content) - (previous[i] ? byteLength(previous[i].content) : 0);
+      });
+      if (total > budget) {
+        // Files just written are the newest, so they go last of their kind.
+        cached ??= await scan<CachedFile>(store, this.prefix);
+        const order = [...cached].filter(([path]) => path !== keep);
+        order.sort(([pathA, a], [pathB, b]) => Number(!isInitiativeFile(pathA)) - Number(!isInitiativeFile(pathB)) || a.at - b.at);
+        for (const [path, file] of order) {
+          if (total <= budget) break;
+          incomplete = true;
+          store.delete(this.key(path));
+          total -= byteLength(file.content);
+        }
+      }
+      const metaStore = tx.objectStore(META_STORE);
+      if (meta && !incomplete) metaStore.put(meta, this.prefix);
+      else if (meta !== undefined || incomplete) metaStore.delete(this.prefix);
+    } catch (error) {
+      tx.abort();
+      await done.catch(() => {});
+      throw error;
+    }
+    try {
+      await done;
+    } catch (error) {
+      // What the cache holds is not known now: counted again on the next write.
+      this.total = null;
+      throw error;
+    }
+    this.total = total;
+    this.incomplete = incomplete;
+    return Boolean(meta) && !incomplete;
   }
 
   /** Resolves when the writes asked for so far are done. */
@@ -246,25 +319,6 @@ export class FileCache {
     const previous = await this.get(path);
     await del(FILES_STORE, this.key(path));
     if (this.total !== null && previous) this.total -= byteLength(previous.content);
-  }
-
-  private async size(): Promise<number> {
-    return [...(await this.all()).values()].reduce((sum, file) => sum + byteLength(file.content), 0);
-  }
-
-  /** Drops the oldest files until the cache fits `budget`, and forgets that the cache is complete. */
-  private async evict(keep: string, budget: number): Promise<void> {
-    const files = [...(await this.all())].filter(([path]) => path !== keep);
-    files.sort(([pathA, a], [pathB, b]) => Number(!isInitiativeFile(pathA)) - Number(!isInitiativeFile(pathB)) || a.at - b.at);
-    for (const [path, file] of files) {
-      if ((this.total ?? 0) <= budget) break;
-      if (!this.incomplete) {
-        this.incomplete = true;
-        await del(META_STORE, this.prefix);
-      }
-      await del(FILES_STORE, this.key(path));
-      this.total = (this.total ?? 0) - byteLength(file.content);
-    }
   }
 
   getMeta(): Promise<CacheMeta | null> {
@@ -293,9 +347,8 @@ export class SeenCache {
     this.prefix = `${scope}|`;
   }
 
-  async all(): Promise<Map<string, SeenRecord>> {
-    const found = await entriesWithPrefix<SeenRecord>(SEEN_STORE, this.prefix);
-    return new Map([...found].map(([key, record]) => [key.slice(this.prefix.length), record]));
+  all(): Promise<Map<string, SeenRecord>> {
+    return entriesWithPrefix<SeenRecord>(SEEN_STORE, this.prefix);
   }
 
   put(initiativeId: string, record: SeenRecord): Promise<void> {
@@ -354,7 +407,7 @@ export const budgetStore = {
         store.put('sent' in outcome ? outcome.sent : sent, key);
       };
       tx.oncomplete = () => resolve(outcome);
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = (event) => reject(errorOf(event, tx));
     });
   },
 

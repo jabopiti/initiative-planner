@@ -7,6 +7,7 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { rootListing } from '../sync/testing/rootListing';
 import { SettingsPage } from './SettingsPage';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
@@ -14,7 +15,7 @@ const file = (content: unknown, sha: string) => json({ content: btoa(JSON.string
 beforeAll(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
@@ -25,7 +26,7 @@ beforeAll(() => {
       if (url.includes('/contents/memberships.json')) return file([], 'm');
       if (url.includes('/contents/initiatives')) return json({ message: 'Not Found' }, 404);
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

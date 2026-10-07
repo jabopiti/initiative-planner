@@ -13,6 +13,7 @@ import { PeopleOverview } from './PeopleOverview';
 import { TeamDetail } from './TeamDetail';
 import { TeamsOverview } from './TeamsOverview';
 import { rootListing } from '../sync/testing/rootListing';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 /** Opens a list row's "⋯" menu and chooses one of its items (§9.10). */
 async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string, item: string) {
@@ -57,7 +58,7 @@ beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
@@ -69,7 +70,7 @@ beforeAll(() => {
       if (url.endsWith('/contents/initiatives.json') || url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
       if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

@@ -9,11 +9,10 @@ is done and what happens to its file.
 
 | ID | Title | Depends on | Note |
 |---|---|---|---|
-| 065 | Cheaper pulls: one listing request, no re-listing after own commits, batched first load | 064 | Optional: reads are within GitHub's limits today; worth doing for the §9.6 first-load target. The 064 spike passed Q4a and Q4b, so the GraphQL batch read is in scope. |
 
 ## Delivered slices
 
-Slices 001 to 064 are delivered; their files and the full build-time index
+Slices 001 to 065 are delivered; their files and the full build-time index
 are archived in `backlog/done/`, which agents don't read unless the user
 asks (AGENTS.md).
 

@@ -9,6 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { PeopleOverview } from './PeopleOverview';
 import { TeamsOverview } from './TeamsOverview';
 import { rootListing } from '../sync/testing/rootListing';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const teams = [{ id: 't1', name: 'Payments', active: true }];
@@ -23,7 +24,7 @@ function file(content: unknown, sha: string): Response {
 function stubGithub() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
@@ -33,7 +34,7 @@ function stubGithub() {
       if (url.includes('/contents/people.json')) return file([], 'p');
       if (url.includes('/contents/memberships.json')) return file([], 'm');
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 }
 

@@ -14,6 +14,7 @@ import { NO_FILTERS } from '../data/initiativeList';
 import { PORTFOLIO_DEFAULTS, type PortfolioFilters } from '../data/portfolio';
 import { resetGettingStartedDismissal } from './gettingStartedDismissal';
 import { resetSessionFilters, useSessionFilters } from './sessionFilters';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const { process } = defaultBrandPack;
@@ -48,7 +49,7 @@ beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => {
+    contentsBacked(vi.fn(async (url: string) => {
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
       if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
@@ -63,7 +64,7 @@ beforeAll(() => {
       }
       if (url.includes('/contents/initiatives')) return json(initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `sha-${i.id}`, type: 'file' })));
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

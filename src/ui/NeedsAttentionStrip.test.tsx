@@ -12,6 +12,7 @@ import { InitiativeDetail } from './InitiativeDetail';
 import { PortfolioBoard } from './PortfolioBoard';
 import { TopBar } from './TopBar';
 import { rootListing } from '../sync/testing/rootListing';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const [discoveryId, validationId] = defaultBrandPack.process.map((p) => p.id);
@@ -29,7 +30,7 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
@@ -45,7 +46,7 @@ beforeAll(() => {
       }
       if (url.includes('/contents/initiatives')) return json(initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `sha-${i.id}`, type: 'file' })));
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

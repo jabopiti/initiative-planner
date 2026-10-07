@@ -7,6 +7,7 @@ import { defaultTiming } from './FileWriter';
 import { mergeDocument } from './merge';
 import { Repository } from './Repository';
 import { fakeGithub, initiative, open, person, seedDataset, type Fake } from './testing/fakeGithub';
+import { contentsBacked } from './testing/contentsBacked';
 
 /** Slice 044: damaged data is detected, never bootstrapped over, and a refused dataset is never written (§3). */
 
@@ -100,8 +101,11 @@ describe('a damaged repository dataset is reported, never shown (§3, §10.8)', 
   it('a file that is not JSON is named', async () => {
     seedDataset(fake);
     const repo = new Repository(defaultBrandPack, 'token');
-    vi.stubGlobal('fetch', (url: string, init?: RequestInit) =>
-      url.includes('/contents/people.json') ? Promise.resolve(new Response(JSON.stringify({ content: encodeBase64Utf8('[{'), sha: 'broken' }))) : fake.fetchMock(url, init),
+    vi.stubGlobal(
+      'fetch',
+      contentsBacked((url: string, init?: RequestInit) =>
+        url.includes('/contents/people.json') ? Promise.resolve(new Response(JSON.stringify({ content: encodeBase64Utf8('[{'), sha: 'broken' }))) : fake.fetchMock(url, init),
+      ),
     );
     await repo.initialize();
 
@@ -147,7 +151,7 @@ describe('a refused dataset is never written (§3 Data integrity)', () => {
     const { repo } = await open(fake, { initiatives: [initiative()] });
     fake.seed('dataset.json', flags({ schemaVersion: 2 }));
     await repo.pull();
-    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')));
+    vi.stubGlobal('fetch', contentsBacked(() => Promise.reject(new TypeError('Failed to fetch'))));
     await repo.pull();
     vi.stubGlobal('fetch', fake.fetchMock);
     const sent = fake.puts.length;
