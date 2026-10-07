@@ -25,15 +25,16 @@ import { FROZEN_PHASE_FIELDS, frozenPaths, hasPassedGate, isInitiativeFrozen, is
 import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
 import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
-import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, GithubApiError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
+import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type CommitOnHeadArgs, type CommitResult } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { WriteBudget } from '../github/writeBudget';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
-import { distinctEntities, FileWriter, renderMessage, type JointPart, type CommitMessage, type CommitNote, type DeleteResult, type FileConflict, type Received, type WriteStatus } from './FileWriter';
+import { FileWriter, type CommitMessage, type CommitNote, type DeleteResult, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { MASTER_FILES, parseDataFile, validateDataset, validateRecords } from './validateDataset';
 import { PullSource, pulledFile, type Pulled, type WrittenFile } from './PullSource';
+import { commitJointly } from './commitJointly';
 import { RateLimitTracker } from './RateLimitTracker';
 import { WriteQueue } from './WriteQueue';
 import { InitiativeEditCommands, insertAt, type AddAllocationResult, type CopyAllocationsResult, type CostItemChange } from './InitiativeEditCommands';
@@ -1078,54 +1079,17 @@ export class Repository {
     if (written.size > 1) this.commitJointly([...written]);
   }
 
-  /**
-   * One commit of the files' pending edits (§10.3). It goes ahead only while every file is still at the version its
-   * edit was made on, read at the head the commit is pinned to, and is made again on a new head when another commit
-   * lands first; otherwise each file saves on its own and merges with the newer version as any save does (§10.5).
-   */
   private commitJointly(paths: string[]): void {
-    void this.firstPullDone.then(() =>
-      this.queue.run(async () => {
-        const writers = paths.map((path) => this.allWriters().find(([p]) => p === path)?.[1]);
-        const parts: [FileWriter<unknown>, JointPart<unknown>][] = [];
-        for (const writer of writers) {
-          const part = writer?.takeJoint();
-          if (writer && part) parts.push([writer, part]);
-        }
-        // Each file given back saves on its own.
-        const giveBack = () => {
-          for (const [writer, part] of parts) writer.jointReturned(part);
-        };
-        if (parts.length < paths.length) {
-          giveBack();
-          for (const writer of writers) if (writer && !parts.some(([taken]) => taken === writer)) void writer.flush();
-          return;
-        }
-        const message = renderMessage({
-          subject: [...new Set(parts.map(([, part]) => part.message.subject))].join('; '),
-          entities: distinctEntities(parts.flatMap(([, part]) => part.message.entities)),
-        });
-        const files = parts.map(([, part]) => ({ path: part.path, content: part.content }));
-        try {
-          const result = await this.github.commitOnHead({
-            branch: this.brand.github.dataBranch,
-            message,
-            build: async (at) => {
-              const root = await this.github.listDirectory({ path: '', branch: at });
-              const unchanged = parts.every(([, part]) => root.find((entry) => entry.path === part.path)?.sha === part.sha);
-              return unchanged ? { files, deletes: [] } : null;
-            },
-          });
-          if (result === 'stopped') return giveBack();
-          parts.forEach(([writer, part], i) => writer.jointLanded(part, result.written[i].sha));
-          if (result.parent) this.source.recordSave(paths, { sha: result.commitSha, parent: result.parent });
-        } catch (error) {
-          // The branch kept moving, or its head can't be read: each file saves on its own, as it would without this commit.
-          if (error instanceof GithubApiError && (error.cause_ === 'conflict' || error.cause_ === 'not-found')) return giveBack();
-          const cause = toReadOnlyState(error, 'Something went wrong saving this change.');
-          for (const [writer, part] of parts) writer.jointFailed(part, cause);
-        }
-      }),
+    commitJointly(
+      {
+        github: this.github,
+        queue: this.queue,
+        branch: this.brand.github.dataBranch,
+        ready: this.firstPullDone,
+        writerOf: (path) => this.allWriters().find(([p]) => p === path)?.[1],
+        recordSave: this.source.recordSave,
+      },
+      paths,
     );
   }
 
