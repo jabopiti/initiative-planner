@@ -35,8 +35,6 @@ I wrote the specification first, cut it into a backlog of thin slices, and built
 
 ## What it does
 
-![A short tour: the Portfolio, an initiative page with its phases and gates, and the Teams overview, all on example data](./docs/images/tour.gif)
-
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./docs/images/initiative-dark.png">
   <img alt="An initiative page: phase timeline, grand estimate against the approved figure, current phase, gate progress and the phase table" src="./docs/images/initiative-light.png" width="860">
