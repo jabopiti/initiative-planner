@@ -189,7 +189,8 @@ describe('request budget at the volume ceiling (slice 064 baseline)', () => {
     expect({ requests: reset.requests, contentCreating: reset.contentCreating, downloads: reset.downloads.length }).toEqual({
       // Slice 064: one GraphQL commit; the files it wrote are not downloaded again (was 21, 9 content-creating, 6 blobs, 6 downloads).
       // Slice 065: its pull lists the branch in one request (was 6).
-      requests: 5,
+      // Own-commit record: its pull reaches the commit from the head check alone, nothing listed (was 5).
+      requests: 4,
       contentCreating: 1,
       downloads: 0,
     });
@@ -206,7 +207,8 @@ describe('request budget at the volume ceiling (slice 064 baseline)', () => {
     expect({ requests: loaded.requests, contentCreating: loaded.contentCreating, downloads: loaded.downloads.length }).toEqual({
       // Slice 064: one GraphQL commit; only the 5 reads that check the branch is empty (was 26, 9 content-creating, 6 blobs, 11 downloads).
       // Slice 065: its pull lists the branch in one request (was 11).
-      requests: 10,
+      // Own-commit record: its pull reaches the commit from the head check alone, nothing listed (was 10).
+      requests: 9,
       contentCreating: 1,
       downloads: 5,
     });

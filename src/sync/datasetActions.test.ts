@@ -3,7 +3,8 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import type { DatasetFlags, Initiative, Person, Role, Team } from '../data/types';
 import { Repository } from './Repository';
-import { FIXTURE_COUNTRY, FIXTURE_ROLE, fakeGithub, initiative, person, seedDataset, type Fake } from './testing/fakeGithub';
+import { FIXTURE_COUNTRY, FIXTURE_ROLE, fakeGithub, holdNetwork, initiative, person, seedDataset, type Fake } from './testing/fakeGithub';
+import { isFilesQuery } from './testing/graphqlRead';
 
 /** Slice 032: Load example data and Reset (§5.9), each one commit through the Git data API (§10.3), races included. */
 
@@ -182,5 +183,49 @@ describe('Reset (slice 032)', () => {
 
     expect(other.getState().initiatives).toEqual([]);
     expect(other.getState().teams).toEqual([]);
+  });
+});
+
+describe('the pull after this client’s own many-file commit (§10.2)', () => {
+  it('a save that lands before it is pulled: the head check alone brings in both, the save’s merge kept, nothing tinted', async () => {
+    const fake = fakeGithub();
+    const repo = await openWith(fake, { teams: [team], initiatives: [initiative()] });
+    // Holds the head check of the pull that follows the commit, so a save lands between the two.
+    let committed = false;
+    let held = false;
+    const release = holdNetwork(fake, (url, init) => {
+      if (url.endsWith('/graphql') && !isFilesQuery(String(init?.body))) committed = true;
+      else if (committed && !held && url.endsWith(`/git/ref/heads/${defaultBrandPack.github.dataBranch}`)) return (held = true);
+      return false;
+    });
+
+    const resetting = repo.resetDataset();
+    await vi.waitFor(() => expect(held).toBe(true));
+    repo.createTeam('Later');
+    await repo.flushPending();
+    const before = fake.requests().length;
+    release();
+    await expect(resetting).resolves.toBe('reset');
+
+    expect(fake.requests().slice(before)).toEqual(['GET /repos/jabopiti/initiative-planner/git/ref/heads/data']);
+    const state = repo.getState();
+    expect(state.teams.map((t) => t.name)).toEqual(['Later']);
+    expect(state.initiatives).toEqual([]);
+    expect(state.updatedByOthers).toBe(false);
+  });
+
+  it('another user’s commit first: the pull lists the branch, downloads nothing Reset wrote, and tints nothing', async () => {
+    const fake = fakeGithub();
+    const repo = await openWith(fake, { teams: [team], initiatives: [initiative()] });
+    fake.beforeCommit(() => fake.seed('initiatives/i9.json', initiative({ id: 'i9', name: 'Theirs' })));
+    const readsBefore = fake.reads.length;
+    const before = fake.requests().length;
+
+    await expect(repo.resetDataset()).resolves.toBe('reset');
+
+    expect(fake.requests().slice(before).filter((request) => request.includes('/git/trees/'))).toHaveLength(1);
+    expect(fake.reads.slice(readsBefore)).toEqual([]);
+    expect(repo.getState().teams).toEqual([]);
+    expect(repo.getState().updatedByOthers).toBe(false);
   });
 });

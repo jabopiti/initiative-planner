@@ -2142,15 +2142,16 @@ of §6.
 
 A client reads the data branch as follows. It checks the branch's head with a
 conditional request (an unchanged head costs one request that GitHub does not
-count against the rate limit). When the head has moved only through this
-client's own saves since its last complete pull (each save's response names
-its new commit and that commit's parent; a commit that replaces or deletes many
-files at once, such as Reset or Load example data, does not count), the pull
-ends there: what those saves wrote is already on screen. Otherwise it lists the
-data branch's files with their versions in one request, at the commit just
-checked, and fetches those whose version differs from the one it holds,
-about 100 files per GraphQL query, a file too large for the query read on its
-own. On first load it reads the full file list once. Fetched files are cached
+count against the rate limit). The client keeps a record of its own commits
+(each commit's response names it and its parent), with the files a commit of
+many files, such as Reset or Load example data, wrote and their versions. When
+the head has moved only through these commits since its last complete pull, the
+pull ends there: what single saves wrote is already on screen, and what a
+commit of many files wrote is shown as written, not as "updated by others".
+Otherwise it lists the data branch's files with their versions in one request,
+at the commit just checked, and fetches those whose version differs from the
+one it holds and that none of its own commits wrote at that version, about 100
+files per GraphQL query, a file too large for the query read on its own. On first load it reads the full file list once. Fetched files are cached
 by version (§10.4).
 
 ### 10.3 Writing
