@@ -147,6 +147,8 @@ export interface CommitResult {
   /** The commit it sits on; null for the first commit of a new branch, or when another client's commit won. */
   parent: string | null;
   written: (FileChange & { sha: string })[];
+  /** The files it deleted. */
+  deleted: string[];
 }
 
 /** What {@link GithubClient.commitOnHead} is asked to do. */
@@ -516,7 +518,7 @@ export class GithubClient {
       const outcome = await this.commitOnBranch({ branch: args.branch, expectedHeadOid: head, message: args.message, ...changes });
       if (outcome === 'moved' && attempt < 3) continue; // another commit landed first: build again on the new head
       if (outcome === 'moved') throw new GithubApiError('The data branch kept changing — please retry.', 'conflict', 422);
-      return { commitSha: outcome.commitSha, parent: head, written: await withVersions(changes.files) };
+      return { commitSha: outcome.commitSha, parent: head, written: await withVersions(changes.files), deleted: changes.deletes };
     }
   }
 
@@ -596,7 +598,7 @@ export class GithubClient {
     if (head !== null) {
       const outcome = await this.commitOnBranch({ branch: args.branch, expectedHeadOid: head, message: args.message, files: args.files, deletes: [] });
       if (outcome === 'moved') return this.lostTo(args.branch);
-      return { commitSha: outcome.commitSha, parent: head, written: await withVersions(args.files) };
+      return { commitSha: outcome.commitSha, parent: head, written: await withVersions(args.files), deleted: [] };
     }
 
     const treeResponse = await this.request(this.repoUrl('git/trees'), {
@@ -621,13 +623,13 @@ export class GithubClient {
     });
     if (createRefResponse.status === 422) return this.lostTo(args.branch);
     await assertOk(createRefResponse, 'Ref create');
-    return { commitSha, parent: null, written: await withVersions(args.files) };
+    return { commitSha, parent: null, written: await withVersions(args.files), deleted: [] };
   }
 
   /** Another client's bootstrap won: its commit, rather than a dangling sha of ours, and nothing written by us. */
   private async lostTo(branch: string): Promise<CommitResult> {
     const winner = await this.headOf(branch);
     if (winner === null) throw new GithubApiError('The data branch changed during setup — please retry.', 'conflict', 422);
-    return { commitSha: winner, parent: null, written: [] };
+    return { commitSha: winner, parent: null, written: [], deleted: [] };
   }
 }

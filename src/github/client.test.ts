@@ -149,7 +149,7 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
 
       const result = await new GithubClient(location, () => 'token').createFilesCommit({ branch, files: [{ path: 'dataset.json', content: '{}' }], message: 'init' });
 
-      expect(result).toEqual({ commitSha: 'new-sha', parent: 'parent-sha', written: [{ path: 'dataset.json', content: '{}', sha: '9e26dfeeb6e641a33dae4961196235bdb965b21b' }] });
+      expect(result).toEqual({ commitSha: 'new-sha', parent: 'parent-sha', written: [{ path: 'dataset.json', content: '{}', sha: '9e26dfeeb6e641a33dae4961196235bdb965b21b' }], deleted: [] });
       expect(input).toMatchObject({ branch: { branchName: branch }, expectedHeadOid: 'parent-sha', message: { headline: 'init' } });
       expect(calls.filter((c) => !c.startsWith('GET '))).toEqual(['POST https://api.github.com/graphql']);
     },
@@ -385,7 +385,7 @@ describe('GithubClient — failures are classified and requests end (slice 043)'
 
     expect(fake.graphqlCommits).toEqual([]);
     expect(fake.has('dataset.json')).toBe(false);
-    expect(result).toEqual({ commitSha: 'commit-3', parent: null, written: [] });
+    expect(result).toEqual({ commitSha: 'commit-3', parent: null, written: [], deleted: [] });
     expect(fake.requests().filter((r) => r === 'POST /graphql')).toHaveLength(1);
   });
 

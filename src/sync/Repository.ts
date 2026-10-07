@@ -144,7 +144,7 @@ interface PulledFile {
   sha: string;
   value: unknown;
   /** Written by this client's own commit: nothing it changes is "updated by others" (§9.9). */
-  own?: boolean;
+  own: boolean;
 }
 
 /** The commit message deleting an initiative (§10.3). */
@@ -175,7 +175,7 @@ const pulledFile = (path: string, { content, sha }: { content: string; sha: stri
   raw: content,
   sha,
   value: parseDataFile(path, content),
-  ...(own ? { own } : {}),
+  own,
 });
 
 /** Everything one pull found: the files it read, and the versions on screen it compared them with. */
@@ -477,10 +477,10 @@ export class Repository {
     if (head && this.meta && unchangedEndsPull && head.sha === this.meta.head) return null;
     // Moved only through this client's own commits: nothing is listed or read (§10.2). What single saves wrote is on
     // screen and in the cache already, so only the head is recorded; what a many-file commit wrote is applied as it is.
-    const own = head && this.meta && unchangedEndsPull ? this.ownChain(this.meta.head, head.sha) : null;
+    const own = head && this.meta && unchangedEndsPull ? this.ownCommitsTo(this.meta.head, head.sha) : null;
     if (head && own) {
-      if (own.files.size > 0 || [...own.compared.keys()].some((path) => !own.listing.has(path))) return { head, ...own };
-      this.remember({ head, files: own.files }, true);
+      if (own.some((commit) => commit.written.length > 0 || commit.deleted.length > 0)) return { head, ...this.ownPull(own) };
+      this.remember({ head, files: new Map() }, true);
       return null;
     }
 
@@ -542,18 +542,19 @@ export class Repository {
     for (const [parent, commit] of ahead) this.ownCommits.set(parent, commit);
   }
 
-  /**
-   * The pull from commit `from` to commit `to` when this client's own commits lead there, made of what they recorded
-   * rather than read: the files a many-file commit wrote, over the versions on screen. Null when they don't lead there.
-   */
-  private ownChain(from: string, to: string): Omit<Pulled, 'head'> | null {
-    const chain = this.ownCommitsFrom(from);
-    const last = chain.findIndex(([, commit]) => commit.sha === to);
-    if (last < 0) return null;
+  /** This client's own commits from commit `from` to commit `to`, in order; null when they don't lead there. */
+  private ownCommitsTo(from: string, to: string): OwnCommit[] | null {
+    const chain = this.ownCommitsFrom(from).map(([, commit]) => commit);
+    const last = chain.findIndex((commit) => commit.sha === to);
+    return last < 0 ? null : chain.slice(0, last + 1);
+  }
+
+  /** The pull made of what this client's own commits recorded rather than read: what a many-file commit wrote, over the versions on screen. */
+  private ownPull(chain: OwnCommit[]): Omit<Pulled, 'head'> {
     const compared = this.knownShas();
     const listing = new Map(compared);
     const files = new Map<string, PulledFile>();
-    for (const [, commit] of chain.slice(0, last + 1)) {
+    for (const commit of chain) {
       for (const file of commit.written) {
         files.set(file.path, pulledFile(file.path, file, true));
         listing.set(file.path, file.sha);
@@ -2363,23 +2364,12 @@ export class Repository {
     build: CommitOnHeadArgs['build'],
   ): Promise<'done' | 'stopped' | { failed: ReadOnlyState }> {
     let result: CommitResult | 'stopped';
-    let deleted: string[] = [];
     try {
-      result = await this.queue.run(() =>
-        this.github.commitOnHead({
-          branch: this.brand.github.dataBranch,
-          message,
-          build: async (at) => {
-            const changes = await build(at);
-            deleted = changes?.deletes ?? [];
-            return changes;
-          },
-        }),
-      );
+      result = await this.queue.run(() => this.github.commitOnHead({ branch: this.brand.github.dataBranch, message, build }));
     } catch (error) {
       return { failed: toReadOnlyState(error, failureText) };
     }
-    if (result !== 'stopped' && result.parent) this.ownCommits.set(result.parent, { sha: result.commitSha, written: result.written, saved: [], deleted });
+    if (result !== 'stopped' && result.parent) this.ownCommits.set(result.parent, { sha: result.commitSha, written: result.written, saved: [], deleted: result.deleted });
     // A pull already running may have read the branch before the commit: the one after it brings the commit in.
     await this.pulling;
     await this.pull();
