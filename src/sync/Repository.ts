@@ -40,6 +40,7 @@ import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChang
 import { distinctEntities, FileWriter, renderMessage, type JointPart, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { MASTER_FILES, parseDataFile, validateDataset, validateRecords } from './validateDataset';
+import { RateLimitTracker } from './RateLimitTracker';
 import { WriteQueue } from './WriteQueue';
 import { allocationWords, costItemWords, countryWords, membershipWords, personWords, roleWords, teamWords } from './commitWords';
 
@@ -60,12 +61,7 @@ interface OwnCommit {
 
 export type { ReadOnlyState } from '../github/errors';
 
-/** GitHub's request budget for the hour, from the latest response's headers (§5.9); `resetsAt` is epoch milliseconds. */
-export interface RateLimit {
-  remaining: number;
-  limit: number;
-  resetsAt: number;
-}
+export type { RateLimit } from './RateLimitTracker';
 
 export interface RepositoryState {
   status: 'loading' | 'ready';
@@ -303,7 +299,7 @@ export class Repository {
     private token: string,
   ) {
     this.writeBudget = new WriteBudget(brand.github.apiBaseUrl);
-    this.github = new GithubClient(brand.github, () => this.token, (headers) => this.noteRateLimit(headers), {
+    this.github = new GithubClient(brand.github, () => this.token, (headers) => this.rateLimits.note(headers), {
       budget: this.writeBudget,
       onPause: () => this.rearmRetry(),
     });
@@ -839,28 +835,12 @@ export class Repository {
     void this.allWriters().find(([path]) => path === file)?.[1].retry();
   }
 
-  private rateLimit: RateLimit | null = null;
-  private readonly rateLimitListeners = new Set<Listener>();
+  private readonly rateLimits = new RateLimitTracker();
 
   /** The budget the latest response reported (§5.9), or null before any response carried it. */
-  getRateLimit = (): RateLimit | null => this.rateLimit;
+  readonly getRateLimit = this.rateLimits.get;
 
-  subscribeRateLimit = (listener: Listener): (() => void) => {
-    this.rateLimitListeners.add(listener);
-    return () => this.rateLimitListeners.delete(listener);
-  };
-
-  private noteRateLimit(headers: Headers): void {
-    const remaining = Number(headers.get('x-ratelimit-remaining'));
-    const limit = Number(headers.get('x-ratelimit-limit'));
-    const reset = Number(headers.get('x-ratelimit-reset'));
-    // Number(null) is 0, so every header must be present, not just parse.
-    const complete = ['x-ratelimit-remaining', 'x-ratelimit-limit', 'x-ratelimit-reset'].every((name) => headers.has(name));
-    if (!complete || !Number.isFinite(remaining) || !Number.isFinite(limit) || !Number.isFinite(reset)) return;
-    if (this.rateLimit?.remaining === remaining && this.rateLimit.limit === limit && this.rateLimit.resetsAt === reset * 1000) return;
-    this.rateLimit = { remaining, limit, resetsAt: reset * 1000 };
-    for (const listener of this.rateLimitListeners) listener();
-  }
+  readonly subscribeRateLimit = this.rateLimits.subscribe;
 
   /**
    * How many edits would be lost by dropping this session (§5.9 Disconnect): fields whose save failed, plus a file
