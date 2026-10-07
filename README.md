@@ -69,7 +69,7 @@ There is no server. The app comes from GitHub Pages, and each user signs in with
 | Problem | What the app does |
 |---|---|
 | Two people edit at once | Pushes against the last version it holds. If the repository answers that the file changed, it pulls and merges at field level, so edits to different fields both survive. Two edits to the same field show up inline. |
-| Staying current | Pulls on load, when the tab regains focus and every 5 minutes, with conditional requests so an unchanged branch costs almost nothing. |
+| Staying current | Pulls on load, when the tab regains focus and every 5 minutes, with conditional requests, so an unchanged branch costs almost nothing. Changed files come in batches of about a hundred. |
 | GitHub is down, rate-limited or the token is refused | Switches to read-only with the cause named, retries by itself and replays the failed edits on recovery. |
 | Changes spanning many files | One commit through the Git data API or GraphQL, never half-applied. |
 | Rate limits | A request budget, shown in Settings → Connection. |
@@ -117,7 +117,7 @@ React 19, TypeScript and Vite. Tailwind CSS v4, with shadcn/ui on Radix primitiv
 
 ## Status
 
-Live and under active development. 64 of 65 planned slices are delivered; the open one makes first loads cheaper. The deployed app is the reference deployment. What is next is in [`backlog/slices-overview.md`](./backlog/slices-overview.md).
+Live and under active development. All planned slices are delivered, including cheaper pulls: a cold load at the volume ceiling takes 5 requests instead of 209. The deployed app is the reference deployment. New work is tracked in [`backlog/slices-overview.md`](./backlog/slices-overview.md).
 
 ## Documentation
 
