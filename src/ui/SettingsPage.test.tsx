@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
@@ -8,13 +8,8 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { SettingsPage } from './SettingsPage';
 import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, roles: [], countries: [], teams: [], people: [], memberships: [] }));
+fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles: [], countries: [] }));
 
-beforeAll(() => {
-  vi.stubGlobal('fetch', served.fetch);
-});
-afterAll(() => vi.unstubAllGlobals());
-beforeEach(() => served.reset());
 afterEach(cleanup);
 
 function renderSettings(section: string) {

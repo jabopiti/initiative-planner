@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { toast } from 'sonner';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, Initiative, Membership, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
@@ -9,7 +9,6 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
-import { subjectOf } from '../sync/testing/commitMessage';
 import { findPhases, phases } from '../test/phases';
 import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
@@ -46,9 +45,9 @@ let initiative: Initiative;
 let others: Initiative[] = [];
 let members: Membership[];
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, roles, countries, teams: [{ id: 't1', name: 'Payments', active: true }, { id: 't2', name: 'Platform', active: true }], people: [ana, cai, outsider], memberships: members, initiatives: [initiative, ...others] }));
+const served = fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries, teams: [{ id: 't1', name: 'Payments', active: true }, { id: 't2', name: 'Platform', active: true }], people: [ana, cai, outsider], memberships: members, initiatives: [initiative, ...others] }));
 /** Each commit the fake accepted: its subject and the initiative's new content. */
-const puts = () => served.accepted().map((p) => ({ message: subjectOf(p.message), content: p.content as Initiative }));
+const puts = () => served.subjects<Initiative>();
 
 beforeAll(() => {
   // Radix Select needs these pointer/scroll APIs, which jsdom lacks.
@@ -57,12 +56,9 @@ beforeAll(() => {
   Element.prototype.releasePointerCapture = () => {};
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal('fetch', served.fetch);
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
-  served.reset();
   initiative = { id: 'i1', name: 'Payments API', teamId: 't1', status: 'Active' };
   members = [membership('m1', 'ana', 60), membership('m2', 'cai', 50)];
   others = [];

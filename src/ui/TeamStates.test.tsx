@@ -1,8 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import { buildBaselineDataset } from '../data/baseline';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -11,21 +10,15 @@ import { PortfolioBoard } from './PortfolioBoard';
 import { TeamDetail } from './TeamDetail';
 import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
-const baseline = buildBaselineDataset(defaultBrandPack);
 const ACTIVE = { id: 't1', name: 'Payments', active: true };
 const INACTIVE = { id: 't2', name: 'Retired', active: false };
 
 let teams: { id: string; name: string; active: boolean }[] = [];
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people: [], memberships: [] }));
+fakeOnDemand((fake) => seedFiles(fake, { teams }));
 
-beforeAll(() => {
-  vi.stubGlobal('fetch', served.fetch);
-});
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
-  served.reset();
   teams = [];
   window.location.hash = '';
 });

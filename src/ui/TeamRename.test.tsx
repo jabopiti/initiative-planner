@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
@@ -21,15 +21,10 @@ const teams = [
 const people = [{ id: 'p1', name: 'Mara Voss', countryId: baseline.countries[0].id, roleId: baseline.roles[0].id, capacityPct: 100, active: true }];
 const memberships = [{ id: 'm1', personId: 'p1', teamId: 't1', teamFtePct: 40, active: true }];
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people, memberships }));
+fakeOnDemand((fake) => seedFiles(fake, { roles: baseline.roles, countries: baseline.countries, teams, people, memberships }));
 
-beforeAll(() => {
-  vi.stubGlobal('fetch', served.fetch);
-});
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
-  served.reset();
   window.location.hash = '';
   vi.mocked(toast).mockClear();
 });

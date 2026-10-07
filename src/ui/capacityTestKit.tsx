@@ -5,7 +5,7 @@
  */
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import type { Initiative, Membership, Person, Team } from '../data/types';
@@ -34,9 +34,7 @@ export const fixture: { teams: Team[]; people: Person[]; memberships: Membership
   initiatives: [],
 };
 
-const served = fakeOnDemand((fake) =>
-  seedFiles(fake, { roles: baseline.roles, countries: baseline.countries, teams: fixture.teams, people: fixture.people, memberships: fixture.memberships, initiatives: fixture.initiatives }),
-);
+let served: ReturnType<typeof fakeOnDemand>;
 
 /** Every write the repository accepted, in order: its commit message and the file's new content. */
 export const puts = () => served.accepted();
@@ -70,8 +68,11 @@ function resetFixture() {
   ];
 }
 
-/** Registers the hooks that stub the network and reset the dataset and date before each test. */
+/** Registers the hooks that stub the network with a fake GitHub and reset the dataset and date before each test. */
 export function installCapacityFixture() {
+  served = fakeOnDemand((fake) =>
+    seedFiles(fake, { roles: baseline.roles, countries: baseline.countries, teams: fixture.teams, people: fixture.people, memberships: fixture.memberships, initiatives: fixture.initiatives }),
+  );
   beforeAll(() => {
     // Radix Select needs these pointer/scroll APIs, which jsdom lacks.
     Element.prototype.hasPointerCapture = () => false;
@@ -79,9 +80,7 @@ export function installCapacityFixture() {
     Element.prototype.releasePointerCapture = () => {};
     Element.prototype.scrollIntoView = () => {};
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-    vi.stubGlobal('fetch', served.fetch);
   });
-  afterAll(() => vi.unstubAllGlobals());
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
@@ -89,7 +88,6 @@ export function installCapacityFixture() {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 8, 24, 10) });
     for (const key of Object.keys(written)) delete written[key];
-    served.reset();
     vi.stubGlobal('ClipboardItem', class { constructor(public items: Record<string, Blob>) {} });
     resetFixture();
     window.location.hash = '';

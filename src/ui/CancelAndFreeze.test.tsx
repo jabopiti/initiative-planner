@@ -1,13 +1,12 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, GateRecord, Initiative, Membership, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { InitiativeDetail } from './InitiativeDetail';
-import { subjectOf } from '../sync/testing/commitMessage';
 import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const twenty = Array(12).fill(20);
@@ -43,18 +42,15 @@ const initiativeWith = (overrides: Partial<Initiative> = {}): Initiative => ({
   ...overrides,
 });
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, roles, countries, teams: [{ id: 't1', name: 'Platform', active: true }], people: [ana], memberships: [membership], initiatives: [initiative] }));
+const served = fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries, teams: [{ id: 't1', name: 'Platform', active: true }], people: [ana], memberships: [membership], initiatives: [initiative] }));
 /** Each commit the fake accepted: its subject and the initiative's new content. */
-const puts = () => served.accepted().map((p) => ({ message: subjectOf(p.message), content: p.content as Initiative }));
+const puts = () => served.subjects<Initiative>();
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
-  vi.stubGlobal('fetch', served.fetch);
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
-  served.reset();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(2026, 8, 24, 12));
 });

@@ -1,8 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import { buildBaselineDataset } from '../data/baseline';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -10,18 +9,13 @@ import { PeopleOverview } from './PeopleOverview';
 import { TeamDetail } from './TeamDetail';
 import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
-const baseline = buildBaselineDataset(defaultBrandPack);
-
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: [], countries: [], teams: [{ id: 't1', name: 'Payments', active: true }], people: [], memberships: [] }));
+fakeOnDemand((fake) => seedFiles(fake, { roles: [], countries: [], teams: [{ id: 't1', name: 'Payments', active: true }] }));
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal('fetch', served.fetch);
 });
-afterAll(() => vi.unstubAllGlobals());
-beforeEach(() => served.reset());
 afterEach(cleanup);
 
 const wrap = (view: React.ReactNode) => (

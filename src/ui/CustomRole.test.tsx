@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import { trackedYears } from '../data/cost';
@@ -22,16 +22,13 @@ const cai = {
   active: true,
 };
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams: [], people: [cai], memberships: [] }));
+fakeOnDemand((fake) => seedFiles(fake, { roles: baseline.roles, countries: baseline.countries, people: [cai] }));
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal('fetch', served.fetch);
 });
-afterAll(() => vi.unstubAllGlobals());
-beforeEach(() => served.reset());
 afterEach(cleanup);
 
 async function openPanel() {

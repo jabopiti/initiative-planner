@@ -1,7 +1,7 @@
 import { cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cacheScope, SeenCache } from '../cache/db';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
@@ -43,16 +43,13 @@ const seenAs = (initiative: Initiative, estimate: number, daysAgo: number): Seen
 };
 const seenNow = (initiative: Initiative): SeenRecord => seenRecord(initiative, keyFigureSnapshot(initiative, process, people, data), Date.now());
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people, memberships: [], initiatives }));
+fakeOnDemand((fake) => seedFiles(fake, { teams, people, initiatives }));
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal('fetch', served.fetch);
 });
-afterAll(() => vi.unstubAllGlobals());
-beforeEach(() => served.reset());
 afterEach(async () => {
   cleanup();
   resetSessionFilters();

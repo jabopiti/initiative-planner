@@ -1,11 +1,10 @@
 import { cleanup, render } from '@testing-library/react';
-import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, vi } from 'vitest';
 import { defaultBrandPack } from '../../brand/defaultBrand';
 import type { Country, GateRecord, Initiative, Membership, Person, Role } from '../../data/types';
 import { BrandProvider } from '../../state/BrandContext';
 import { RepositoryProvider } from '../../state/DataContext';
 import { fakeOnDemand, seedFiles } from '../../sync/testing/fakeGithub';
-import { subjectOf } from '../../sync/testing/commitMessage';
 import { InitiativeDetail } from '../InitiativeDetail';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
@@ -31,7 +30,7 @@ export const discoveryPassed: GateRecord = { outcome: 'passed', passedOn: '2026-
 export function initiativePageHarness(initiative: () => Initiative) {
   const served = fakeOnDemand((fake) =>
     seedFiles(fake, {
-      dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true },
+      ratesReviewed: true,
       roles,
       countries,
       teams: [{ id: 't1', name: 'Platform', active: true }],
@@ -39,20 +38,17 @@ export function initiativePageHarness(initiative: () => Initiative) {
       memberships: [membership],
     }),
   );
-  const puts = () => served.accepted().map((p) => ({ message: subjectOf(p.message), content: p.content as Initiative }));
+  const puts = () => served.subjects<Initiative>();
 
   beforeAll(() => {
     Element.prototype.scrollIntoView = () => {};
     // Radix Select (the starting-phase picker) asks for pointer capture, which jsdom lacks.
     Element.prototype.hasPointerCapture = () => false;
-    vi.stubGlobal('fetch', served.fetch);
   });
-  afterAll(() => vi.unstubAllGlobals());
   afterEach(cleanup);
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 8, 24, 12));
-    served.reset();
   });
   afterEach(() => vi.useRealTimers());
 

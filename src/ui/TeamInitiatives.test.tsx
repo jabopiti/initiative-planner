@@ -1,8 +1,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import { buildBaselineDataset } from '../data/baseline';
 import type { Initiative, Team } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
@@ -11,7 +10,6 @@ import { NewInitiativeDraft } from './NewInitiativeDraft';
 import { TeamDetail } from './TeamDetail';
 import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
-const baseline = buildBaselineDataset(defaultBrandPack);
 const { process } = defaultBrandPack;
 const passed = (ids: string[]) => Object.fromEntries(ids.map((id) => [id, { outcome: 'passed' as const, passedOn: '2025-12-01', checklist: [] }]));
 
@@ -25,18 +23,15 @@ const other: Initiative = { id: 'ot', name: 'Other Team Work', teamId: 't3', sta
 let teams: Team[] = [];
 let initiatives: Initiative[] = [];
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people: [], memberships: [], initiatives }));
+const served = fakeOnDemand((fake) => seedFiles(fake, { teams, initiatives }));
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal('fetch', served.fetch);
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
-  served.reset();
   teams = [PLATFORM, RETIRED, { id: 't3', name: 'Growth', active: true }];
   initiatives = [];
   window.location.hash = '';

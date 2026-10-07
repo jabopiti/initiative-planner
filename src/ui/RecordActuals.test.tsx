@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, Initiative, Membership, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
@@ -23,16 +23,13 @@ const validationId = defaultBrandPack.process[1].id;
 let initiative: Initiative;
 let members: Membership[];
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, roles, countries, teams: [{ id: 't1', name: 'Payments', active: true }], people: [ana], memberships: members, initiatives: [initiative] }));
+fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries, teams: [{ id: 't1', name: 'Payments', active: true }], people: [ana], memberships: members, initiatives: [initiative] }));
 
 beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal('fetch', served.fetch);
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
-  served.reset();
   members = [{ id: 'm1', personId: 'ana', teamId: 't1', teamFtePct: 100, active: true }];
   // Validation: Oct–Dec 2026, Ana at 50% (20 days × 50% × 500 × 0.8 = 4,000 a month).
   initiative = {

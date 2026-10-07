@@ -1,8 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import { buildBaselineDataset } from '../data/baseline';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -10,14 +9,9 @@ import { PeopleOverview } from './PeopleOverview';
 import { TeamsOverview } from './TeamsOverview';
 import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
-const baseline = buildBaselineDataset(defaultBrandPack);
 const teams = [{ id: 't1', name: 'Payments', active: true }];
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people: [], memberships: [] }));
-
-function stubGithub() {
-  vi.stubGlobal('fetch', served.fetch);
-}
+fakeOnDemand((fake) => seedFiles(fake, { teams }));
 
 function renderWith(ui: React.ReactNode) {
   return render(
@@ -29,10 +23,6 @@ function renderWith(ui: React.ReactNode) {
   );
 }
 
-// The debounced writer commits after the test ends, so the stub must outlive each test.
-beforeAll(stubGithub);
-afterAll(() => vi.unstubAllGlobals());
-beforeEach(() => served.reset());
 afterEach(cleanup);
 
 describe('name inputs take keyboard focus (shadcn Input receives ref, React 19)', () => {

@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Initiative, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
@@ -20,15 +20,10 @@ let roles: Role[] = [];
 let people: Person[] = [];
 let initiatives: Initiative[] = [];
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, roles, countries: [{ id: 'de', name: 'Germany', active: true, ratesByYear: [] }], teams: [{ id: 't1', name: 'Platform', active: true }], people, memberships: [], initiatives }));
+fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries: [{ id: 'de', name: 'Germany', active: true, ratesByYear: [] }], teams: [{ id: 't1', name: 'Platform', active: true }], people, initiatives }));
 
-beforeAll(() => {
-  vi.stubGlobal('fetch', served.fetch);
-});
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
-  served.reset();
   roles = [
     { id: 'tl', name: 'Tech Lead', abbreviation: 'TL', costFactor: 0.8, active: true },
     { id: 'qa', name: 'QA Engineer', abbreviation: 'QA', costFactor: 0.9, active: false },

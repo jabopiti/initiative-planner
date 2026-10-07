@@ -1,6 +1,6 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, GateRecord, Initiative, Membership, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
@@ -34,7 +34,7 @@ const bothPlanned = {
 let initiative: Initiative;
 let members: Membership[];
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, roles, countries, teams: [{ id: 't1', name: 'Platform', active: true }], people: [ana], memberships: members, initiatives: [initiative] }));
+const served = fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries, teams: [{ id: 't1', name: 'Platform', active: true }], people: [ana], memberships: members, initiatives: [initiative] }));
 /** Each commit the fake accepted: its subject and the initiative's new content. */
 const puts = () => served.accepted().map((p) => ({ message: p.message, content: p.content as Initiative }));
 
@@ -44,12 +44,9 @@ beforeAll(() => {
   Element.prototype.releasePointerCapture = () => {};
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal('fetch', served.fetch);
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
-  served.reset();
   members = [membership('m1', 'ana', 100)];
 });
 

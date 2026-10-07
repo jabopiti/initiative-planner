@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import { BrandProvider } from '../state/BrandContext';
@@ -24,11 +24,7 @@ const teams = [
 ];
 
 /** A repository whose data branch already holds the baseline plus two teams. */
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people: [], memberships: [] }));
-
-function stubGithub() {
-  vi.stubGlobal('fetch', served.fetch);
-}
+fakeOnDemand((fake) => seedFiles(fake, { roles: baseline.roles, countries: baseline.countries, teams }));
 
 let goTo: (view: string) => void = () => {};
 let addToTeam: (name: string, teamId: string) => void = () => {};
@@ -60,10 +56,6 @@ async function addPerson(user: ReturnType<typeof userEvent.setup>, name: string)
   await user.click(screen.getByRole('button', { name: 'Add person' }));
 }
 
-// The debounced writer commits after the test ends, so the stub must outlive each test.
-beforeAll(stubGithub);
-afterAll(() => vi.unstubAllGlobals());
-beforeEach(() => served.reset());
 afterEach(cleanup);
 
 describe('People overview and team members (slice 004)', () => {

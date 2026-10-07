@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, GateRecord, Initiative, Person, Role, Team } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
@@ -30,17 +30,14 @@ const checkout: Initiative = {
 
 let initiative: Initiative;
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, roles, countries, teams, people: [mara], memberships: [], initiatives: [initiative] }));
+fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries, teams, people: [mara], initiatives: [initiative] }));
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal('fetch', served.fetch);
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
-  served.reset();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(2026, 9, 4, 12));
   initiative = checkout;

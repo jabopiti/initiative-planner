@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { weekdaysByMonth } from '../data/rates';
 import type { Country, Initiative, Person } from '../data/types';
@@ -23,20 +23,15 @@ let people: Person[] = [];
 let initiatives: Initiative[] = [];
 let ratesReviewed = false;
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed }, roles: [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }], countries, teams: [{ id: 't', name: 'Platform', active: true }], people, memberships: [], initiatives }));
+const served = fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed, roles: [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }], countries, teams: [{ id: 't', name: 'Platform', active: true }], people, initiatives }));
 /** Each commit the fake accepted: the file, its subject and its new content. */
 const puts = () => served.accepted().map((p) => ({ path: p.path, message: subjectOf(p.message), content: p.content }));
 
-beforeAll(() => {
-  vi.stubGlobal('fetch', served.fetch);
-});
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 
 const year = (y: number, dayRate: number, workingDaysByMonth = weekdaysByMonth(y)) => ({ year: y, dayRate, workingDaysByMonth });
 
 beforeEach(() => {
-  served.reset();
   ratesReviewed = false;
   countries = [
     { id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [year(2026, 1000), year(2027, 1000), year(2028, 1000)] },

@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { BrandPack } from '../brand/types';
 import type { Country, Initiative, Membership, Person, Role, Team } from '../data/types';
@@ -9,7 +9,6 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
-import { subjectOf } from '../sync/testing/commitMessage';
 import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
@@ -27,9 +26,9 @@ let brand: BrandPack;
 let initiative: Initiative;
 let members: Membership[];
 
-const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, roles, countries, teams, people: [mara, felix, carla, sofia], memberships: members, initiatives: [initiative] }));
+const served = fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries, teams, people: [mara, felix, carla, sofia], memberships: members, initiatives: [initiative] }));
 /** Each commit the fake accepted: its subject and the initiative's new content. */
-const puts = () => served.accepted().map((p) => ({ message: subjectOf(p.message), content: p.content as Initiative }));
+const puts = () => served.subjects<Initiative>();
 
 beforeAll(() => {
   // Radix Select needs these pointer/scroll APIs, which jsdom lacks.
@@ -38,12 +37,9 @@ beforeAll(() => {
   Element.prototype.releasePointerCapture = () => {};
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal('fetch', served.fetch);
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
-  served.reset();
   brand = defaultBrandPack;
   initiative = { id: 'i1', name: 'Checkout Redesign', teamId: 't1', status: 'Active' };
   members = [membership('mara', 't1'), membership('felix', 't1')];

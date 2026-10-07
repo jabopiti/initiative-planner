@@ -21,10 +21,9 @@ async function openRepo(files: Parameters<typeof seedFiles>[1] = {}) {
 }
 
 /** Every commit that landed on `file`, one file's or many, oldest first (§10.3). */
-const rawMessagesFor = (file: string) => fake.landed.filter((c) => c.files.includes(file)).map((c) => c.message);
-const messagesFor = (file: string) => rawMessagesFor(file).map(subjectOf);
+const messagesFor = (file: string) => fake.messagesFor(file).map(subjectOf);
 /** The `Entity:` trailer lines of each commit to the file (§10.3). */
-const trailersFor = (file: string) => rawMessagesFor(file).map((m) => splitMessage(m).trailers);
+const trailersFor = (file: string) => fake.messagesFor(file).map((m) => splitMessage(m).trailers);
 
 describe('Repository — slice 003 acceptance flows', () => {
   afterEach(() => {
@@ -444,7 +443,6 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
   });
 });
 
-
 describe('Repository — countries and rates (§5.9, §7.2)', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -549,8 +547,9 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
 
 /** The commits to an initiative's file since the last {@link forget}: subject, trailers and the file's new content. */
 const commits = () =>
-  fake.puts
-    .filter((p) => p.path.startsWith('initiatives/') && (p.status === 200 || p.status === 201))
+  fake
+    .accepted()
+    .filter((p) => p.path.startsWith('initiatives/'))
     .slice(forgotten)
     .map((p) => ({ message: subjectOf(p.message), trailers: splitMessage(p.message).trailers, content: p.content as Initiative }));
 /** Leaves the initiative commits so far out of {@link commits}. */
