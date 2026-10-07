@@ -8,7 +8,7 @@ import type { SeenRecord } from '../data/seen';
 import { HOUR_MS, MINUTE_MS } from '../data/dates';
 
 const DB_NAME = 'initiative-planner';
-// 2, not 1: the pre-rebuild prototype (docs/history/prototype/store.js, since removed from
+// 2, not 1: the pre-rebuild prototype (prototype/store.js, since removed from
 // the app) also opened an IndexedDB named 'initiative-planner' at version 1,
 // for an unrelated single object store. On an origin that ran both builds,
 // opening at version 1 again would silently reuse that old database and skip

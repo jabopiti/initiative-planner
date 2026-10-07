@@ -6,7 +6,7 @@ import type { CostItem, Country, FrozenMonth, FrozenPhaseSnapshot, Initiative, M
 
 /**
  * The cost of an allocation (§7.1), ported from the audited prototype engine
- * (docs/history/engine-audit.md: every function here is "Reuse as-is"), adapted to the
+ * (engine-audit.md: every function here is "Reuse as-is"), adapted to the
  * dataset's array-shaped per-year records. Amounts are unrounded; rounding is
  * a display concern.
  */
@@ -249,7 +249,7 @@ export function phaseBlendedTotal(plan: PhasePlan, people: Person[], data: RateD
  * A month's actual once recorded — or, once that month has closed, the estimate it defaults to until someone
  * records one (§7.3). `undefined` for a month that hasn't closed yet, so a caller can tell "not closed yet"
  * apart from "using the estimate". Unconditional per §7.3: an estimate of exactly 0 still defaults and
- * displays (decided in slice 010 review, docs/history/engine-audit.md).
+ * displays (decided in slice 010 review, engine-audit.md).
  */
 export function actualOrEstimate(plan: PhasePlan, month: string, today: string, estimateByMonth: Record<string, number>): number | undefined {
   const recorded = plan.actualMonths?.[month];

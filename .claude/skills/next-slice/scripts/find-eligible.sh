@@ -66,7 +66,11 @@ echo
 shopt -s nullglob
 for f in "$backlog"/slice-*.md; do
   id="$(field "$f" slice_id)"
-  is_done "$id" && continue
+  if is_done "$id"; then
+    echo "NOT ARCHIVED $id: done per git log, but ${f#"$root"/} is still open — move it to backlog/done/"
+    echo
+    continue
+  fi
   [ "$(field "$f" status)" = "valid" ] || continue
   [ "$(field "$f" superseded_by)" = "null" ] || continue
 
