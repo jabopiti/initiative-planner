@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fakeGithub } from './support/fakeGithub';
 import { addPerson, connect, createInitiative, createTeam, enterToken, FAKE_TOKEN, loadExampleData, unlockSettings, watchCspViolations } from './support/session';
 
-// WCAG 2.1 A and AA rules, the level the app aims for. Each screen is scanned in the state a user meets it.
+// WCAG 2.2 A and AA rules, the level the app aims for (§9.5). Each screen is scanned in the state a user meets it.
 // A scan that lands mid-transition (a button fading back from disabled, a range end fading in) measures a blended
 // colour, so it is retried until the screen settles; a real violation is still there on every attempt and fails the
 // test. One scan of a busy screen (the two-month period picker) takes seconds on a CI runner, so the retry budget
@@ -12,7 +12,7 @@ async function expectNoViolations(page: Page) {
   await expect(async () => {
     // The best-practice landmark rules too: routed content sits in <main>, and nothing is left outside a landmark.
     const { violations } = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .options({ rules: { region: { enabled: true }, 'landmark-one-main': { enabled: true } } })
       .analyze();
     expect(

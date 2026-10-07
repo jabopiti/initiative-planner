@@ -34,14 +34,14 @@ check WCAG 2.2 AA.
 ## Acceptance criteria
 
 - [ ] Given a push or PR, then the CodeQL workflow runs and passes.
-- [ ] Given `npm run test:e2e`, then every screen's scan includes
+- [x] Given `npm run test:e2e`, then every screen's scan includes
       `wcag22aa` and passes.
-- [ ] Given a 2.2 violation that cannot be fixed cheaply, then it is listed
+- [x] Given a 2.2 violation that cannot be fixed cheaply, then it is listed
       here under Flags, not silenced.
 
 ## Flags and compromises
 
-None yet.
+None. The CodeQL run itself (criterion 1) can only be confirmed on the first push or PR.
 
 ## Decided in review (pre-implementation)
 
