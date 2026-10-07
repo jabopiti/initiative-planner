@@ -1,7 +1,7 @@
 import { cleanup, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import type { Initiative, GateRecord } from '../data/types';
 import { discoveryId, validationId, developmentId, discoveryPassed, initiativePageHarness } from './testing/initiativePage';
 

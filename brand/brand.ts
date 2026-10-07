@@ -1,5 +1,5 @@
 import exampleDataset from './exampleDataset.json';
-import type { BrandPack, CountryYearRates } from './types';
+import type { BrandPack, CountryYearRates } from '../src/brand/types';
 
 /**
  * The brand pack for this deployment (jabopiti/initiative-planner). Values

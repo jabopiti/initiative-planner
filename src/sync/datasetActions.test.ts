@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { buildBaselineDataset } from '../data/baseline';
 import type { DatasetFlags, Initiative, Person, Role, Team } from '../data/types';
 import { Repository } from './Repository';

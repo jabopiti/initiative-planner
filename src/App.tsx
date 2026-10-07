@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { tokenStore } from './auth/tokenStore';
-import { defaultBrandPack } from './brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { BrandProvider } from './state/BrandContext';
 import { RepositoryProvider, useRepositoryState } from './state/DataContext';
 import { SeenProvider } from './state/SeenContext';

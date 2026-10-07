@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { causeText } from '../github/errors';
 import type { Membership } from '../data/types';
 import { defaultTiming } from './FileWriter';

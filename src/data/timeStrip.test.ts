@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { stripMonthLabel, timeStrip } from './timeStrip';
 import type { Country, GateRecord, Initiative, Person, Role } from './types';
 

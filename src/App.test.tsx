@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App, screenFor } from './App';
 import { tokenStore } from './auth/tokenStore';
-import { defaultBrandPack } from './brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { buildBaselineDataset } from './data/baseline';
 import { fakeGithub, seedDataset, type Fake, type TokenBehaviour } from './sync/testing/fakeGithub';
 

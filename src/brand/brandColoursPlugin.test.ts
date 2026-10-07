@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { resolve } from 'node:path';
 import { brandColoursPlugin } from './brandColoursPlugin';
-import { defaultBrandPack } from './defaultBrand';
+import { defaultBrandPack } from '@brand';
 
 const ctx = {
   error: (msg: string): never => {
     throw new Error(msg);
   },
 };
-const brandDir = __dirname;
+const brandDir = resolve(__dirname, '../../brand');
 const call = (hook: unknown, ...args: unknown[]) => (hook as (...a: unknown[]) => unknown).call(ctx, ...args);
 
 describe('brandColoursPlugin (§9.5, §10.7)', () => {
@@ -38,7 +38,7 @@ describe('brandColoursPlugin (§9.5, §10.7)', () => {
     const plugin = brandColoursPlugin(defaultBrandPack, brandDir);
     call(plugin.configResolved, { root: resolve(__dirname, '../..') });
     const css = call(plugin.load, call(plugin.resolveId, 'virtual:brand-colours.css')) as string;
-    expect(css).toContain("url('/src/brand/fonts/geist-latin-wght-normal.woff2')");
+    expect(css).toContain("url('/brand/fonts/geist-latin-wght-normal.woff2')");
     expect(css).not.toMatch(/https?:/);
   });
 });

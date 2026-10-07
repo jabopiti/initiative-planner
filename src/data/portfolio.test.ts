@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { initiativeRows } from './initiativeList';
 import { costedRows, isDefaultPortfolioFilters, PORTFOLIO_DEFAULTS, liveYear, portfolioRows, portfolioYears, type PortfolioFilters } from './portfolio';
 import type { Country, Initiative, Person, Role, Team } from './types';

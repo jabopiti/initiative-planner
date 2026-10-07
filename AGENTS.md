@@ -71,7 +71,7 @@ screens later slices changed — the spec and the code describe today's app.
 
 ## Do not touch
 - Core app code from within a deployment fork — a fork edits only its
-  brand-pack folder (§2, §10.7). This repo is the core; this rule is for
+  brand-pack folder, `brand/` (§2, §10.7). This repo is the core; this rule is for
   downstream forks.
 - A passed gate's frozen snapshot (§8.1) — never edited after the fact,
   including by migrations.

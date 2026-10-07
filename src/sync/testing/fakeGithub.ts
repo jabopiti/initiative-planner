@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, vi } from 'vitest';
-import { defaultBrandPack } from '../../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { buildBaselineDataset } from '../../data/baseline';
 import { SCHEMA_VERSION, type Country, type Initiative, type Person, type Role, type Team } from '../../data/types';
 import { decodeBase64Utf8, encodeBase64Utf8 } from '../../github/base64';

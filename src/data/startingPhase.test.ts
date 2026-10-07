@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { buildDefaultPlan } from './defaultPlan';
 import { frozenPaths } from './frozen';
 import { currentPhaseId, reopenGate } from './gate';

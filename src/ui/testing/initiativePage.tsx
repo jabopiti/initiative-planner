@@ -1,6 +1,6 @@
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, vi } from 'vitest';
-import { defaultBrandPack } from '../../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import type { Country, GateRecord, Initiative, Membership, Person, Role } from '../../data/types';
 import { BrandProvider } from '../../state/BrandContext';
 import { RepositoryProvider } from '../../state/DataContext';

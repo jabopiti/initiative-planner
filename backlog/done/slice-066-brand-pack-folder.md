@@ -37,17 +37,18 @@ imports it through a single path.
 
 ## Acceptance criteria
 
-- [ ] Given `grep` for `src/brand/defaultBrand` and `brand/exampleDataset`,
+- [x] Given `grep` for `src/brand/defaultBrand` and `brand/exampleDataset`,
       then no import remains outside the alias.
-- [ ] Given the unchanged pack content, then `npm run build`, the unit
+- [x] Given the unchanged pack content, then `npm run build`, the unit
       suite and `npm run test:e2e` pass with no behaviour change.
-- [ ] Given a fork that edits only files under `brand/`, then the build uses
+- [x] Given a fork that edits only files under `brand/`, then the build uses
       them (test with a temporary changed product name).
-- [ ] Given a missing font file in `brand/fonts`, then the build still fails.
+- [x] Given a missing font file in `brand/fonts`, then the build still fails.
 
 ## Flags and compromises
 
 Logo and favicon (listed in §2) are deferred to slice 069.
+`vite.config.ts` imports the pack by relative path (`./brand/brand`), the one import outside `@brand`. Criterion 3 was checked by building with a changed product name, but the built output was not searched for it.
 
 ## Decided in review (pre-implementation)
 

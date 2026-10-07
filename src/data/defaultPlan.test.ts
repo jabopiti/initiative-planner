@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { localToday } from './dates';
 import { buildDefaultPlan, chainPeriods, extendByOneMonth } from './defaultPlan';
 

@@ -7,7 +7,8 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { brandColoursPlugin } from './src/brand/brandColoursPlugin';
 import { buildCsp } from './src/brand/csp';
-import { defaultBrandPack } from './src/brand/defaultBrand';
+// The config loads before the `@brand` alias exists, so it reaches the pack by path.
+import { defaultBrandPack } from './brand/brand';
 
 /**
  * Adds the strict production CSP (§10.1, §10.9) to the built `index.html`
@@ -48,13 +49,15 @@ function buildVersion(): string {
 
 export default defineConfig({
   define: { __BUILD_VERSION__: JSON.stringify(buildVersion()) },
-  plugins: [react(), tailwindcss(), brandColoursPlugin(defaultBrandPack, fileURLToPath(new URL('./src/brand', import.meta.url))), cspMetaTag()],
+  plugins: [react(), tailwindcss(), brandColoursPlugin(defaultBrandPack, fileURLToPath(new URL('./brand', import.meta.url))), cspMetaTag()],
   base: './',
   // Parallel sessions each run their own dev server: the preview launcher hands out a free port via PORT.
   server: { port: Number(process.env.PORT) || 5173 },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // The brand pack: the one folder a fork edits (§2, §10.7).
+      '@brand': fileURLToPath(new URL('./brand/brand.ts', import.meta.url)),
     },
   },
   test: {

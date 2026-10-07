@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { cacheScope, FileCache } from '../cache/db';
 import { CHANGE_TINT_MS, changeCovers, changeKey, FOCUS_PULL_MIN_GAP_MS, lostEditKey, PULL_INTERVAL_MS, PULL_RETRY_MS, Repository } from './Repository';
 import { fakeGithub, holdNetwork, initiative, open, person, type Fake } from './testing/fakeGithub';
