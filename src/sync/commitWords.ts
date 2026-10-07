@@ -99,14 +99,8 @@ export function membershipWords(where: string): Words<Membership> {
   };
 }
 
-/** What a phase-plan item's words need from the initiative: a person's name and an amount as the deployment writes money. */
-export interface ItemLookups {
-  personName: (id: string) => string;
-  money: (amount: number) => string;
-}
-
 /** An allocation's words: the initiative, the person, the phase. */
-export function allocationWords({ personName }: ItemLookups) {
+export function allocationWords({ personName }: { personName: (id: string) => string }) {
   return (from: Allocation | undefined, to: Allocation | undefined, name: string, phase: string): string => {
     const who = personName((from ?? to)?.personId as string);
     if (!from) return `${name}: ${who} added to ${phase} at ${to?.allocationPct}%`;
@@ -116,7 +110,7 @@ export function allocationWords({ personName }: ItemLookups) {
 }
 
 /** A cost item's words: the initiative, the phase, the item as it was saved. */
-export function costItemWords({ money }: ItemLookups) {
+export function costItemWords({ money }: { money: (amount: number) => string }) {
   return (from: CostItem | undefined, to: CostItem | undefined, name: string, phase: string): string => {
     if (!from) return `${name}: ${to?.label} added to ${phase} at ${money(to?.amount as number)}`;
     if (!to) return `${name}: ${from.label} removed from ${phase}`;

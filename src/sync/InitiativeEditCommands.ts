@@ -26,6 +26,9 @@ export function insertAt<T>(list: T[], item: T, index: number): T[] {
   return next;
 }
 
+/** How a phase list item is put into words: before, after, the initiative's name, the phase's label. */
+type ItemWords<T> = (from: T | undefined, to: T | undefined, initiativeName: string, phase: string) => string;
+
 /** One change to a cost item, of the one field the commit note names. */
 export type CostItemChange = { label: string } | { amount: number } | { timing: 'spread' } | { timing: 'month'; month: string } | { month: string };
 
@@ -211,7 +214,7 @@ export class InitiativeEditCommands {
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, allocations: [...plan.allocations, allocation] }),
-      { field: `allocations:${allocation.id}`, from: undefined, to: allocation, words: this.describeItem('allocations') },
+      { field: `allocations:${allocation.id}`, from: undefined, to: allocation, words: this.allocationWords() },
     );
     return { ok: true, allocation };
   }
@@ -253,14 +256,14 @@ export class InitiativeEditCommands {
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, allocations: plan.allocations.map((a) => (a.id === allocationId ? { ...a, allocationPct } : a)) }),
-      { field: `allocations:${allocationId}`, from: allocation, to: { ...allocation, allocationPct }, words: this.describeItem('allocations') },
+      { field: `allocations:${allocationId}`, from: allocation, to: { ...allocation, allocationPct }, words: this.allocationWords() },
     );
   }
 
   /**
    * Remove an item from a phase's list; its position comes back so an Undo can put it where it was (§5.11).
    */
-  private removeFromList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, itemId: string): { item: T; index: number } | null {
+  private removeFromList<T extends { id: string }>(list: PhaseList, words: ItemWords<T>, initiativeId: string, phaseId: string, itemId: string): { item: T; index: number } | null {
     const items = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
     const index = items.findIndex((item) => item.id === itemId);
     if (index < 0) return null;
@@ -269,42 +272,43 @@ export class InitiativeEditCommands {
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, [list]: itemsOf<T>(plan, list).filter((other) => other.id !== itemId) }),
-      { field: `${list}:${itemId}`, from: item, to: undefined, words: this.describeItem(list) },
+      { field: `${list}:${itemId}`, from: item, to: undefined, words },
     );
     return removed ? { item, index } : null;
   }
 
   /** Undo of {@link removeFromList}: the same item, same id, back in its place, as a normal edit. Nothing happens when it is already there again. */
-  private restoreToList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, item: T, index: number): void {
+  private restoreToList<T extends { id: string }>(list: PhaseList, words: ItemWords<T>, initiativeId: string, phaseId: string, item: T, index: number): void {
     const present = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
     if (present.some((other) => other.id === item.id)) return;
     this.editPhase<T>(
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, [list]: insertAt(itemsOf<T>(plan, list), item, index) }),
-      { field: `${list}:${item.id}`, from: undefined, to: item, words: this.describeItem(list) },
+      { field: `${list}:${item.id}`, from: undefined, to: item, words },
       { undo: true },
     );
   }
 
   /** Remove an allocation; the position comes back so an Undo can put it where it was (§5.11). */
   removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
-    const removed = this.removeFromList<Allocation>('allocations', initiativeId, phaseId, allocationId);
+    const removed = this.removeFromList<Allocation>('allocations', this.allocationWords(), initiativeId, phaseId, allocationId);
     return removed && { allocation: removed.item, index: removed.index };
   }
 
   /** Undo of {@link removeAllocation}: the same allocation, same id, back in its place, as a normal edit. */
   restoreAllocation(initiativeId: string, phaseId: string, allocation: Allocation, index: number): void {
-    this.restoreToList('allocations', initiativeId, phaseId, allocation, index);
+    this.restoreToList('allocations', this.allocationWords(), initiativeId, phaseId, allocation, index);
   }
 
-  /**
-   * A phase list item's net change in plain words (§10.3): added, removed, or what changed in it. The person or label
-   * is the one the item was saved under, so the message never names a state that was not saved.
-   */
-  private describeItem(list: PhaseList): (from: unknown, to: unknown, name: string, phase: string) => string {
-    const lookups = { personName: (id: string) => personName(this.state, id), money: (amount: number) => this.host.money(amount) };
-    return (list === 'allocations' ? allocationWords(lookups) : costItemWords(lookups)) as (from: unknown, to: unknown, name: string, phase: string) => string;
+  /** An allocation's net change in plain words (§10.3); the person is the one it was saved under. */
+  private allocationWords() {
+    return allocationWords({ personName: (id) => personName(this.state, id) });
+  }
+
+  /** A cost item's net change in plain words (§10.3); the label is the one it was saved under. */
+  private costItemWords() {
+    return costItemWords({ money: (amount) => this.host.money(amount) });
   }
 
   /** Add a cost item to a phase (§5.4); it is one commit, made once the draft row is complete. */
@@ -314,7 +318,7 @@ export class InitiativeEditCommands {
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, costItems: [...(plan.costItems ?? []), item] }),
-      { field: `costItems:${item.id}`, from: undefined, to: item, words: this.describeItem('costItems') },
+      { field: `costItems:${item.id}`, from: undefined, to: item, words: this.costItemWords() },
     );
     return added ? item : null;
   }
@@ -327,18 +331,18 @@ export class InitiativeEditCommands {
       initiativeId,
       phaseId,
       (plan) => ({ ...plan, costItems: (plan.costItems ?? []).map((c) => (c.id === itemId ? { ...c, ...change } : c)) }),
-      { field: `costItems:${itemId}`, from: item, to: { ...item, ...change }, words: this.describeItem('costItems') },
+      { field: `costItems:${itemId}`, from: item, to: { ...item, ...change }, words: this.costItemWords() },
     );
   }
 
   /** Remove a cost item; the position comes back so an Undo can put it where it was (§5.11). */
   removeCostItem(initiativeId: string, phaseId: string, itemId: string): { item: CostItem; index: number } | null {
-    return this.removeFromList<CostItem>('costItems', initiativeId, phaseId, itemId);
+    return this.removeFromList<CostItem>('costItems', this.costItemWords(), initiativeId, phaseId, itemId);
   }
 
   /** Undo of {@link removeCostItem}. */
   restoreCostItem(initiativeId: string, phaseId: string, item: CostItem, index: number): void {
-    this.restoreToList('costItems', initiativeId, phaseId, item, index);
+    this.restoreToList('costItems', this.costItemWords(), initiativeId, phaseId, item, index);
   }
 
   /**
