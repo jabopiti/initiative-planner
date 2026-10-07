@@ -65,6 +65,7 @@ export function fakeGithub() {
   const newCommits = new Map<string, { message: string; tree: string }>();
   const gitCommits: { message: string; files: string[]; deleted: string[] }[] = [];
   const graphqlCommits: { message: string; files: string[]; deleted: string[] }[] = [];
+  const landed: { message: string; files: string[] }[] = [];
   const beforeCommits: (() => void)[] = [];
   /** What each commit the branch moved to says and sits on, for a client checking whether its commit landed. */
   const commitInfo = new Map<string, { message: string; parents: string[] }>();
@@ -76,12 +77,13 @@ export function fakeGithub() {
     return index < 0 ? undefined : queue.splice(index, 1)[0];
   };
 
-  const put = (path: string, value: unknown): string => {
+  const putText = (path: string, content: string): string => {
     const sha = `sha-${(counter += 1)}`;
-    files.set(path, { content: JSON.stringify(value), sha });
+    files.set(path, { content, sha });
     head += 1;
     return sha;
   };
+  const put = (path: string, value: unknown): string => putText(path, JSON.stringify(value));
 
   const fetchMock = vi.fn(async (url: string, init: RequestInit = {}) => {
     const pathname = new URL(url).pathname;
@@ -133,6 +135,7 @@ export function fakeGithub() {
           const record = { message: commit.message, files: commit.files.map((f) => f.path), deleted: commit.deletes };
           gitCommits.push(record);
           graphqlCommits.push(record);
+          landed.push({ message: commit.message, files: [...record.files, ...record.deleted] });
           return `commit-${head}`;
         },
       });
@@ -215,6 +218,7 @@ export function fakeGithub() {
       if (record.status !== 200) return json({ message: failure?.refusal.message ?? 'failed' }, record.status, failure?.refusal.headers);
       files.delete(path);
       head += 1;
+      landed.push({ message: body.message, files: [path] });
       return json({ commit: { sha: `commit-${head}`, parents: [{ sha: `commit-${head - 1}` }] } });
     }
 
@@ -234,6 +238,7 @@ export function fakeGithub() {
     if (!existing) record.status = 201;
 
     record.newSha = put(path, record.content);
+    landed.push({ message: body.message, files: [path] });
     return json({ content: { sha: record.newSha }, commit: { sha: `commit-${head}`, parents: [{ sha: `commit-${head - 1}` }] } }, record.status);
   });
 
@@ -244,6 +249,8 @@ export function fakeGithub() {
     gitCommits,
     /** Those of them made through GraphQL, oldest first. */
     graphqlCommits,
+    /** Every commit the client made that moved the branch, one file's or many, oldest first. */
+    landed,
     /** The next GraphQL commit is refused with `status`, or (`'lost'`) made but answered with a 504. */
     failGraphql: (failure: { status: number } | 'lost') => void graphqlFailures.push(failure),
     /** Runs `act` (another writer's commit, say) just before the next GraphQL commit is decided. */
@@ -258,6 +265,8 @@ export function fakeGithub() {
     read: <T>(path: string): T => JSON.parse(files.get(path)!.content) as T,
     /** Files as they were before the client under test looked, or as the other writer commits them. */
     seed: (path: string, value: unknown) => void put(path, value),
+    /** A file whose text is exactly `text`: damaged data that is not JSON, say. */
+    seedText: (path: string, text: string) => void putText(path, text),
     /** The other writer removes a file. */
     remove: (path: string) => {
       files.delete(path);

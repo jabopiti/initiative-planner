@@ -3,81 +3,37 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Initiative } from '../data/types';
 import { lostEditKey, Repository } from './Repository';
 import { splitMessage, subjectOf } from './testing/commitMessage';
-import { rootListing } from './testing/rootListing';
-import { FIXTURE_ROLE } from './testing/fakeGithub';
-import { contentsBacked } from './testing/contentsBacked';
+import { FIXTURE_ROLE, fakeGithub, seedFiles, type Fake } from './testing/fakeGithub';
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status });
+let fake: Fake;
+/** How many initiative commits {@link forget} has left out. */
+let forgotten = 0;
+
+/** A repository opened on a fresh fake GitHub whose data branch holds an empty dataset: no roles or countries either, unless `files` gives some. */
+async function openRepo(files: Parameters<typeof seedFiles>[1] = {}) {
+  fake = fakeGithub();
+  forgotten = 0;
+  seedFiles(fake, { roles: [], countries: [], ...files });
+  vi.stubGlobal('fetch', fake.fetchMock);
+  const repo = new Repository(defaultBrandPack, 'token');
+  await repo.initialize();
+  return repo;
 }
 
-function contentsResponse(content: unknown, sha: string): Response {
-  return jsonResponse({ content: btoa(JSON.stringify(content)), sha });
-}
-
-/**
- * Routes a mocked fetch by method + URL shape, since the baseline bootstrap
- * (tree -> commit -> ref) fires several requests whose exact
- * sequencing isn't worth hard-coding call-by-call. `datasetExists: false`
- * simulates a brand-new repo: dataset.json 404s until the bootstrap commit's
- * ref-create call succeeds, then it "exists" for the re-read that follows.
- */
-function routingFetchMock(
-  overrides: Record<string, (url: string, init?: RequestInit) => Response> = {},
-  datasetExists = true,
-) {
-  let puts = 0;
-  let exists = datasetExists;
-  return vi.fn(async (url: string, init: RequestInit = {}) => {
-    const method = init.method ?? 'GET';
-    const key = `${method} ${new URL(url).pathname}`;
-
-    for (const [pattern, handler] of Object.entries(overrides)) {
-      if (key.includes(pattern)) return handler(url, init);
-    }
-
-    if (method === 'GET' && url.includes('/git/ref/heads/data')) return jsonResponse({ message: 'Not Found' }, 404);
-    if (method === 'POST' && url.endsWith('/git/trees')) return jsonResponse({ sha: 'tree-1' });
-    if (method === 'POST' && url.endsWith('/git/commits')) return jsonResponse({ sha: 'commit-1' });
-    if (method === 'POST' && url.endsWith('/git/refs')) {
-      exists = true;
-      return jsonResponse({ ref: 'refs/heads/data' }, 201);
-    }
-
-    if (method === 'GET' && new URL(url).pathname.endsWith('/contents/')) return exists ? rootListing() : jsonResponse({ message: 'Not Found' }, 404);
-    if (method === 'GET' && url.includes('/contents/dataset.json')) {
-      if (!exists) return jsonResponse({ message: 'Not Found' }, 404);
-      return contentsResponse(
-        { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: false },
-        'dataset-sha',
-      );
-    }
-    if (method === 'GET' && url.includes('/contents/roles.json')) return contentsResponse([], 'roles-sha');
-    if (method === 'GET' && url.includes('/contents/countries.json')) return contentsResponse([], 'countries-sha');
-    if (method === 'GET' && url.includes('/contents/teams.json')) return contentsResponse([], 'teams-sha');
-    if (method === 'GET' && url.includes('/contents/people.json')) return contentsResponse([], 'people-sha');
-    if (method === 'GET' && url.includes('/contents/memberships.json')) return contentsResponse([], 'memberships-sha');
-    if (method === 'GET' && url.includes('/contents/initiatives')) return jsonResponse({ message: 'Not Found' }, 404);
-    // A master file's save lands: an initiative's save waits on them, since it may name their records (§3).
-    if (method === 'PUT') {
-      puts += 1;
-      return jsonResponse({ content: { sha: `put-${puts}` } });
-    }
-
-    throw new Error(`Unhandled request in test: ${key}`);
-  });
-}
+/** Every commit that landed on `file`, one file's or many, oldest first (§10.3). */
+const rawMessagesFor = (file: string) => fake.landed.filter((c) => c.files.includes(file)).map((c) => c.message);
+const messagesFor = (file: string) => rawMessagesFor(file).map(subjectOf);
+/** The `Entity:` trailer lines of each commit to the file (§10.3). */
+const trailersFor = (file: string) => rawMessagesFor(file).map((m) => splitMessage(m).trailers);
 
 describe('Repository — slice 003 acceptance flows', () => {
-  let fetchMock: ReturnType<typeof routingFetchMock>;
-
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
   it('bootstraps the fresh-install baseline as one commit when no dataset exists, then loads empty teams/initiatives', async () => {
-    fetchMock = routingFetchMock({}, false);
-    vi.stubGlobal('fetch', contentsBacked(fetchMock));
+    fake = fakeGithub();
+    vi.stubGlobal('fetch', fake.fetchMock);
 
     const repo = new Repository(defaultBrandPack, 'token');
     await repo.initialize();
@@ -88,22 +44,12 @@ describe('Repository — slice 003 acceptance flows', () => {
     expect(state.teams).toEqual([]);
     expect(state.initiatives).toEqual([]);
 
-    const bootstrapCalls = fetchMock.mock.calls.filter(([url]) => (url as string).endsWith('/git/refs'));
-    expect(bootstrapCalls).toHaveLength(1); // one commit, not one per file
+    expect(fake.requests().filter((r) => r.endsWith('/git/refs'))).toHaveLength(1); // one commit, not one per file
+    expect(fake.gitCommits).toHaveLength(1);
   });
 
   it('creating a team updates state immediately and appears as a real commit on the data branch', async () => {
-    fetchMock = routingFetchMock({
-      'PUT /repos/jabopiti/initiative-planner/contents/teams.json': (_url, init) => {
-        const body = JSON.parse(init!.body as string) as { branch: string; sha?: string };
-        expect(body.branch).toBe('data');
-        return jsonResponse({ content: { sha: 'teams-sha-2' } });
-      },
-    });
-    vi.stubGlobal('fetch', contentsBacked(fetchMock));
-
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
 
     const team = repo.createTeam('Platform');
     // Optimistic: the team appears in state before the network write settles.
@@ -115,16 +61,12 @@ describe('Repository — slice 003 acceptance flows', () => {
     expect(repo.getState().syncing).toBe(false);
     expect(repo.getState().readOnly).toBeNull();
     expect(repo.getState().teams).toEqual([team]);
+    expect(fake.read('teams.json')).toEqual([team]); // the fake refuses a write to any branch but the data branch
   });
 
   it('a failed initiative create takes the initiative back out, reports read-only, and rejects', async () => {
-    fetchMock = routingFetchMock({
-      'PUT /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ message: 'Server Error' }, 500),
-    });
-    vi.stubGlobal('fetch', contentsBacked(fetchMock));
-
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
+    fake.fail('initiatives/', 500);
 
     await expect(repo.createInitiative('Checkout Redesign', 'team-1')).rejects.toThrow();
     expect(repo.getState().initiatives).toEqual([]);
@@ -133,14 +75,8 @@ describe('Repository — slice 003 acceptance flows', () => {
   });
 
   it('a file that saved does not hide another file\'s failed save', async () => {
-    fetchMock = routingFetchMock({
-      'PUT /repos/jabopiti/initiative-planner/contents/teams.json': () => jsonResponse({ message: 'Forbidden' }, 403),
-      'PUT /repos/jabopiti/initiative-planner/contents/people.json': () => jsonResponse({ content: { sha: 'people-sha-2' } }),
-    });
-    vi.stubGlobal('fetch', contentsBacked(fetchMock));
-
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
+    fake.fail('teams.json', 403);
 
     repo.createTeam('Platform');
     repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
@@ -151,10 +87,10 @@ describe('Repository — slice 003 acceptance flows', () => {
   });
 
   it('a dataset that cannot be read reports why instead of rejecting unhandled', async () => {
-    fetchMock = routingFetchMock({
-      'GET /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ message: 'Server Error' }, 500),
-    });
-    vi.stubGlobal('fetch', contentsBacked(fetchMock));
+    fake = fakeGithub();
+    seedFiles(fake);
+    fake.failRead('dataset.json', 500);
+    vi.stubGlobal('fetch', fake.fetchMock);
 
     const repo = new Repository(defaultBrandPack, 'token');
     await expect(repo.initialize()).resolves.toBeUndefined();
@@ -163,13 +99,7 @@ describe('Repository — slice 003 acceptance flows', () => {
   });
 
   it('creating an initiative writes its own file and appears in state with the given team', async () => {
-    fetchMock = routingFetchMock({
-      'PUT /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ content: { sha: 'init-sha' } }),
-    });
-    vi.stubGlobal('fetch', contentsBacked(fetchMock));
-
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
 
     const initiative = await repo.createInitiative('Checkout Redesign', 'team-1');
 
@@ -177,22 +107,12 @@ describe('Repository — slice 003 acceptance flows', () => {
     expect(initiative.teamId).toBe('team-1');
     expect(initiative.status).toBe('Active');
     expect(repo.getState().readOnly).toBeNull();
-
-    const putCall = fetchMock.mock.calls.find(
-      ([url, init]) => (init as RequestInit)?.method === 'PUT' && (url as string).includes('/initiatives/'),
-    );
-    expect(putCall).toBeDefined();
-    const body = JSON.parse((putCall![1] as RequestInit).body as string) as { branch: string };
-    expect(body.branch).toBe('data');
+    // Its own file, on the data branch: the fake refuses a write to any other.
+    expect(fake.commits(`initiatives/${initiative.id}.json`)).toHaveLength(1);
   });
 
   it('creates the initiative with a default plan chained from the given day, in the one creation commit', async () => {
-    fetchMock = routingFetchMock({
-      'PUT /repos/jabopiti/initiative-planner/contents/initiatives': () => jsonResponse({ content: { sha: 'init-sha' } }),
-    });
-    vi.stubGlobal('fetch', contentsBacked(fetchMock));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
 
     const initiative = await repo.createInitiative('Checkout Redesign', 'team-1', '2026-09-24');
 
@@ -201,9 +121,8 @@ describe('Repository — slice 003 acceptance flows', () => {
       validation: { startDate: '2026-09-24', endDate: '2026-12-23', allocations: [] },
       development: { startDate: '2026-12-24', endDate: '2027-06-23', allocations: [] },
     });
-    const puts = fetchMock.mock.calls.filter(([, init]) => (init as RequestInit)?.method === 'PUT');
-    expect(puts).toHaveLength(1);
-    const saved = JSON.parse(atob(JSON.parse((puts[0][1] as RequestInit).body as string).content)) as typeof initiative;
+    expect(fake.puts).toHaveLength(1);
+    const saved = fake.read<typeof initiative>(`initiatives/${initiative.id}.json`);
     expect(saved.phases?.validation.startDate).toBe('2026-09-24');
     expect(saved.defaultPlan).toBe(true);
   });
@@ -214,12 +133,7 @@ describe('Repository — slice 004 people and memberships', () => {
     vi.unstubAllGlobals();
   });
 
-  async function readyRepo() {
-    vi.stubGlobal('fetch', contentsBacked(routingFetchMock()));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
-    return repo;
-  }
+  const readyRepo = () => openRepo();
 
   const input = { name: 'Ada Lovelace', countryId: 'c1', roleId: 'r1' };
 
@@ -331,32 +245,17 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     vi.unstubAllGlobals();
   });
 
-  function rawMessagesFor(mock: ReturnType<typeof routingFetchMock>, file: string): string[] {
-    return mock.mock.calls
-      .filter(([url, init]) => (init as RequestInit)?.method === 'PUT' && (url as string).endsWith(`/contents/${file}`))
-      .map(([, init]) => (JSON.parse((init as RequestInit).body as string) as { message: string }).message);
-  }
-  const messagesFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => rawMessagesFor(mock, file).map(subjectOf);
-  /** The `Entity:` trailer lines of each commit to the file (§10.3). */
-  const trailersFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => rawMessagesFor(mock, file).map((m) => splitMessage(m).trailers);
-
   it('says which team was renamed to what', async () => {
-    const mock = routingFetchMock();
-    vi.stubGlobal('fetch', contentsBacked(mock));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
     const team = repo.createTeam('Payments');
     await repo.flushPending();
     repo.updateTeam(team.id, { name: 'Billing' });
     await repo.flushPending();
-    expect(messagesFor(mock, 'teams.json')).toEqual(['Payments: team created', 'Payments: team renamed to Billing']);
+    expect(messagesFor('teams.json')).toEqual(['Payments: team created', 'Payments: team renamed to Billing']);
   });
 
   it('says who was added, changed and added to which team', async () => {
-    const mock = routingFetchMock();
-    vi.stubGlobal('fetch', contentsBacked(mock));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
     const team = repo.createTeam('Payments');
     await repo.flushPending();
     const ada = repo.createPerson({ name: 'Ada Lovelace', countryId: 'c1', roleId: 'r1' });
@@ -371,27 +270,24 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     repo.removeMembership(membership.id);
     await repo.flushPending();
 
-    expect(messagesFor(mock, 'teams.json')).toEqual(['Payments: team created']);
-    expect(messagesFor(mock, 'people.json')).toEqual([
+    expect(messagesFor('teams.json')).toEqual(['Payments: team created']);
+    expect(messagesFor('people.json')).toEqual([
       'Ada Lovelace: person added',
       'Ada Lovelace: capacity set to 80%, deactivated',
     ]);
-    expect(messagesFor(mock, 'memberships.json')).toEqual([
+    expect(messagesFor('memberships.json')).toEqual([
       'Ada Lovelace: added to Payments at 80%',
       'Ada Lovelace: Team FTE % on Payments set to 60%',
       'Ada Lovelace: removed from Payments',
     ]);
     // One trailer per touched entity, ending each commit (§10.3).
-    expect(trailersFor(mock, 'teams.json')).toEqual([[`Entity: team/${team.id}`]]);
-    expect(trailersFor(mock, 'people.json')).toEqual([[`Entity: person/${ada.id}`], [`Entity: person/${ada.id}`]]);
-    expect(trailersFor(mock, 'memberships.json')).toEqual(Array(3).fill([`Entity: membership/${membership.id}`]));
+    expect(trailersFor('teams.json')).toEqual([[`Entity: team/${team.id}`]]);
+    expect(trailersFor('people.json')).toEqual([[`Entity: person/${ada.id}`], [`Entity: person/${ada.id}`]]);
+    expect(trailersFor('memberships.json')).toEqual(Array(3).fill([`Entity: membership/${membership.id}`]));
   });
 
   it('moves Team FTE % between two teams in one commit naming both (§5.6, slice 062)', async () => {
-    const mock = routingFetchMock();
-    vi.stubGlobal('fetch', contentsBacked(mock));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
     const platform = repo.createTeam('Platform');
     const growth = repo.createTeam('Growth');
     const lucia = repo.createPerson({ name: 'Lucía Ramos', countryId: 'c1', roleId: 'r1' });
@@ -405,11 +301,11 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     ]);
     await repo.flushPending();
     expect(repo.getState().memberships.map((m) => m.teamFtePct)).toEqual([70, 30]);
-    expect(messagesFor(mock, 'memberships.json').at(-1)).toBe('Lucía Ramos: Team FTE % on Platform set to 70%, Team FTE % on Growth set to 30%');
-    expect(trailersFor(mock, 'memberships.json').at(-1)).toEqual([`Entity: membership/${a.id}`, `Entity: membership/${b.id}`]);
+    expect(messagesFor('memberships.json').at(-1)).toBe('Lucía Ramos: Team FTE % on Platform set to 70%, Team FTE % on Growth set to 30%');
+    expect(trailersFor('memberships.json').at(-1)).toEqual([`Entity: membership/${a.id}`, `Entity: membership/${b.id}`]);
 
     // Moved and moved back before the save: no commit.
-    const puts = messagesFor(mock, 'memberships.json').length;
+    const puts = messagesFor('memberships.json').length;
     repo.updateMemberships([
       { id: a.id, teamFtePct: 75 },
       { id: b.id, teamFtePct: 25 },
@@ -419,7 +315,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
       { id: b.id, teamFtePct: 30 },
     ]);
     await repo.flushPending();
-    expect(messagesFor(mock, 'memberships.json')).toHaveLength(puts);
+    expect(messagesFor('memberships.json')).toHaveLength(puts);
 
     // A move, then a typed value on one of its teams before the save: one note per team, the net effect.
     repo.updateMemberships([
@@ -428,7 +324,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     ]);
     repo.updateMembership(a.id, { teamFtePct: 75 });
     await repo.flushPending();
-    expect(messagesFor(mock, 'memberships.json').at(-1)).toBe('Lucía Ramos: Team FTE % on Platform set to 75%, Team FTE % on Growth set to 20%');
+    expect(messagesFor('memberships.json').at(-1)).toBe('Lucía Ramos: Team FTE % on Platform set to 75%, Team FTE % on Growth set to 20%');
 
     // Each value is capped at what is left of Capacity % once the others' changes are in.
     repo.updateMemberships([
@@ -439,10 +335,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
   });
 
   it('rejoins an inactive membership: same id, Team FTE % kept but capped at what is unclaimed, one record', async () => {
-    const mock = routingFetchMock();
-    vi.stubGlobal('fetch', contentsBacked(mock));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
     const team = repo.createTeam('Platform');
     const other = repo.createTeam('Payments');
     const ada = repo.createPerson({ name: 'Ada Lovelace', countryId: 'c1', roleId: 'r1' });
@@ -457,14 +350,11 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     expect(rejoined.id).toBe(first.id);
     expect(rejoined).toMatchObject({ active: true, teamFtePct: 0 });
     expect(repo.getState().memberships.filter((m) => m.teamId === team.id)).toHaveLength(1);
-    expect(messagesFor(mock, 'memberships.json').at(-1)).toBe('Ada Lovelace: rejoined Platform, Team FTE % set to 0%');
+    expect(messagesFor('memberships.json').at(-1)).toBe('Ada Lovelace: rejoined Platform, Team FTE % set to 0%');
   });
 
   it('words every inactive-to-active membership change as a rejoin', async () => {
-    const mock = routingFetchMock();
-    vi.stubGlobal('fetch', contentsBacked(mock));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
     const team = repo.createTeam('Platform');
     const ada = repo.createPerson({ name: 'Ada Lovelace', countryId: 'c1', roleId: 'r1' });
     const m = repo.addMembership(ada.id, team.id)!;
@@ -472,14 +362,11 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     await repo.flushPending();
     repo.updateMembership(m.id, { active: true }, true);
     await repo.flushPending();
-    expect(messagesFor(mock, 'memberships.json').at(-1)).toBe('Ada Lovelace: rejoined Platform');
+    expect(messagesFor('memberships.json').at(-1)).toBe('Ada Lovelace: rejoined Platform');
   });
 
   it('says which team was deactivated and reactivated (§9.3)', async () => {
-    const mock = routingFetchMock();
-    vi.stubGlobal('fetch', contentsBacked(mock));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
     const team = repo.createTeam('Payments');
     await repo.flushPending();
     repo.updateTeam(team.id, { active: false });
@@ -488,7 +375,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     await repo.flushPending();
 
     expect(repo.getState().teams[0].active).toBe(true);
-    expect(messagesFor(mock, 'teams.json')).toEqual([
+    expect(messagesFor('teams.json')).toEqual([
       'Payments: team created',
       'Payments: team deactivated',
       'Payments: team reactivated',
@@ -496,10 +383,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
   });
 
   it('says what changed about a custom role, one edit at a time (§5.6)', async () => {
-    const mock = routingFetchMock();
-    vi.stubGlobal('fetch', contentsBacked(mock));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
     const cai = repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
     await repo.flushPending();
 
@@ -513,7 +397,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     repo.updatePerson(cai.id, { customRole: { ...custom, costFactor: 1.2, dayRatesByYear: [], active: false } });
     await repo.flushPending();
 
-    expect(messagesFor(mock, 'people.json').slice(1)).toEqual([
+    expect(messagesFor('people.json').slice(1)).toEqual([
       'Cai Wu: custom role set to Fractional CTO, 2026 custom day rate set to 900',
       'Cai Wu: custom role cost factor set to 1.2',
       'Cai Wu: 2026 custom day rate cleared',
@@ -524,10 +408,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
   });
 
   it('says what changed about a role, prefixed "Roles:" (§5.9)', async () => {
-    const mock = routingFetchMock();
-    vi.stubGlobal('fetch', contentsBacked(mock));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
     const role = repo.createRole({ name: 'Designer', abbreviation: 'Des', costFactor: 1 });
     await repo.flushPending();
     repo.updateRole(role.id, { costFactor: 1.4 });
@@ -537,20 +418,17 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     repo.updateRole(role.id, { active: true });
     await repo.flushPending();
 
-    expect(messagesFor(mock, 'roles.json')).toEqual([
+    expect(messagesFor('roles.json')).toEqual([
       'Roles: Designer added',
       'Roles: Designer cost factor set to 1.4',
       'Roles: Designer deactivated',
       'Roles: Designer reactivated',
     ]);
-    expect(trailersFor(mock, 'roles.json')).toEqual(Array(4).fill([`Entity: role/${role.id}`]));
+    expect(trailersFor('roles.json')).toEqual(Array(4).fill([`Entity: role/${role.id}`]));
   });
 
   it('names every changed field of a role in one commit, and skips a no-op patch', async () => {
-    const mock = routingFetchMock();
-    vi.stubGlobal('fetch', contentsBacked(mock));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
     const role = repo.createRole({ name: 'Designer', abbreviation: 'Des', costFactor: 1 });
     await repo.flushPending();
 
@@ -559,7 +437,7 @@ describe('Repository — commit messages name the entity (§10.3)', () => {
     repo.updateRole(role.id, { name: 'Product Designer', abbreviation: 'PD' });
     await repo.flushPending();
 
-    expect(messagesFor(mock, 'roles.json')).toEqual([
+    expect(messagesFor('roles.json')).toEqual([
       'Roles: Designer added',
       'Roles: Designer renamed to Product Designer, abbreviation set to PD',
     ]);
@@ -572,30 +450,8 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
     vi.unstubAllGlobals();
   });
 
-  const bodiesFor = (mock: ReturnType<typeof routingFetchMock>, file: string) =>
-    mock.mock.calls
-      .filter(([url, init]) => (init as RequestInit)?.method === 'PUT' && (url as string).endsWith(`/contents/${file}`))
-      .map(([, init]) => JSON.parse((init as RequestInit).body as string) as { message: string; content: string });
-  const messagesFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => bodiesFor(mock, file).map((b) => subjectOf(b.message));
-  const trailersFor = (mock: ReturnType<typeof routingFetchMock>, file: string) => bodiesFor(mock, file).map((b) => splitMessage(b.message).trailers);
-  const saved = <T,>(body: { content: string }): T => JSON.parse(atob(body.content)) as T;
-  const okPut = () => jsonResponse({ content: { sha: 'next-sha' } });
-
-  async function open(overrides: Record<string, (url: string, init?: RequestInit) => Response> = {}) {
-    const mock = routingFetchMock({
-      'PUT /repos/jabopiti/initiative-planner/contents/countries.json': okPut,
-      'PUT /repos/jabopiti/initiative-planner/contents/dataset.json': okPut,
-      'PUT /repos/jabopiti/initiative-planner/contents/people.json': okPut,
-      ...overrides,
-    });
-    vi.stubGlobal('fetch', contentsBacked(mock));
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
-    return { mock, repo };
-  }
-
   it('adds a country with its day rate for every tracked year and weekday working days', async () => {
-    const { mock, repo } = await open();
+    const repo = await openRepo();
     const portugal = repo.createCountry({ name: 'Portugal', code: 'PT', dayRate: 600 }, new Date(2026, 8, 30));
     await repo.flushPending();
 
@@ -605,14 +461,14 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
       [2028, 600],
     ]);
     expect(portugal.ratesByYear[1].workingDaysByMonth[2]).toBe(23);
-    expect(messagesFor(mock, 'countries.json')).toEqual(['Countries: Portugal added']);
-    expect(trailersFor(mock, 'countries.json')).toEqual([[`Entity: country/${portugal.id}`]]);
+    expect(messagesFor('countries.json')).toEqual(['Countries: Portugal added']);
+    expect(trailersFor('countries.json')).toEqual([[`Entity: country/${portugal.id}`]]);
     // Adding a country is not a rate edit: Review rates stays until one is made or confirmed (§5.2).
-    expect(messagesFor(mock, 'dataset.json')).toEqual([]);
+    expect(messagesFor('dataset.json')).toEqual([]);
   });
 
   it('names each rate edit, and the first one marks the rates reviewed in its own commit', async () => {
-    const { mock, repo } = await open();
+    const repo = await openRepo();
     const germany = repo.createCountry({ name: 'Germany', code: 'DE', dayRate: 1000 }, new Date(2026, 8, 30));
     await repo.flushPending();
     repo.setCountryDayRate(germany.id, 2027, 740);
@@ -626,7 +482,7 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
     repo.updateCountry(germany.id, { active: false });
     await repo.flushPending();
 
-    expect(messagesFor(mock, 'countries.json')).toEqual([
+    expect(messagesFor('countries.json')).toEqual([
       'Countries: Germany added',
       'Germany: 2027 day rate set to €740',
       'Germany: working days in Apr 2027 set to 19',
@@ -634,33 +490,33 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
       'Countries: Germany renamed to Deutschland',
       'Countries: Deutschland deactivated',
     ]);
-    expect(messagesFor(mock, 'dataset.json')).toEqual(['Rates marked as reviewed']);
-    expect(trailersFor(mock, 'dataset.json')).toEqual([[]]);
+    expect(messagesFor('dataset.json')).toEqual(['Rates marked as reviewed']);
+    expect(trailersFor('dataset.json')).toEqual([[]]);
     expect(repo.getState().datasetFlags?.ratesReviewed).toBe(true);
     expect(repo.getState().countries[0].ratesByYear[1].workingDaysByMonth[3]).toBe(22);
   });
 
   it('writes nothing for an edit that changes nothing', async () => {
-    const { mock, repo } = await open();
+    const repo = await openRepo();
     const germany = repo.createCountry({ name: 'Germany', code: 'DE', dayRate: 1000 }, new Date(2026, 8, 30));
     await repo.flushPending();
     repo.setCountryDayRate(germany.id, 2027, 1000);
     repo.resetCountryWorkingDays(germany.id, 2027);
     await repo.flushPending();
 
-    expect(messagesFor(mock, 'countries.json')).toEqual(['Countries: Germany added']);
-    expect(messagesFor(mock, 'dataset.json')).toEqual([]);
+    expect(messagesFor('countries.json')).toEqual(['Countries: Germany added']);
+    expect(messagesFor('dataset.json')).toEqual([]);
   });
 
   it('confirms the rates without editing them, once', async () => {
-    const { mock, repo } = await open();
+    const repo = await openRepo();
     repo.confirmRates();
     await repo.flushPending();
     repo.confirmRates();
     await repo.flushPending();
 
-    expect(messagesFor(mock, 'dataset.json')).toEqual(['Rates confirmed as correct']);
-    expect(saved<{ ratesReviewed: boolean }>(bodiesFor(mock, 'dataset.json')[0]).ratesReviewed).toBe(true);
+    expect(messagesFor('dataset.json')).toEqual(['Rates confirmed as correct']);
+    expect(fake.read<{ ratesReviewed: boolean }>('dataset.json').ratesReviewed).toBe(true);
   });
 
   it('rolls a year entering the window forward once, for countries and custom roles', async () => {
@@ -668,11 +524,7 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
     const cai = [
       { id: 'cai', name: 'Cai Wu', countryId: 'de', roleId: 'r1', capacityPct: 100, active: true, customRole: { active: true, label: 'Fractional CTO', costFactor: 1, dayRatesByYear: [{ year: 2028, dayRate: 900 }] } },
     ];
-    const { mock, repo } = await open({
-      'GET /repos/jabopiti/initiative-planner/contents/countries.json': () => contentsResponse(germany, 'countries-sha'),
-      'GET /repos/jabopiti/initiative-planner/contents/people.json': () => contentsResponse(cai, 'people-sha'),
-      'GET /repos/jabopiti/initiative-planner/contents/roles.json': () => contentsResponse([FIXTURE_ROLE], 'roles-sha'),
-    });
+    const repo = await openRepo({ countries: germany, people: cai, roles: [FIXTURE_ROLE] });
 
     const stop = repo.keepTrackedYears(() => new Date(2027, 0, 2));
     await repo.flushPending();
@@ -683,46 +535,41 @@ describe('Repository — countries and rates (§5.9, §7.2)', () => {
     expect(rates[3].dayRate).toBe(1000);
     expect(rates[3].workingDaysByMonth[0]).toBe(23);
     expect(repo.getState().people[0].customRole?.dayRatesByYear.map((r) => r.year)).toEqual([2027, 2028, 2029]);
-    expect(messagesFor(mock, 'countries.json')).toEqual(['Rates copied into 2029']);
-    expect(trailersFor(mock, 'countries.json')).toEqual([[]]); // a dataset-level commit names no entity
-    expect(messagesFor(mock, 'people.json')).toEqual(['Rates copied into 2029']);
+    expect(messagesFor('countries.json')).toEqual(['Rates copied into 2029']);
+    expect(trailersFor('countries.json')).toEqual([[]]); // a dataset-level commit names no entity
+    expect(messagesFor('people.json')).toEqual(['Rates copied into 2029']);
     // A system write, not a rate edit: it does not mark the rates reviewed.
-    expect(messagesFor(mock, 'dataset.json')).toEqual([]);
+    expect(messagesFor('dataset.json')).toEqual([]);
 
     repo.keepTrackedYears(() => new Date(2027, 0, 2))();
     await repo.flushPending();
-    expect(messagesFor(mock, 'countries.json')).toHaveLength(1);
+    expect(messagesFor('countries.json')).toHaveLength(1);
   });
 });
+
+/** The commits to an initiative's file since the last {@link forget}: subject, trailers and the file's new content. */
+const commits = () =>
+  fake.puts
+    .filter((p) => p.path.startsWith('initiatives/') && (p.status === 200 || p.status === 201))
+    .slice(forgotten)
+    .map((p) => ({ message: subjectOf(p.message), trailers: splitMessage(p.message).trailers, content: p.content as Initiative }));
+/** Leaves the initiative commits so far out of {@link commits}. */
+const forget = () => void (forgotten += commits().length);
 
 describe('Repository — slice 005 phase periods and allocations', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  const commits: { message: string; trailers: string[]; content: Initiative }[] = [];
-
   async function repoWithInitiative() {
-    commits.length = 0;
-    vi.stubGlobal(
-      'fetch',
-      contentsBacked(routingFetchMock({
-        'PUT /repos/jabopiti/initiative-planner/contents/initiatives': (_url, init) => {
-          const body = JSON.parse(init!.body as string) as { message: string; content: string };
-          commits.push({ message: subjectOf(body.message), trailers: splitMessage(body.message).trailers, content: JSON.parse(atob(body.content)) });
-          return jsonResponse({ content: { sha: `sha-${commits.length}` } });
-        },
-      })),
-    );
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
     const team = repo.createTeam('Payments');
     const member = repo.createPerson({ name: 'Ana Ruiz', countryId: 'c1', roleId: 'r1' });
     const outsider = repo.createPerson({ name: 'Cai Wu', countryId: 'c1', roleId: 'r1' });
     const membership = repo.addMembership(member.id, team.id)!;
     repo.updateMembership(membership.id, { teamFtePct: 60 });
     const initiative = await repo.createInitiative('Payments API', team.id, '2026-09-24');
-    commits.length = 0; // the creation commit isn't under test
+    forget(); // the creation commit isn't under test
     return { repo, initiative, member, outsider };
   }
 
@@ -740,7 +587,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     expect(repo.addAllocation(initiative.id, 'validation', member.id)).toMatchObject({ ok: false });
   });
 
-  it("commits the period and allocations to the initiative's file with plain-words messages, once edits settle", async () => {
+  it("commits() the period and allocations to the initiative's file with plain-words messages, once edits settle", async () => {
     const { repo, initiative, member } = await repoWithInitiative();
     repo.setPhasePeriod(initiative.id, 'validation', { startDate: '2026-10-01', endDate: '2026-11-30' });
     const added = repo.addAllocation(initiative.id, 'validation', member.id);
@@ -748,10 +595,10 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     repo.updateAllocation(initiative.id, 'validation', added.allocation.id, 80);
     await repo.flushPending();
 
-    expect(commits).toHaveLength(1);
-    expect(commits[0].message).toContain('Payments API: Validation period set to Oct–Nov');
-    expect(commits[0].message).toContain('Payments API: Ana Ruiz added to Validation at 80%');
-    expect(commits[0].content.phases?.validation).toEqual({
+    expect(commits()).toHaveLength(1);
+    expect(commits()[0].message).toContain('Payments API: Validation period set to Oct–Nov');
+    expect(commits()[0].message).toContain('Payments API: Ana Ruiz added to Validation at 80%');
+    expect(commits()[0].content.phases?.validation).toEqual({
       startDate: '2026-10-01',
       endDate: '2026-11-30',
       allocations: [{ id: added.allocation.id, personId: member.id, allocationPct: 80 }],
@@ -762,19 +609,19 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     const { repo, initiative } = await repoWithInitiative();
     repo.setPhasePeriod(initiative.id, 'validation', { startDate: '2026-09-01', endDate: '2026-10-31' });
     await repo.flushPending();
-    expect(commits.map((c) => c.message.split('\n')[0])).toEqual(['Payments API: Validation period set to Sep–Oct']);
-    expect(commits[0].content.phases?.validation).toMatchObject({ startDate: '2026-09-01', endDate: '2026-10-31' });
+    expect(commits().map((c) => c.message.split('\n')[0])).toEqual(['Payments API: Validation period set to Sep–Oct']);
+    expect(commits()[0].content.phases?.validation).toMatchObject({ startDate: '2026-09-01', endDate: '2026-10-31' });
 
-    commits.length = 0;
+    forget();
     repo.setPhasePeriod(initiative.id, 'validation', { startDate: '2026-09-01', endDate: '2026-10-31' });
     await repo.flushPending();
-    expect(commits).toEqual([]);
+    expect(commits()).toEqual([]);
 
     repo.setPhasePeriod(initiative.id, 'validation', {});
     await repo.flushPending();
-    expect(commits.map((c) => c.message.split('\n')[0])).toEqual(['Payments API: Validation period cleared']);
-    expect(commits[0].content.phases?.validation.startDate).toBeUndefined();
-    expect(commits[0].content.phases?.validation.endDate).toBeUndefined();
+    expect(commits().map((c) => c.message.split('\n')[0])).toEqual(['Payments API: Validation period cleared']);
+    expect(commits()[0].content.phases?.validation.startDate).toBeUndefined();
+    expect(commits()[0].content.phases?.validation.endDate).toBeUndefined();
   });
 
   it('copies the previous costed phase into an empty one as a single commit, skipping someone who left, and refuses a non-empty phase', async () => {
@@ -785,14 +632,14 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     repo.addAllocation(initiative.id, 'validation', leaver.id, 30);
     repo.updateMembership(leaverMembership.id, { active: false });
     await repo.flushPending();
-    commits.length = 0;
+    forget();
 
     const result = repo.copyAllocations(initiative.id, 'development', 'validation');
     expect(result?.copied).toBe(1);
     expect(result?.skipped.map((p) => p.name)).toEqual(['Lucía Ramos']);
     await repo.flushPending();
-    expect(commits.map((c) => c.message)).toEqual(['Payments API: 1 person copied to Development from Validation']);
-    expect(commits[0].content.phases?.development.allocations).toEqual([expect.objectContaining({ personId: member.id, allocationPct: 40 })]);
+    expect(commits().map((c) => c.message)).toEqual(['Payments API: 1 person copied to Development from Validation']);
+    expect(commits()[0].content.phases?.development.allocations).toEqual([expect.objectContaining({ personId: member.id, allocationPct: 40 })]);
 
     expect(repo.copyAllocations(initiative.id, 'development', 'validation')).toBeNull();
   });
@@ -803,11 +650,11 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     repo.addAllocation(initiative.id, 'validation', member.id, 40);
     repo.updateMembership(membership.id, { active: false });
     await repo.flushPending();
-    commits.length = 0;
+    forget();
     const result = repo.copyAllocations(initiative.id, 'development', 'validation');
     expect(result).toMatchObject({ copied: 0 });
     await repo.flushPending();
-    expect(commits).toEqual([]);
+    expect(commits()).toEqual([]);
   });
 
   it('describes an allocation added then changed as one add, and an added-then-removed one as no commit (§10.3)', async () => {
@@ -816,19 +663,19 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     if (!added.ok) throw new Error('expected the allocation to be added');
     repo.updateAllocation(initiative.id, 'validation', added.allocation.id, 40);
     await repo.flushPending();
-    expect(commits.map((c) => c.message)).toEqual(['Payments API: Ana Ruiz added to Validation at 40%']);
+    expect(commits().map((c) => c.message)).toEqual(['Payments API: Ana Ruiz added to Validation at 40%']);
 
-    commits.length = 0;
+    forget();
     repo.updateAllocation(initiative.id, 'validation', added.allocation.id, 30);
     repo.updateAllocation(initiative.id, 'validation', added.allocation.id, 40);
     const removed = repo.removeAllocation(initiative.id, 'validation', added.allocation.id);
     repo.restoreAllocation(initiative.id, 'validation', removed!.allocation, removed!.index);
     await repo.flushPending();
-    expect(commits).toEqual([]);
+    expect(commits()).toEqual([]);
 
     repo.removeAllocation(initiative.id, 'validation', added.allocation.id);
     await repo.flushPending();
-    expect(commits.map((c) => c.message)).toEqual(['Payments API: Ana Ruiz removed from Validation']);
+    expect(commits().map((c) => c.message)).toEqual(['Payments API: Ana Ruiz removed from Validation']);
   });
 
   it('reads a double rename from the saved name to the last one', async () => {
@@ -836,7 +683,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     repo.renameInitiative(initiative.id, 'B');
     repo.renameInitiative(initiative.id, 'C');
     await repo.flushPending();
-    expect(commits.map((c) => c.message)).toEqual(['Payments API: renamed to C']);
+    expect(commits().map((c) => c.message)).toEqual(['Payments API: renamed to C']);
   });
 
   it('renames an initiative in place with a commit naming the old and new name, and refuses an empty name', async () => {
@@ -848,10 +695,10 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     await repo.flushPending();
 
     expect(repo.getState().initiatives[0].name).toBe('Payments API 2');
-    expect(commits).toHaveLength(1);
-    expect(commits[0].message).toBe('Payments API: renamed to Payments API 2');
-    expect(commits[0].trailers).toEqual([`Entity: initiative/${initiative.id}`]);
-    expect(commits[0].content.name).toBe('Payments API 2');
+    expect(commits()).toHaveLength(1);
+    expect(commits()[0].message).toBe('Payments API: renamed to Payments API 2');
+    expect(commits()[0].trailers).toEqual([`Entity: initiative/${initiative.id}`]);
+    expect(commits()[0].content.name).toBe('Payments API 2');
   });
 
   it('puts an undone removal back in its place', async () => {
@@ -864,7 +711,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     expect(repo.getState().initiatives[0].phases!.validation.allocations).toEqual([added.allocation]);
   });
 
-  it('adds, edits, removes and restores cost items as commits naming the phase, and restores each only once', async () => {
+  it('adds, edits, removes and restores cost items as commits() naming the phase, and restores each only once', async () => {
     const { repo, initiative } = await repoWithInitiative();
     const item = repo.addCostItem(initiative.id, 'validation', { label: 'Penetration test', amount: 12000, timing: 'month', month: '2026-10' })!;
     repo.updateCostItem(initiative.id, 'validation', item.id, { amount: 9000 });
@@ -893,7 +740,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       const boDev = ctx.repo.addAllocation(ctx.initiative.id, 'development', bo.id);
       if (!ana.ok || !boAlloc.ok || !boDev.ok) throw new Error('expected the allocations to be added');
       await ctx.repo.flushPending();
-      commits.length = 0;
+      forget();
       return { ...ctx, growth, bo, ana: ana.allocation, boAlloc: boAlloc.allocation, boDev: boDev.allocation };
     }
 
@@ -907,9 +754,9 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       expect(changed.phases!.development.allocations).toEqual([]);
 
       await repo.flushPending();
-      expect(commits).toHaveLength(1);
-      expect(commits[0].message).toBe('Payments API: team changed from Payments to Growth, 2 allocations removed');
-      expect(commits[0].content.teamId).toBe(growth.id);
+      expect(commits()).toHaveLength(1);
+      expect(commits()[0].message).toBe('Payments API: team changed from Payments to Growth, 2 allocations removed');
+      expect(commits()[0].content.teamId).toBe(growth.id);
     });
 
     it('changes the team with a plain message when no allocation goes', async () => {
@@ -917,18 +764,18 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       const result = repo.changeTeam(initiative.id, growth.id)!;
       expect(result.removed).toEqual([]);
       await repo.flushPending();
-      expect(commits.map((c) => c.message)).toEqual(['Payments API: team changed from Payments to Growth']);
+      expect(commits().map((c) => c.message)).toEqual(['Payments API: team changed from Payments to Growth']);
     });
 
     it('commits each move at once, as its own commit (§10.3, slice 064)', async () => {
       const { repo, initiative, growth } = await withTwoTeams();
       const third = repo.createTeam('Platform');
       await repo.flushPending();
-      commits.length = 0;
+      forget();
       repo.changeTeam(initiative.id, growth.id);
       repo.changeTeam(initiative.id, third.id);
       await repo.flushPending();
-      expect(commits.map((c) => c.message)).toEqual([
+      expect(commits().map((c) => c.message)).toEqual([
         'Payments API: team changed from Payments to Growth, 2 allocations removed',
         'Payments API: team changed from Growth to Platform, 1 allocation removed',
       ]);
@@ -938,10 +785,10 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       const { repo, initiative, growth, boAlloc } = await withTwoTeams();
       repo.removeAllocation(initiative.id, 'validation', boAlloc.id);
       await repo.flushPending();
-      commits.length = 0;
+      forget();
       repo.changeTeam(initiative.id, growth.id);
       await repo.flushPending();
-      expect(commits[0].message).toBe('Payments API: team changed from Payments to Growth, 1 allocation removed');
+      expect(commits()[0].message).toBe('Payments API: team changed from Payments to Growth, 1 allocation removed');
     });
 
     it('leaves a locked phase untouched', async () => {
@@ -965,7 +812,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       const before = repo.getState().initiatives[0].phases;
       const result = repo.changeTeam(initiative.id, growth.id)!;
       await repo.flushPending();
-      commits.length = 0;
+      forget();
 
       repo.restoreTeam(initiative.id, result);
       const restored = repo.getState().initiatives[0];
@@ -975,7 +822,7 @@ describe('Repository — slice 005 phase periods and allocations', () => {
       expect(restored.phases!.development.allocations).toEqual([boDev]);
 
       await repo.flushPending();
-      expect(commits[0].message).toBe('Payments API: team changed back from Growth to Payments, 2 allocations restored');
+      expect(commits()[0].message).toBe('Payments API: team changed back from Growth to Payments, 2 allocations restored');
     });
 
     it('undo skips a phase that has been locked since, but still restores the team', async () => {
@@ -995,8 +842,8 @@ describe('Repository — slice 005 phase periods and allocations', () => {
     repo.setPhasePeriod(initiative.id, 'validation', { startDate: '2026-09-24', endDate: '2026-12-31' });
     expect(repo.getState().initiatives[0].defaultPlan).toBeUndefined();
     await repo.flushPending();
-    expect(commits[0].content.defaultPlan).toBeUndefined();
-    expect(commits[0].content.phases?.development.startDate).toBe('2026-12-24'); // no other phase moved
+    expect(commits()[0].content.defaultPlan).toBeUndefined();
+    expect(commits()[0].content.phases?.development.startDate).toBe('2026-12-24'); // no other phase moved
   });
 
   it('adding an allocation also ends the suggestion', async () => {
@@ -1018,23 +865,9 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     vi.unstubAllGlobals();
   });
 
-  const commits: { message: string; trailers: string[]; content: Initiative }[] = [];
-
   /** Fraud Detection Upgrade with a period, an allocation and a cost item in Validation, every commit so far flushed and forgotten. */
   async function repoWithPlannedInitiative() {
-    commits.length = 0;
-    vi.stubGlobal(
-      'fetch',
-      contentsBacked(routingFetchMock({
-        'PUT /repos/jabopiti/initiative-planner/contents/initiatives': (_url, init) => {
-          const body = JSON.parse(init!.body as string) as { message: string; content: string };
-          commits.push({ message: subjectOf(body.message), trailers: splitMessage(body.message).trailers, content: JSON.parse(atob(body.content)) });
-          return jsonResponse({ content: { sha: `sha-${commits.length}` } });
-        },
-      })),
-    );
-    const repo = new Repository(defaultBrandPack, 'token');
-    await repo.initialize();
+    const repo = await openRepo();
     const team = repo.createTeam('Platform');
     const other = repo.createTeam('Growth');
     const member = repo.createPerson({ name: 'Mara Voss', countryId: 'c1', roleId: 'r1' });
@@ -1046,7 +879,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     const item = repo.addCostItem(initiative.id, 'validation', { label: 'Licences', amount: 1000, timing: 'spread' })!;
     repo.setChecklistItem(initiative.id, 'discovery', 'g1-problem-statement', 'tentative', 'Waiting on Risk');
     await repo.flushPending();
-    commits.length = 0;
+    forget();
     const current = () => repo.getState().initiatives.find((i) => i.id === initiative.id)!;
     return { repo, id: initiative.id, member, team, other, allocationId: added.allocation.id, itemId: item.id, current };
   }
@@ -1060,7 +893,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     const { repo, id, current } = await repoWithPlannedInitiative();
     repo.cancel(id);
     await repo.flushPending();
-    expect(commits.map((c) => c.message)).toEqual(['Fraud Detection Upgrade: cancelled']);
+    expect(commits().map((c) => c.message)).toEqual(['Fraud Detection Upgrade: cancelled']);
     expect(current().status).toBe('Cancelled');
 
     const { repo: held, id: heldId, current: heldNow } = await repoWithPlannedInitiative();
@@ -1075,11 +908,11 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     repo.putOnHold(id);
     repo.cancel(id);
     await repo.flushPending();
-    commits.length = 0;
+    forget();
     repo.reopen(id);
     await repo.flushPending();
     expect(current().status).toBe('Active');
-    expect(commits.map((c) => c.message)).toEqual(['Fraud Detection Upgrade: reopened']);
+    expect(commits().map((c) => c.message)).toEqual(['Fraud Detection Upgrade: reopened']);
   });
 
   it('does not cancel a Closed initiative, nor reopen one that is not Cancelled', async () => {
@@ -1089,7 +922,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     repo.reopen(id);
     await repo.flushPending();
     expect(current().status).toBe('Closed');
-    expect(commits).toEqual([]);
+    expect(commits()).toEqual([]);
   });
 
   describe.each(['Cancelled', 'Closed'] as const)('a %s initiative refuses every edit but notes and actuals', (status) => {
@@ -1116,14 +949,14 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       ['resume', ({ repo, id }) => repo.resume(id)],
     ];
 
-    it.each(refusals)('%s is refused and commits nothing', async (_name, attempt) => {
+    it.each(refusals)('%s is refused and commits() nothing', async (_name, attempt) => {
       const setup = await repoWithPlannedInitiative();
       forceStatus(setup.repo, setup.current(), status);
       const before = setup.current();
       attempt(setup);
       await setup.repo.flushPending();
       expect(setup.current()).toEqual(before);
-      expect(commits).toEqual([]);
+      expect(commits()).toEqual([]);
     });
 
     it('records a month’s actual', async () => {
@@ -1132,7 +965,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       repo.setActual(id, 'validation', '2026-01', 900);
       await repo.flushPending();
       expect(current().phases?.validation.actualMonths).toEqual({ '2026-01': 900 });
-      expect(commits).toHaveLength(1);
+      expect(commits()).toHaveLength(1);
     });
 
     it('records a checklist note and keeps the status', async () => {
@@ -1141,7 +974,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       expect(repo.setChecklistNote(id, 'discovery', 'g1-problem-statement', 'Risk withdrew sign-off')).toBe(true);
       await repo.flushPending();
       expect(current().checklist?.discovery?.['g1-problem-statement']).toEqual({ status: 'tentative', note: 'Risk withdrew sign-off' });
-      expect(commits.map((c) => c.message)).toEqual(['Fraud Detection Upgrade: note on "Problem statement validated" changed']);
+      expect(commits().map((c) => c.message)).toEqual(['Fraud Detection Upgrade: note on "Problem statement validated" changed']);
     });
 
     it('refuses to clear a Tentative item’s note', async () => {
@@ -1149,7 +982,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       forceStatus(repo, current(), status);
       expect(repo.setChecklistNote(id, 'discovery', 'g1-problem-statement', '  ')).toBe(false);
       await repo.flushPending();
-      expect(commits).toEqual([]);
+      expect(commits()).toEqual([]);
     });
   });
 
@@ -1173,14 +1006,14 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       ['removeCostItem', ({ repo, id, itemId }) => repo.removeCostItem(id, 'validation', itemId)],
     ];
 
-    it.each(refusals)('%s is refused, commits nothing, and the phase says the change was not saved', async (_name, attempt) => {
+    it.each(refusals)('%s is refused, commits() nothing, and the phase says the change was not saved', async (_name, attempt) => {
       const setup = await repoWithPlannedInitiative();
       freezeValidation(setup.repo, setup.current());
       const before = setup.current();
       attempt(setup);
       await setup.repo.flushPending();
       expect(setup.current()).toEqual(before);
-      expect(commits).toEqual([]);
+      expect(commits()).toEqual([]);
       expect(setup.repo.getState().frozenWithLostEdit).toEqual(new Set([lostEditKey(setup.id, 'validation')]));
     });
 
@@ -1194,7 +1027,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       attempt(setup);
       await setup.repo.flushPending();
       expect(setup.current()).toEqual(before);
-      expect(commits).toEqual([]);
+      expect(commits()).toEqual([]);
       expect(setup.repo.getState().frozenWithLostEdit.size).toBe(0);
     });
 
@@ -1212,7 +1045,7 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
       repo.setActual(id, 'validation', '2026-01', 900);
       await repo.flushPending();
       expect(current().phases?.validation.actualMonths).toEqual({ '2026-01': 900 });
-      expect(commits).toHaveLength(1);
+      expect(commits()).toHaveLength(1);
     });
 
     it('leaves the other phases editable, and the message is dismissed by the user', async () => {
@@ -1247,11 +1080,11 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
 
     const fresh = await repo.createInitiative('Checkout Redesign', team.id, '2026-09-24');
     await repo.flushPending();
-    commits.length = 0;
+    forget();
     expect(repo.startAtPhase(fresh.id, 'development', 'In development since May, before the tool.', '2026-10-01')).toEqual({ ok: true });
     await repo.flushPending();
-    expect(commits.map((c) => c.message)).toEqual(['Checkout Redesign: starts at Development']);
-    const saved = commits[0].content;
+    expect(commits().map((c) => c.message)).toEqual(['Checkout Redesign: starts at Development']);
+    const saved = commits()[0].content;
     expect(Object.keys(saved.gates ?? {})).toEqual(['discovery', 'validation']);
     expect(saved.gates?.validation).toMatchObject({ outcome: 'skipped', skipReason: 'In development since May, before the tool.', startingPhase: true });
     expect(saved.phases).toEqual({ development: { startDate: '2026-10-01', endDate: '2027-03-31', allocations: [] } });
@@ -1261,11 +1094,11 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     const { repo, team } = await repoWithPlannedInitiative();
     const fresh = await repo.createInitiative('Checkout Redesign', team.id, '2026-09-24');
     await repo.flushPending();
-    commits.length = 0;
+    forget();
     repo.startAtPhase(fresh.id, 'development', 'Under way', '2026-10-01');
     repo.startAtPhase(fresh.id, 'discovery', '', '2026-10-01');
     await repo.flushPending();
-    expect(commits.map((c) => c.message)).toEqual(['Checkout Redesign: starts at Discovery']);
+    expect(commits().map((c) => c.message)).toEqual(['Checkout Redesign: starts at Discovery']);
   });
 
   it('reopens the final gate of a Closed initiative, but no gate of a Cancelled one', async () => {
@@ -1275,12 +1108,12 @@ describe('Repository — Cancel, Reopen and the freeze (§8.4)', () => {
     forceStatus(repo, { ...current(), gates }, 'Cancelled');
     repo.reopenGate(id);
     await repo.flushPending();
-    expect(commits).toEqual([]);
+    expect(commits()).toEqual([]);
 
     forceStatus(repo, current(), 'Closed');
     repo.reopenGate(id);
     await repo.flushPending();
     expect(current().status).toBe('Active');
-    expect(commits).toHaveLength(1);
+    expect(commits()).toHaveLength(1);
   });
 });
