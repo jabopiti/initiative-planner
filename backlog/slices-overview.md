@@ -10,6 +10,7 @@ is done and what happens to its file.
 | ID | Title | Depends on | Note |
 |---|---|---|---|
 | 066 | Brand pack in its own folder | | §2, §10.7: fork edits only `brand/` |
+| 069 | Brand pack logo and favicon | 066 | §2, §9.1: logo and favicon in `brand/` |
 | 067 | Brand pack build checks | 066 | §10.7: bands, process definition, example dataset |
 
 ## Delivered slices

@@ -47,13 +47,15 @@ imports it through a single path.
 
 ## Flags and compromises
 
-None.
+Logo and favicon (listed in §2) are deferred to slice 069.
 
 ## Decided in review (pre-implementation)
 
-Open, to settle in review:
-- Folder name and place: root `brand/` (recommended) or other.
-- Ship `brand/` filled with the default pack (recommended, keeps the repo
-  deployable) or as a copy-on-setup example.
-- Logo and favicon as pack assets now (§2 lists them): what the app uses
-  today decides.
+- Folder is root `brand/` (`brand.ts`, `exampleDataset.json`, `fonts/`), imported
+  through the alias `@brand` (→ `brand/brand.ts`) in Vite, tsconfig and Vitest.
+  `vite.config.ts` imports it by relative path, since aliases don't exist yet
+  when the config loads.
+- `brand/` ships filled with the default pack, so the repo stays deployable.
+- Logo and favicon are not part of this slice: the app has none today and
+  `BrandPack` has no field for them. They get their own slice (069).
+- The export keeps the name `defaultBrandPack`.
