@@ -45,5 +45,12 @@ None yet.
 
 ## Decided in review (pre-implementation)
 
-Open, to settle in review: whether CodeQL results gate merging or only report,
-and any copy or layout change the 2.2 scan forces.
+- CodeQL only reports (Security tab and PR check); it is not a required status
+  check. Gating is a branch-protection setting and can be switched on later
+  without changing the workflow.
+- The workflow runs on push to `main`, on PRs and weekly, scans
+  `javascript-typescript` with the default queries and has least-privilege
+  permissions.
+- The 2.2 scan (`target-size`, the only `wcag22aa` rule in axe 4.13) passes on
+  every screen today, so no copy or layout changes. Focus appearance and
+  dragging alternatives are not covered by axe and stay manual checks.
