@@ -1,8 +1,8 @@
 # Engine audit: prototype reuse decision
 
-Backlog: [slice-001](backlog/slice-001-audit-prototype-reuse.md). Every
-function in `prototype/` touching cost, capacity, working days, rates, or
-approval-track calculation, classified against docs/spec.md §6 and §7.
+Backlog: slice 001. Every function in `prototype/` touching cost,
+capacity, working days, rates, or approval-track calculation, classified
+against docs/spec.md §6 and §7.
 UI code is excluded (out of scope by design — see slice-001). Formatting
 (`prototype/format.js`) and persistence (`prototype/store.js`) are excluded
 because they don't touch these rules.

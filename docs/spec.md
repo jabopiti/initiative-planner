@@ -1170,8 +1170,10 @@ Contains the following sections:
   so a token can be rotated before it expires without losing an edit), and
   **Disconnect**, which removes the token from the browser and opens the
   Connect screen (§3, §5.10).
-- **About** (read-only): product name, build version, schema version and
-  process identity (§2, §3).
+- **About** (read-only): product name, build version (the package version
+  and the short commit it was built from, e.g. "0.1.0 (7b6692e)"; the
+  version alone when the build has no git), schema version and process
+  identity (§2, §3).
 - **Danger zone** (lockable): two actions.
   - **Load example data**: loads the example dataset (§2). Enabled only
     while the dataset has no people, teams or initiatives; otherwise it is
@@ -1854,8 +1856,7 @@ laptop with a normal broadband connection:
   **2 s** after its commit window closes (§10.3), under normal network
   conditions.
 - On the first load the Portfolio appears within **5 s**: it shows once the
-  master data and the Active initiatives have loaded, and the other
-  initiatives load in the background (§9.9).
+  whole dataset has loaded in one pull (§9.9).
 
 ### 9.7 Language and formats
 

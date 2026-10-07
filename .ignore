@@ -1,0 +1,3 @@
+# Kept out of default ripgrep searches (and so out of Claude Code's Grep and
+# Glob); still searchable by naming the path. Why: AGENTS.md.
+backlog/done/

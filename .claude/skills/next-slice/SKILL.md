@@ -16,13 +16,15 @@ recorded in the slice file and committed first.
 !`${CLAUDE_SKILL_DIR}/scripts/find-eligible.sh`
 
 A spike can ship without a `Slice <id>:` commit: once a slice depending
-on it is done, treat the spike as done.
+on it is done, treat the spike as done. A NOT ARCHIVED line is a shipped
+slice whose file wasn't moved (AGENTS.md): offer to move it and its
+overview row in a commit of its own.
 
 ## Pick
 
 If `$ARGUMENTS` names a slice, take it (say if it isn't eligible, or in
 progress on another branch). Otherwise the user picks — even when only one
-is eligible — with your recommendation from the build plan in
+is eligible — with your recommendation from the open slices in
 `backlog/slices-overview.md`. Never offer a slice marked IN PROGRESS: another
 session has it. Mention the slice's `recommended_model` so they can switch;
 don't switch it yourself.
