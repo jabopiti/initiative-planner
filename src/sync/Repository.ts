@@ -41,6 +41,7 @@ import { distinctEntities, FileWriter, renderMessage, type JointPart, type Commi
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { MASTER_FILES, parseDataFile, validateDataset, validateRecords } from './validateDataset';
 import { WriteQueue } from './WriteQueue';
+import { allocationWords, costItemWords, countryWords, membershipWords, personWords, roleWords, teamWords } from './commitWords';
 
 /** A file a commit of this client's wrote, with its version. */
 type WrittenFile = CommitResult['written'][number];
@@ -1166,7 +1167,7 @@ export class Repository {
   /** New role (§5.9): created from a name, abbreviation and cost factor, active. */
   createRole(input: { name: string; abbreviation: string; costFactor: number }): Role {
     const role: Role = { id: newId(), ...input, active: true };
-    this.commitRoles([...this.state.roles, role], this.note('role', role.id, 'record', undefined, role, (f, t) => this.describeRole(f, t)));
+    this.commitRoles([...this.state.roles, role], this.note('role', role.id, 'record', undefined, role, roleWords));
     return role;
   }
 
@@ -1178,26 +1179,14 @@ export class Repository {
     if ((Object.keys(patch) as (keyof typeof patch)[]).every((key) => next[key] === current[key])) return;
     this.commitRoles(
       this.state.roles.map((r) => (r.id === id ? next : r)),
-      this.note('role', id, 'record', current, next, (f, t) => this.describeRole(f, t)),
+      this.note('role', id, 'record', current, next, roleWords),
     );
-  }
-
-  /** The net change of a role, in plain words (§10.3); the subject is the name it was saved under. */
-  private describeRole(from: Role | undefined, to: Role | undefined): string {
-    if (!from) return `Roles: ${to?.name} added`;
-    if (!to) return `Roles: ${from.name} removed`;
-    const parts: string[] = [];
-    if (to.name !== from.name) parts.push(`renamed to ${to.name}`);
-    if (to.abbreviation !== from.abbreviation) parts.push(`abbreviation set to ${to.abbreviation}`);
-    if (to.costFactor !== from.costFactor) parts.push(`cost factor set to ${to.costFactor}`);
-    if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
-    return `Roles: ${from.name} ${parts.join(', ') || 'updated'}`;
   }
 
   /** New country (§5.9): its one day rate copied to every tracked year, working days prefilled with weekdays. */
   createCountry(input: { name: string; code: string; dayRate: number }, today: Date = new Date()): Country {
     const country: Country = { id: newId(), name: input.name, code: input.code, active: true, ratesByYear: newCountryRates(input.dayRate, trackedYears(today)) };
-    this.commitCountries([...this.state.countries, country], this.note('country', country.id, 'record', undefined, country, (f, t) => this.describeCountry(f, t)));
+    this.commitCountries([...this.state.countries, country], this.note('country', country.id, 'record', undefined, country, countryWords));
     return country;
   }
 
@@ -1209,18 +1198,8 @@ export class Repository {
     if (next.name === current.name && next.code === current.code && next.active === current.active) return;
     this.commitCountries(
       this.state.countries.map((c) => (c.id === id ? next : c)),
-      this.note('country', id, 'record', current, next, (f, t) => this.describeCountry(f, t)),
+      this.note('country', id, 'record', current, next, countryWords),
     );
-  }
-
-  private describeCountry(from: Country | undefined, to: Country | undefined): string {
-    if (!from) return `Countries: ${to?.name} added`;
-    if (!to) return `Countries: ${from.name} removed`;
-    const parts: string[] = [];
-    if (to.name !== from.name) parts.push(`renamed to ${to.name}`);
-    if (to.code !== from.code) parts.push(`code set to ${to.code}`);
-    if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
-    return `Countries: ${from.name} ${parts.join(', ') || 'updated'}`;
   }
 
   /** A country's day rate for one year (§5.9, §7.2). Any rate edit also marks the rates reviewed (§5.2). */
@@ -1387,7 +1366,7 @@ export class Repository {
     const refusal = this.teamNameRefusal(name);
     if (refusal) throw new Error(refusal);
     const team: Team = { id: newId(), name: name.trim(), active: true };
-    this.commitTeams([...this.state.teams, team], this.note('team', team.id, 'record', undefined, team, (f, t) => this.describeTeam(f, t)));
+    this.commitTeams([...this.state.teams, team], this.note('team', team.id, 'record', undefined, team, teamWords));
     return team;
   }
 
@@ -1411,7 +1390,7 @@ export class Repository {
       capacityPct: 100,
       active: true,
     };
-    this.commitPeople([...this.state.people, person], this.note('person', person.id, 'record', undefined, person, (f, t) => this.describePerson(f, t)));
+    this.commitPeople([...this.state.people, person], this.note('person', person.id, 'record', undefined, person, this.personWords()));
     return person;
   }
 
@@ -1424,14 +1403,8 @@ export class Repository {
     if (next.name === current.name && next.active === current.active) return;
     this.commitTeams(
       this.state.teams.map((t) => (t.id === id ? next : t)),
-      this.note('team', id, 'record', current, next, (f, t) => this.describeTeam(f, t)),
+      this.note('team', id, 'record', current, next, teamWords),
     );
-  }
-
-  private describeTeam(from: Team | undefined, to: Team | undefined): string {
-    if (!from) return `${to?.name}: team created`;
-    if (to && to.name !== from.name) return `${from.name}: team renamed to ${to.name}`;
-    return `${from.name}: team ${to?.active ? 'reactivated' : 'deactivated'}`;
   }
 
   /** In-place edit from the person panel (§5.6): no save button, so every change commits. */
@@ -1441,47 +1414,8 @@ export class Repository {
     const next = { ...current, ...patch };
     this.commitPeople(
       this.state.people.map((p) => (p.id === id ? next : p)),
-      this.note('person', id, 'record', current, next, (f, t) => this.describePerson(f, t)),
+      this.note('person', id, 'record', current, next, this.personWords()),
     );
-  }
-
-  /** The net change of a person, in plain words (§10.3): one subject, the name it was saved under, then each change. */
-  private describePerson(from: Person | undefined, to: Person | undefined): string {
-    if (!from) return `${to?.name}: person added`;
-    if (!to) return `${from.name}: person removed`;
-    const parts: string[] = [];
-    if (to.name !== from.name) parts.push(`renamed to ${to.name}`);
-    if (to.countryId !== from.countryId) {
-      parts.push(`country set to ${this.state.countries.find((c) => c.id === to.countryId)?.name ?? 'unknown'}`);
-    }
-    if (to.roleId !== from.roleId) {
-      parts.push(`role set to ${this.state.roles.find((r) => r.id === to.roleId)?.name ?? 'unknown'}`);
-    }
-    parts.push(...this.describeCustomRoleChange(from, to));
-    if (to.capacityPct !== from.capacityPct) parts.push(`capacity set to ${to.capacityPct}%`);
-    if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
-    return `${from.name}: ${parts.join(', ') || 'updated'}`;
-  }
-
-  private describeCustomRoleChange(current: Person, next: Person): string[] {
-    const before = current.customRole;
-    const after = next.customRole;
-    if (!after) return [];
-    const parts: string[] = [];
-    if (after.active && !before?.active) parts.push(`custom role set to ${after.label.trim() || 'Custom role'}`);
-    if (!after.active && before?.active) {
-      parts.push(`back to standard role ${this.state.roles.find((r) => r.id === next.roleId)?.name ?? 'unknown'}`);
-    }
-    if (before && after.label !== before.label) parts.push(`custom role renamed to ${after.label.trim() || 'Custom role'}`);
-    if (before && after.costFactor !== before.costFactor) parts.push(`custom role cost factor set to ${after.costFactor}`);
-    const years = new Set([...(before?.dayRatesByYear ?? []), ...after.dayRatesByYear].map((r) => r.year));
-    for (const year of [...years].sort()) {
-      const was = before?.dayRatesByYear.find((r) => r.year === year)?.dayRate;
-      const now = after.dayRatesByYear.find((r) => r.year === year)?.dayRate;
-      if (was === now) continue;
-      parts.push(now === undefined ? `${year} custom day rate cleared` : `${year} custom day rate set to ${now}`);
-    }
-    return parts;
   }
 
   /**
@@ -1536,17 +1470,15 @@ export class Repository {
   private membershipNote(id: string, from: Membership | undefined, to: Membership | undefined): CommitNote {
     const of = (m: Membership | undefined) => (m ? { who: this.personName(m.personId), where: this.teamName(m.teamId) } : undefined);
     const names = of(from ?? to) as { who: string; where: string };
-    const note = this.note('membership', id, 'record', from, to, (f, t) => {
-      if (!f) return `added to ${names.where} at ${t?.teamFtePct}%`;
-      if (!t) return `removed from ${names.where}`;
-      const parts: string[] = [];
-      const rejoined = !f.active && t.active;
-      if (rejoined) parts.push(`rejoined ${names.where}`);
-      if (t.teamFtePct !== f.teamFtePct) parts.push(rejoined ? `Team FTE % set to ${t.teamFtePct}%` : `Team FTE % on ${names.where} set to ${t.teamFtePct}%`);
-      if (f.active && !t.active) parts.push(`deactivated on ${names.where}`);
-      return parts.join(', ') || 'updated';
-    });
+    const note = this.note('membership', id, 'record', from, to, membershipWords(names.where));
     return { ...note, subject: names.who };
+  }
+
+  private personWords() {
+    return personWords({
+      countryName: (id) => this.state.countries.find((c) => c.id === id)?.name,
+      roleName: (id) => this.state.roles.find((r) => r.id === id)?.name,
+    });
   }
 
   private personName(id: string): string {
@@ -1915,25 +1847,8 @@ export class Repository {
    * is the one the item was saved under, so the message never names a state that was not saved.
    */
   private describeItem(list: PhaseList): (from: unknown, to: unknown, name: string, phase: string) => string {
-    return (from, to, name, phase) => {
-      if (list === 'allocations') {
-        const [before, after] = [from as Allocation | undefined, to as Allocation | undefined];
-        const who = this.personName((before ?? after)?.personId as string);
-        if (!before) return `${name}: ${who} added to ${phase} at ${after?.allocationPct}%`;
-        if (!after) return `${name}: ${who} removed from ${phase}`;
-        return `${name}: ${who} set to ${after.allocationPct}% in ${phase}`;
-      }
-      const [before, after] = [from as CostItem | undefined, to as CostItem | undefined];
-      if (!before) return `${name}: ${after?.label} added to ${phase} at ${this.money(after?.amount as number)}`;
-      if (!after) return `${name}: ${before.label} removed from ${phase}`;
-      const parts: string[] = [];
-      if (after.label !== before.label) parts.push(`renamed to ${after.label}`);
-      if (after.amount !== before.amount) parts.push(`amount set to ${this.money(after.amount)}`);
-      if (after.timing !== before.timing || after.month !== before.month) {
-        parts.push(after.timing === 'spread' || !after.month ? 'spread over the phase' : `timed to ${formatMonthEn(after.month)}`);
-      }
-      return `${name}: ${phase} cost item ${before.label} ${parts.join(', ') || 'updated'}`;
-    };
+    const lookups = { personName: (id: string) => this.personName(id), money: (amount: number) => this.money(amount) };
+    return (list === 'allocations' ? allocationWords(lookups) : costItemWords(lookups)) as (from: unknown, to: unknown, name: string, phase: string) => string;
   }
 
   /** An amount as a commit message reads it, in the deployment's currency (§9.7). */
