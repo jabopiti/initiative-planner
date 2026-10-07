@@ -67,8 +67,13 @@ shopt -s nullglob
 for f in "$backlog"/slice-*.md; do
   id="$(field "$f" slice_id)"
   if is_done "$id"; then
-    echo "NOT ARCHIVED $id: done per git log, but ${f#"$root"/} is still open — move it to backlog/done/"
-    echo
+    # Only when main hasn't archived it either: a branch behind origin/main
+    # gets the move by merging main, and moving it again would conflict.
+    rel="${f#"$root"/}"
+    if [ "$base" = "HEAD" ] || git -C "$root" cat-file -e "origin/main:$rel" 2>/dev/null; then
+      echo "NOT ARCHIVED $id: done per git log, but $rel is still open — move it to backlog/done/"
+      echo
+    fi
     continue
   fi
   [ "$(field "$f" status)" = "valid" ] || continue
