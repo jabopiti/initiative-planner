@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Print one numbered section of docs/spec.md (heading through the next
 # heading of equal or higher level), so callers never need to read the
-# whole 1700+ line document for a single §-reference.
+# whole spec for a single §-reference.
 #
 # Usage: extract.sh <section-number> [spec-file]
 #   extract.sh 5.6
