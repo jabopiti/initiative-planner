@@ -4,7 +4,6 @@ import { cacheScope, FileCache } from '../cache/db';
 import { CHANGE_TINT_MS, changeCovers, changeKey, FOCUS_PULL_MIN_GAP_MS, lostEditKey, PULL_INTERVAL_MS, PULL_RETRY_MS, Repository } from './Repository';
 import { fakeGithub, holdNetwork, initiative, open, person, type Fake } from './testing/fakeGithub';
 import { isFilesQuery, queriedPaths } from './testing/graphqlRead';
-import { contentsBacked } from './testing/contentsBacked';
 
 const setVisibility = (state: 'visible' | 'hidden') =>
   Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
@@ -418,7 +417,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
 
   describe('a failed pull (§3 Sync failures)', () => {
     it('shows the read-only state with its cause and keeps showing the cached data', async () => {
-      vi.stubGlobal('fetch', contentsBacked(() => Promise.reject(new TypeError('offline'))));
+      vi.stubGlobal('fetch', () => Promise.reject(new TypeError('offline')));
       const repo = await reopen();
 
       expect(repo.getState().readOnly?.cause).toBe('unreachable');
@@ -428,7 +427,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
 
     it('recovers by itself once a pull works, without a reload', async () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
-      vi.stubGlobal('fetch', contentsBacked(() => Promise.reject(new TypeError('offline'))));
+      vi.stubGlobal('fetch', () => Promise.reject(new TypeError('offline')));
       const repo = await reopen();
       await repo.whenPulled();
       expect(repo.getState().readOnly).not.toBeNull();

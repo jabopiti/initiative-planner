@@ -1,20 +1,19 @@
 /**
- * Shared scaffold for the capacity tests (§5.8, §7.2): one dataset, a fetch stub that serves it, and the render
+ * Shared scaffold for the capacity tests (§5.8, §7.2): one dataset, a fake GitHub that serves it, and the render
  * helpers. Call `installCapacityFixture()` at the top of a test file; tests then change `fixture` before rendering.
  * Today is 24 Sep 2026: phases starting in Sep or Oct 2026 are Confirmed, later ones Provisional (§4).
  */
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import type { Initiative, Membership, Person, Team } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
-import { rootListing } from '../sync/testing/rootListing';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const [role] = baseline.roles;
@@ -35,14 +34,16 @@ export const fixture: { teams: Team[]; people: Person[]; memberships: Membership
   initiatives: [],
 };
 
-/** Every write the app made, in order: its commit message and the file's new content. */
-export const puts: { message: string; content: unknown }[] = [];
+let served: ReturnType<typeof fakeOnDemand>;
+
+/** Every write the repository accepted, in order: its commit message and the file's new content. */
+export const puts = () => served.accepted();
+
+/** The fake GitHub behind this test, made from `fixture` at its first request: change files on it once it exists. */
+export const github = () => served.fake();
 
 /** What the last Copy put on the clipboard, by MIME type. */
 export const written: Record<string, string> = {};
-
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
 
 function resetFixture() {
   fixture.teams = [
@@ -67,8 +68,11 @@ function resetFixture() {
   ];
 }
 
-/** Registers the hooks that stub the network and reset the dataset and date before each test. */
+/** Registers the hooks that stub the network with a fake GitHub and reset the dataset and date before each test. */
 export function installCapacityFixture() {
+  served = fakeOnDemand((fake) =>
+    seedFiles(fake, { roles: baseline.roles, countries: baseline.countries, teams: fixture.teams, people: fixture.people, memberships: fixture.memberships, initiatives: fixture.initiatives }),
+  );
   beforeAll(() => {
     // Radix Select needs these pointer/scroll APIs, which jsdom lacks.
     Element.prototype.hasPointerCapture = () => false;
@@ -76,32 +80,7 @@ export function installCapacityFixture() {
     Element.prototype.releasePointerCapture = () => {};
     Element.prototype.scrollIntoView = () => {};
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-    vi.stubGlobal(
-      'fetch',
-      contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-        if ((init.method ?? 'GET') === 'PUT') {
-          const body = JSON.parse(String(init.body)) as { message: string; content: string };
-          puts.push({ message: body.message, content: JSON.parse(atob(body.content)) });
-          return json({ content: { sha: 'next' } });
-        }
-        if (url.includes('/git/ref/heads/')) return json({ message: 'Not Found' }, 404);
-        if (new URL(url).pathname.endsWith('/contents/')) {
-          return rootListing({ 'dataset.json': 'd', 'roles.json': 'r', 'countries.json': 'c', 'teams.json': 't', 'people.json': 'p', 'memberships.json': 'm' });
-        }
-        if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
-        if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
-        if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');
-        if (url.includes('/contents/teams.json')) return file(fixture.teams, 't');
-        if (url.includes('/contents/people.json')) return file(fixture.people, 'p');
-        if (url.includes('/contents/memberships.json')) return file(fixture.memberships, 'm');
-        const one = fixture.initiatives.find((i) => url.includes(`/contents/initiatives/${i.id}.json`));
-        if (one) return file(one, `i-${one.id}`);
-        if (url.includes('/contents/initiatives')) return json(fixture.initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `i-${i.id}`, type: 'file' })));
-        return json({ message: 'Not Found' }, 404);
-      })),
-    );
   });
-  afterAll(() => vi.unstubAllGlobals());
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
@@ -109,7 +88,6 @@ export function installCapacityFixture() {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'], now: new Date(2026, 8, 24, 10) });
     for (const key of Object.keys(written)) delete written[key];
-    puts.length = 0;
     vi.stubGlobal('ClipboardItem', class { constructor(public items: Record<string, Blob>) {} });
     resetFixture();
     window.location.hash = '';

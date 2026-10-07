@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { toast } from 'sonner';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, Initiative, Membership, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
@@ -9,10 +9,8 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
-import { rootListing } from '../sync/testing/rootListing';
-import { subjectOf } from '../sync/testing/commitMessage';
 import { findPhases, phases } from '../test/phases';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 // One country: €500/day, 20 working days every month of 2026 and 2027. One role, factor 0.8.
 const twenty = Array(12).fill(20);
@@ -43,13 +41,13 @@ const cai = person('cai', 'Cai Wu', { customRole: { active: true, label: 'Fracti
 const outsider = person('out', 'Olga Nord');
 const membership = (id: string, personId: string, teamFtePct: number): Membership => ({ id, personId, teamId: 't1', teamFtePct, active: true });
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let initiative: Initiative;
 let others: Initiative[] = [];
 let members: Membership[];
-let puts: { message: string; content: Initiative }[] = [];
+
+const served = fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries, teams: [{ id: 't1', name: 'Payments', active: true }, { id: 't2', name: 'Platform', active: true }], people: [ana, cai, outsider], memberships: members, initiatives: [initiative, ...others] }));
+/** Each commit the fake accepted: its subject and the initiative's new content. */
+const puts = () => served.subjects<Initiative>();
 
 beforeAll(() => {
   // Radix Select needs these pointer/scroll APIs, which jsdom lacks.
@@ -58,38 +56,12 @@ beforeAll(() => {
   Element.prototype.releasePointerCapture = () => {};
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') {
-        const body = JSON.parse(String(init.body)) as { message: string; content: string };
-        puts.push({ message: subjectOf(body.message), content: JSON.parse(atob(body.content)) });
-        return json({ content: { sha: 'next' } });
-      }
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) {
-        return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
-      }
-      if (url.includes('/contents/roles.json')) return file(roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(countries, 'c');
-      if (url.includes('/contents/teams.json')) return file([{ id: 't1', name: 'Payments', active: true }, { id: 't2', name: 'Platform', active: true }], 't');
-      if (url.includes('/contents/people.json')) return file([ana, cai, outsider], 'p');
-      if (url.includes('/contents/memberships.json')) return file(members, 'm');
-      const otherFile = others.find((o) => url.includes(`/contents/initiatives/${o.id}.json`));
-      if (otherFile) return file(otherFile, 'o');
-      if (url.endsWith('/contents/initiatives.json') || url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }, ...others.map((o) => ({ name: `${o.id}.json`, path: `initiatives/${o.id}.json`, sha: `sha-${o.id}`, type: 'file' }))]);
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
   initiative = { id: 'i1', name: 'Payments API', teamId: 't1', status: 'Active' };
   members = [membership('m1', 'ana', 60), membership('m2', 'cai', 50)];
   others = [];
-  puts = [];
 });
 
 function renderPage() {
@@ -158,12 +130,12 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     async function allocationBar(user: ReturnType<typeof userEvent.setup>) {
       renderPage();
       await addPerson(user, 'Ana Ruiz · Developer'); // at her Team FTE %, 60
-      await vi.waitFor(() => expect(puts.map((p) => p.message)).toEqual(['Payments API: Ana Ruiz added to Validation at 60%']), { timeout: 3000 }); // the add, saved on its own
+      await vi.waitFor(() => expect(puts().map((p) => p.message)).toEqual(['Payments API: Ana Ruiz added to Validation at 60%']), { timeout: 3000 }); // the add, saved on its own
       const row = screen.getByRole('row', { name: /Ana Ruiz/ });
       return { row, bar: within(row).getByRole('slider', { name: 'Allocation % for Ana Ruiz' }) };
     }
     /** Writes after the add. */
-    const allocationPuts = () => puts.slice(1);
+    const allocationPuts = () => puts().slice(1);
 
     it('steps by 5% with the arrow keys, Home gives 0% and End 100%, and saves once on Enter', async () => {
       const user = userEvent.setup();
@@ -308,7 +280,7 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     await user.click(within(footer()).getByRole('button', { name: 'Done' }));
 
     // Picks write nothing of their own: the one write carries only the period's note.
-    const periodPuts = () => puts.filter((p) => p.message.includes('Validation period set to Sep'));
+    const periodPuts = () => puts().filter((p) => p.message.includes('Validation period set to Sep'));
     await vi.waitFor(() => expect(periodPuts()).toHaveLength(1), { timeout: 3000 });
     expect(periodPuts()[0].message).toBe('Payments API: Validation period set to Sep–Oct');
     expect(periodPuts()[0].content.phases?.validation).toMatchObject({ startDate: '2026-09-01', endDate: '2026-10-31' });
@@ -349,7 +321,7 @@ describe('Phases: plan a costed phase and see its cost (§5.4, §7.1)', () => {
     expect(start).toHaveValue('');
 
     await new Promise((resolve) => setTimeout(resolve, 1200));
-    expect(puts.filter((p) => p.message.includes('Sep'))).toEqual([]);
+    expect(puts().filter((p) => p.message.includes('Sep'))).toEqual([]);
   });
 
   it('moves into the calendar with the down arrow, and Enter there picks the day for the half being set', async () => {
@@ -507,8 +479,8 @@ describe('Initiative name: edited in place (§5.4)', () => {
     expect(field).toHaveValue('Payments API');
     await user.clear(field);
     await user.type(field, 'Payments API v2{Enter}');
-    // Find it among the puts: an earlier test's debounced commit can land in this test's list.
-    const renamed = () => puts.find((p) => p.message.includes('renamed'));
+    // Find it among the puts(): an earlier test's debounced commit can land in this test's list.
+    const renamed = () => puts().find((p) => p.message.includes('renamed'));
     await vi.waitFor(() => expect(renamed()).toBeDefined(), { timeout: 3000 });
     expect(renamed()!.message).toBe('Payments API: renamed to Payments API v2');
     expect(renamed()!.content.name).toBe('Payments API v2');
@@ -523,7 +495,7 @@ describe('Initiative name: edited in place (§5.4)', () => {
     await user.keyboard('{Escape}');
     expect(field).toHaveValue('Payments API');
     await user.tab();
-    expect(puts.some((p) => p.message.includes('renamed'))).toBe(false);
+    expect(puts().some((p) => p.message.includes('renamed'))).toBe(false);
   });
 
   it('refuses an empty name and puts the previous one back', async () => {
@@ -533,7 +505,7 @@ describe('Initiative name: edited in place (§5.4)', () => {
     await user.clear(field);
     await user.tab();
     expect(field).toHaveValue('Payments API');
-    expect(puts.some((p) => p.message.includes('renamed'))).toBe(false);
+    expect(puts().some((p) => p.message.includes('renamed'))).toBe(false);
   });
 });
 
@@ -643,7 +615,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
   // An earlier test's Undo toast would otherwise still be on screen.
   beforeEach(() => void toast.dismiss());
   // A person costs €8,000 (40 days × 50% × 500 × 0.8) over the period.
-  const added = () => puts.find((p) => p.message.includes(' added to Validation at €'));
+  const added = () => puts().find((p) => p.message.includes(' added to Validation at €'));
 
   async function openDraft(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByRole('button', { name: 'Add cost item to Validation' }));
@@ -700,7 +672,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     await user.type(within(draft).getByRole('textbox', { name: 'Amount' }), '12000');
     await user.click(within(draft).getByRole('radio', { name: /^Nov 2026,/ }));
     expect(within(draft).getByRole('textbox', { name: 'Month' })).toHaveValue('Nov 2026');
-    expect(puts.some((p) => p.message.includes(' added to Validation at €'))).toBe(false); // nothing saved before Add
+    expect(puts().some((p) => p.message.includes(' added to Validation at €'))).toBe(false); // nothing saved before Add
     await user.click(within(draft).getByRole('button', { name: 'Add' }));
 
     const row = screen.getByRole('row', { name: /Penetration test/ });
@@ -896,7 +868,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     expect(within(row).getByRole('alert')).toHaveTextContent('Enter a label.');
     await user.type(label, 'Licence{Enter}');
     expect(screen.getByLabelText('Label of Licence')).toBeInTheDocument();
-    const set = () => puts.find((p) => p.message.includes('amount set'));
+    const set = () => puts().find((p) => p.message.includes('amount set'));
     await vi.waitFor(() => expect(set()).toBeDefined(), { timeout: 3000 });
     // The two edits landed in one commit, named once.
     expect(set()!.message).toBe('Payments API: Validation cost item Load-testing licence renamed to Licence, amount set to €9,000');
@@ -910,7 +882,7 @@ describe('Cost items: priced costs that are not people time (§4, §5.4, §7.1)'
     await user.type(label, ' {Enter}');
     expect(label).toHaveValue('Load-testing licence');
     await user.tab();
-    expect(puts.some((p) => p.message.includes('renamed'))).toBe(false);
+    expect(puts().some((p) => p.message.includes('renamed'))).toBe(false);
   });
 
   it('switches an item between one month and spread on the month strip', async () => {
@@ -1030,7 +1002,7 @@ describe('Copy allocations from the previous costed phase (§5.11)', () => {
     await user.click(await screen.findByRole('button', { name: 'Copy from Validation' }));
     expect(screen.getByText('Nothing copied. Not copied: Ana Ruiz, no longer on Payments.')).toBeInTheDocument();
     expect(copyButton()).toBeInTheDocument();
-    expect(puts).toEqual([]);
+    expect(puts()).toEqual([]);
   });
 
   it('is not offered when the previous phase is empty, for the first costed phase, or when the phase has people', async () => {
@@ -1044,6 +1016,7 @@ describe('Copy allocations from the previous costed phase (§5.11)', () => {
     unmount();
 
     initiative = { ...initiative, phases: { [validation.id]: plan([{ id: 'a1', personId: 'ana', allocationPct: 45 }]), [development.id]: plan([{ id: 'a2', personId: 'cai', allocationPct: 20 }]) } };
+    served.fake().seed('initiatives/i1.json', initiative);
     renderPage();
     await openDevelopment(user);
     expect(await developmentBody().findByRole('row', { name: /Cai Wu/ })).toBeInTheDocument();

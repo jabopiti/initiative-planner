@@ -1,9 +1,11 @@
-import { vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, vi } from 'vitest';
 import { defaultBrandPack } from '../../brand/defaultBrand';
-import type { Country, Initiative, Person, Role, Team } from '../../data/types';
+import { buildBaselineDataset } from '../../data/baseline';
+import { SCHEMA_VERSION, type Country, type Initiative, type Person, type Role, type Team } from '../../data/types';
 import { decodeBase64Utf8, encodeBase64Utf8 } from '../../github/base64';
 import { gitBlobSha, TRUNCATED } from '../../github/client';
 import { Repository, type RepositoryState } from '../Repository';
+import { subjectOf } from './commitMessage';
 import { answerCreateCommit } from './graphqlCommit';
 import { answerFilesQuery, answerTree, isFilesQuery, queriedPaths } from './graphqlRead';
 
@@ -32,7 +34,7 @@ interface DeleteRecord {
   status: number;
 }
 
-export function json(body: unknown, status = 200, headers?: HeadersInit): Response {
+function json(body: unknown, status = 200, headers?: HeadersInit): Response {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
@@ -62,8 +64,9 @@ export function fakeGithub() {
   /** The bootstrap's trees and commits (§3 "System writes"), and every many-file commit that moved the branch (§10.3). */
   const trees = new Map<string, { path: string; content: string }[]>();
   const newCommits = new Map<string, { message: string; tree: string }>();
-  const gitCommits: { message: string; files: string[]; deleted: string[] }[] = [];
-  const graphqlCommits: { message: string; files: string[]; deleted: string[] }[] = [];
+  /** Every commit that moved the branch, oldest first, and how it was made: a one-file Contents write, the bootstrap's git objects, or GraphQL. */
+  const moves: { via: 'contents' | 'git' | 'graphql'; message: string; files: string[]; deleted: string[] }[] = [];
+  const movesVia = (...via: string[]) => moves.filter((m) => via.includes(m.via)).map(({ message, files, deleted }) => ({ message, files, deleted }));
   const beforeCommits: (() => void)[] = [];
   /** What each commit the branch moved to says and sits on, for a client checking whether its commit landed. */
   const commitInfo = new Map<string, { message: string; parents: string[] }>();
@@ -75,12 +78,13 @@ export function fakeGithub() {
     return index < 0 ? undefined : queue.splice(index, 1)[0];
   };
 
-  const put = (path: string, value: unknown): string => {
+  const putText = (path: string, content: string): string => {
     const sha = `sha-${(counter += 1)}`;
-    files.set(path, { content: JSON.stringify(value), sha });
+    files.set(path, { content, sha });
     head += 1;
     return sha;
   };
+  const put = (path: string, value: unknown): string => putText(path, JSON.stringify(value));
 
   const fetchMock = vi.fn(async (url: string, init: RequestInit = {}) => {
     const pathname = new URL(url).pathname;
@@ -129,9 +133,7 @@ export function fakeGithub() {
           const parent = `commit-${head}`;
           head += 1;
           commitInfo.set(`commit-${head}`, { message: commit.message, parents: [parent] });
-          const record = { message: commit.message, files: commit.files.map((f) => f.path), deleted: commit.deletes };
-          gitCommits.push(record);
-          graphqlCommits.push(record);
+          moves.push({ via: 'graphql', message: commit.message, files: commit.files.map((f) => f.path), deleted: commit.deletes });
           return `commit-${head}`;
         },
       });
@@ -155,7 +157,7 @@ export function fakeGithub() {
         const entries = trees.get(commit.tree)!;
         for (const entry of entries) files.set(entry.path, { content: entry.content, sha: await gitBlobSha(entry.content) });
         head += 1;
-        gitCommits.push({ message: commit.message, files: entries.map((e) => e.path), deleted: [] });
+        moves.push({ via: 'git', message: commit.message, files: entries.map((e) => e.path), deleted: [] });
         return json({ object: { sha: `commit-${head}` } }, 201);
       }
       return json({ sha }, 201);
@@ -214,6 +216,7 @@ export function fakeGithub() {
       if (record.status !== 200) return json({ message: failure?.refusal.message ?? 'failed' }, record.status, failure?.refusal.headers);
       files.delete(path);
       head += 1;
+      moves.push({ via: 'contents', message: body.message, files: [], deleted: [path] });
       return json({ commit: { sha: `commit-${head}`, parents: [{ sha: `commit-${head - 1}` }] } });
     }
 
@@ -233,16 +236,27 @@ export function fakeGithub() {
     if (!existing) record.status = 201;
 
     record.newSha = put(path, record.content);
+    moves.push({ via: 'contents', message: body.message, files: [path], deleted: [] });
     return json({ content: { sha: record.newSha }, commit: { sha: `commit-${head}`, parents: [{ sha: `commit-${head - 1}` }] } }, record.status);
   });
+
+  const accepted = () => puts.filter((p) => p.status === 200 || p.status === 201);
 
   return {
     fetchMock,
     puts,
+    /** Writes the repository accepted, oldest first, across every file. */
+    accepted,
     /** Many-file commits that moved the data branch (§10.3), oldest first. */
-    gitCommits,
+    get gitCommits() {
+      return movesVia('git', 'graphql');
+    },
     /** Those of them made through GraphQL, oldest first. */
-    graphqlCommits,
+    get graphqlCommits() {
+      return movesVia('graphql');
+    },
+    /** Messages of every commit that wrote or deleted `path`, one file's or many, oldest first. */
+    messagesFor: (path: string) => moves.filter((m) => m.files.includes(path) || m.deleted.includes(path)).map((m) => m.message),
     /** The next GraphQL commit is refused with `status`, or (`'lost'`) made but answered with a 504. */
     failGraphql: (failure: { status: number } | 'lost') => void graphqlFailures.push(failure),
     /** Runs `act` (another writer's commit, say) just before the next GraphQL commit is decided. */
@@ -251,12 +265,14 @@ export function fakeGithub() {
     deletes,
     has: (path: string) => files.has(path),
     /** Writes the repository actually accepted to `path`, oldest first. */
-    commits: (path: string) => puts.filter((p) => p.path === path && (p.status === 200 || p.status === 201)),
+    commits: (path: string) => accepted().filter((p) => p.path === path),
     /** How many writes to `path` have reached the server (held ones included). */
     arrived: (path: string) => arrivals.get(path) ?? 0,
     read: <T>(path: string): T => JSON.parse(files.get(path)!.content) as T,
     /** Files as they were before the client under test looked, or as the other writer commits them. */
     seed: (path: string, value: unknown) => void put(path, value),
+    /** A file whose text is exactly `text`: damaged data that is not JSON, say. */
+    seedText: (path: string, text: string) => void putText(path, text),
     /** The other writer removes a file. */
     remove: (path: string) => {
       files.delete(path);
@@ -293,22 +309,63 @@ export function holdNetwork(fake: Fake, only: (url: string, init?: RequestInit) 
   return release;
 }
 
+/**
+ * For the calling test file: `fetch` stubbed with a fake made and seeded by `seed` at the first request of each test,
+ * so a test may change its dataset before rendering. `fake()` is the current one.
+ */
+export function fakeOnDemand(seed: (fake: Fake) => void) {
+  let current: Fake | undefined;
+  const fake = (): Fake => {
+    if (!current) {
+      current = fakeGithub();
+      seed(current);
+    }
+    return current;
+  };
+  const fetch = (url: string, init?: RequestInit) => fake().fetchMock(url, init);
+  // Stubbed for the whole file: a debounced writer may commit after its test ends.
+  beforeAll(() => vi.stubGlobal('fetch', fetch));
+  afterAll(() => vi.unstubAllGlobals());
+  beforeEach(() => void (current = undefined));
+  const accepted = () => current?.accepted() ?? [];
+  return {
+    fake,
+    fetch,
+    /** Writes the repository accepted this test, oldest first, across every file. */
+    accepted,
+    /** Those writes as each commit's subject line and the file content it wrote. */
+    subjects: <T>() => accepted().map((p) => ({ message: subjectOf(p.message), content: p.content as T })),
+  };
+}
+
+/** The dataset's flags at this schema, rates reviewed or not. */
+const datasetFlags = (ratesReviewed = false) => ({ schemaVersion: SCHEMA_VERSION, processIdentity: defaultBrandPack.processIdentity, ratesReviewed });
+
+/** The six master files, roles and countries the brand pack's baseline unless `files` names them, and each initiative in its file. */
+export function seedFiles(
+  fake: Fake,
+  files: { ratesReviewed?: boolean; roles?: unknown; countries?: unknown; teams?: unknown; people?: unknown; memberships?: unknown; initiatives?: Initiative[] } = {},
+) {
+  const baseline = files.roles && files.countries ? undefined : buildBaselineDataset(defaultBrandPack);
+  fake.seed('dataset.json', datasetFlags(files.ratesReviewed));
+  fake.seed('roles.json', files.roles ?? baseline!.roles);
+  fake.seed('countries.json', files.countries ?? baseline!.countries);
+  fake.seed('teams.json', files.teams ?? []);
+  fake.seed('people.json', files.people ?? []);
+  fake.seed('memberships.json', files.memberships ?? []);
+  for (const initiative of files.initiatives ?? []) fake.seed(`initiatives/${initiative.id}.json`, initiative);
+}
+
 /** The role and country every `person()` refers to. */
 export const FIXTURE_ROLE: Role = { id: 'r1', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true };
 export const FIXTURE_COUNTRY: Country = { id: 'c1', name: 'Germany', code: 'DE', active: true, ratesByYear: [] };
 
 /** A dataset with these teams, people and initiatives, served to `fetch`. */
 export function seedDataset(fake: Fake, seeded: { teams?: Team[]; people?: Person[]; initiatives?: Initiative[]; ratesReviewed?: boolean } = {}) {
-  fake.seed('dataset.json', { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: seeded.ratesReviewed ?? false });
   // Every reference resolves (§3 Damaged data): the role and country `person()` uses, and each initiative's team.
-  fake.seed('roles.json', [FIXTURE_ROLE]);
-  fake.seed('countries.json', [FIXTURE_COUNTRY]);
   const teams = [...(seeded.teams ?? [])];
   for (const { teamId } of seeded.initiatives ?? []) if (!teams.some((t) => t.id === teamId)) teams.push({ id: teamId, name: teamId, active: true });
-  fake.seed('teams.json', teams);
-  fake.seed('people.json', seeded.people ?? []);
-  fake.seed('memberships.json', []);
-  for (const initiative of seeded.initiatives ?? []) fake.seed(`initiatives/${initiative.id}.json`, initiative);
+  seedFiles(fake, { ...seeded, roles: [FIXTURE_ROLE], countries: [FIXTURE_COUNTRY], teams });
   vi.stubGlobal('fetch', fake.fetchMock);
 }
 

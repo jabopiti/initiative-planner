@@ -1,15 +1,13 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, GateRecord, Initiative, Membership, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { InitiativeDetail } from './InitiativeDetail';
-import { rootListing } from '../sync/testing/rootListing';
-import { subjectOf } from '../sync/testing/commitMessage';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const twenty = Array(12).fill(20);
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
@@ -25,11 +23,7 @@ const passed = (gate: (typeof defaultBrandPack.process)[number]['exitGate']): Ga
   checklist: gate.checklistItems.map((i) => ({ ...i, status: 'complete', note: '' })),
 });
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let initiative: Initiative;
-let puts: { message: string; content: Initiative }[] = [];
 
 const initiativeWith = (overrides: Partial<Initiative> = {}): Initiative => ({
   id: 'i1',
@@ -48,35 +42,17 @@ const initiativeWith = (overrides: Partial<Initiative> = {}): Initiative => ({
   ...overrides,
 });
 
+const served = fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries, teams: [{ id: 't1', name: 'Platform', active: true }], people: [ana], memberships: [membership], initiatives: [initiative] }));
+/** Each commit the fake accepted: its subject and the initiative's new content. */
+const puts = () => served.subjects<Initiative>();
+
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') {
-        const body = JSON.parse(String(init.body)) as { message: string; content: string };
-        puts.push({ message: subjectOf(body.message), content: JSON.parse(atob(body.content)) });
-        return json({ content: { sha: 'next' } });
-      }
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
-      if (url.includes('/contents/roles.json')) return file(roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(countries, 'c');
-      if (url.includes('/contents/teams.json')) return file([{ id: 't1', name: 'Platform', active: true }], 't');
-      if (url.includes('/contents/people.json')) return file([ana], 'p');
-      if (url.includes('/contents/memberships.json')) return file([membership], 'm');
-      if (url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(2026, 8, 24, 12));
-  puts = [];
 });
 afterEach(() => vi.useRealTimers());
 
@@ -105,9 +81,9 @@ describe('Cancel (§8.4)', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Cancel initiative' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
-    expect(puts[0].message).toBe('Fraud Detection Upgrade: cancelled');
-    expect(puts[0].content.status).toBe('Cancelled');
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
+    expect(puts()[0].message).toBe('Fraud Detection Upgrade: cancelled');
+    expect(puts()[0].content.status).toBe('Cancelled');
   });
 
   it('lists Resume and Cancel for an On Hold initiative', async () => {
@@ -167,9 +143,9 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     await user.click(await screen.findByRole('button', { name: 'Add note for "Business case approved"' }));
     await user.type(screen.getByLabelText("Note"), 'Risk withdrew sign-off{Enter}');
 
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
-    expect(puts[0].message).toBe('Fraud Detection Upgrade: note on "Business case approved" changed');
-    expect(puts[0].content.checklist?.[validationId]?.['g2-business-case']).toEqual({ status: 'incomplete', note: 'Risk withdrew sign-off' });
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
+    expect(puts()[0].message).toBe('Fraud Detection Upgrade: note on "Business case approved" changed');
+    expect(puts()[0].content.checklist?.[validationId]?.['g2-business-case']).toEqual({ status: 'incomplete', note: 'Risk withdrew sign-off' });
     expect(screen.getByRole('button', { name: 'Edit note for "Business case approved"' })).toBeInTheDocument();
   });
 
@@ -191,12 +167,12 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Add note for "Business case approved"' }));
     await user.click(screen.getByRole('button', { name: 'Reopen Fraud Detection Upgrade' }));
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
     await user.type(screen.getByLabelText("Note"), 'Signed off by Risk{Enter}');
 
-    await vi.waitFor(() => expect(puts).toHaveLength(2), { timeout: 3000 });
-    expect(puts[1].message).toBe('Fraud Detection Upgrade: note on "Business case approved" changed');
-    expect(puts[1].content.checklist?.[validationId]?.['g2-business-case']).toEqual({ status: 'complete', note: 'Signed off by Risk' });
+    await vi.waitFor(() => expect(puts()).toHaveLength(2), { timeout: 3000 });
+    expect(puts()[1].message).toBe('Fraud Detection Upgrade: note on "Business case approved" changed');
+    expect(puts()[1].content.checklist?.[validationId]?.['g2-business-case']).toEqual({ status: 'complete', note: 'Signed off by Risk' });
   });
 
   it('saves a Tentative note opened before the initiative was cancelled as a note alone, not losing it', async () => {
@@ -208,11 +184,11 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     await user.click(within(row).getByRole('radio', { name: 'Tentative' }));
     await user.click(screen.getByRole('button', { name: 'Actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Cancel initiative' }));
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
     await user.type(screen.getByLabelText("Note"), 'Waiting on Risk{Enter}');
 
-    await vi.waitFor(() => expect(puts).toHaveLength(2), { timeout: 3000 });
-    expect(puts[1].content.checklist?.[validationId]?.['g2-business-case']).toEqual({ status: 'incomplete', note: 'Waiting on Risk' });
+    await vi.waitFor(() => expect(puts()).toHaveLength(2), { timeout: 3000 });
+    expect(puts()[1].content.checklist?.[validationId]?.['g2-business-case']).toEqual({ status: 'incomplete', note: 'Waiting on Risk' });
   });
 
   it('records a month’s actual (AC5)', async () => {
@@ -221,8 +197,8 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: /^Record €.* as the actual for Validation Jul 2026$/ }));
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
-    expect(puts[0].message).toMatch(/^Fraud Detection Upgrade: Validation actual for Jul 2026 recorded/);
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
+    expect(puts()[0].message).toMatch(/^Fraud Detection Upgrade: Validation actual for Jul 2026 recorded/);
   });
 
   it('Reopen in the strip makes it Active, also after On Hold, and every field editable again (AC7)', async () => {
@@ -231,9 +207,9 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Reopen Fraud Detection Upgrade' }));
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
-    expect(puts[0].message).toBe('Fraud Detection Upgrade: reopened');
-    expect(puts[0].content.status).toBe('Active');
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
+    expect(puts()[0].message).toBe('Fraud Detection Upgrade: reopened');
+    expect(puts()[0].content.status).toBe('Active');
     expect(screen.getByLabelText('Initiative name')).toBeEnabled();
     expect(screen.queryByText(/Notes and actuals can still be recorded/)).not.toBeInTheDocument();
   });
@@ -245,8 +221,8 @@ describe('A Cancelled initiative (§8.4, §9.9)', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Reopen' }));
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
-    expect(puts[0].content.status).toBe('Active');
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
+    expect(puts()[0].content.status).toBe('Active');
   });
 });
 
@@ -269,8 +245,8 @@ describe('A Closed initiative (§8.4)', () => {
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: 'Reopen G4 of Fraud Detection Upgrade' }));
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
-    expect(puts[0].content.status).toBe('Active');
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
+    expect(puts()[0].content.status).toBe('Active');
     expect(screen.getByLabelText('Initiative name')).toBeEnabled();
   });
 });

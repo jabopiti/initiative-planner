@@ -1,6 +1,6 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, GateRecord, Initiative, Membership, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
@@ -9,9 +9,8 @@ import type { Repository } from '../sync/Repository';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
-import { rootListing } from '../sync/testing/rootListing';
 import { findPhases, phases } from '../test/phases';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const twenty = Array(12).fill(20);
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
@@ -32,12 +31,12 @@ const bothPlanned = {
   [developmentId]: { startDate: '2026-12-01', endDate: '2027-01-31', allocations: [{ id: 'a2', personId: 'ana', allocationPct: 50 }] },
 };
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let initiative: Initiative;
 let members: Membership[];
-let puts: { message: string; content: Initiative }[] = [];
+
+const served = fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries, teams: [{ id: 't1', name: 'Platform', active: true }], people: [ana], memberships: members, initiatives: [initiative] }));
+/** Each commit the fake accepted: its subject and the initiative's new content. */
+const puts = () => served.accepted().map((p) => ({ message: p.message, content: p.content as Initiative }));
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
@@ -45,32 +44,10 @@ beforeAll(() => {
   Element.prototype.releasePointerCapture = () => {};
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') {
-        const body = JSON.parse(String(init.body)) as { message: string; content: string };
-        puts.push({ message: body.message, content: JSON.parse(atob(body.content)) });
-        return json({ content: { sha: 'next' } });
-      }
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
-      if (url.includes('/contents/roles.json')) return file(roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(countries, 'c');
-      if (url.includes('/contents/teams.json')) return file([{ id: 't1', name: 'Platform', active: true }], 't');
-      if (url.includes('/contents/people.json')) return file([ana], 'p');
-      if (url.includes('/contents/memberships.json')) return file(members, 'm');
-      if (url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
   members = [membership('m1', 'ana', 100)];
-  puts = [];
 });
 
 /** The page's repository, for a test to act as another client or a race would. */
@@ -113,7 +90,7 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     const passButton = screen.getByRole('button', { name: /^Pass gate/ });
     await user.click(passButton);
 
-    expect(puts.some((p) => p.message.includes('G2 passed'))).toBe(false);
+    expect(puts().some((p) => p.message.includes('G2 passed'))).toBe(false);
     expect(screen.getByText(`"${g2.checklistItems[1].name}" is not resolved`)).toBeInTheDocument();
   });
 
@@ -133,7 +110,7 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     await screen.findByRole('heading', { name: /Gate \/ Checklist — G2/ });
     await user.click(screen.getByRole('button', { name: /^Pass gate/ }));
 
-    expect(puts.some((p) => p.message.includes('G2 passed'))).toBe(false);
+    expect(puts().some((p) => p.message.includes('G2 passed'))).toBe(false);
     expect(screen.getByText('Development needs a complete period and at least one allocation or cost item')).toBeInTheDocument();
   });
 
@@ -165,8 +142,8 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     const step = screen.getByRole('img', { name: 'Validation, done' });
     expect(step).toHaveClass('motion-safe:animate-step-fill');
     expect(step.querySelector('path')).toHaveClass('motion-safe:animate-draw');
-    await vi.waitFor(() => expect(puts.some((p) => p.message.includes('G2 passed'))).toBe(true), { timeout: 3000 });
-    expect(puts.find((p) => p.message.includes('G2 passed'))!.message).toContain('€16,000');
+    await vi.waitFor(() => expect(puts().some((p) => p.message.includes('G2 passed'))).toBe(true), { timeout: 3000 });
+    expect(puts().find((p) => p.message.includes('G2 passed'))!.message).toContain('€16,000');
 
     // Cost summary now shows the recorded figure as "approved at" (AC4).
     expect(screen.getByText('Approved at G2: €16,000')).toBeInTheDocument();
@@ -216,7 +193,7 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     await user.click(screen.getByRole('button', { name: 'Actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Reopen G2' }));
 
-    await vi.waitFor(() => expect(puts.some((p) => p.message.includes('G2 reopened'))).toBe(true), { timeout: 3000 });
+    await vi.waitFor(() => expect(puts().some((p) => p.message.includes('G2 reopened'))).toBe(true), { timeout: 3000 });
     expect(screen.queryByText(/^Approved at G2:/)).not.toBeInTheDocument();
     expect(await screen.findByRole('textbox', { name: 'Validation start date' })).toHaveValue('01/10/2026'); // editable again
 
@@ -253,8 +230,8 @@ describe('Pass a gate with its checklist (§8.1)', () => {
     expect(screen.queryByRole('menuitem', { name: 'Reopen G2' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('menuitem', { name: 'Reopen G1' }));
 
-    await vi.waitFor(() => expect(puts.some((p) => p.message.includes('G1 reopened'))).toBe(true), { timeout: 3000 });
-    const last = puts[puts.length - 1];
+    await vi.waitFor(() => expect(puts().some((p) => p.message.includes('G1 reopened'))).toBe(true), { timeout: 3000 });
+    const last = puts()[puts().length - 1];
     expect(last.content.status).toBe('On Hold');
     expect(last.content.gates ?? {}).toEqual({});
   });

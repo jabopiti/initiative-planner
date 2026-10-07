@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import { BrandProvider } from '../state/BrandContext';
@@ -8,8 +8,7 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { TeamDetail } from './TeamDetail';
 import { TeamsOverview } from './TeamsOverview';
-import { rootListing } from '../sync/testing/rootListing';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const person = (id: string, name: string, active: boolean) => ({
@@ -27,29 +26,13 @@ const memberships = [
   { id: 'm2', personId: 'p2', teamId: 't1', teamFtePct: 40, active: true },
 ];
 
-const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
-const file = (content: unknown) => json({ content: btoa(JSON.stringify(content)), sha: 's' });
+fakeOnDemand((fake) => seedFiles(fake, { roles: baseline.roles, countries: baseline.countries, teams, people, memberships }));
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags);
-      if (url.includes('/contents/roles.json')) return file(baseline.roles);
-      if (url.includes('/contents/countries.json')) return file(baseline.countries);
-      if (url.includes('/contents/teams.json')) return file(teams);
-      if (url.includes('/contents/people.json')) return file(people);
-      if (url.includes('/contents/memberships.json')) return file(memberships);
-      return new Response('{}', { status: 404 });
-    })),
-  );
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 
 function renderView(view: React.ReactNode) {

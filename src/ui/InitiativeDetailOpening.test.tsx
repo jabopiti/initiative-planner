@@ -124,7 +124,7 @@ describe('The magic bar names its phases and what blocks the gate (§5.4, §9.10
     expect(pass).toHaveAccessibleDescription(/Development needs a complete period/);
     // Still selectable: it jumps to the first open requirement, passing nothing.
     await user.click(pass);
-    expect(puts).toHaveLength(0);
+    expect(puts()).toHaveLength(0);
   });
 
   it('names the first blocker on the overrun line, and reads "1 day" for one day', async () => {
@@ -146,6 +146,6 @@ describe('The header shows a long name in full (§5.4, slice 056)', () => {
     expect(name).toHaveValue(ninetyChars);
     await user.clear(name);
     await user.type(name, 'Onboarding Flow v3{Enter}');
-    await vi.waitFor(() => expect(puts.at(-1)?.content.name).toBe('Onboarding Flow v3'), { timeout: 3000 });
+    await vi.waitFor(() => expect(puts().at(-1)?.content.name).toBe('Onboarding Flow v3'), { timeout: 3000 });
   });
 });

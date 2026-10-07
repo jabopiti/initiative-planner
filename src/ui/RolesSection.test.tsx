@@ -1,15 +1,14 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Initiative, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { rootListing } from '../sync/testing/rootListing';
 import { RolesSection } from './RolesSection';
 import { useSectionLock } from './useSectionLock';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 /** Opens a list row's "⋯" menu and chooses one of its items (§9.10). */
 async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string, item: string) {
@@ -17,35 +16,12 @@ async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string,
   await user.click(await screen.findByRole('menuitem', { name: item }));
 }
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let roles: Role[] = [];
 let people: Person[] = [];
 let initiatives: Initiative[] = [];
 
-beforeAll(() => {
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
-      if (url.includes('/contents/roles.json')) return file(roles, 'r');
-      if (url.includes('/contents/countries.json')) return file([{ id: 'de', name: 'Germany', active: true, ratesByYear: [] }], 'c');
-      if (url.includes('/contents/teams.json')) return file([{ id: 't1', name: 'Platform', active: true }], 't');
-      if (url.includes('/contents/people.json')) return file(people, 'p');
-      if (url.includes('/contents/memberships.json')) return file([], 'm');
-      const hit = initiatives.find((i) => url.includes(`/contents/initiatives/${i.id}.json`));
-      if (hit) return file(hit, `sha-${hit.id}`);
-      if (url.includes('/contents/initiatives')) {
-        return json(initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `sha-${i.id}`, type: 'file' })));
-      }
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
-});
-afterAll(() => vi.unstubAllGlobals());
+fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries: [{ id: 'de', name: 'Germany', active: true, ratesByYear: [] }], teams: [{ id: 't1', name: 'Platform', active: true }], people, initiatives }));
+
 afterEach(cleanup);
 beforeEach(() => {
   roles = [

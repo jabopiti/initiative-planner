@@ -1,18 +1,15 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
-import { buildBaselineDataset } from '../data/baseline';
 import type { Initiative, Team } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { NewInitiativeDraft } from './NewInitiativeDraft';
 import { TeamDetail } from './TeamDetail';
-import { rootListing } from '../sync/testing/rootListing';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
-const baseline = buildBaselineDataset(defaultBrandPack);
 const { process } = defaultBrandPack;
 const passed = (ids: string[]) => Object.fromEntries(ids.map((id) => [id, { outcome: 'passed' as const, passedOn: '2025-12-01', checklist: [] }]));
 
@@ -23,38 +20,16 @@ const checkout: Initiative = { id: 'co', name: 'Checkout Redesign', teamId: 't1'
 const closed: Initiative = { id: 'cl', name: 'Alpha Closed', teamId: 't1', status: 'Closed', gates: passed(process.map((p) => p.id)) };
 const other: Initiative = { id: 'ot', name: 'Other Team Work', teamId: 't3', status: 'Active' };
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let teams: Team[] = [];
 let initiatives: Initiative[] = [];
+
+const served = fakeOnDemand((fake) => seedFiles(fake, { teams, initiatives }));
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
-      if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');
-      if (url.includes('/contents/teams.json')) return file(teams, 't');
-      if (url.includes('/contents/people.json')) return file([], 'p');
-      if (url.includes('/contents/memberships.json')) return file([], 'm');
-      const match = /\/contents\/initiatives\/(.+)\.json$/.exec(new URL(url).pathname);
-      if (match) {
-        const found = initiatives.find((i) => i.id === match[1]);
-        return found ? file(found, `sha-${match[1]}`) : json({ message: 'Not Found' }, 404);
-      }
-      if (url.includes('/contents/initiatives')) return json(initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `sha-${i.id}`, type: 'file' })));
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
   teams = [PLATFORM, RETIRED, { id: 't3', name: 'Growth', active: true }];
@@ -134,7 +109,7 @@ describe('Team page Initiatives list (§5.8)', () => {
     expect(await (await section()).findByText('No initiatives.')).toBeInTheDocument();
     expect((await section()).queryByRole('button')).not.toBeInTheDocument();
     cleanup();
-    initiatives = [{ ...fraud, id: 'rf', teamId: 't2' }];
+    served.fake().seed('initiatives/rf.json', { ...fraud, id: 'rf', teamId: 't2' });
     renderWith(<TeamDetail id="t2" />);
     const list = await section();
     expect(await list.findByRole('link', { name: 'Fraud Detection Upgrade' })).toBeInTheDocument();

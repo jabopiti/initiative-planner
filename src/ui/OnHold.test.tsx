@@ -1,15 +1,13 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import type { Country, GateRecord, Initiative, Membership, Person, Role } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { InitiativeDetail } from './InitiativeDetail';
-import { rootListing } from '../sync/testing/rootListing';
-import { subjectOf } from '../sync/testing/commitMessage';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const twenty = Array(12).fill(20);
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
@@ -21,11 +19,7 @@ const [discoveryId, validationId] = defaultBrandPack.process.map((p) => p.id);
 const [g1, g2] = defaultBrandPack.process.map((p) => p.exitGate);
 const discoveryPassed: GateRecord = { outcome: 'passed', passedOn: '2026-01-01', checklist: g1.checklistItems.map((i) => ({ ...i, status: 'complete', note: '' })) };
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let initiative: Initiative;
-let puts: { message: string; content: Initiative }[] = [];
 
 const initiativeWith = (overrides: Partial<Initiative> = {}): Initiative => ({
   id: 'i1',
@@ -37,41 +31,17 @@ const initiativeWith = (overrides: Partial<Initiative> = {}): Initiative => ({
   ...overrides,
 });
 
+const served = fakeOnDemand((fake) => seedFiles(fake, { ratesReviewed: true, roles, countries, teams: [{ id: 't1', name: 'Platform', active: true }], people: [ana], memberships: [membership], initiatives: [initiative, { ...initiative, id: 'i2', name: 'Fraud Detection Upgrade' }] }));
+/** Each commit the fake accepted: its subject and the initiative's new content. */
+const puts = () => served.subjects<Initiative>();
+
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') {
-        const body = JSON.parse(String(init.body)) as { message: string; content: string };
-        puts.push({ message: subjectOf(body.message), content: JSON.parse(atob(body.content)) });
-        return json({ content: { sha: 'next' } });
-      }
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
-      if (url.includes('/contents/roles.json')) return file(roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(countries, 'c');
-      if (url.includes('/contents/teams.json')) return file([{ id: 't1', name: 'Platform', active: true }], 't');
-      if (url.includes('/contents/people.json')) return file([ana], 'p');
-      if (url.includes('/contents/memberships.json')) return file([membership], 'm');
-      if (url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives/i2.json')) return file({ ...initiative, id: 'i2', name: 'Fraud Detection Upgrade' }, 'i2');
-      if (url.includes('/contents/initiatives')) {
-        return json([
-          { name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' },
-          { name: 'i2.json', path: 'initiatives/i2.json', sha: 'sha-i2', type: 'file' },
-        ]);
-      }
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
 });
-afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(2026, 8, 24, 12));
-  puts = [];
 });
 afterEach(() => vi.useRealTimers());
 
@@ -102,7 +72,7 @@ describe('Actions menu (§5.4)', () => {
 
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Actions' })).toHaveFocus());
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
   });
 
   it('lists Put on hold for an Active initiative, and puts it on hold in one click with its own commit (AC1, AC2)', async () => {
@@ -115,9 +85,9 @@ describe('Actions menu (§5.4)', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Put on hold' }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(); // no confirmation
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
-    expect(puts[0].message).toBe('Checkout Redesign: put on hold');
-    expect(puts[0].content.status).toBe('On Hold');
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
+    expect(puts()[0].message).toBe('Checkout Redesign: put on hold');
+    expect(puts()[0].content.status).toBe('On Hold');
   });
 
   it('lists Resume, not Put on hold, for an On Hold initiative, whose chip carries the status text (AC3)', async () => {
@@ -138,9 +108,9 @@ describe('Actions menu (§5.4)', () => {
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
     await user.click(screen.getByRole('menuitem', { name: 'Resume' }));
 
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
-    expect(puts[0].message).toBe('Checkout Redesign: resumed');
-    expect(puts[0].content.status).toBe('Active');
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
+    expect(puts()[0].message).toBe('Checkout Redesign: resumed');
+    expect(puts()[0].content.status).toBe('Active');
     expect(within(bar()).queryByText('On hold')).not.toBeInTheDocument();
   });
 
@@ -195,7 +165,7 @@ describe('Magic bar while On Hold (§5.4, §8.4)', () => {
     expect(within(bar()).getByText(`Checkout Redesign is on hold. Resume it to pass ${g2.label}.`)).toBeInTheDocument();
     expect(within(bar()).getByRole('button', { name: 'Resume' })).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 1300));
-    expect(puts).toHaveLength(0);
+    expect(puts()).toHaveLength(0);
   });
 
   it('Resume in the bar makes the initiative Active again, focus on Pass gate (AC6)', async () => {
@@ -206,8 +176,8 @@ describe('Magic bar while On Hold (§5.4, §8.4)', () => {
     await screen.findByLabelText('Initiative name');
     await user.click(within(bar()).getByRole('button', { name: 'Resume' }));
 
-    await vi.waitFor(() => expect(puts).toHaveLength(1), { timeout: 3000 });
-    expect(puts[0].message).toBe('Checkout Redesign: resumed');
+    await vi.waitFor(() => expect(puts()).toHaveLength(1), { timeout: 3000 });
+    expect(puts()[0].message).toBe('Checkout Redesign: resumed');
     expect(within(bar()).queryByText('On hold')).not.toBeInTheDocument();
     expect(within(bar()).getByRole('button', { name: /^Pass gate/ })).toHaveFocus();
   });
