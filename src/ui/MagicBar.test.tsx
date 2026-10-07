@@ -57,8 +57,8 @@ describe('Extend an overrun phase by one month (§5.11)', () => {
     const extend = await screen.findByRole('button', { name: 'Extend Validation by one month' });
     await user.click(extend);
 
-    await vi.waitFor(() => expect(puts.some((p) => p.message.includes('Validation extended to'))).toBe(true), { timeout: 3000 });
-    const put = puts.find((p) => p.message.includes('Validation extended to'))!;
+    await vi.waitFor(() => expect(puts().some((p) => p.message.includes('Validation extended to'))).toBe(true), { timeout: 3000 });
+    const put = puts().find((p) => p.message.includes('Validation extended to'))!;
     expect(put.message).toBe('Checkout Redesign: Validation extended to 30 Sep 2020');
     expect(put.content.phases![validationId].endDate).toBe('2020-09-30'); // 31 Aug (last day) -> 30 Sept (next month's last day)
     expect(put.content.phases![developmentId]).toEqual(initiative.phases![developmentId]); // later phase untouched (AC4)
@@ -81,7 +81,7 @@ describe('Extend an overrun phase by one month (§5.11)', () => {
     expect(await screen.findByText(/Validation is \d+ days overrun/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Extend Validation by one month' })).toBeInTheDocument();
     // Its commit lands before the test ends, so it can't show up in a later test's writes.
-    await vi.waitFor(() => expect(puts.map((p) => p.message)).toContain('Checkout Redesign: Validation extended to 29 Feb 2020'), { timeout: 3000 });
+    await vi.waitFor(() => expect(puts().map((p) => p.message)).toContain('Checkout Redesign: Validation extended to 29 Feb 2020'), { timeout: 3000 });
   });
 });
 
@@ -117,7 +117,7 @@ describe('Skip a skippable gate with a reason (§8.2)', () => {
     await user.click(await screen.findByRole('button', { name: 'Skip G2' }));
     expect(screen.getByText('Onboarding Flow v2 is on hold. Resume it to skip G2.')).toBeInTheDocument();
     expect(screen.queryByLabelText('Reason for skipping G2')).not.toBeInTheDocument();
-    expect(puts).toEqual([]);
+    expect(puts()).toEqual([]);
   });
 
   it('opens a focused reason field with Skip G2 disabled until a non-blank reason, and Esc or Cancel saves nothing', async () => {
@@ -144,7 +144,7 @@ describe('Skip a skippable gate with a reason (§8.2)', () => {
     await user.type(screen.getByLabelText('Reason for skipping G2'), 'Not needed');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.getByRole('button', { name: /^Pass gate/ })).toBeInTheDocument();
-    expect(puts).toEqual([]);
+    expect(puts()).toEqual([]);
   });
 
   it('skips with the trimmed reason in one commit, despite open items, then offers Reopen, which removes the record', async () => {
@@ -155,16 +155,16 @@ describe('Skip a skippable gate with a reason (§8.2)', () => {
     await user.type(screen.getByLabelText('Reason for skipping G2'), '  Problem validated in the Q2 pilot.  {Enter}');
 
     expect(screen.getByText('Skipped G2')).toBeInTheDocument();
-    await vi.waitFor(() => expect(puts.some((p) => p.message === 'Onboarding Flow v2: G2 skipped')).toBe(true), { timeout: 3000 });
-    const record = puts.find((p) => p.message === 'Onboarding Flow v2: G2 skipped')!.content.gates![validationId];
+    await vi.waitFor(() => expect(puts().some((p) => p.message === 'Onboarding Flow v2: G2 skipped')).toBe(true), { timeout: 3000 });
+    const record = puts().find((p) => p.message === 'Onboarding Flow v2: G2 skipped')!.content.gates![validationId];
     expect(record).toMatchObject({ outcome: 'skipped', skipReason: 'Problem validated in the Q2 pilot.' });
     expect(record.passedOn).toBeUndefined();
     expect(record.frozenSnapshot).toBeUndefined();
     expect(record.recordedGrandEstimate).toBeUndefined();
 
     await user.click(screen.getByRole('button', { name: 'Reopen' }));
-    await vi.waitFor(() => expect(puts.some((p) => p.message === 'Onboarding Flow v2: G2 reopened')).toBe(true), { timeout: 3000 });
-    expect(puts.find((p) => p.message === 'Onboarding Flow v2: G2 reopened')!.content.gates![validationId]).toBeUndefined();
+    await vi.waitFor(() => expect(puts().some((p) => p.message === 'Onboarding Flow v2: G2 reopened')).toBe(true), { timeout: 3000 });
+    expect(puts().find((p) => p.message === 'Onboarding Flow v2: G2 reopened')!.content.gates![validationId]).toBeUndefined();
   });
 });
 
@@ -245,8 +245,8 @@ describe('Choose a starting phase for an untouched initiative (§8.2)', () => {
 
     const change = await screen.findByRole('button', { name: 'Change starting phase' });
     expect(change).toHaveFocus();
-    await vi.waitFor(() => expect(puts.map((p) => p.message)).toEqual(['Checkout Redesign: starts at Development']));
-    expect(puts[0].content.gates?.[validationId]).toMatchObject({ outcome: 'skipped', skipReason: REASON, startingPhase: true });
+    await vi.waitFor(() => expect(puts().map((p) => p.message)).toEqual(['Checkout Redesign: starts at Development']));
+    expect(puts()[0].content.gates?.[validationId]).toMatchObject({ outcome: 'skipped', skipReason: REASON, startingPhase: true });
     expect(screen.queryByText('Skipped G2')).not.toBeInTheDocument();
   });
 
@@ -261,7 +261,7 @@ describe('Choose a starting phase for an untouched initiative (§8.2)', () => {
     expect(screen.queryByLabelText(/^Reason/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start at Discovery' })).toBeEnabled();
     // The start's save settles here, not in the next test's capture.
-    await vi.waitFor(() => expect(puts.map((p) => p.message)).toEqual(['Checkout Redesign: starts at Rollout']), { timeout: 3000 });
+    await vi.waitFor(() => expect(puts().map((p) => p.message)).toEqual(['Checkout Redesign: starts at Rollout']), { timeout: 3000 });
   });
 
   it('cancels with Esc, nothing saved, focus back on the action (AC4)', async () => {
@@ -270,7 +270,7 @@ describe('Choose a starting phase for an untouched initiative (§8.2)', () => {
     await user.type(screen.getByLabelText('Reason for skipping G1'), 'Half done{Escape}');
     expect(screen.getByRole('button', { name: 'Start at a later phase' })).toHaveFocus();
     expect(screen.queryByRole('combobox', { name: 'Start at' })).not.toBeInTheDocument();
-    expect(puts).toEqual([]);
+    expect(puts()).toEqual([]);
   });
 
   it('is not offered once touched, nor on hold (AC3, AC11)', async () => {

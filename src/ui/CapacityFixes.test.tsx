@@ -7,7 +7,7 @@ import { TeamDetail } from './TeamDetail';
 installCapacityFixture();
 
 /** The commit messages written so far, first line only (the rest are trailers). */
-const messages = () => puts.map((p) => p.message.split('\n')[0]);
+const messages = () => puts().map((p) => p.message.split('\n')[0]);
 
 /** An allocation row, and the full-width row of its warnings and fixes under it when it has one (§5.4). */
 function allocationRow(table: ReturnType<typeof within>, name: string) {

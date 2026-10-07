@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { cell, fillShare, fixture, grid, member, person, renderView, setupUser, tinted, installCapacityFixture, written } from './capacityTestKit';
+import { cell, fillShare, fixture, github, grid, member, person, renderView, setupUser, tinted, installCapacityFixture, written } from './capacityTestKit';
 import { TeamDetail } from './TeamDetail';
 
 installCapacityFixture();
@@ -229,8 +229,8 @@ describe('the capacity grid on the team detail (§5.8)', () => {
     expect(await screen.findByText('No members yet. Add members to see their capacity.')).toBeInTheDocument();
     first.unmount();
 
-    fixture.people = [person('ana', 'Ana Ruiz')];
-    fixture.memberships = [member('ana', 't1', 60)];
+    github().seed('people.json', [person('ana', 'Ana Ruiz')]);
+    github().seed('memberships.json', [member('ana', 't1', 60)]);
     renderView(<TeamDetail id="t1" />);
     expect(await screen.findByText("Nothing allocated yet. Allocate members to an initiative's phase and their months appear here.")).toBeInTheDocument();
   });

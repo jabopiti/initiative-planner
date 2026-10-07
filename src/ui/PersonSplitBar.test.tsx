@@ -22,8 +22,8 @@ describe('person panel split bar (§5.6, slice 062)', () => {
     expect(within(await panel()).getByRole('button', { name: 'Payments 60%' })).toBeInTheDocument();
     divider.focus();
     await user.keyboard('{ArrowRight}{ArrowRight}{Enter}');
-    await waitFor(() => expect(puts.at(-1)?.message).toMatch(/^Ana Ruiz: Team FTE % on Payments set to 70%, Team FTE % on Platform set to 30%/));
-    expect(puts.filter((p) => p.message.includes('Team FTE %'))).toHaveLength(1);
+    await waitFor(() => expect(puts().at(-1)?.message).toMatch(/^Ana Ruiz: Team FTE % on Payments set to 70%, Team FTE % on Platform set to 30%/));
+    expect(puts().filter((p) => p.message.includes('Team FTE %'))).toHaveLength(1);
     expect(within(await panel()).getByRole('button', { name: 'Platform 30%' })).toBeInTheDocument();
   });
 

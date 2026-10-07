@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import { defaultBrandPack } from '../../brand/defaultBrand';
+import { buildBaselineDataset } from '../../data/baseline';
 import type { Country, Initiative, Person, Role, Team } from '../../data/types';
 import { decodeBase64Utf8, encodeBase64Utf8 } from '../../github/base64';
 import { gitBlobSha, TRUNCATED } from '../../github/client';
@@ -291,6 +292,44 @@ export function holdNetwork(fake: Fake, only: (url: string, init?: RequestInit) 
   const gate = new Promise<void>((resolve) => (release = resolve));
   vi.stubGlobal('fetch', (url: string, init?: RequestInit) => (only(url, init) ? gate.then(() => fake.fetchMock(url, init)) : fake.fetchMock(url, init)));
   return release;
+}
+
+/**
+ * A fake made and seeded by `seed` at the first request after each `reset()`, for test files whose tests change their
+ * dataset before rendering. Stub `fetch` once with `fetch`; `fake()` is the current one.
+ */
+export function fakeOnDemand(seed: (fake: Fake) => void) {
+  let current: Fake | undefined;
+  const fake = (): Fake => {
+    if (!current) {
+      current = fakeGithub();
+      seed(current);
+    }
+    return current;
+  };
+  return {
+    fake,
+    fetch: (url: string, init?: RequestInit) => fake().fetchMock(url, init),
+    /** The next request starts from a new fake. */
+    reset: () => void (current = undefined),
+    /** Writes the repository accepted, oldest first, across every file. */
+    accepted: () => fake().puts.filter((p) => p.status === 200 || p.status === 201),
+  };
+}
+
+/** The six master files, each the brand pack's baseline unless `files` names it, and each initiative in its file. */
+export function seedFiles(
+  fake: Fake,
+  files: { dataset?: unknown; roles?: unknown; countries?: unknown; teams?: unknown; people?: unknown; memberships?: unknown; initiatives?: Initiative[] } = {},
+) {
+  const baseline = buildBaselineDataset(defaultBrandPack);
+  fake.seed('dataset.json', files.dataset ?? baseline.datasetFlags);
+  fake.seed('roles.json', files.roles ?? baseline.roles);
+  fake.seed('countries.json', files.countries ?? baseline.countries);
+  fake.seed('teams.json', files.teams ?? []);
+  fake.seed('people.json', files.people ?? []);
+  fake.seed('memberships.json', files.memberships ?? []);
+  for (const initiative of files.initiatives ?? []) fake.seed(`initiatives/${initiative.id}.json`, initiative);
 }
 
 /** The role and country every `person()` refers to. */
