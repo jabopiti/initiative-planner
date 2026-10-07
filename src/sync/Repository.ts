@@ -223,6 +223,8 @@ export class Repository {
   constructor(
     private readonly brand: BrandPack,
     private token: string,
+    /** Today, for everything dated by when it happens; each call that takes a date can still be given one. */
+    private readonly clock: () => Date = () => new Date(),
   ) {
     this.writeBudget = new WriteBudget(brand.github.apiBaseUrl);
     this.github = new GithubClient(brand.github, () => this.token, (headers) => this.rateLimits.note(headers), {
@@ -603,7 +605,7 @@ export class Repository {
    * that a country or a custom role has no entry for gets one (a system write, §3). Idempotent — nothing missing
    * is no write — and two clients doing it at once write the same values, which merge without a conflict.
    */
-  keepTrackedYears(today: () => Date = () => new Date()): () => void {
+  keepTrackedYears(today: () => Date = this.clock): () => void {
     this.rolloverToday = today;
     if (this.state.status === 'ready') this.rollForward();
     return () => {
@@ -998,7 +1000,7 @@ export class Repository {
     return this.refData.updateRole(id, patch);
   }
 
-  createCountry(input: { name: string; code: string; dayRate: number }, today: Date = new Date()): Country {
+  createCountry(input: { name: string; code: string; dayRate: number }, today: Date = this.clock()): Country {
     return this.refData.createCountry(input, today);
   }
 
@@ -1161,7 +1163,7 @@ export class Repository {
    * file is its writer's first save, so edits never go to a missing writer. `id` is the draft's, kept
    * across retries so a failed creation is the same file when it is tried again.
    */
-  async createInitiative(name: string, teamId: string, today: string = localToday(), id: string = newId()): Promise<Initiative> {
+  async createInitiative(name: string, teamId: string, today: string = localToday(this.clock()), id: string = newId()): Promise<Initiative> {
     const phases = buildDefaultPlan(this.brand.process, today);
     const hasPlan = Object.keys(phases).length > 0;
     const initiative: Initiative = { id, name, teamId, status: 'Active', ...(hasPlan && { phases, defaultPlan: true }) };
@@ -1173,7 +1175,7 @@ export class Repository {
    * commit "<copy>: created from <name>". Returns the copy with the people left out of its allocations, or null when
    * the initiative is not there. Throws like a failed creation when the file could not be saved.
    */
-  async duplicateInitiative(id: string, today: string = localToday()): Promise<DuplicateResult | null> {
+  async duplicateInitiative(id: string, today: string = localToday(this.clock())): Promise<DuplicateResult | null> {
     const source = this.state.initiatives.find((i) => i.id === id);
     if (!source) return null;
     // The source's own edits are committed first (§10.3), so its file and the copy agree.
@@ -1307,7 +1309,7 @@ export class Repository {
    * exited phase is frozen if costed, the gate record is written, and the initiative moves on (or Closes, on
    * the final gate).
    */
-  passGate(initiativeId: string, takenAt: string = localToday()): { ok: true } | { ok: false; blockers: string[] } {
+  passGate(initiativeId: string, takenAt: string = localToday(this.clock())): { ok: true } | { ok: false; blockers: string[] } {
     const initiative = this.editableInitiative(initiativeId);
     if (!initiative) return { ok: false, blockers: ['This initiative could not be found.'] };
     const result = evaluatePassGate(this.brand.process, initiative, this.state.people, this.state, this.brand.approvalTracks, takenAt);
@@ -1333,7 +1335,7 @@ export class Repository {
    * starting-phase skip on every gate behind it, the default plan re-chained from `today`, in one commit
    * "<name>: starts at <phase>".
    */
-  startAtPhase(initiativeId: string, phaseId: string, reason: string, today: string = localToday()): { ok: true } | { ok: false; reason: string } {
+  startAtPhase(initiativeId: string, phaseId: string, reason: string, today: string = localToday(this.clock())): { ok: true } | { ok: false; reason: string } {
     const initiative = this.editableInitiative(initiativeId);
     if (!initiative) return { ok: false, reason: 'This initiative could not be found.' };
     const result = evaluateStartAtPhase(this.brand.process, initiative, phaseId, reason, today);
@@ -1555,7 +1557,7 @@ export class Repository {
    * loaded" (§10.3), after every edit waiting to be saved has been. It never overwrites: it stops when the data
    * branch, read at the head the commit builds on, has any person, team, membership or initiative.
    */
-  async loadExampleData(today: Date = new Date()): Promise<LoadExampleResult> {
+  async loadExampleData(today: Date = this.clock()): Promise<LoadExampleResult> {
     if (this.datasetRefusal) return { failed: this.datasetRefusal };
     await this.flushPending();
     const result = await this.commitDataset('Example data loaded', 'Something went wrong loading the example data.', async (at) => {
