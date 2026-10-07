@@ -103,6 +103,7 @@ storage, so the app turns off "Remember me" there. See
 | [`AGENTS.md`](./AGENTS.md) | Instructions for AI coding agents working in this repo |
 | [`backlog/slices-overview.md`](./backlog/slices-overview.md) | The open backlog; delivered slices are archived in `backlog/done/` |
 | [`backlog/example-data.md`](./backlog/example-data.md) | Seed data (process, roles, countries, branding) used across slices |
+| [`docs/history/`](./docs/history) | Build-time findings: the prototype engine audit, the GitHub spikes and the prototype code they audited |
 
 ## License
 

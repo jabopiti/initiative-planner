@@ -14,7 +14,7 @@ export interface FakeBranch {
 /**
  * GraphQL `createCommitOnBranch` (§10.3) for the unit and e2e fakes: one commit of several files, refused unless the
  * branch is at the expected head and every file to delete exists. A refusal is a 200 with errors, as GitHub sends it
- * (spike-findings.md). Returns the response body.
+ * (docs/history/spike-findings.md). Returns the response body.
  */
 export async function answerCreateCommit(requestBody: string, branch: FakeBranch): Promise<unknown> {
   const { input } = (JSON.parse(requestBody) as { variables: { input: CreateCommitOnBranchInput } }).variables;

@@ -9,7 +9,7 @@ import type { WriteBudget } from './writeBudget';
  * explicitly-named argument on every call — never a default parameter and
  * never optional — because GitHub silently defaults an omitted `branch` to
  * the repository's default branch (the app branch) instead of erroring
- * (§10.3; spike-findings.md's incident). The runtime guard below is
+ * (§10.3; docs/history/spike-findings.md's incident). The runtime guard below is
  * defence in depth beneath TypeScript's own "missing required property"
  * check; github/client.test.ts exercises both.
  */
@@ -437,7 +437,7 @@ export class GithubClient {
    * One GraphQL `createCommitOnBranch` on `branch`, refused unless the branch is at `expectedHeadOid` (§10.3). It is one
    * content-creating request whatever its size. 'moved' when the branch moved or a file to delete is already gone:
    * the caller reads again and decides. GitHub can answer a commit it made with a 5xx or not at all
-   * (spike-findings.md): then the head is read, and a head that is our commit on our parent counts as made.
+   * (docs/history/spike-findings.md): then the head is read, and a head that is our commit on our parent counts as made.
    */
   async commitOnBranch(args: { branch: string; expectedHeadOid: string; message: string } & FileChanges): Promise<{ commitSha: string } | 'moved'> {
     assertBranch(args.branch);
@@ -468,7 +468,7 @@ export class GithubClient {
     }
     await assertOk(response, 'Commit');
     const body = (await response.json()) as { data?: { createCommitOnBranch?: { commit?: { oid: string } } | null }; errors?: { type?: string; message?: string }[] };
-    // A refusal is a 200 with errors, told apart by type (spike-findings.md).
+    // A refusal is a 200 with errors, told apart by type (docs/history/spike-findings.md).
     const errors = body.errors ?? [];
     if (errors.some((e) => e.type === 'STALE_DATA' || e.type === 'NOT_FOUND')) return 'moved';
     const oid = body.data?.createCommitOnBranch?.commit?.oid;

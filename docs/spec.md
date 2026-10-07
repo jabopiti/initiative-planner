@@ -2170,7 +2170,7 @@ three times with a short backoff, then shows the conflict flow (§3).
 A single-file edit always goes through the Contents API. A commit that
 changes several files goes through GraphQL `createCommitOnBranch`, as one
 request, with `branchName` set to the data branch and `expectedHeadOid` set
-to the head it builds on (spike-findings.md, Slice 064). This covers Reset,
+to the head it builds on (docs/history/spike-findings.md, Slice 064). This covers Reset,
 Load example data, a migration (§3), the bootstrap onto an existing branch,
 and each user action that writes several files: a new person with the
 membership added with them, a rate edit that also marks rates reviewed,
@@ -2203,7 +2203,7 @@ branch explicitly. GitHub's Contents API silently defaults an omitted `branch`
 parameter to the repository's default branch (the app branch), not to
 whatever branch was last used, so a single missing parameter would write
 dataset changes onto the app branch instead of the data branch with no error
-(confirmed against the real API; spike-findings.md). No code path may omit it.
+(confirmed against the real API; docs/history/spike-findings.md). No code path may omit it.
 
 Commit messages are written by the app in plain words, for example "Payments
 API: Development period set to Apr–Sep", with one trailer line per touched

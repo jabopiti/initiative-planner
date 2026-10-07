@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 /**
- * Regression coverage for slice 002's incident (spike-findings.md): a
+ * Regression coverage for slice 002's incident (docs/history/spike-findings.md): a
  * Contents API call that omits `branch` silently lands on the repository's
  * default branch instead of erroring. Slice 003's own scope note requires
  * this be covered by a test, not just review.
@@ -77,7 +77,7 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
     expect(calledUrl).not.toContain(`ref=${location.appBranch}`);
   });
 
-  it('sends `branch` in the PUT body on every write — this is the exact incident from spike-findings.md', async () => {
+  it('sends `branch` in the PUT body on every write — this is the exact incident from docs/history/spike-findings.md', async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ content: { sha: 'sha-2' } }), { status: 200 }),
     );
