@@ -30,7 +30,7 @@ import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
 import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, GithubApiError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { FILES_PER_QUERY, GithubClient, TRUNCATED, type BranchHead, type CommitLink, type CommitOnHeadArgs, type CommitResult, type GetFileResult } from '../github/client';
+import { GithubClient, type CommitOnHeadArgs, type CommitResult } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { WriteBudget } from '../github/writeBudget';
 import { unclaimedCapacityPct } from '../data/capacity';
@@ -40,24 +40,10 @@ import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChang
 import { distinctEntities, FileWriter, renderMessage, type JointPart, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { MASTER_FILES, parseDataFile, validateDataset, validateRecords } from './validateDataset';
+import { PullSource, pulledFile, type Pulled, type WrittenFile } from './PullSource';
 import { RateLimitTracker } from './RateLimitTracker';
 import { WriteQueue } from './WriteQueue';
 import { allocationWords, costItemWords, countryWords, membershipWords, personWords, roleWords, teamWords } from './commitWords';
-
-/** A file a commit of this client's wrote, with its version. */
-type WrittenFile = CommitResult['written'][number];
-
-/**
- * A commit of this client's own (§10.2), recorded by the commit it sits on. `written` holds what a many-file commit
- * (§5.9's Reset or Load) wrote, with the versions computed locally (§10.3), for a pull to apply as it is; `saved` names
- * the files a single save or a joint commit wrote, already on screen; `deleted` the files it removed.
- */
-interface OwnCommit {
-  sha: string;
-  written: WrittenFile[];
-  saved: string[];
-  deleted: string[];
-}
 
 export type { ReadOnlyState } from '../github/errors';
 
@@ -132,18 +118,6 @@ export const PULL_INTERVAL_MS = 5 * 60 * 1000;
 export const FOCUS_PULL_MIN_GAP_MS = 15 * 1000;
 /** After a failed pull, or one that had to leave a file alone, the next attempt comes this soon. */
 export const PULL_RETRY_MS = 30 * 1000;
-/** How many reads a pull runs at once, each up to {@link FILES_PER_QUERY} files (§10.2). */
-const PULL_READS_AT_ONCE = 8;
-
-/** A file a pull read: its text, which the cache keeps, and what it says, parsed once. A file that is not JSON fails the read. */
-interface PulledFile {
-  raw: string;
-  sha: string;
-  value: unknown;
-  /** Written by this client's own commit: nothing it changes is "updated by others" (§9.9). */
-  own: boolean;
-}
-
 /** The commit message deleting an initiative (§10.3). */
 const deletedMessage = (initiative: Initiative): CommitMessage => ({
   subject: `${initiative.name}: deleted`,
@@ -168,22 +142,6 @@ export type LoadExampleResult = 'loaded' | 'not-empty' | { failed: ReadOnlyState
 /** How Reset ended (§5.9): reset, or failed with the cause. */
 export type ResetResult = 'reset' | { failed: ReadOnlyState };
 
-const pulledFile = (path: string, { content, sha }: { content: string; sha: string }, own = false): PulledFile => ({
-  raw: content,
-  sha,
-  value: parseDataFile(path, content),
-  own,
-});
-
-/** Everything one pull found: the files it read, and the versions on screen it compared them with. */
-interface Pulled {
-  head: BranchHead | null;
-  files: Map<string, PulledFile>;
-  /** Which paths the repository lists, with their versions: an initiative not in it has been removed. */
-  listing: Map<string, string>;
-  /** The version each path had on screen when the pull compared, so a save that lands meanwhile is not undone. */
-  compared: Map<string, string>;
-}
 
 
 /** New people (§5.5) take these; country and role default to the last values used. */
@@ -287,12 +245,7 @@ export class Repository {
   /** Why the last delete failed (§9.9): shown in the read-only banner until a pull succeeds. */
   private deleteFailure: ReadOnlyState | null = null;
   private tintTimer: ReturnType<typeof setTimeout> | null = null;
-  /** This client's own commits, by the commit each sits on (§10.2): a pull whose head they lead to from the last
-   * complete pull's reads nothing, and one that reads anyway takes what they wrote rather than downloading it again
-   * (§10.3). Kept for this page's lifetime only, and only those that lead on from the last complete pull. */
-  private readonly ownCommits = new Map<string, OwnCommit>();
-  private readonly recordSave = (paths: string[], { sha, parent }: CommitLink): void =>
-    void this.ownCommits.set(parent, { sha, written: [], saved: paths, deleted: [] });
+  private readonly source: PullSource;
 
   constructor(
     private readonly brand: BrandPack,
@@ -303,6 +256,7 @@ export class Repository {
       budget: this.writeBudget,
       onPause: () => this.rearmRetry(),
     });
+    this.source = new PullSource(this.github, brand.github.dataBranch);
     this.cache = new FileCache(cacheScope(brand.github));
   }
 
@@ -464,135 +418,15 @@ export class Repository {
   }
 
   /** What changed in the repository since what is on screen: null when nothing did, else the files that did. */
-  private async fetchPull(): Promise<Pulled | null> {
-    const branch = this.brand.github.dataBranch;
-    // While the dataset is refused, the head on screen is no proof the repository is fine: the owner may restore it by
-    // moving the branch back to exactly that commit, so the pull reads and validates it again rather than stop here.
-    const unchangedEndsPull = this.state.status === 'ready' && this.datasetRefusal === null;
-    const head = await this.github.getBranchHead({ branch, etag: unchangedEndsPull ? (this.meta?.etag ?? null) : null });
-    if (head === 'not-modified') return null;
-    if (head && this.meta && unchangedEndsPull && head.sha === this.meta.head) return null;
-    // Moved only through this client's own commits: nothing is listed or read (§10.2). What single saves wrote is on
-    // screen and in the cache already, so only the head is recorded; what a many-file commit wrote is applied as it is.
-    const own = head && this.meta && unchangedEndsPull ? this.ownCommitsTo(this.meta.head, head.sha) : null;
-    if (head && own) {
-      if (own.some((commit) => commit.written.length > 0 || commit.deleted.length > 0)) return { head, ...this.ownPull(own) };
-      this.remember({ head, files: new Map() }, true);
-      return null;
-    }
-
-    // Listing and files are read at the head just checked, so they are one commit's snapshot: validation across
-    // files (§3 Damaged data) never sees half of another user's change, such as a membership without its person.
-    let at = head?.sha ?? branch;
-    // Files this client's own commits wrote: not read again at the version the listing gives.
-    const written = new Map([...this.ownCommits.values()].flatMap((commit) => commit.written.map((file): [string, WrittenFile] => [file.path, file])));
-    let listing = await this.listDataset(at);
-    if (!listing.has(FILE_PATHS.datasetFlags)) {
-      // No dataset anywhere: the first write-capable client creates it (§3). Never over a dataset that has any file
-      // left, nor one already on screen: that dataset is damaged, and the owner restores it (§3 Damaged data).
-      if (listing.size > 0 || this.state.status === 'ready') throw new DamagedDataError(FILE_PATHS.datasetFlags, 'is missing');
-      for (const file of await this.bootstrapBaseline(branch)) written.set(file.path, file);
-      at = branch;
-      listing = await this.listDataset(at);
-      if (!listing.has(FILE_PATHS.datasetFlags)) throw new DamagedDataError(FILE_PATHS.datasetFlags, 'is missing');
-    }
-
-    const compared = this.knownShas();
-    const changed = [...listing].filter(([path, sha]) => compared.get(path) !== sha).map(([path]) => path);
-    const files = new Map<string, PulledFile>();
-    const keep = (path: string, file: GetFileResult | null) => file && files.set(path, pulledFile(path, file));
-    const toRead: string[] = [];
-    for (const path of changed) {
-      const own = written.get(path);
-      if (own && own.sha === listing.get(path)) files.set(path, pulledFile(path, own, true));
-      else toRead.push(path);
-    }
-    // About a hundred files per GraphQL query; those too large for it are read on their own afterwards (§10.2).
-    const batches = Array.from({ length: Math.ceil(toRead.length / FILES_PER_QUERY) }, (_, i) => toRead.slice(i * FILES_PER_QUERY, (i + 1) * FILES_PER_QUERY));
-    const tooLarge: string[] = [];
-    const worker = async () => {
-      for (let batch = batches.shift(); batch !== undefined; batch = batches.shift()) {
-        for (const [path, file] of await this.github.readFiles({ ref: at, paths: batch })) {
-          if (file === TRUNCATED) tooLarge.push(path);
-          else keep(path, file);
-        }
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(PULL_READS_AT_ONCE, batches.length) }, worker));
-    await Promise.all(tooLarge.map(async (path) => keep(path, await this.github.getFile({ path, branch: at }))));
-    return { head: head ?? null, files, listing, compared };
-  }
-
-  /** This client's own commits from commit `from` on, in order, as far as they go. */
-  private ownCommitsFrom(from: string): [string, OwnCommit][] {
-    const chain: [string, OwnCommit][] = [];
-    for (let at = from, next = this.ownCommits.get(at); next !== undefined && chain.length < this.ownCommits.size; at = next.sha, next = this.ownCommits.get(at)) {
-      chain.push([at, next]);
-    }
-    return chain;
-  }
-
-  /** Keeps only the own commits that lead on from `head`: no later pull starts from a commit before it. */
-  private forgetCommitsBefore(head: string): void {
-    const ahead = this.ownCommitsFrom(head);
-    this.ownCommits.clear();
-    for (const [parent, commit] of ahead) this.ownCommits.set(parent, commit);
-  }
-
-  /** This client's own commits from commit `from` to commit `to`, in order; null when they don't lead there. */
-  private ownCommitsTo(from: string, to: string): OwnCommit[] | null {
-    const chain = this.ownCommitsFrom(from).map(([, commit]) => commit);
-    const last = chain.findIndex((commit) => commit.sha === to);
-    return last < 0 ? null : chain.slice(0, last + 1);
-  }
-
-  /** The pull made of what this client's own commits recorded rather than read: what a many-file commit wrote, over the versions on screen. */
-  private ownPull(chain: OwnCommit[]): Omit<Pulled, 'head'> {
-    const compared = this.knownShas();
-    const listing = new Map(compared);
-    const files = new Map<string, PulledFile>();
-    for (const commit of chain) {
-      for (const file of commit.written) {
-        files.set(file.path, pulledFile(file.path, file, true));
-        listing.set(file.path, file.sha);
-      }
-      // A later save's content is on screen already, at the version it holds.
-      for (const path of commit.saved) {
-        files.delete(path);
-        const sha = compared.get(path);
-        if (sha === undefined) listing.delete(path);
-        else listing.set(path, sha);
-      }
-      for (const path of commit.deleted) {
-        files.delete(path);
-        listing.delete(path);
-      }
-    }
-    return { files, listing, compared };
-  }
-
-  /** The master files and the initiative files the repository lists, by path, with their versions (§10.2). */
-  private async listDataset(ref: string): Promise<Map<string, string>> {
-    // `ref` is the data branch, or one commit of it. One request lists every file, unless there are too many for it.
-    const tree = await this.github.listTree({ ref });
-    if (tree.truncated) return this.listDatasetByFolder(ref);
-    const listing = new Map<string, string>();
-    for (const entry of tree.entries) {
-      if (entry.type === 'blob' && (MASTER_FILES.includes(entry.path) || /^initiatives\/[^/]+\.json$/.test(entry.path))) listing.set(entry.path, entry.sha);
-    }
-    return listing;
-  }
-
-  /** {@link listDataset} by the two folders, for a tree too large for one listing. */
-  private async listDatasetByFolder(branch: string): Promise<Map<string, string>> {
-    const [root, initiatives] = await Promise.all([
-      this.github.listDirectory({ path: '', branch }),
-      this.github.listDirectory({ path: 'initiatives', branch }),
-    ]);
-    const listing = new Map<string, string>();
-    for (const entry of root) if (entry.type === 'file' && MASTER_FILES.includes(entry.path)) listing.set(entry.path, entry.sha);
-    for (const entry of initiatives) if (entry.name.endsWith('.json')) listing.set(entry.path, entry.sha);
-    return listing;
+  private fetchPull(): Promise<Pulled | null> {
+    return this.source.fetch({
+      unchangedEndsPull: this.state.status === 'ready' && this.datasetRefusal === null,
+      ready: this.state.status === 'ready',
+      meta: () => this.meta,
+      knownShas: () => this.knownShas(),
+      bootstrapBaseline: (branch) => this.bootstrapBaseline(branch),
+      recordHead: (head) => this.remember({ head, files: new Map() }, true),
+    });
   }
 
   /** The writer of each master file that has one, by path. */
@@ -722,7 +556,7 @@ export class Repository {
     this.cache.commitPull(kept, meta).then(
       (recorded) => {
         this.meta = recorded ? meta : null;
-        if (meta) this.forgetCommitsBefore(meta.head);
+        if (meta) this.source.forgetBefore(meta.head);
       },
       (error) => {
         // The cache is a local convenience: losing it only means the next open pulls everything.
@@ -1044,7 +878,7 @@ export class Repository {
       initial,
       onStatus: this.statusOf(path),
       onSchedule: () => this.writtenByAction?.add(path),
-      onCommitted: (commit) => this.recordSave([path], commit),
+      onCommitted: (commit) => this.source.recordSave([path], commit),
       onCacheFull: this.onCacheFull,
       onConflict: this.onConflict,
       onConflictClosed: this.onConflictClosed,
@@ -1080,7 +914,7 @@ export class Repository {
       creationFailure: 'Could not create the initiative.',
       onStatus: this.statusOf(path),
       onSchedule: () => this.writtenByAction?.add(path),
-      onCommitted: (commit) => this.recordSave([path], commit),
+      onCommitted: (commit) => this.source.recordSave([path], commit),
       onCacheFull: this.onCacheFull,
       onConflict: this.onConflict,
       onConflictClosed: this.onConflictClosed,
@@ -1312,7 +1146,7 @@ export class Repository {
           });
           if (result === 'stopped') return giveBack();
           parts.forEach(([writer, part], i) => writer.jointLanded(part, result.written[i].sha));
-          if (result.parent) this.recordSave(paths, { sha: result.commitSha, parent: result.parent });
+          if (result.parent) this.source.recordSave(paths, { sha: result.commitSha, parent: result.parent });
         } catch (error) {
           // The branch kept moving, or its head can't be read: each file saves on its own, as it would without this commit.
           if (error instanceof GithubApiError && (error.cause_ === 'conflict' || error.cause_ === 'not-found')) return giveBack();
@@ -2264,7 +2098,7 @@ export class Repository {
     } catch (error) {
       return { failed: toReadOnlyState(error, failureText) };
     }
-    if (result !== 'stopped' && result.parent) this.ownCommits.set(result.parent, { sha: result.commitSha, written: result.written, saved: [], deleted: result.deleted });
+    if (result !== 'stopped' && result.parent) this.source.recordMany(result.parent, result.commitSha, result.written, result.deleted);
     // A pull already running may have read the branch before the commit: the one after it brings the commit in.
     await this.pulling;
     await this.pull();
