@@ -9,7 +9,6 @@ import {
   type Allocation,
   type CostItem,
   type Country,
-  type CountryYearRateRecord,
   type DatasetFlags,
   type Initiative,
   type Membership,
@@ -19,9 +18,9 @@ import {
   type Team,
 } from '../data/types';
 import { allocationRefusal, trackedYears, type Period } from '../data/cost';
-import { formatDateEn, formatMonthEn, monthKey } from '../data/dates';
+import { formatDateEn, formatMonthEn } from '../data/dates';
 import { periodMonthsEn } from '../data/period';
-import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysByMonth } from '../data/rates';
+import { countriesRolledForward, peopleRolledForward } from '../data/rates';
 import { localToday } from '../data/dates';
 import { duplicateInitiative, type DuplicateResult } from '../data/duplicate';
 import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
@@ -33,17 +32,17 @@ import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, GithubApiError, REFUSED_DATAS
 import { GithubClient, type CommitOnHeadArgs, type CommitResult } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { WriteBudget } from '../github/writeBudget';
-import { unclaimedCapacityPct } from '../data/capacity';
 import { activeMembership } from '../data/teamMembers';
 import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
-import { distinctEntities, FileWriter, renderMessage, type JointPart, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
+import { distinctEntities, FileWriter, renderMessage, type JointPart, type CommitMessage, type CommitNote, type DeleteResult, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { MASTER_FILES, parseDataFile, validateDataset, validateRecords } from './validateDataset';
 import { PullSource, pulledFile, type Pulled, type WrittenFile } from './PullSource';
 import { RateLimitTracker } from './RateLimitTracker';
 import { WriteQueue } from './WriteQueue';
-import { allocationWords, costItemWords, countryWords, membershipWords, personWords, roleWords, teamWords } from './commitWords';
+import { ReferenceDataCommands } from './ReferenceDataCommands';
+import { note as entityNote, personName, teamName, allocationWords, costItemWords } from './commitWords';
 
 export type { ReadOnlyState } from '../github/errors';
 
@@ -145,11 +144,8 @@ export type ResetResult = 'reset' | { failed: ReadOnlyState };
 
 
 /** New people (§5.5) take these; country and role default to the last values used. */
-export interface NewPersonInput {
-  name: string;
-  countryId: string;
-  roleId: string;
-}
+import type { NewPersonInput } from './ReferenceDataCommands';
+export type { NewPersonInput } from './ReferenceDataCommands';
 
 /** What Copy from <previous phase> did: how many allocations were added and who was skipped (§5.11). */
 export type CopyAllocationsResult = { copied: number; skipped: Person[] };
@@ -246,6 +242,7 @@ export class Repository {
   private deleteFailure: ReadOnlyState | null = null;
   private tintTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly source: PullSource;
+  private readonly refData: ReferenceDataCommands;
 
   constructor(
     private readonly brand: BrandPack,
@@ -255,6 +252,17 @@ export class Repository {
     this.github = new GithubClient(brand.github, () => this.token, (headers) => this.rateLimits.note(headers), {
       budget: this.writeBudget,
       onPause: () => this.rearmRetry(),
+    });
+    this.refData = new ReferenceDataCommands({
+      getState: this.getState,
+      commitRoles: (next, n) => this.commitRoles(next, n),
+      commitCountries: (next, n) => this.commitCountries(next, n),
+      commitTeams: (next, n) => this.commitTeams(next, n),
+      commitPeople: (next, n) => this.commitPeople(next, n),
+      commitMemberships: (next, n) => this.commitMemberships(next, n),
+      jointly: (action) => this.jointly(action),
+      markRatesReviewed: (words) => this.markRatesReviewed(words),
+      money: (amount) => this.money(amount),
     });
     this.source = new PullSource(this.github, brand.github.dataBranch);
     this.cache = new FileCache(cacheScope(brand.github));
@@ -621,12 +629,12 @@ export class Repository {
     if (!this.rolloverToday || this.state.status !== 'ready') return;
     const tracked = trackedYears(this.rolloverToday());
     // A system write over the whole file (§3), not an edit of one country or person: it notes the dataset.
-    const note = () => this.note('dataset', 'rates', 'rollover', undefined, tracked, () => `Rates copied into ${tracked[tracked.length - 1]}`);
+    const rolloverNote = () => entityNote('dataset', 'rates', 'rollover', undefined, tracked, () => `Rates copied into ${tracked[tracked.length - 1]}`);
     this.jointly(() => {
       const countries = countriesRolledForward(this.state.countries, tracked);
-      if (countries) this.commitCountries(countries, note());
+      if (countries) this.commitCountries(countries, rolloverNote());
       const people = peopleRolledForward(this.state.people, tracked);
-      if (people) this.commitPeople(people, note());
+      if (people) this.commitPeople(people, rolloverNote());
     });
   }
 
@@ -978,114 +986,90 @@ export class Repository {
     return result.written;
   }
 
-  /** New role (§5.9): created from a name, abbreviation and cost factor, active. */
-  createRole(input: { name: string; abbreviation: string; costFactor: number }): Role {
-    const role: Role = { id: newId(), ...input, active: true };
-    this.commitRoles([...this.state.roles, role], this.note('role', role.id, 'record', undefined, role, roleWords));
-    return role;
-  }
-
-  /** In-place edit from the Roles table (§5.9): name, abbreviation, cost factor, or deactivate/reactivate; roles are never deleted (§9.3). */
-  updateRole(id: string, patch: Partial<Omit<Role, 'id'>>): void {
-    const current = this.state.roles.find((r) => r.id === id);
-    if (!current) return;
-    const next = { ...current, ...patch };
-    if ((Object.keys(patch) as (keyof typeof patch)[]).every((key) => next[key] === current[key])) return;
-    this.commitRoles(
-      this.state.roles.map((r) => (r.id === id ? next : r)),
-      this.note('role', id, 'record', current, next, roleWords),
-    );
-  }
-
-  /** New country (§5.9): its one day rate copied to every tracked year, working days prefilled with weekdays. */
-  createCountry(input: { name: string; code: string; dayRate: number }, today: Date = new Date()): Country {
-    const country: Country = { id: newId(), name: input.name, code: input.code, active: true, ratesByYear: newCountryRates(input.dayRate, trackedYears(today)) };
-    this.commitCountries([...this.state.countries, country], this.note('country', country.id, 'record', undefined, country, countryWords));
-    return country;
-  }
-
-  /** Rename, recode, deactivate or reactivate a country; countries are never deleted (§9.3). */
-  updateCountry(id: string, patch: Partial<Pick<Country, 'name' | 'code' | 'active'>>): void {
-    const current = this.state.countries.find((c) => c.id === id);
-    if (!current) return;
-    const next = { ...current, ...patch };
-    if (next.name === current.name && next.code === current.code && next.active === current.active) return;
-    this.commitCountries(
-      this.state.countries.map((c) => (c.id === id ? next : c)),
-      this.note('country', id, 'record', current, next, countryWords),
-    );
-  }
-
-  /** A country's day rate for one year (§5.9, §7.2). Any rate edit also marks the rates reviewed (§5.2). */
-  setCountryDayRate(id: string, year: number, dayRate: number): void {
-    this.editYear(id, year, `dayRate:${year}`, (r) => r.dayRate, (r) => ({ ...r, dayRate }), (name, to) => `${name}: ${year} day rate set to ${this.money(to as number)}`);
-  }
-
-  /** One month's working days for one year of a country (`month` 0-based). */
-  setCountryWorkingDays(id: string, year: number, month: number, days: number): void {
-    const key = monthKey(year, month);
-    this.editYear(
-      id,
-      year,
-      `workingDays:${key}`,
-      (r) => r.workingDaysByMonth[month],
-      (r) => ({ ...r, workingDaysByMonth: r.workingDaysByMonth.map((d, i) => (i === month ? days : d)) }),
-      (name, to) => `${name}: working days in ${formatMonthEn(key)} set to ${to}`,
-    );
-  }
-
-  /** Reset to weekdays: all twelve months of one year back to their weekday counts. */
-  resetCountryWorkingDays(id: string, year: number): void {
-    this.editYear(
-      id,
-      year,
-      `workingDays:${year}`,
-      (r) => r.workingDaysByMonth,
-      (r) => ({ ...r, workingDaysByMonth: weekdaysByMonth(year) }),
-      (name) => `${name}: working days in ${year} reset to weekdays`,
-    );
-  }
-
-  /**
-   * One year entry of one country: `set` makes the edit, `get` reads the value the commit note names (§10.3),
-   * and `words` phrases it with the country's name. No write when that value is unchanged.
-   */
-  private editYear(
-    id: string,
-    year: number,
-    field: string,
-    get: (record: CountryYearRateRecord) => unknown,
-    set: (record: CountryYearRateRecord) => CountryYearRateRecord,
-    words: (name: string, to: unknown) => string,
-  ): void {
-    const country = this.state.countries.find((c) => c.id === id);
-    const record = country?.ratesByYear.find((r) => r.year === year);
-    if (!country || !record) return;
-    const next = set(record);
-    if (sameValue(get(next), get(record))) return;
-    const updated = { ...country, ratesByYear: country.ratesByYear.map((r) => (r.year === year ? next : r)) };
-    // The first rate edit also marks the rates reviewed: both files in one commit (§10.3).
-    this.jointly(() => {
-      this.commitCountries(
-        this.state.countries.map((c) => (c.id === id ? updated : c)),
-        this.note('country', id, field, get(record), get(next), (_, to) => words(country.name, to)),
-      );
-      this.markRatesReviewed('Rates marked as reviewed');
-    });
-  }
-
-  /** Rates are correct (§5.9): confirms the rates without editing them, which clears Review rates (§5.2). */
-  confirmRates(): void {
-    this.markRatesReviewed('Rates confirmed as correct');
-  }
-
   /** Marks the rates reviewed (§5.2) unless they already are. */
-  private markRatesReviewed(words: string): void {
+  markRatesReviewed(words: string): void {
     const flags = this.state.datasetFlags;
     if (!flags || flags.ratesReviewed || !this.flagsWriter) return;
     const next = { ...flags, ratesReviewed: true };
     this.setState({ datasetFlags: next });
-    this.flagsWriter.schedule(next, this.note('dataset', 'flags', 'ratesReviewed', false, true, () => words));
+    this.flagsWriter.schedule(next, entityNote('dataset', 'flags', 'ratesReviewed', false, true, () => words));
+  }
+
+  // Reference data (roles, countries, teams, people, memberships): see ReferenceDataCommands.
+  removeMembership(id: string): { membership: Membership; index: number } | null {
+    return this.refData.removeMembership(id);
+  }
+
+  restoreMembership(membership: Membership, index: number): { ok: true } | { ok: false; message: string } {
+    return this.refData.restoreMembership(membership, index);
+  }
+
+  createRole(input: { name: string; abbreviation: string; costFactor: number }): Role {
+    return this.refData.createRole(input);
+  }
+
+  updateRole(id: string, patch: Partial<Omit<Role, 'id'>>): void {
+    return this.refData.updateRole(id, patch);
+  }
+
+  createCountry(input: { name: string; code: string; dayRate: number }, today: Date = new Date()): Country {
+    return this.refData.createCountry(input, today);
+  }
+
+  updateCountry(id: string, patch: Partial<Pick<Country, 'name' | 'code' | 'active'>>): void {
+    return this.refData.updateCountry(id, patch);
+  }
+
+  setCountryDayRate(id: string, year: number, dayRate: number): void {
+    return this.refData.setCountryDayRate(id, year, dayRate);
+  }
+
+  setCountryWorkingDays(id: string, year: number, month: number, days: number): void {
+    return this.refData.setCountryWorkingDays(id, year, month, days);
+  }
+
+  resetCountryWorkingDays(id: string, year: number): void {
+    return this.refData.resetCountryWorkingDays(id, year);
+  }
+
+  confirmRates(): void {
+    return this.refData.confirmRates();
+  }
+
+  teamNameRefusal(name: string, exceptId?: string): string | null {
+    return this.refData.teamNameRefusal(name, exceptId);
+  }
+
+  createTeam(name: string): Team {
+    return this.refData.createTeam(name);
+  }
+
+  createPersonInTeam(input: NewPersonInput, teamId: string): Person {
+    return this.refData.createPersonInTeam(input, teamId);
+  }
+
+  createPerson(input: NewPersonInput): Person {
+    return this.refData.createPerson(input);
+  }
+
+  updateTeam(id: string, patch: Partial<Pick<Team, 'name' | 'active'>>): void {
+    return this.refData.updateTeam(id, patch);
+  }
+
+  updatePerson(id: string, patch: Partial<Omit<Person, 'id'>>): void {
+    return this.refData.updatePerson(id, patch);
+  }
+
+  addMembership(personId: string, teamId: string, requestedPct?: number, allowOver = false): Membership | null {
+    return this.refData.addMembership(personId, teamId, requestedPct, allowOver);
+  }
+
+  updateMembership(id: string, patch: Partial<Pick<Membership, 'teamFtePct' | 'active'>>, allowOver = false): void {
+    return this.refData.updateMembership(id, patch, allowOver);
+  }
+
+  updateMemberships(changes: ({ id: string } & Partial<Pick<Membership, 'teamFtePct' | 'active'>>)[], allowOver = false): void {
+    return this.refData.updateMemberships(changes, allowOver);
   }
 
   /** The files the action {@link jointly} runs has written so far; null outside one. */
@@ -1162,171 +1146,12 @@ export class Repository {
     this.countriesWriter?.schedule(next, note);
   }
 
-  /** A note for one field of one entity: what it was before the edit and what it is now (§10.3); `undefined` is "did not exist". */
-  private note<T>(kind: EntityKind, id: string, field: string, from: T | undefined, to: T | undefined, words: (from: T | undefined, to: T | undefined) => string): CommitNote {
-    return { entity: { kind, id }, field, from, to, words: words as CommitNote['words'] };
-  }
-
-  /** Why a team name is refused (§5.8): empty, or another team already has it (case-insensitive). */
-  teamNameRefusal(name: string, exceptId?: string): string | null {
-    const trimmed = name.trim();
-    if (!trimmed) return 'Enter a name.';
-    const taken = this.state.teams.find((t) => t.id !== exceptId && t.name.trim().toLowerCase() === trimmed.toLowerCase());
-    return taken ? `A team named ${taken.name} already exists.` : null;
-  }
-
-  /** New team (§5.7): created from a name only. Callers ask `teamNameRefusal` first; a refused name here is a bug. */
-  createTeam(name: string): Team {
-    const refusal = this.teamNameRefusal(name);
-    if (refusal) throw new Error(refusal);
-    const team: Team = { id: newId(), name: name.trim(), active: true };
-    this.commitTeams([...this.state.teams, team], this.note('team', team.id, 'record', undefined, team, teamWords));
-    return team;
-  }
-
-  /** A new person added straight to a team (§5.8): the person and the membership in one commit (§10.3). */
-  createPersonInTeam(input: NewPersonInput, teamId: string): Person {
-    let person!: Person;
-    this.jointly(() => {
-      person = this.createPerson(input);
-      this.addMembership(person.id, teamId);
-    });
-    return person;
-  }
-
-  /** New person (§5.5): Capacity % defaults to 100, active. */
-  createPerson(input: NewPersonInput): Person {
-    const person: Person = {
-      id: newId(),
-      name: input.name,
-      countryId: input.countryId,
-      roleId: input.roleId,
-      capacityPct: 100,
-      active: true,
-    };
-    this.commitPeople([...this.state.people, person], this.note('person', person.id, 'record', undefined, person, this.personWords()));
-    return person;
-  }
-
-  /** Rename, deactivate or reactivate a team (§5.8, §9.3): teams are never deleted, so the record stays. */
-  updateTeam(id: string, patch: Partial<Pick<Team, 'name' | 'active'>>): void {
-    const current = this.state.teams.find((t) => t.id === id);
-    if (!current) return;
-    if (patch.name !== undefined && this.teamNameRefusal(patch.name, id)) return;
-    const next = { ...current, ...patch, ...(patch.name !== undefined && { name: patch.name.trim() }) };
-    if (next.name === current.name && next.active === current.active) return;
-    this.commitTeams(
-      this.state.teams.map((t) => (t.id === id ? next : t)),
-      this.note('team', id, 'record', current, next, teamWords),
-    );
-  }
-
-  /** In-place edit from the person panel (§5.6): no save button, so every change commits. */
-  updatePerson(id: string, patch: Partial<Omit<Person, 'id'>>): void {
-    const current = this.state.people.find((p) => p.id === id);
-    if (!current) return;
-    const next = { ...current, ...patch };
-    this.commitPeople(
-      this.state.people.map((p) => (p.id === id ? next : p)),
-      this.note('person', id, 'record', current, next, this.personWords()),
-    );
-  }
-
-  /**
-   * Add a person to a team (§5.6, §5.8). Team FTE % defaults to the person's
-   * unclaimed capacity; a requested value is capped at it unless `allowOver`
-   * (the team detail, where the over-capacity warning is visible).
-   */
-  addMembership(personId: string, teamId: string, requestedPct?: number, allowOver = false): Membership | null {
-    const person = this.state.people.find((p) => p.id === personId);
-    if (!person) return null;
-    const existing = this.state.memberships.find((m) => m.personId === personId && m.teamId === teamId);
-    if (existing?.active) return existing;
-    if (existing) {
-      // Rejoining (§5.6): the same record comes back, keeping its Team FTE % unless the person no longer has room.
-      this.updateMembership(existing.id, { active: true, teamFtePct: existing.teamFtePct });
-      return this.state.memberships.find((m) => m.id === existing.id) ?? null;
-    }
-    const unclaimed = unclaimedCapacityPct(person, this.state.memberships);
-    const teamFtePct = requestedPct === undefined ? unclaimed : allowOver ? requestedPct : Math.min(requestedPct, unclaimed);
-    const membership: Membership = { id: newId(), personId, teamId, teamFtePct, active: true };
-    this.commitMemberships([...this.state.memberships, membership], this.membershipNote(membership.id, undefined, membership));
-    return membership;
-  }
-
-  /** Edit a membership's Team FTE %; `allowOver` is set only by the team detail (§5.6). */
-  updateMembership(id: string, patch: Partial<Pick<Membership, 'teamFtePct' | 'active'>>, allowOver = false): void {
-    this.updateMemberships([{ id, ...patch }], allowOver);
-  }
-
-  /**
-   * Edit several memberships as one edit, a note each (§10.3): a split bar divider moves Team FTE % from one team to
-   * the next (§5.6). Unless `allowOver`, each Team FTE % is capped at what the person has unclaimed; lowered values go
-   * first, so the room they free counts for the raised ones.
-   */
-  updateMemberships(changes: ({ id: string } & Partial<Pick<Membership, 'teamFtePct' | 'active'>>)[], allowOver = false): void {
-    const before = new Map(this.state.memberships.map((m) => [m.id, m]));
-    const rise = (c: (typeof changes)[number]) => (c.teamFtePct ?? 0) - (before.get(c.id)?.teamFtePct ?? 0);
-    let next = this.state.memberships;
-    for (const { id, ...patch } of [...changes].sort((x, y) => rise(x) - rise(y))) {
-      next = next.map((m) => {
-        if (m.id !== id) return m;
-        const person = this.state.people.find((p) => p.id === m.personId);
-        const capped = patch.teamFtePct === undefined || allowOver || !person ? patch : { ...patch, teamFtePct: Math.min(patch.teamFtePct, unclaimedCapacityPct(person, next, id)) };
-        return { ...m, ...capped };
-      });
-    }
-    const notes = this.state.memberships.flatMap((m, i) => (next[i] !== m ? [this.membershipNote(m.id, m, next[i])] : []));
-    if (notes.length > 0) this.commitMemberships(next, notes);
-  }
-
-  /** A membership's note; the person and team are named as they are now, since a removal leaves no record to ask. */
-  private membershipNote(id: string, from: Membership | undefined, to: Membership | undefined): CommitNote {
-    const of = (m: Membership | undefined) => (m ? { who: this.personName(m.personId), where: this.teamName(m.teamId) } : undefined);
-    const names = of(from ?? to) as { who: string; where: string };
-    const note = this.note('membership', id, 'record', from, to, membershipWords(names.where));
-    return { ...note, subject: names.who };
-  }
-
-  private personWords() {
-    return personWords({
-      countryName: (id) => this.state.countries.find((c) => c.id === id)?.name,
-      roleName: (id) => this.state.roles.find((r) => r.id === id)?.name,
-    });
-  }
-
   private personName(id: string): string {
-    return this.state.people.find((p) => p.id === id)?.name ?? 'Unknown person';
+    return personName(this.state, id);
   }
 
   private teamName(id: string): string {
-    return this.state.teams.find((t) => t.id === id)?.name ?? 'unknown team';
-  }
-
-  /** Memberships are removable (§9.3); nothing points at them. The record and position come back for an Undo (§5.11). */
-  removeMembership(id: string): { membership: Membership; index: number } | null {
-    const index = this.state.memberships.findIndex((m) => m.id === id);
-    if (index < 0) return null;
-    const membership = this.state.memberships[index];
-    this.commitMemberships(
-      this.state.memberships.filter((m) => m.id !== id),
-      this.membershipNote(id, membership, undefined),
-    );
-    return { membership, index };
-  }
-
-  /** Undo of {@link removeMembership}: the same record back in its place, or why it can't be (§5.11). */
-  restoreMembership(membership: Membership, index: number): { ok: true } | { ok: false; message: string } {
-    const person = this.state.people.find((p) => p.id === membership.personId);
-    const team = this.state.teams.find((t) => t.id === membership.teamId);
-    if (!person || !team) return { ok: false, message: "Can't undo: the person or team is no longer there." };
-    if (this.state.memberships.some((m) => m.id === membership.id || (m.personId === membership.personId && m.teamId === membership.teamId))) {
-      return { ok: false, message: `Can't undo: ${person.name} is on ${team.name} again.` };
-    }
-    const next = [...this.state.memberships];
-    next.splice(Math.min(index, next.length), 0, membership);
-    this.commitMemberships(next, this.membershipNote(membership.id, undefined, membership));
-    return { ok: true };
+    return teamName(this.state, id);
   }
 
   private commitRoles(next: Role[], note?: CommitNote): void {
@@ -1389,7 +1214,7 @@ export class Repository {
     this.setState({ initiatives: [...this.state.initiatives, initiative] });
 
     const writer = this.createInitiativeWriter(initiative, null);
-    writer.schedule(initiative, this.note('initiative', id, 'record', undefined, initiative, () => message));
+    writer.schedule(initiative, entityNote('initiative', id, 'record', undefined, initiative, () => message));
     if ((await writer.flush()) !== 'saved') {
       // No file exists, so nothing would ever save edits to it: take it back out rather than leave a page that only looks saved.
       this.initiativeWriters.delete(id);
@@ -1418,7 +1243,7 @@ export class Repository {
     this.replaceInitiative(next);
     this.initiativeWriters.get(initiativeId)?.schedule(
       next,
-      this.note('initiative', initiativeId, 'name', initiative.name, trimmed, (f, t) => `${f}: renamed to ${t}`),
+      entityNote('initiative', initiativeId, 'name', initiative.name, trimmed, (f, t) => `${f}: renamed to ${t}`),
     );
     return true;
   }
@@ -1434,7 +1259,7 @@ export class Repository {
     this.replaceInitiative(next);
     this.initiativeWriters.get(initiativeId)?.schedule(
       next,
-      this.note('initiative', initiativeId, 'description', initiative.description, next.description, () => `${initiative.name}: description changed`),
+      entityNote('initiative', initiativeId, 'description', initiative.description, next.description, () => `${initiative.name}: description changed`),
     );
     return true;
   }
@@ -1447,7 +1272,7 @@ export class Repository {
     if (ownerId === undefined) delete next.ownerId;
     this.replaceInitiative(next);
     const words = (_: unknown, to: string | undefined) => (to ? `${initiative.name}: owner set to ${this.personName(to)}` : `${initiative.name}: owner cleared`);
-    this.initiativeWriters.get(initiativeId)?.schedule(next, this.note('initiative', initiativeId, 'ownerId', initiative.ownerId, ownerId, words));
+    this.initiativeWriters.get(initiativeId)?.schedule(next, entityNote('initiative', initiativeId, 'ownerId', initiative.ownerId, ownerId, words));
   }
 
   /**
@@ -1488,7 +1313,7 @@ export class Repository {
     const name = initiative.name;
     this.initiativeWriters
       .get(initiativeId)
-      ?.schedule(next, this.note('initiative', initiativeId, `${phaseId}:${note.field}`, note.from, note.to, (f, t) => note.words(f, t, name, this.phaseLabel(phaseId))));
+      ?.schedule(next, entityNote('initiative', initiativeId, `${phaseId}:${note.field}`, note.from, note.to, (f, t) => note.words(f, t, name, this.phaseLabel(phaseId))));
     return true;
   }
 
@@ -1774,7 +1599,7 @@ export class Repository {
     const name = initiative.name;
     this.initiativeWriters
       .get(initiative.id)
-      ?.schedule(next, this.note('initiative', initiative.id, `checklist:${phaseId}:${itemId}${fieldSuffix}`, from, to, (f, t) => words(name, this.checklistItemName(phaseId, itemId), f, t)));
+      ?.schedule(next, entityNote('initiative', initiative.id, `checklist:${phaseId}:${itemId}${fieldSuffix}`, from, to, (f, t) => words(name, this.checklistItemName(phaseId, itemId), f, t)));
   }
 
   /**
@@ -1819,7 +1644,7 @@ export class Repository {
     const name = initiative.name;
     const from = { phase: this.phaseLabel(currentPhaseId(initiative, this.brand.process)), phases: initiative.phases };
     const to = { phase: result.phase.label, phases: result.initiative.phases };
-    this.initiativeWriters.get(initiativeId)?.schedule(result.initiative, this.note('initiative', initiativeId, 'startingPhase', from, to, (_, t) => `${name}: starts at ${t?.phase}`));
+    this.initiativeWriters.get(initiativeId)?.schedule(result.initiative, entityNote('initiative', initiativeId, 'startingPhase', from, to, (_, t) => `${name}: starts at ${t?.phase}`));
     return { ok: true };
   }
 
@@ -1827,7 +1652,7 @@ export class Repository {
   private commitGateOutcome(name: string, result: GateRecorded, what: string): void {
     const { initiative, phase, record } = result;
     this.replaceInitiative(initiative);
-    this.commitAtOnce(initiative.id, initiative, this.note('initiative', initiative.id, `gate:${phase.id}`, 'open', record.outcome, () => `${name}: ${phase.exitGate.label} ${what}`));
+    this.commitAtOnce(initiative.id, initiative, entityNote('initiative', initiative.id, `gate:${phase.id}`, 'open', record.outcome, () => `${name}: ${phase.exitGate.label} ${what}`));
   }
 
   /**
@@ -1858,7 +1683,7 @@ export class Repository {
     if (!result) return;
     this.replaceInitiative(result.initiative);
     const [name, gateLabel] = [initiative.name, result.phase.exitGate.label];
-    this.commitAtOnce(initiativeId, result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, result.record.outcome, 'open', () => `${name}: ${gateLabel} reopened`));
+    this.commitAtOnce(initiativeId, result.initiative, entityNote('initiative', initiativeId, `gate:${result.phase.id}`, result.record.outcome, 'open', () => `${name}: ${gateLabel} reopened`));
   }
 
   /** Put an Active initiative On Hold (§8.4): a plain status change, one click and no reason. A no-op for any other status. */
@@ -1886,7 +1711,7 @@ export class Repository {
     if (!initiative || !from.includes(initiative.status)) return;
     const next: Initiative = { ...initiative, status: to };
     this.replaceInitiative(next);
-    this.commitAtOnce(initiativeId, next, this.note('initiative', initiativeId, 'status', initiative.status, to, () => words(initiative.name)));
+    this.commitAtOnce(initiativeId, next, entityNote('initiative', initiativeId, 'status', initiative.status, to, () => words(initiative.name)));
   }
 
   /**
@@ -1966,7 +1791,7 @@ export class Repository {
       const tail = lost > 0 ? `, ${allocationCount(lost)} removed` : lost < 0 ? `, ${allocationCount(-lost)} restored` : '';
       return `${subject} from ${this.teamName(from?.teamId as string)} to ${this.teamName(to?.teamId as string)}${tail}`;
     };
-    this.commitAtOnce(next.id, next, this.note('initiative', next.id, 'team', state(before), state(next), words));
+    this.commitAtOnce(next.id, next, entityNote('initiative', next.id, 'team', state(before), state(next), words));
   }
 
   /**

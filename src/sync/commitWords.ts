@@ -1,4 +1,5 @@
 import { formatMonthEn } from '../data/dates';
+import type { CommitNote, EntityKind } from './FileWriter';
 import type { Allocation, CostItem, Country, Membership, Person, Role, Team } from '../data/types';
 
 /**
@@ -128,3 +129,13 @@ export function costItemWords({ money }: ItemLookups) {
     return `${name}: ${phase} cost item ${from.label} ${parts.join(', ') || 'updated'}`;
   };
 }
+
+/** A note for one field of one entity: what it was before the edit and what it is now (§10.3); `undefined` is "did not exist". */
+export function note<T>(kind: EntityKind, id: string, field: string, from: T | undefined, to: T | undefined, words: Words<T>): CommitNote {
+  return { entity: { kind, id }, field, from, to, words: words as CommitNote['words'] };
+}
+
+/** A person's name as it is now; a commit message about a removal has no record left to ask. */
+export const personName = (state: { people: Person[] }, id: string): string => state.people.find((p) => p.id === id)?.name ?? 'Unknown person';
+
+export const teamName = (state: { teams: Team[] }, id: string): string => state.teams.find((t) => t.id === id)?.name ?? 'unknown team';
