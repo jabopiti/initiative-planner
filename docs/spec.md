@@ -2142,10 +2142,16 @@ of §6.
 
 A client reads the data branch as follows. It checks the branch's head with a
 conditional request (an unchanged head costs one request that GitHub does not
-count against the rate limit). Only when the head has moved does it list the
-data branch's files with their versions and fetch those whose version differs
-from the one it holds. On first load it reads the full file list once. Fetched
-files are cached by version (§10.4).
+count against the rate limit). When the head has moved only through this
+client's own saves since its last complete pull (each save's response names
+its new commit and that commit's parent; a commit that replaces or deletes many
+files at once, such as Reset or Load example data, does not count), the pull
+ends there: what those saves wrote is already on screen. Otherwise it lists the
+data branch's files with their versions in one request, at the commit just
+checked, and fetches those whose version differs from the one it holds,
+about 100 files per GraphQL query, a file too large for the query read on its
+own. On first load it reads the full file list once. Fetched files are cached
+by version (§10.4).
 
 ### 10.3 Writing
 
@@ -2220,8 +2226,9 @@ leaves none; when no note remains there is no commit.
 ### 10.4 Browser storage
 
 The cache is kept in IndexedDB: each file with its version, for one repository
-and branch, together with the branch head the last complete pull read. It
-shows on opening (§3), and a cache that cannot be read, or belongs to another
+and branch, together with the branch head the last complete pull read. A
+pull's files and that head are stored in one step, so the cache never holds
+half a pull. It shows on opening (§3), and a cache that cannot be read, or belongs to another
 process or schema version, is discarded. The token is kept there too,
 separately from the dataset (§3, Authentication), and is never dropped to make
 room. The cache holds at most half the storage quota; over that, the oldest
