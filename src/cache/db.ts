@@ -66,6 +66,9 @@ function openDb(): Promise<IDBDatabase> {
   return dbPromise;
 }
 
+/** Why a transaction failed: a failing request's error bubbles to it before the transaction aborts and sets its own. */
+const errorOf = (event: Event, tx: IDBTransaction): DOMException | null => (event.target as IDBRequest | null)?.error ?? tx.error;
+
 async function get<T>(store: string, key: string): Promise<T | null> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -81,7 +84,7 @@ async function set<T>(store: string, key: string, value: T): Promise<void> {
     const tx = db.transaction(store, 'readwrite');
     tx.objectStore(store).put(value, key);
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = (event) => reject(errorOf(event, tx));
   });
 }
 
@@ -91,7 +94,7 @@ async function del(store: string, key: string): Promise<void> {
     const tx = db.transaction(store, 'readwrite');
     tx.objectStore(store).delete(key);
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = (event) => reject(errorOf(event, tx));
   });
 }
 
@@ -130,7 +133,7 @@ async function clearStore(store: string): Promise<void> {
     const tx = db.transaction(store, 'readwrite');
     tx.objectStore(store).clear();
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
+    tx.onerror = (event) => reject(errorOf(event, tx));
   });
 }
 
@@ -250,7 +253,7 @@ export class FileCache {
     const tx = db.transaction([FILES_STORE, META_STORE], 'readwrite');
     const done = new Promise<void>((resolve, reject) => {
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = (event) => reject(errorOf(event, tx));
       tx.onabort = () => reject(tx.error ?? new Error('The cache write was aborted.'));
     });
     let incomplete = this.incomplete;
@@ -404,7 +407,7 @@ export const budgetStore = {
         store.put('sent' in outcome ? outcome.sent : sent, key);
       };
       tx.oncomplete = () => resolve(outcome);
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = (event) => reject(errorOf(event, tx));
     });
   },
 
