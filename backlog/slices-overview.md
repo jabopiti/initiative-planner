@@ -9,6 +9,9 @@ is done and what happens to its file.
 
 | ID | Title | Depends on | Note |
 |---|---|---|---|
+| 066 | Brand pack in its own folder | | §2, §10.7: fork edits only `brand/` |
+| 067 | Brand pack build checks | 066 | §10.7: bands, process definition, example dataset |
+| 068 | CodeQL and WCAG 2.2 scans | | §10.8, §9.5 |
 
 ## Delivered slices
 

@@ -1,0 +1,49 @@
+---
+slice_id: "068"
+title: "CodeQL and WCAG 2.2 scans"
+type: "capability"
+status: "valid"
+criteria_failures: []
+depends_on: []
+verification_status: null
+superseded_by: null
+supersedes: null
+change_summary: "Added from the candidate audit. §10.8 asks for static security analysis (none in .github/workflows); §9.5 says WCAG 2.2 AA but a11y scans use 2.0/2.1 tags only. Two small CI-hygiene items merged into one slice."
+recommended_model: "Claude Sonnet 5.5"
+model_rationale: "Config plus fixing whatever the 2.2 scan finds."
+spec_sections: ["§9.5 Accessibility", "§10.8"]
+---
+
+# CodeQL and WCAG 2.2 scans
+
+## Intent
+
+**Problem statement:** Two CI promises in the spec are not enforced.
+
+**Outcome statement:** CodeQL runs on pushes, PRs and weekly; the axe scans
+check WCAG 2.2 AA.
+
+## Scope
+
+- `.github/workflows/codeql.yml` for JavaScript/TypeScript, actions pinned
+  as the other workflows are.
+- Add the `wcag22aa` tag in `e2e/a11y.spec.ts`; fix violations on each screen
+  (target size, focus appearance and similar). AGENTS.md and comments say
+  "WCAG 2.2 A/AA".
+
+## Acceptance criteria
+
+- [ ] Given a push or PR, then the CodeQL workflow runs and passes.
+- [ ] Given `npm run test:e2e`, then every screen's scan includes
+      `wcag22aa` and passes.
+- [ ] Given a 2.2 violation that cannot be fixed cheaply, then it is listed
+      here under Flags, not silenced.
+
+## Flags and compromises
+
+None yet.
+
+## Decided in review (pre-implementation)
+
+Open, to settle in review: whether CodeQL results gate merging or only report,
+and any copy or layout change the 2.2 scan forces.
