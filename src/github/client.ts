@@ -369,7 +369,7 @@ export class GithubClient {
    * conflict, as for a put; `'gone'` when the file no longer exists, so a delete someone else already made counts.
    * Deleted, it gives the commit the delete made, or null when GitHub's answer does not name it.
    */
-  async deleteFile(args: { path: string; branch: string; message: string; sha: string }): Promise<{ commit: CommitLink | null } | 'gone'> {
+  async deleteFile(args: { path: string; branch: string; message: string; sha: string }): Promise<CommitLink | null | 'gone'> {
     assertBranch(args.branch);
     const url = this.repoUrl(`contents/${encodePath(args.path)}`);
     const response = await this.request(url, {
@@ -381,7 +381,7 @@ export class GithubClient {
     if (response.status === 404) return 'gone';
     assertNotStale(response);
     await assertOk(response, `DELETE ${args.path}`);
-    return { commit: commitOf(await response.json().catch(() => null)) };
+    return commitOf(await response.json().catch(() => null));
   }
 
   /** GET .../contents/{dir}?ref={branch} as a directory listing, each entry with its version. Empty array if the directory doesn't exist yet. */
@@ -434,12 +434,9 @@ export class GithubClient {
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query: filesQuery(args.paths.length), variables }) },
       false,
     );
-    await assertOk(response, 'GET files');
     type Blob = { oid: string; text: string | null; isTruncated: boolean } | null;
-    const body = (await response.json()) as { data?: { repository?: Record<string, Blob> | null } | null; errors?: { type?: string; message?: string }[] };
-    const errors = body.errors ?? [];
-    if (errors.some((e) => e.type === 'RATE_LIMITED')) throw rateLimited(this.limitHit(response.headers), response.status, errors[0]?.message ?? '');
-    const repository = body.data?.repository;
+    const { data, errors } = await this.graphqlAnswer<{ repository?: Record<string, Blob> | null }>(response, 'GET files');
+    const repository = data?.repository;
     if (errors.length > 0 || !repository) throw new GithubApiError(`GET files failed: ${errors[0]?.message ?? 'no repository'}`, 'unknown', response.status);
     args.paths.forEach((path, i) => {
       const blob = repository[`f${i}`];
@@ -556,14 +553,21 @@ export class GithubClient {
       }
       throw error;
     }
-    await assertOk(response, 'Commit');
-    const body = (await response.json()) as { data?: { createCommitOnBranch?: { commit?: { oid: string } } | null }; errors?: { type?: string; message?: string }[] };
+    const { data, errors } = await this.graphqlAnswer<{ createCommitOnBranch?: { commit?: { oid: string } } | null }>(response, 'Commit');
     // A refusal is a 200 with errors, told apart by type (spike-findings.md).
-    const errors = body.errors ?? [];
     if (errors.some((e) => e.type === 'STALE_DATA' || e.type === 'NOT_FOUND')) return 'moved';
-    const oid = body.data?.createCommitOnBranch?.commit?.oid;
+    const oid = data?.createCommitOnBranch?.commit?.oid;
     if (errors.length > 0 || !oid) throw new GithubApiError(`Commit failed: ${errors[0]?.message ?? 'no commit'}`, 'unknown', response.status);
     return { commitSha: oid };
+  }
+
+  /** A GraphQL answer's data and errors; a limit GitHub names in them pauses requests as a REST limit does (§10.2). */
+  private async graphqlAnswer<D>(response: Response, what: string): Promise<{ data: D | null; errors: { type?: string; message?: string }[] }> {
+    await assertOk(response, what);
+    const body = (await response.json()) as { data?: D | null; errors?: { type?: string; message?: string }[] };
+    const errors = body.errors ?? [];
+    if (errors.some((e) => e.type === 'RATE_LIMITED')) throw rateLimited(this.limitHit(response.headers), response.status, errors[0]?.message ?? '');
+    return { data: body.data ?? null, errors };
   }
 
   /** The branch's head, when it is a commit titled `headline` on `parent`: a commit of ours whose answer was lost. */

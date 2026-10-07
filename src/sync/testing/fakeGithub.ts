@@ -2,10 +2,10 @@ import { vi } from 'vitest';
 import { defaultBrandPack } from '../../brand/defaultBrand';
 import type { Country, Initiative, Person, Role, Team } from '../../data/types';
 import { decodeBase64Utf8, encodeBase64Utf8 } from '../../github/base64';
-import { gitBlobSha } from '../../github/client';
+import { gitBlobSha, TRUNCATED } from '../../github/client';
 import { Repository, type RepositoryState } from '../Repository';
 import { answerCreateCommit } from './graphqlCommit';
-import { answerFilesQuery, isFilesQuery, queriedPaths } from './graphqlRead';
+import { answerFilesQuery, answerTree, isFilesQuery, queriedPaths } from './graphqlRead';
 
 /**
  * An in-memory GitHub for tests that need the real rules: a stale sha is a 409, a missing sha on an
@@ -32,7 +32,7 @@ interface DeleteRecord {
   status: number;
 }
 
-function json(body: unknown, status = 200, headers?: HeadersInit): Response {
+export function json(body: unknown, status = 200, headers?: HeadersInit): Response {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
@@ -96,9 +96,7 @@ export function fakeGithub() {
     // Every file of the branch in one listing (§10.2). The fake keeps no history: any ref lists the files as they are.
     if (method === 'GET' && /\/git\/trees\/[^/]+$/.test(pathname)) {
       if (files.size === 0) return json({ message: 'Not Found' }, 404);
-      const tree = [...files].map(([path, file]) => ({ path, mode: '100644', type: 'blob', sha: file.sha }));
-      if ([...files.keys()].some((p) => p.startsWith('initiatives/'))) tree.push({ path: 'initiatives', mode: '040000', type: 'tree', sha: 'dir' });
-      return json({ sha: `commit-${head}`, tree, truncated: false });
+      return json(answerTree(`commit-${head}`, [...files].map(([path, file]) => [path, file.sha])));
     }
 
     // A GraphQL read of files (§10.2): each read is a download, and a refused read refuses the whole query.
@@ -109,7 +107,7 @@ export function fakeGithub() {
       return json(
         await answerFilesQuery(init.body as string, (path) => {
           if (!files.has(path)) return null;
-          if (tooLarge.has(path)) return 'truncated';
+          if (tooLarge.has(path)) return TRUNCATED;
           reads.push(path);
           return files.get(path)!;
         }),

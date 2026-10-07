@@ -461,7 +461,7 @@ export class Repository {
     // Moved only through this client's own saves: what they wrote is on screen and in the cache already, so only the
     // head is recorded (§10.2). Never while a many-file commit of its own is pulled in: that pull is what shows it.
     if (head && this.meta && unchangedEndsPull && this.ownCommit === null && this.savesLead(this.meta.head, head.sha)) {
-      this.remember({ head, files: new Map(), listing: new Map(), compared: new Map() }, true);
+      this.remember({ head, files: new Map() }, true);
       return null;
     }
 
@@ -483,28 +483,36 @@ export class Repository {
 
     const compared = this.knownShas();
     const changed = [...listing].filter(([path, sha]) => compared.get(path) !== sha).map(([path]) => path);
-    const read = new Map<string, GetFileResult>();
+    const files = new Map<string, PulledFile>();
+    const keep = (path: string, file: GetFileResult | null) => file && files.set(path, pulledFile(path, file));
     const toRead: string[] = [];
     for (const path of changed) {
       const own = written.get(path);
-      if (own && own.sha === listing.get(path)) read.set(path, own);
+      if (own && own.sha === listing.get(path)) keep(path, own);
       else toRead.push(path);
     }
-    // About a hundred files per GraphQL query; one too large for it is read on its own (§10.2).
+    // About a hundred files per GraphQL query; those too large for it are read on their own afterwards (§10.2).
     const batches = Array.from({ length: Math.ceil(toRead.length / FILES_PER_QUERY) }, (_, i) => toRead.slice(i * FILES_PER_QUERY, (i + 1) * FILES_PER_QUERY));
+    const tooLarge: string[] = [];
     const worker = async () => {
       for (let batch = batches.shift(); batch !== undefined; batch = batches.shift()) {
-        const got = await this.github.readFiles({ ref: at, paths: batch });
-        for (const [path, file] of got) {
-          const whole = file === TRUNCATED ? await this.github.getFile({ path, branch: at }) : file;
-          if (whole) read.set(path, whole);
+        for (const [path, file] of await this.github.readFiles({ ref: at, paths: batch })) {
+          if (file === TRUNCATED) tooLarge.push(path);
+          else keep(path, file);
         }
       }
     };
     await Promise.all(Array.from({ length: Math.min(PULL_READS_AT_ONCE, batches.length) }, worker));
-    const files = new Map<string, PulledFile>();
-    for (const path of changed) if (read.has(path)) files.set(path, pulledFile(path, read.get(path)!));
+    await Promise.all(tooLarge.map(async (path) => keep(path, await this.github.getFile({ path, branch: at }))));
     return { head: head ?? null, files, listing, compared };
+  }
+
+  /** Keeps only the own saves that lead on from `head`: no later pull starts from a commit before it. */
+  private forgetSavesBefore(head: string): void {
+    const ahead = new Map<string, string>();
+    for (let at = head, next = this.ownSaves.get(at); next !== undefined && !ahead.has(at); at = next, next = this.ownSaves.get(at)) ahead.set(at, next);
+    this.ownSaves.clear();
+    for (const [parent, sha] of ahead) this.ownSaves.set(parent, sha);
   }
 
   /** Whether this client's own saves lead from commit `from` to commit `to`. */
@@ -661,12 +669,13 @@ export class Repository {
   }
 
   /** Keeps a pull in the cache for the next open (§10.4), and what it saw, unless a file was left alone. Failures are survivable. */
-  private remember({ files, head }: Pulled, complete: boolean): void {
+  private remember({ files, head }: Pick<Pulled, 'files' | 'head'>, complete: boolean): void {
     const meta = complete && head ? { head: head.sha, etag: head.etag } : null;
     const kept = [...files].map(([path, file]): [string, { content: string; sha: string }] => [path, { content: file.raw, sha: file.sha }]);
     this.cache.commitPull(kept, meta).then(
       (recorded) => {
         this.meta = recorded ? meta : null;
+        if (meta) this.forgetSavesBefore(meta.head);
       },
       (error) => {
         // The cache is a local convenience: losing it only means the next open pulls everything.

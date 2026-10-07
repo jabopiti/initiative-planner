@@ -2,7 +2,7 @@ import type { Page, Route } from '@playwright/test';
 import { decodeBase64Utf8 as unb64, encodeBase64Utf8 as b64 } from '../../src/github/base64';
 import { gitBlobSha } from '../../src/github/client';
 import { answerCreateCommit } from '../../src/sync/testing/graphqlCommit';
-import { answerFilesQuery, isFilesQuery } from '../../src/sync/testing/graphqlRead';
+import { answerFilesQuery, answerTree, isFilesQuery } from '../../src/sync/testing/graphqlRead';
 
 /**
  * An in-memory GitHub for browser tests: just enough of the API the app uses (the token check, the Contents API, the
@@ -76,8 +76,7 @@ export function fakeGithub(page: Page, options: { login?: string; rejectedTokens
     // Every file of the branch in one listing (§10.2). The fake keeps no history: any ref lists the files as they are.
     if (method === 'GET' && /\/git\/trees\/[^/]+$/.test(pathname)) {
       if (!headCommit) return json(route, { message: 'Not Found' }, 404);
-      const tree = [...files].map(([path, file]) => ({ path, mode: '100644', type: 'blob', sha: file.sha }));
-      return json(route, { sha: headCommit, tree, truncated: false });
+      return json(route, answerTree(headCommit, [...files].map(([path, file]) => [path, file.sha])));
     }
 
     // A GraphQL read of files (§10.2).

@@ -251,9 +251,7 @@ describe('GithubClient — deleteFile (slice 017)', () => {
     const client = new GithubClient(location, () => 'token');
 
     // The commit the delete made, and the one it sits on (slice 065).
-    await expect(client.deleteFile({ path: 'initiatives/i1.json', branch: location.dataBranch, message: 'Payments API: deleted', sha: 'sha-1' })).resolves.toEqual({
-      commit: { sha: 'c2', parent: 'c1' },
-    });
+    await expect(client.deleteFile({ path: 'initiatives/i1.json', branch: location.dataBranch, message: 'Payments API: deleted', sha: 'sha-1' })).resolves.toEqual({ sha: 'c2', parent: 'c1' });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.github.com/repos/jabopiti/initiative-planner/contents/initiatives/i1.json');

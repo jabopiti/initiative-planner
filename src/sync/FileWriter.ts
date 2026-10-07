@@ -752,11 +752,9 @@ export class FileWriter<D> {
         const deleted = await this.options.queue.run(() =>
           this.options.github.deleteFile({ path: this.options.path, branch: this.options.branch, message: renderMessage(message), sha: at }),
         );
-        if (deleted !== 'gone' && deleted.commit) {
-          // Out of the cache before the commit is told, so a pull that ends at it never leaves the file cached.
-          void this.options.cache.delete(this.options.path).catch(() => {});
-          this.options.onCommitted?.(deleted.commit);
-        }
+        // Out of the cache before the commit is told, so a pull that ends at it never leaves the file cached.
+        void this.options.cache.delete(this.options.path).catch(() => {});
+        if (deleted !== 'gone' && deleted) this.options.onCommitted?.(deleted);
         return 'deleted';
       } catch (error) {
         const stale = error instanceof GithubApiError && error.cause_ === 'conflict';
