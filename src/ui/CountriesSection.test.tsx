@@ -154,6 +154,7 @@ describe('Countries & rates list (§5.9)', () => {
     await user.type(april, `${typed}{Enter}`);
     expect(screen.getByRole('alert')).toHaveTextContent('Enter whole days from 0 to 30.');
     expect(puts()).toHaveLength(0);
+    expect(served.fake().graphqlCommits).toHaveLength(0);
   });
 
   it('refuses a negative day rate inline', async () => {
