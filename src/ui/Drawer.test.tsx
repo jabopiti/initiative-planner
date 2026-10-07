@@ -9,6 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { TeamDetail } from './TeamDetail';
 import { TeamsOverview } from './TeamsOverview';
 import { rootListing } from '../sync/testing/rootListing';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const person = (id: string, name: string, active: boolean) => ({
@@ -35,7 +36,7 @@ beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags);
@@ -45,7 +46,7 @@ beforeAll(() => {
       if (url.includes('/contents/people.json')) return file(people);
       if (url.includes('/contents/memberships.json')) return file(memberships);
       return new Response('{}', { status: 404 });
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

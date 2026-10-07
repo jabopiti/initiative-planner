@@ -14,6 +14,7 @@ import { RepositoryProvider } from '../state/DataContext';
 import { rootListing } from '../sync/testing/rootListing';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const [role] = baseline.roles;
@@ -77,7 +78,7 @@ export function installCapacityFixture() {
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: string, init: RequestInit = {}) => {
+      contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
         if ((init.method ?? 'GET') === 'PUT') {
           const body = JSON.parse(String(init.body)) as { message: string; content: string };
           puts.push({ message: body.message, content: JSON.parse(atob(body.content)) });
@@ -97,7 +98,7 @@ export function installCapacityFixture() {
         if (one) return file(one, `i-${one.id}`);
         if (url.includes('/contents/initiatives')) return json(fixture.initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `i-${i.id}`, type: 'file' })));
         return json({ message: 'Not Found' }, 404);
-      }),
+      })),
     );
   });
   afterAll(() => vi.unstubAllGlobals());

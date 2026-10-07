@@ -30,7 +30,7 @@ import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
 import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, GithubApiError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { GithubClient, type BranchHead, type CommitOnHeadArgs, type CommitResult } from '../github/client';
+import { FILES_PER_QUERY, GithubClient, TRUNCATED, type BranchHead, type CommitLink, type CommitOnHeadArgs, type CommitResult, type GetFileResult } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { WriteBudget } from '../github/writeBudget';
 import { unclaimedCapacityPct } from '../data/capacity';
@@ -123,7 +123,7 @@ export const PULL_INTERVAL_MS = 5 * 60 * 1000;
 export const FOCUS_PULL_MIN_GAP_MS = 15 * 1000;
 /** After a failed pull, or one that had to leave a file alone, the next attempt comes this soon. */
 export const PULL_RETRY_MS = 30 * 1000;
-/** How many files a pull reads at once: a dataset of hundreds of initiatives must not fire hundreds of requests together. */
+/** How many reads a pull runs at once, each up to {@link FILES_PER_QUERY} files (§10.2). */
 const PULL_READS_AT_ONCE = 8;
 
 /** A file a pull read: its text, which the cache keeps, and what it says, parsed once. A file that is not JSON fails the read. */
@@ -275,6 +275,10 @@ export class Repository {
    * is "updated by others", and the files the commit wrote, with their versions, are taken as they are rather than
    * downloaded again (§10.3). */
   private ownCommit: Map<string, WrittenFile> | null = null;
+  /** This client's own saves, single-file and joint, as each commit's parent → the commit (§10.2): a pull whose head
+   * they lead to from the last complete pull's has nothing to read. Kept for this page's lifetime only. */
+  private readonly ownSaves = new Map<string, string>();
+  private readonly recordSave = ({ sha, parent }: CommitLink): void => void this.ownSaves.set(parent, sha);
 
   constructor(
     private readonly brand: BrandPack,
@@ -454,6 +458,12 @@ export class Repository {
     const head = await this.github.getBranchHead({ branch, etag: unchangedEndsPull ? (this.meta?.etag ?? null) : null });
     if (head === 'not-modified') return null;
     if (head && this.meta && unchangedEndsPull && head.sha === this.meta.head) return null;
+    // Moved only through this client's own saves: what they wrote is on screen and in the cache already, so only the
+    // head is recorded (§10.2). Never while a many-file commit of its own is pulled in: that pull is what shows it.
+    if (head && this.meta && unchangedEndsPull && this.ownCommit === null && this.savesLead(this.meta.head, head.sha)) {
+      this.remember({ head, files: new Map(), listing: new Map(), compared: new Map() }, true);
+      return null;
+    }
 
     // Listing and files are read at the head just checked, so they are one commit's snapshot: validation across
     // files (§3 Damaged data) never sees half of another user's change, such as a membership without its person.
@@ -473,22 +483,54 @@ export class Repository {
 
     const compared = this.knownShas();
     const changed = [...listing].filter(([path, sha]) => compared.get(path) !== sha).map(([path]) => path);
-    const files = new Map<string, PulledFile>();
-    const waiting = [...changed];
+    const read = new Map<string, GetFileResult>();
+    const toRead: string[] = [];
+    for (const path of changed) {
+      const own = written.get(path);
+      if (own && own.sha === listing.get(path)) read.set(path, own);
+      else toRead.push(path);
+    }
+    // About a hundred files per GraphQL query; one too large for it is read on its own (§10.2).
+    const batches = Array.from({ length: Math.ceil(toRead.length / FILES_PER_QUERY) }, (_, i) => toRead.slice(i * FILES_PER_QUERY, (i + 1) * FILES_PER_QUERY));
     const worker = async () => {
-      for (let path = waiting.shift(); path !== undefined; path = waiting.shift()) {
-        const own = written.get(path);
-        const file = own && own.sha === listing.get(path) ? own : await this.github.getFile({ path, branch: at });
-        if (file) files.set(path, pulledFile(path, file));
+      for (let batch = batches.shift(); batch !== undefined; batch = batches.shift()) {
+        const got = await this.github.readFiles({ ref: at, paths: batch });
+        for (const [path, file] of got) {
+          const whole = file === TRUNCATED ? await this.github.getFile({ path, branch: at }) : file;
+          if (whole) read.set(path, whole);
+        }
       }
     };
-    await Promise.all(Array.from({ length: Math.min(PULL_READS_AT_ONCE, changed.length) }, worker));
+    await Promise.all(Array.from({ length: Math.min(PULL_READS_AT_ONCE, batches.length) }, worker));
+    const files = new Map<string, PulledFile>();
+    for (const path of changed) if (read.has(path)) files.set(path, pulledFile(path, read.get(path)!));
     return { head: head ?? null, files, listing, compared };
   }
 
+  /** Whether this client's own saves lead from commit `from` to commit `to`. */
+  private savesLead(from: string, to: string): boolean {
+    let at: string | undefined = from;
+    for (let steps = 0; steps < this.ownSaves.size && at !== undefined; steps += 1) {
+      at = this.ownSaves.get(at);
+      if (at === to) return true;
+    }
+    return false;
+  }
+
   /** The master files and the initiative files the repository lists, by path, with their versions (§10.2). */
-  private async listDataset(branch: string): Promise<Map<string, string>> {
-    // `branch` is any ref: the data branch, or one commit of it.
+  private async listDataset(ref: string): Promise<Map<string, string>> {
+    // `ref` is the data branch, or one commit of it. One request lists every file, unless there are too many for it.
+    const tree = await this.github.listTree({ ref });
+    if (tree.truncated) return this.listDatasetByFolder(ref);
+    const listing = new Map<string, string>();
+    for (const entry of tree.entries) {
+      if (entry.type === 'blob' && (MASTER_FILES.includes(entry.path) || /^initiatives\/[^/]+\.json$/.test(entry.path))) listing.set(entry.path, entry.sha);
+    }
+    return listing;
+  }
+
+  /** {@link listDataset} by the two folders, for a tree too large for one listing. */
+  private async listDatasetByFolder(branch: string): Promise<Map<string, string>> {
     const [root, initiatives] = await Promise.all([
       this.github.listDirectory({ path: '', branch }),
       this.github.listDirectory({ path: 'initiatives', branch }),
@@ -962,6 +1004,7 @@ export class Repository {
       initial,
       onStatus: this.statusOf(path),
       onSchedule: () => this.writtenByAction?.add(path),
+      onCommitted: this.recordSave,
       onCacheFull: this.onCacheFull,
       onConflict: this.onConflict,
       onConflictClosed: this.onConflictClosed,
@@ -997,6 +1040,7 @@ export class Repository {
       creationFailure: 'Could not create the initiative.',
       onStatus: this.statusOf(path),
       onSchedule: () => this.writtenByAction?.add(path),
+      onCommitted: this.recordSave,
       onCacheFull: this.onCacheFull,
       onConflict: this.onConflict,
       onConflictClosed: this.onConflictClosed,
@@ -1250,6 +1294,7 @@ export class Repository {
           });
           if (result === 'stopped') return giveBack();
           parts.forEach(([writer, part], i) => writer.jointLanded(part, result.written[i].sha));
+          if (result.parent) this.recordSave({ sha: result.commitSha, parent: result.parent });
         } catch (error) {
           // The branch kept moving, or its head can't be read: each file saves on its own, as it would without this commit.
           if (error instanceof GithubApiError && (error.cause_ === 'conflict' || error.cause_ === 'not-found')) return giveBack();

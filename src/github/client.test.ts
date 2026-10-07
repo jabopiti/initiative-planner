@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GithubLocation } from '../brand/types';
-import { gitBlobSha, GithubClient, graphqlUrl, REQUEST_TIMEOUT_MS } from './client';
+import { FILES_PER_QUERY, gitBlobSha, GithubClient, graphqlUrl, REQUEST_TIMEOUT_MS, TRUNCATED } from './client';
 import { WriteQueue } from '../sync/WriteQueue';
 import { GithubApiError } from './errors';
 import type { WriteBudget } from './writeBudget';
@@ -149,7 +149,7 @@ describe('GithubClient — branch is always explicit (§10.3)', () => {
 
       const result = await new GithubClient(location, () => 'token').createFilesCommit({ branch, files: [{ path: 'dataset.json', content: '{}' }], message: 'init' });
 
-      expect(result).toEqual({ commitSha: 'new-sha', written: [{ path: 'dataset.json', content: '{}', sha: '9e26dfeeb6e641a33dae4961196235bdb965b21b' }] });
+      expect(result).toEqual({ commitSha: 'new-sha', parent: 'parent-sha', written: [{ path: 'dataset.json', content: '{}', sha: '9e26dfeeb6e641a33dae4961196235bdb965b21b' }] });
       expect(input).toMatchObject({ branch: { branchName: branch }, expectedHeadOid: 'parent-sha', message: { headline: 'init' } });
       expect(calls.filter((c) => !c.startsWith('GET '))).toEqual(['POST https://api.github.com/graphql']);
     },
@@ -247,10 +247,13 @@ describe('GithubClient — deleteFile (slice 017)', () => {
   });
 
   it('sends DELETE with the sha, message and data branch in the body', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ commit: {} }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ commit: { sha: 'c2', parents: [{ sha: 'c1' }] } }), { status: 200 }));
     const client = new GithubClient(location, () => 'token');
 
-    await expect(client.deleteFile({ path: 'initiatives/i1.json', branch: location.dataBranch, message: 'Payments API: deleted', sha: 'sha-1' })).resolves.toBe('deleted');
+    // The commit the delete made, and the one it sits on (slice 065).
+    await expect(client.deleteFile({ path: 'initiatives/i1.json', branch: location.dataBranch, message: 'Payments API: deleted', sha: 'sha-1' })).resolves.toEqual({
+      commit: { sha: 'c2', parent: 'c1' },
+    });
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('https://api.github.com/repos/jabopiti/initiative-planner/contents/initiatives/i1.json');
@@ -276,10 +279,11 @@ describe('GithubClient — putFile on a file that is gone (slice 017)', () => {
     const args = { path: 'initiatives/i1.json', branch: location.dataBranch, content: '{}', message: 'x', sha: 'sha-1' };
 
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'sha-2' } }), { status: 201 }));
-    await expect(client.putFile(args)).resolves.toEqual({ sha: 'sha-2', created: true });
+    await expect(client.putFile(args)).resolves.toEqual({ sha: 'sha-2', created: true, commit: null });
 
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'sha-3' } }), { status: 200 }));
-    await expect(client.putFile(args)).resolves.toEqual({ sha: 'sha-3', created: false });
+    // With the commit it made and the one it sits on, when GitHub names them (slice 065).
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ content: { sha: 'sha-3' }, commit: { sha: 'c2', parents: [{ sha: 'c1' }] } }), { status: 200 }));
+    await expect(client.putFile(args)).resolves.toEqual({ sha: 'sha-3', created: false, commit: { sha: 'c2', parent: 'c1' } });
   });
 });
 
@@ -335,7 +339,7 @@ describe('GithubClient — failures are classified and requests end (slice 043)'
       await vi.advanceTimersByTimeAsync(1);
       await hungSettled;
       expect(signals[0].aborted).toBe(true);
-      await expect(next).resolves.toEqual({ sha: 'new', created: false });
+      await expect(next).resolves.toEqual({ sha: 'new', created: false, commit: null });
     });
 
     it('times out a response whose body stalls after the headers, so its reader never hangs', async () => {
@@ -383,7 +387,7 @@ describe('GithubClient — failures are classified and requests end (slice 043)'
 
     expect(fake.graphqlCommits).toEqual([]);
     expect(fake.has('dataset.json')).toBe(false);
-    expect(result).toEqual({ commitSha: 'commit-3', written: [] });
+    expect(result).toEqual({ commitSha: 'commit-3', parent: null, written: [] });
     expect(fake.requests().filter((r) => r === 'POST /graphql')).toHaveLength(1);
   });
 
@@ -499,5 +503,71 @@ describe('GithubClient — GraphQL commits (slice 064)', () => {
 
     expect(result).toMatchObject({ commitSha: 'ours' });
     expect(posts).toHaveLength(1);
+  });
+});
+
+describe('GithubClient — cheaper pulls (slice 065)', () => {
+  it('lists every file of a commit in one recursive tree request, and an absent branch or empty repository as none', async () => {
+    const client = new GithubClient(location, () => 'token');
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ tree: [{ path: 'teams.json', sha: 's1', type: 'blob', mode: '100644' }, { path: 'initiatives', sha: 'd', type: 'tree' }], truncated: false }), { status: 200 }),
+    );
+    await expect(client.listTree({ ref: 'c1' })).resolves.toEqual({
+      entries: [{ path: 'teams.json', sha: 's1', type: 'blob' }, { path: 'initiatives', sha: 'd', type: 'tree' }],
+      truncated: false,
+    });
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.github.com/repos/jabopiti/initiative-planner/git/trees/c1?recursive=1');
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 }));
+    await expect(client.listTree({ ref: 'data' })).resolves.toEqual({ entries: [], truncated: false });
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ message: 'Git Repository is empty.' }), { status: 409 }));
+    await expect(client.listTree({ ref: 'data' })).resolves.toEqual({ entries: [], truncated: false });
+  });
+
+  it('reads files in one GraphQL query by commit and path, passed as variables; a cut file is marked, a missing one left out', async () => {
+    const budget = { reserve: vi.fn(async () => {}) } as unknown as WriteBudget;
+    const client = new GithubClient(location, () => 'token', undefined, { budget });
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          data: {
+            repository: {
+              f0: { oid: 's1', text: '[]', isTruncated: false },
+              f1: { oid: 's2', text: '{"cut', isTruncated: true },
+              f2: null,
+            },
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const read = await client.readFiles({ ref: 'c1', paths: ['teams.json', 'initiatives/big.json', 'initiatives/gone.json'] });
+
+    expect([...read]).toEqual([
+      ['teams.json', { content: '[]', sha: 's1' }],
+      ['initiatives/big.json', TRUNCATED],
+    ]);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.github.com/graphql');
+    const body = JSON.parse(init.body as string) as { query: string; variables: Record<string, string> };
+    expect(body.variables).toMatchObject({ owner: 'jabopiti', name: 'initiative-planner', e0: 'c1:teams.json', e2: 'c1:initiatives/gone.json' });
+    expect(body.query).not.toContain('teams.json');
+    // A read takes no place in the write budget (§10.3).
+    expect(budget.reserve).not.toHaveBeenCalled();
+    await expect(client.readFiles({ ref: 'c1', paths: Array.from({ length: FILES_PER_QUERY + 1 }, (_, i) => `f${i}`) })).rejects.toThrow();
+  });
+
+  it('a GraphQL read GitHub limits pauses requests as a REST limit does; another GraphQL error fails the read', async () => {
+    const client = new GithubClient(location, () => 'token');
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ errors: [{ type: 'RATE_LIMITED', message: 'API rate limit exceeded' }] }), { status: 200, headers: { 'retry-after': '30' } }),
+    );
+    await expect(client.readFiles({ ref: 'c1', paths: ['teams.json'] })).rejects.toMatchObject({ cause_: 'rate-limited' });
+    expect(client.pausedUntil).not.toBeNull();
+
+    const other = new GithubClient(location, () => 'token');
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ errors: [{ type: 'FORBIDDEN', message: 'no' }] }), { status: 200 }));
+    await expect(other.readFiles({ ref: 'c1', paths: ['teams.json'] })).rejects.toMatchObject({ cause_: 'unknown' });
   });
 });

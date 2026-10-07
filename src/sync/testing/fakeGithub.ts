@@ -5,6 +5,7 @@ import { decodeBase64Utf8, encodeBase64Utf8 } from '../../github/base64';
 import { gitBlobSha } from '../../github/client';
 import { Repository, type RepositoryState } from '../Repository';
 import { answerCreateCommit } from './graphqlCommit';
+import { answerFilesQuery, isFilesQuery, queriedPaths } from './graphqlRead';
 
 /**
  * An in-memory GitHub for tests that need the real rules: a stale sha is a 409, a missing sha on an
@@ -53,6 +54,8 @@ export function fakeGithub() {
   const failures: { prefix: string; status: number; refusal: Refusal }[] = [];
   const reads: string[] = [];
   const failReads: { path: string; status: number }[] = [];
+  /** Files a GraphQL read gives cut short, as GitHub does for one over 512,000 bytes: read through REST instead. */
+  const tooLarge = new Set<string>();
   const tokenBehaviours = new Map<string, TokenBehaviour>();
   let counter = 0;
   let head = 1;
@@ -88,6 +91,29 @@ export function fakeGithub() {
       const etag = `"head-${head}"`;
       if (new Headers(init.headers).get('If-None-Match') === etag) return new Response(null, { status: 304 });
       return new Response(JSON.stringify({ object: { sha: `commit-${head}` } }), { status: 200, headers: { etag } });
+    }
+
+    // Every file of the branch in one listing (§10.2). The fake keeps no history: any ref lists the files as they are.
+    if (method === 'GET' && /\/git\/trees\/[^/]+$/.test(pathname)) {
+      if (files.size === 0) return json({ message: 'Not Found' }, 404);
+      const tree = [...files].map(([path, file]) => ({ path, mode: '100644', type: 'blob', sha: file.sha }));
+      if ([...files.keys()].some((p) => p.startsWith('initiatives/'))) tree.push({ path: 'initiatives', mode: '040000', type: 'tree', sha: 'dir' });
+      return json({ sha: `commit-${head}`, tree, truncated: false });
+    }
+
+    // A GraphQL read of files (§10.2): each read is a download, and a refused read refuses the whole query.
+    if (method === 'POST' && pathname === '/graphql' && isFilesQuery(init.body as string)) {
+      const paths = queriedPaths(init.body as string);
+      const failure = failReads.findIndex((f) => paths.includes(f.path));
+      if (failure >= 0) return json({ message: 'failed' }, failReads.splice(failure, 1)[0].status);
+      return json(
+        await answerFilesQuery(init.body as string, (path) => {
+          if (!files.has(path)) return null;
+          if (tooLarge.has(path)) return 'truncated';
+          reads.push(path);
+          return files.get(path)!;
+        }),
+      );
     }
 
     // GraphQL `createCommitOnBranch` (§10.3): one commit of many files, refused unless the branch is at the expected head.
@@ -190,7 +216,7 @@ export function fakeGithub() {
       if (record.status !== 200) return json({ message: failure?.refusal.message ?? 'failed' }, record.status, failure?.refusal.headers);
       files.delete(path);
       head += 1;
-      return json({ commit: { sha: `commit-${head}` } });
+      return json({ commit: { sha: `commit-${head}`, parents: [{ sha: `commit-${head - 1}` }] } });
     }
 
     const record: PutRecord = { path, message: body.message, sha: body.sha, content: JSON.parse(decodeBase64Utf8(body.content)), status: 200 };
@@ -209,7 +235,7 @@ export function fakeGithub() {
     if (!existing) record.status = 201;
 
     record.newSha = put(path, record.content);
-    return json({ content: { sha: record.newSha } }, record.status);
+    return json({ content: { sha: record.newSha }, commit: { sha: `commit-${head}`, parents: [{ sha: `commit-${head - 1}` }] } }, record.status);
   });
 
   return {
@@ -240,6 +266,8 @@ export function fakeGithub() {
     },
     /** Paths of every file the client has downloaded, in order (listings and head checks are not downloads). */
     reads,
+    /** A GraphQL read gives `path` cut short, as GitHub does for a file over 512,000 bytes. */
+    tooLarge: (path: string) => void tooLarge.add(path),
     /** The next download of `path` is refused with `status`. */
     failRead: (path: string, status: number) => void failReads.push({ path, status }),
     /** Every request the client has made, in order, as `METHOD pathname`. */

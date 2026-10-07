@@ -11,6 +11,7 @@ import { rootListing } from '../sync/testing/rootListing';
 import { CountriesSection } from './CountriesSection';
 import { useSectionLock } from './useSectionLock';
 import { subjectOf } from '../sync/testing/commitMessage';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 /** Opens a list row's "⋯" menu and chooses one of its items (§9.10). */
 async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string, item: string) {
@@ -31,7 +32,7 @@ const puts: { path: string; message: string; content: unknown }[] = [];
 beforeAll(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') {
         if (countriesUnreachable && url.includes('/contents/countries.json')) return json({ message: 'Server Error' }, 500);
         const body = JSON.parse(init.body as string) as { message: string; content: string };
@@ -51,7 +52,7 @@ beforeAll(() => {
         return json(initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `sha-${i.id}`, type: 'file' })));
       }
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

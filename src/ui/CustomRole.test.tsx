@@ -9,6 +9,7 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PeopleOverview } from './PeopleOverview';
 import { rootListing } from '../sync/testing/rootListing';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const standardRole = baseline.roles[0].name;
@@ -32,7 +33,7 @@ beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') {
         puts.push({ url, body: JSON.parse(init.body as string) });
         return json({ content: { sha: 'next' } });
@@ -45,7 +46,7 @@ beforeAll(() => {
       if (url.includes('/contents/people.json')) return file([cai]);
       if (url.includes('/contents/memberships.json')) return file([]);
       return new Response('{}', { status: 404 });
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

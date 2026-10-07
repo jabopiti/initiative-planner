@@ -3,6 +3,8 @@ import { defaultBrandPack } from '../brand/defaultBrand';
 import { cacheScope, FileCache } from '../cache/db';
 import { CHANGE_TINT_MS, changeCovers, changeKey, FOCUS_PULL_MIN_GAP_MS, lostEditKey, PULL_INTERVAL_MS, PULL_RETRY_MS, Repository } from './Repository';
 import { fakeGithub, holdNetwork, initiative, open, person, type Fake } from './testing/fakeGithub';
+import { isFilesQuery, queriedPaths } from './testing/graphqlRead';
+import { contentsBacked } from './testing/contentsBacked';
 
 const setVisibility = (state: 'visible' | 'hidden') =>
   Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
@@ -101,14 +103,16 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
       expect(repo.getState().initiatives.map((i) => i.name).sort()).toEqual(['Data lake', 'Payments API v2']);
     });
 
-    it('reads a few files at a time, however many changed', async () => {
+    it('reads changed files about a hundred per GraphQL query, a few queries at a time, however many changed', async () => {
       const repo = await reopen();
-      for (let n = 2; n < 30; n += 1) fake.seed(`initiatives/i${n}.json`, initiative({ id: `i${n}`, name: `Initiative ${n}` }));
+      for (let n = 2; n < 260; n += 1) fake.seed(`initiatives/i${n}.json`, initiative({ id: `i${n}`, name: `Initiative ${n}` }));
       let inFlight = 0;
       let peak = 0;
+      const sizes: number[] = [];
       vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
-        const read = /contents\/initiatives\/i\d+\.json/.test(url) && (init?.method ?? 'GET') === 'GET';
+        const read = typeof init?.body === 'string' && isFilesQuery(init.body);
         if (read) {
+          sizes.push(queriedPaths(init.body as string).length);
           inFlight += 1;
           peak = Math.max(peak, inFlight);
           await new Promise((resolve) => setTimeout(resolve, 2));
@@ -122,9 +126,23 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
 
       await repo.pull();
 
-      expect(repo.getState().initiatives).toHaveLength(29);
+      expect(repo.getState().initiatives).toHaveLength(259);
+      expect(sizes.sort((a, b) => b - a)).toEqual([100, 100, 58]);
       expect(peak).toBeGreaterThan(1);
       expect(peak).toBeLessThanOrEqual(8);
+    });
+
+    it('reads a file too large for a GraphQL query on its own, through the Contents API', async () => {
+      const repo = await reopen();
+      fake.seed('initiatives/i1.json', initiative({ name: 'Large elsewhere' }));
+      fake.tooLarge('initiatives/i1.json');
+      fake.reads.length = 0;
+
+      await repo.pull();
+
+      expect(fake.reads).toEqual(['initiatives/i1.json']);
+      expect(fake.requests()).toContain('GET /repos/jabopiti/initiative-planner/contents/initiatives/i1.json');
+      expect(repo.getState().initiatives[0].name).toBe('Large elsewhere');
     });
 
     it('leaves the master files alone when only an initiative changed', async () => {
@@ -167,7 +185,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
       const late = new Promise<void>((resolve) => (release = resolve));
       vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
         const response = await fake.fetchMock(url, init);
-        if (init?.method === 'GET' && url.includes('/contents/initiatives/i1.json') && !held) {
+        if (typeof init?.body === 'string' && isFilesQuery(init.body) && queriedPaths(init.body).includes('initiatives/i1.json') && !held) {
           held = true;
           await late;
         }
@@ -400,7 +418,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
 
   describe('a failed pull (§3 Sync failures)', () => {
     it('shows the read-only state with its cause and keeps showing the cached data', async () => {
-      vi.stubGlobal('fetch', () => Promise.reject(new TypeError('offline')));
+      vi.stubGlobal('fetch', contentsBacked(() => Promise.reject(new TypeError('offline'))));
       const repo = await reopen();
 
       expect(repo.getState().readOnly?.cause).toBe('unreachable');
@@ -410,7 +428,7 @@ describe('slice 005i: opening from the cache and pulling others’ changes (§3,
 
     it('recovers by itself once a pull works, without a reload', async () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
-      vi.stubGlobal('fetch', () => Promise.reject(new TypeError('offline')));
+      vi.stubGlobal('fetch', contentsBacked(() => Promise.reject(new TypeError('offline'))));
       const repo = await reopen();
       await repo.whenPulled();
       expect(repo.getState().readOnly).not.toBeNull();

@@ -9,6 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { rootListing } from '../sync/testing/rootListing';
 import { RolesSection } from './RolesSection';
 import { useSectionLock } from './useSectionLock';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 /** Opens a list row's "⋯" menu and chooses one of its items (§9.10). */
 async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string, item: string) {
@@ -26,7 +27,7 @@ let initiatives: Initiative[] = [];
 beforeAll(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
@@ -41,7 +42,7 @@ beforeAll(() => {
         return json(initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `sha-${i.id}`, type: 'file' })));
       }
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

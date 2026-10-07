@@ -108,20 +108,20 @@ one IndexedDB transaction.
 
 ## Acceptance criteria
 
-- [ ] Given a moved head, then the pull lists the dataset with one request.
-- [ ] Given only this client's own commits since the last complete pull,
+- [x] Given a moved head, then the pull lists the dataset with one request.
+- [x] Given only this client's own commits since the last complete pull,
       then the next pull is one conditional request and downloads nothing,
       and the poll after it is answered 304.
-- [ ] Given another user's commit interleaved with this client's own, then
+- [x] Given another user's commit interleaved with this client's own, then
       the pull lists and downloads that user's files as today.
-- [ ] Given (GraphQL) a cold load at the volume ceiling, then at most 6
+- [x] Given (GraphQL) a cold load at the volume ceiling, then at most 6
       requests reach the fake GitHub, and a truncated file is read through
       REST.
-- [ ] Given a GraphQL file read, then it takes no place in the write
+- [x] Given a GraphQL file read, then it takes no place in the write
       budget.
-- [ ] Given a cold load, then the cache is written in one transaction and
+- [x] Given a cold load, then the cache is written in one transaction and
       the next open makes one request.
-- [ ] Given 064's request-count test, then the rows this slice improves are
+- [x] Given 064's request-count test, then the rows this slice improves are
       updated and the others are unchanged.
 
 ## Flags and compromises

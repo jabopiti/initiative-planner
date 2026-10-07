@@ -10,6 +10,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { PeopleOverview } from './PeopleOverview';
 import { TeamDetail } from './TeamDetail';
 import { rootListing } from '../sync/testing/rootListing';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 /** Opens a list row's "⋯" menu and chooses one of its items (§9.10). */
 async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string, item: string) {
@@ -34,7 +35,7 @@ function file(content: unknown, sha: string): Response {
 function stubGithub() {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       const method = init.method ?? 'GET';
       if (method === 'PUT') return json({ content: { sha: 'next' } });
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
@@ -45,7 +46,7 @@ function stubGithub() {
       if (url.includes('/contents/people.json')) return file([], 'p');
       if (url.includes('/contents/memberships.json')) return file([], 'm');
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 }
 

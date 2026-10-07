@@ -8,6 +8,7 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { InitiativeDetail } from './InitiativeDetail';
 import { rootListing } from '../sync/testing/rootListing';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }];
 const countries: Country[] = [{ id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [2026, 2027].map((year) => ({ year, dayRate: 500, workingDaysByMonth: Array(12).fill(20) })) }];
@@ -37,7 +38,7 @@ beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string) => {
+    contentsBacked(vi.fn(async (url: string) => {
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
       if (url.includes('/contents/roles.json')) return file(roles, 'r');
@@ -48,7 +49,7 @@ beforeAll(() => {
       if (url.endsWith('/contents/initiatives.json') || url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
       if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

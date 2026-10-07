@@ -10,6 +10,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
 import { rootListing } from '../sync/testing/rootListing';
 import { phases } from '../test/phases';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 // One country: €500/day, 20 working days every month of 2026. One role, factor 0.8.
 const twenty = Array(12).fill(20);
@@ -30,7 +31,7 @@ beforeAll(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) {
@@ -44,7 +45,7 @@ beforeAll(() => {
       if (url.endsWith('/contents/initiatives.json') || url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
       if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());

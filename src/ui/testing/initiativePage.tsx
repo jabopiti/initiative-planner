@@ -9,6 +9,7 @@ import { subjectOf } from '../../sync/testing/commitMessage';
 import { InitiativeDetail } from '../InitiativeDetail';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
+import { contentsBacked } from '../../sync/testing/contentsBacked';
 
 // One initiative page (i1, team Platform, Ana Ruiz on it) against a stubbed GitHub, for tests of the page as a whole.
 
@@ -40,7 +41,7 @@ export function initiativePageHarness(initiative: () => Initiative) {
     Element.prototype.hasPointerCapture = () => false;
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (url: string, init: RequestInit = {}) => {
+      contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
         if ((init.method ?? 'GET') === 'PUT') {
           const body = JSON.parse(String(init.body)) as { message: string; content: string };
           puts.push({ message: subjectOf(body.message), content: JSON.parse(atob(body.content)) });
@@ -56,7 +57,7 @@ export function initiativePageHarness(initiative: () => Initiative) {
         if (url.includes('/contents/initiatives/i1.json')) return file(initiative(), 'i');
         if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
         return json({ message: 'Not Found' }, 404);
-      }),
+      })),
     );
   });
   afterAll(() => vi.unstubAllGlobals());

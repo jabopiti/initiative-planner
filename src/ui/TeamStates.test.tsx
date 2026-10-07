@@ -10,6 +10,7 @@ import { NewInitiativeControl } from './NewInitiativeControl';
 import { PortfolioBoard } from './PortfolioBoard';
 import { TeamDetail } from './TeamDetail';
 import { rootListing } from '../sync/testing/rootListing';
+import { contentsBacked } from '../sync/testing/contentsBacked';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const ACTIVE = { id: 't1', name: 'Payments', active: true };
@@ -23,7 +24,7 @@ let teams: { id: string; name: string; active: boolean }[] = [];
 beforeAll(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: RequestInit = {}) => {
+    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
       if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
       if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
       if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
@@ -33,7 +34,7 @@ beforeAll(() => {
       if (url.includes('/contents/people.json')) return file([], 'p');
       if (url.includes('/contents/memberships.json')) return file([], 'm');
       return json({ message: 'Not Found' }, 404);
-    }),
+    })),
   );
 });
 afterAll(() => vi.unstubAllGlobals());
