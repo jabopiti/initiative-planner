@@ -38,9 +38,6 @@ function queried(requestBody: string): { ref: string; path: string }[] {
 /** The paths a GraphQL read asks for, in the order of its fields. */
 export const queriedPaths = (requestBody: string): string[] => queried(requestBody).map(({ path }) => path);
 
-/** The commit or branch a GraphQL read reads at. */
-export const queriedRef = (requestBody: string): string | undefined => queried(requestBody)[0]?.ref;
-
 /**
  * A GraphQL read of files (§10.2) for the unit and e2e fakes, answered as GitHub does: each field a blob with its oid
  * and text, `isTruncated` with a cut text for a file too large, or null for a path that does not exist.
