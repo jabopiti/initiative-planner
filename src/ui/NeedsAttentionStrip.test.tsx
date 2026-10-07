@@ -11,8 +11,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { InitiativeDetail } from './InitiativeDetail';
 import { PortfolioBoard } from './PortfolioBoard';
 import { TopBar } from './TopBar';
-import { rootListing } from '../sync/testing/rootListing';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const [discoveryId, validationId] = defaultBrandPack.process.map((p) => p.id);
@@ -21,37 +20,18 @@ const [g1] = defaultBrandPack.process.map((p) => p.exitGate);
 const ana: Person = { id: 'ana', name: 'Ana Ruiz', countryId: baseline.countries[0].id, roleId: baseline.roles[0].id, capacityPct: 100, active: true };
 const members: Membership[] = [{ id: 'm1', personId: 'ana', teamId: 't1', teamFtePct: 100, active: true }];
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let initiatives: Initiative[] = [];
+
+const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams: [{ id: 't1', name: 'Platform', active: true }], people: [ana], memberships: members, initiatives }));
 
 beforeAll(() => {
   Element.prototype.scrollIntoView = () => {};
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
-      if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');
-      if (url.includes('/contents/teams.json')) return file([{ id: 't1', name: 'Platform', active: true }], 't');
-      if (url.includes('/contents/people.json')) return file([ana], 'p');
-      if (url.includes('/contents/memberships.json')) return file(members, 'm');
-      const match = /\/contents\/initiatives\/(.+)\.json$/.exec(new URL(url).pathname);
-      if (match) {
-        const found = initiatives.find((i) => i.id === match[1]);
-        return found ? file(found, `sha-${match[1]}`) : json({ message: 'Not Found' }, 404);
-      }
-      if (url.includes('/contents/initiatives')) return json(initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `sha-${i.id}`, type: 'file' })));
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
+  vi.stubGlobal('fetch', served.fetch);
 });
 afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
+  served.reset();
   window.location.hash = '';
 });
 
@@ -146,7 +126,7 @@ describe('Needs attention strip (§5.2, §8.5)', () => {
     expect(within(nav).getByText('2')).toBeInTheDocument();
     cleanup();
 
-    initiatives = [];
+    for (const { id } of initiatives) served.fake().remove(`initiatives/${id}.json`);
     renderWith(
       <>
         <TopBar route="/portfolio" />

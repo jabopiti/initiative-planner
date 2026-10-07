@@ -9,8 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { NewInitiativeControl } from './NewInitiativeControl';
 import { NewInitiativeDraft } from './NewInitiativeDraft';
 import { PortfolioBoard } from './PortfolioBoard';
-import { rootListing } from '../sync/testing/rootListing';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const ONE_TEAM = [{ id: 't1', name: 'Payments', active: true }];
@@ -19,43 +18,22 @@ const TWO_TEAMS = [
   { id: 't2', name: 'Platform', active: true },
 ];
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let teams = ONE_TEAM;
-let puts: { url: string; body: { message: string; content: string } }[] = [];
-let failInitiativePut = false;
+
+const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people: [], memberships: [] }));
 
 beforeAll(() => {
   // Radix Select needs these pointer/scroll APIs, which jsdom lacks.
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') {
-        if (failInitiativePut && url.includes('/initiatives/')) return json({ message: 'Server Error' }, 500);
-        puts.push({ url, body: JSON.parse(String(init.body)) });
-        return json({ content: { sha: 'next' } });
-      }
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
-      if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');
-      if (url.includes('/contents/teams.json')) return file(teams, 't');
-      if (url.includes('/contents/people.json')) return file([], 'p');
-      if (url.includes('/contents/memberships.json')) return file([], 'm');
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
+  vi.stubGlobal('fetch', served.fetch);
 });
 afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
+  served.reset();
   teams = ONE_TEAM;
-  puts = [];
-  failInitiativePut = false;
   localStorage.clear();
   window.location.hash = '';
 });
@@ -70,7 +48,8 @@ function renderWith(ui: React.ReactNode) {
   );
 }
 
-const initiativePuts = () => puts.filter((p) => p.url.includes('/initiatives/'));
+/** The initiative files the fake accepted a write to. */
+const initiativePuts = () => served.accepted().filter((p) => p.path.startsWith('initiatives/'));
 const nameField = () => screen.findByPlaceholderText('Name this initiative');
 
 describe('New initiative: name it on the page (§5.1, §5.4)', () => {
@@ -168,13 +147,12 @@ describe('New initiative: name it on the page (§5.1, §5.4)', () => {
     await user.click(screen.getByRole('combobox', { name: 'Team' }));
     await user.click(await screen.findByRole('option', { name: 'Payments' }));
 
-    failInitiativePut = true;
+    served.fake().fail('initiatives/', 500);
     await user.click(screen.getByRole('button', { name: 'Create initiative' }));
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Create initiative' })).toBeEnabled());
     expect(window.location.hash).toBe('');
     expect(await nameField()).toHaveValue('Data lake');
 
-    failInitiativePut = false;
     await user.click(screen.getByRole('button', { name: 'Create initiative' }));
     await vi.waitFor(() => expect(window.location.hash).toMatch(/^#\/initiatives\/./));
     expect(initiativePuts()).toHaveLength(1);
@@ -189,8 +167,8 @@ describe('New initiative: name it on the page (§5.1, §5.4)', () => {
     await user.click(screen.getByRole('button', { name: 'Create initiative' }));
 
     await vi.waitFor(() => expect(initiativePuts()).toHaveLength(1));
-    const saved = JSON.parse(atob(initiativePuts()[0].body.content));
-    expect(initiativePuts()[0].body.message).toBe(`Payments API v2: created\n\nEntity: initiative/${saved.id}`);
+    const saved = initiativePuts()[0].content as { id: string };
+    expect(initiativePuts()[0].message).toBe(`Payments API v2: created\n\nEntity: initiative/${saved.id}`);
     expect(saved).toMatchObject({ name: 'Payments API v2', teamId: 't1', status: 'Active' });
     expect(window.location.hash).toBe(`#/initiatives/${saved.id}`);
   });

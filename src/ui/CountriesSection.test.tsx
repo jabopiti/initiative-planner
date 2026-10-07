@@ -7,11 +7,10 @@ import type { Country, Initiative, Person } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { rootListing } from '../sync/testing/rootListing';
 import { CountriesSection } from './CountriesSection';
 import { useSectionLock } from './useSectionLock';
 import { subjectOf } from '../sync/testing/commitMessage';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 /** Opens a list row's "⋯" menu and chooses one of its items (§9.10). */
 async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string, item: string) {
@@ -19,41 +18,17 @@ async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string,
   await user.click(await screen.findByRole('menuitem', { name: item }));
 }
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let countries: Country[] = [];
 let people: Person[] = [];
 let initiatives: Initiative[] = [];
 let ratesReviewed = false;
-let countriesUnreachable = false;
-const puts: { path: string; message: string; content: unknown }[] = [];
+
+const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed }, roles: [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }], countries, teams: [{ id: 't', name: 'Platform', active: true }], people, memberships: [], initiatives }));
+/** Each commit the fake accepted: the file, its subject and its new content. */
+const puts = () => served.accepted().map((p) => ({ path: p.path, message: subjectOf(p.message), content: p.content }));
 
 beforeAll(() => {
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') {
-        if (countriesUnreachable && url.includes('/contents/countries.json')) return json({ message: 'Server Error' }, 500);
-        const body = JSON.parse(init.body as string) as { message: string; content: string };
-        puts.push({ path: new URL(url).pathname.split('/contents/')[1], message: subjectOf(body.message), content: JSON.parse(atob(body.content)) });
-        return json({ content: { sha: `next-${puts.length}` } });
-      }
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed }, 'd');
-      if (url.includes('/contents/roles.json')) return file([{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 1, active: true }], 'r');
-      if (url.includes('/contents/countries.json')) return file(countries, 'c');
-      if (url.includes('/contents/teams.json')) return file([{ id: 't', name: 'Platform', active: true }], 't');
-      if (url.includes('/contents/people.json')) return file(people, 'p');
-      if (url.includes('/contents/memberships.json')) return file([], 'm');
-      const hit = initiatives.find((i) => url.includes(`/contents/initiatives/${i.id}.json`));
-      if (hit) return file(hit, `sha-${hit.id}`);
-      if (url.includes('/contents/initiatives')) {
-        return json(initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `sha-${i.id}`, type: 'file' })));
-      }
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
+  vi.stubGlobal('fetch', served.fetch);
 });
 afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
@@ -61,9 +36,8 @@ afterEach(cleanup);
 const year = (y: number, dayRate: number, workingDaysByMonth = weekdaysByMonth(y)) => ({ year: y, dayRate, workingDaysByMonth });
 
 beforeEach(() => {
-  puts.length = 0;
+  served.reset();
   ratesReviewed = false;
-  countriesUnreachable = false;
   countries = [
     { id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [year(2026, 1000), year(2027, 1000), year(2028, 1000)] },
     { id: 'es', name: 'Spain', code: 'ES', active: true, ratesByYear: [year(2026, 800), year(2027, 800), year(2028, 800)] },
@@ -96,8 +70,15 @@ async function renderSection({ unlock = false } = {}) {
 }
 
 const saved = async (path: string) => {
-  await waitFor(() => expect(puts.some((p) => p.path === path)).toBe(true));
-  return puts.filter((p) => p.path === path);
+  await waitFor(() => expect(puts().some((p) => p.path === path)).toBe(true));
+  return puts().filter((p) => p.path === path);
+};
+
+/** The one many-file commit made: a first rate edit also marks the rates reviewed, both files together (§10.3). */
+const jointCommit = async () => {
+  await waitFor(() => expect(served.fake().graphqlCommits).toHaveLength(1));
+  const [commit] = served.fake().graphqlCommits;
+  return { ...commit, message: subjectOf(commit.message) };
 };
 
 describe('Countries & rates list (§5.9)', () => {
@@ -132,8 +113,10 @@ describe('Countries & rates list (§5.9)', () => {
     await user.click(screen.getByRole('button', { name: 'Reset to weekdays for 2027' }));
 
     expect(screen.getByRole('spinbutton', { name: 'Working days in Apr 2027, Germany' })).toHaveValue(22);
-    const [put] = await saved('countries.json');
-    expect(put.message).toBe('Germany: working days in 2027 reset to weekdays');
+    expect(await jointCommit()).toMatchObject({
+      message: 'Germany: working days in 2027 reset to weekdays; Rates marked as reviewed',
+      files: ['countries.json', 'dataset.json'],
+    });
   });
 
   it('shows years that left the window in a collapsed, read-only Earlier years row', async () => {
@@ -175,7 +158,7 @@ describe('Countries & rates list (§5.9)', () => {
     await user.clear(april);
     await user.type(april, `${typed}{Enter}`);
     expect(screen.getByRole('alert')).toHaveTextContent('Enter whole days from 0 to 30.');
-    expect(puts).toHaveLength(0);
+    expect(puts()).toHaveLength(0);
   });
 
   it('refuses a negative day rate inline', async () => {
@@ -241,7 +224,7 @@ describe('Countries & rates list (§5.9)', () => {
   });
 
   it('a failed rates save shows once, at the top of the country, with its own Retry', async () => {
-    countriesUnreachable = true;
+    served.fake().failGraphql({ status: 500 }); // the first rate edit's commit, which also marks the rates reviewed
     const user = await renderSection({ unlock: true });
     await user.click(screen.getByRole('button', { name: 'Show Germany’s rates' }));
     const april = screen.getByRole('spinbutton', { name: 'Working days in Apr 2027, Germany' });
@@ -309,8 +292,8 @@ describe('Rates are correct (§5.9, §5.2)', () => {
     await user.type(june, '20{Enter}');
     expect(screen.getByText('Jun 2027 working days: changes no estimates.')).toBeInTheDocument();
 
-    const countriesPuts = await saved('countries.json');
-    expect(countriesPuts[0].message).toMatch(/^Germany: 2027 day rate set to €740/);
-    expect((await saved('dataset.json'))[0].message).toBe('Rates marked as reviewed');
+    expect(await jointCommit()).toMatchObject({ message: 'Germany: 2027 day rate set to €740; Rates marked as reviewed', files: ['countries.json', 'dataset.json'] });
+    const [juneCommit] = await saved('countries.json');
+    expect(juneCommit.message).toBe('Germany: working days in Jun 2027 set to 20');
   });
 });

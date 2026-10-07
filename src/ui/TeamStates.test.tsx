@@ -9,37 +9,23 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { NewInitiativeControl } from './NewInitiativeControl';
 import { PortfolioBoard } from './PortfolioBoard';
 import { TeamDetail } from './TeamDetail';
-import { rootListing } from '../sync/testing/rootListing';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const ACTIVE = { id: 't1', name: 'Payments', active: true };
 const INACTIVE = { id: 't2', name: 'Retired', active: false };
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let teams: { id: string; name: string; active: boolean }[] = [];
 
+const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people: [], memberships: [] }));
+
 beforeAll(() => {
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
-      if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');
-      if (url.includes('/contents/teams.json')) return file(teams, 't');
-      if (url.includes('/contents/people.json')) return file([], 'p');
-      if (url.includes('/contents/memberships.json')) return file([], 'm');
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
+  vi.stubGlobal('fetch', served.fetch);
 });
 afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
+  served.reset();
   teams = [];
   window.location.hash = '';
 });

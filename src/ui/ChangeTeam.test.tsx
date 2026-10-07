@@ -8,9 +8,8 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
-import { rootListing } from '../sync/testing/rootListing';
 import { subjectOf } from '../sync/testing/commitMessage';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 // One country: €500/day, 20 working days every month of 2026. One role, factor 0.8: 100% for a month costs €8,000.
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
@@ -26,12 +25,8 @@ const cai = person('cai', 'Cai Wu');
 const dev = person('dev', 'Dev Rao');
 const membership = (personId: string, teamId: string, active = true): Membership => ({ id: `${personId}-${teamId}`, personId, teamId, teamFtePct: 60, active });
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let initiative: Initiative;
 let members: Membership[];
-let puts: { message: string; content: Initiative }[] = [];
 
 const withAllocations = (allocations: { personId: string; pct: number }[]): Initiative => ({
   ...initiative,
@@ -44,6 +39,10 @@ const withAllocations = (allocations: { personId: string; pct: number }[]): Init
   },
 });
 
+const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, roles, countries, teams, people: [ana, cai, dev], memberships: members, initiatives: [initiative] }));
+/** Each commit the fake accepted: its subject and the initiative's new content. */
+const puts = () => served.accepted().map((p) => ({ message: subjectOf(p.message), content: p.content as Initiative }));
+
 beforeAll(() => {
   // Radix Select needs these pointer/scroll APIs, which jsdom lacks.
   Element.prototype.hasPointerCapture = () => false;
@@ -51,34 +50,15 @@ beforeAll(() => {
   Element.prototype.releasePointerCapture = () => {};
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') {
-        const body = JSON.parse(String(init.body)) as { message: string; content: string };
-        puts.push({ message: subjectOf(body.message), content: JSON.parse(atob(body.content)) });
-        return json({ content: { sha: 'next' } });
-      }
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
-      if (url.includes('/contents/roles.json')) return file(roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(countries, 'c');
-      if (url.includes('/contents/teams.json')) return file(teams, 't');
-      if (url.includes('/contents/people.json')) return file([ana, cai, dev], 'p');
-      if (url.includes('/contents/memberships.json')) return file(members, 'm');
-      if (url.endsWith('/contents/initiatives.json') || url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
+  vi.stubGlobal('fetch', served.fetch);
 });
 afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
+  served.reset();
   initiative = { id: 'i1', name: 'Payments API', teamId: 't1', status: 'Active' };
   // Ana is on both teams; Cai only on Payments; Dev on Payments and, inactively, on Growth.
   members = [membership('ana', 't1'), membership('cai', 't1'), membership('dev', 't1'), membership('ana', 't2'), membership('dev', 't2', false)];
-  puts = [];
 });
 
 function renderPage() {
@@ -95,7 +75,7 @@ function renderPage() {
 }
 
 const teamControl = () => screen.findByRole('combobox', { name: 'Team' });
-const teamChanges = () => puts.filter((p) => p.message.includes('team changed'));
+const teamChanges = () => puts().filter((p) => p.message.includes('team changed'));
 
 async function chooseTeam(user: ReturnType<typeof userEvent.setup>, name: string) {
   await user.click(await teamControl());
@@ -239,7 +219,7 @@ describe('Change an initiative’s team (§5.4, §7.2)', () => {
       await user.click(screen.getByRole('button', { name: 'Undo' }));
       expect(await teamControl()).toHaveTextContent('Payments');
       expect(screen.getAllByRole('row', { name: /Ruiz|Wu|Rao/ })).toHaveLength(3);
-      await vi.waitFor(() => expect(puts.some((p) => p.message.includes('changed back'))).toBe(true), { timeout: 3000 });
+      await vi.waitFor(() => expect(puts().some((p) => p.message.includes('changed back'))).toBe(true), { timeout: 3000 });
     });
   });
 

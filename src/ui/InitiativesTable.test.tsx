@@ -11,8 +11,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { InitiativesTable } from './InitiativesTable';
 import { resetSessionFilters } from './sessionFilters';
-import { rootListing } from '../sync/testing/rootListing';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const { process } = defaultBrandPack;
@@ -44,40 +43,21 @@ const onHold: Initiative = { ...overrun, id: 'oh', name: 'On Hold Co', status: '
 const cancelled: Initiative = { ...overrun, id: 'ca', name: 'Cancelled Co', status: 'Cancelled' };
 const closed: Initiative = { id: 'cl', name: 'Closed Co', teamId: 't1', status: 'Closed', gates: passed(process.map((p) => p.id)) };
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let initiatives: Initiative[] = [];
 let written: Record<string, string> = {};
+
+const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people, memberships: members, initiatives }));
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
-      if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');
-      if (url.includes('/contents/teams.json')) return file(teams, 't');
-      if (url.includes('/contents/people.json')) return file(people, 'p');
-      if (url.includes('/contents/memberships.json')) return file(members, 'm');
-      const match = /\/contents\/initiatives\/(.+)\.json$/.exec(new URL(url).pathname);
-      if (match) {
-        const found = initiatives.find((i) => i.id === match[1]);
-        return found ? file(found, `sha-${match[1]}`) : json({ message: 'Not Found' }, 404);
-      }
-      if (url.includes('/contents/initiatives')) return json(initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `sha-${i.id}`, type: 'file' })));
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
+  vi.stubGlobal('fetch', served.fetch);
 });
 afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
+  served.reset();
   window.location.hash = '';
   written = {};
   resetSessionFilters();

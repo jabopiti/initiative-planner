@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
 import { BrandProvider } from '../state/BrandContext';
@@ -8,34 +8,15 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { PeopleOverview } from './PeopleOverview';
 import { TeamsOverview } from './TeamsOverview';
-import { rootListing } from '../sync/testing/rootListing';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const teams = [{ id: 't1', name: 'Payments', active: true }];
 
-function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status });
-}
-function file(content: unknown, sha: string): Response {
-  return json({ content: btoa(JSON.stringify(content)), sha });
-}
+const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people: [], memberships: [] }));
 
 function stubGithub() {
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
-      if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');
-      if (url.includes('/contents/teams.json')) return file(teams, 't');
-      if (url.includes('/contents/people.json')) return file([], 'p');
-      if (url.includes('/contents/memberships.json')) return file([], 'm');
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
+  vi.stubGlobal('fetch', served.fetch);
 }
 
 function renderWith(ui: React.ReactNode) {
@@ -51,6 +32,7 @@ function renderWith(ui: React.ReactNode) {
 // The debounced writer commits after the test ends, so the stub must outlive each test.
 beforeAll(stubGithub);
 afterAll(() => vi.unstubAllGlobals());
+beforeEach(() => served.reset());
 afterEach(cleanup);
 
 describe('name inputs take keyboard focus (shadcn Input receives ref, React 19)', () => {

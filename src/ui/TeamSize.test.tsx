@@ -12,8 +12,7 @@ import { InitiativeDetail } from './InitiativeDetail';
 import { PeopleOverview } from './PeopleOverview';
 import { TeamDetail } from './TeamDetail';
 import { TeamsOverview } from './TeamsOverview';
-import { rootListing } from '../sync/testing/rootListing';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 /** Opens a list row's "⋯" menu and chooses one of its items (§9.10). */
 async function rowAction(user: ReturnType<typeof userEvent.setup>, menu: string, item: string) {
@@ -46,8 +45,7 @@ let people: Person[];
 let memberships: Membership[];
 const initiative: Initiative = { id: 'i1', name: 'Payments API', teamId: 't1', status: 'Active' };
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
+const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people, memberships, initiatives: [initiative] }));
 
 beforeAll(() => {
   // Radix Select needs these pointer/scroll APIs, which jsdom lacks.
@@ -56,27 +54,13 @@ beforeAll(() => {
   Element.prototype.releasePointerCapture = () => {};
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') return json({ content: { sha: 'next' } });
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
-      if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');
-      if (url.includes('/contents/teams.json')) return file(teams, 't');
-      if (url.includes('/contents/people.json')) return file(people, 'p');
-      if (url.includes('/contents/memberships.json')) return file(memberships, 'm');
-      if (url.endsWith('/contents/initiatives.json') || url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
+  vi.stubGlobal('fetch', served.fetch);
 });
 afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 
 beforeEach(() => {
+  served.reset();
   teams = [
     { id: 't1', name: 'Payments', active: true },
     { id: 't2', name: 'Platform', active: true },

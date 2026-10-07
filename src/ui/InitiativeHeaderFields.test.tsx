@@ -9,9 +9,8 @@ import { RepositoryProvider } from '../state/DataContext';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 import { InitiativeDetail } from './InitiativeDetail';
-import { rootListing } from '../sync/testing/rootListing';
 import { subjectOf } from '../sync/testing/commitMessage';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const roles: Role[] = [{ id: 'dev', name: 'Developer', abbreviation: 'Dev', costFactor: 0.8, active: true }];
 const countries: Country[] = [{ id: 'de', name: 'Germany', code: 'DE', active: true, ratesByYear: [{ year: 2026, dayRate: 500, workingDaysByMonth: Array(12).fill(20) }] }];
@@ -24,13 +23,13 @@ const carla = person('carla', 'Carla Ferrer');
 const sofia = person('sofia', 'Sofia Molina', { active: false });
 const membership = (personId: string, teamId: string, active = true): Membership => ({ id: `${personId}-${teamId}`, personId, teamId, teamFtePct: 60, active });
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
-
 let brand: BrandPack;
 let initiative: Initiative;
 let members: Membership[];
-let puts: { message: string; content: Initiative }[] = [];
+
+const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: { schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, roles, countries, teams, people: [mara, felix, carla, sofia], memberships: members, initiatives: [initiative] }));
+/** Each commit the fake accepted: its subject and the initiative's new content. */
+const puts = () => served.accepted().map((p) => ({ message: subjectOf(p.message), content: p.content as Initiative }));
 
 beforeAll(() => {
   // Radix Select needs these pointer/scroll APIs, which jsdom lacks.
@@ -39,34 +38,15 @@ beforeAll(() => {
   Element.prototype.releasePointerCapture = () => {};
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string, init: RequestInit = {}) => {
-      if ((init.method ?? 'GET') === 'PUT') {
-        const body = JSON.parse(String(init.body)) as { message: string; content: string };
-        puts.push({ message: subjectOf(body.message), content: JSON.parse(atob(body.content)) });
-        return json({ content: { sha: 'next' } });
-      }
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file({ schemaVersion: 1, processIdentity: defaultBrandPack.processIdentity, ratesReviewed: true }, 'd');
-      if (url.includes('/contents/roles.json')) return file(roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(countries, 'c');
-      if (url.includes('/contents/teams.json')) return file(teams, 't');
-      if (url.includes('/contents/people.json')) return file([mara, felix, carla, sofia], 'p');
-      if (url.includes('/contents/memberships.json')) return file(members, 'm');
-      if (url.endsWith('/contents/initiatives.json') || url.includes('/contents/initiatives/i1.json')) return file(initiative, 'i');
-      if (url.includes('/contents/initiatives')) return json([{ name: 'i1.json', path: 'initiatives/i1.json', sha: 'sha-i1', type: 'file' }]);
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
+  vi.stubGlobal('fetch', served.fetch);
 });
 afterAll(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 beforeEach(() => {
+  served.reset();
   brand = defaultBrandPack;
   initiative = { id: 'i1', name: 'Checkout Redesign', teamId: 't1', status: 'Active' };
   members = [membership('mara', 't1'), membership('felix', 't1')];
-  puts = [];
 });
 
 function renderPage() {
@@ -84,7 +64,7 @@ function renderPage() {
 
 const descriptionField = () => screen.findByRole('textbox', { name: 'Description' });
 const ownerControl = () => screen.findByRole('combobox', { name: 'Owner' });
-const descriptionChanges = () => puts.filter((p) => p.message.includes('description changed'));
+const descriptionChanges = () => puts().filter((p) => p.message.includes('description changed'));
 
 describe('Initiative header: description (§5.4)', () => {
   it('shows the placeholder when there is no description', async () => {
@@ -159,8 +139,8 @@ describe('Initiative header: owner (§5.4, §9.3)', () => {
     await user.click(await ownerControl());
     await user.click(await screen.findByRole('option', { name: 'Mara Voss' }));
     expect(await ownerControl()).toHaveTextContent('Mara Voss');
-    await vi.waitFor(() => expect(puts.some((p) => p.message.includes('owner set to'))).toBe(true), { timeout: 3000 });
-    const change = puts.find((p) => p.message.includes('owner set to'))!;
+    await vi.waitFor(() => expect(puts().some((p) => p.message.includes('owner set to'))).toBe(true), { timeout: 3000 });
+    const change = puts().find((p) => p.message.includes('owner set to'))!;
     expect(change.message).toBe('Checkout Redesign: owner set to Mara Voss');
     expect(change.content.ownerId).toBe('mara');
   });
@@ -173,8 +153,8 @@ describe('Initiative header: owner (§5.4, §9.3)', () => {
     await user.click(await ownerControl());
     await user.click(await screen.findByRole('option', { name: 'No owner' }));
     expect(await ownerControl()).toHaveTextContent('No owner');
-    await vi.waitFor(() => expect(puts.some((p) => p.message.includes('owner cleared'))).toBe(true), { timeout: 3000 });
-    expect(puts.find((p) => p.message.includes('owner cleared'))!.content.ownerId).toBeUndefined();
+    await vi.waitFor(() => expect(puts().some((p) => p.message.includes('owner cleared'))).toBe(true), { timeout: 3000 });
+    expect(puts().find((p) => p.message.includes('owner cleared'))!.content.ownerId).toBeUndefined();
   });
 
   it('shows a deactivated owner as "(inactive)" and keeps them until someone changes it, without offering them again', async () => {

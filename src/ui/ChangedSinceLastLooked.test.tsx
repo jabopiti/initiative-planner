@@ -1,7 +1,7 @@
 import { cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cacheScope, SeenCache } from '../cache/db';
 import { defaultBrandPack } from '../brand/defaultBrand';
 import { buildBaselineDataset } from '../data/baseline';
@@ -11,12 +11,11 @@ import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider, useRepositoryState } from '../state/DataContext';
 import { NeedsAttentionProvider } from '../state/NeedsAttentionContext';
 import { SeenProvider, useInitiativeVisit } from '../state/SeenContext';
-import { rootListing } from '../sync/testing/rootListing';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { InitiativesTable } from './InitiativesTable';
 import { PortfolioBoard } from './PortfolioBoard';
 import { resetSessionFilters } from './sessionFilters';
-import { contentsBacked } from '../sync/testing/contentsBacked';
+import { fakeOnDemand, seedFiles } from '../sync/testing/fakeGithub';
 
 const baseline = buildBaselineDataset(defaultBrandPack);
 const { process } = defaultBrandPack;
@@ -33,8 +32,6 @@ const fraud: Initiative = { id: 'fr', name: 'Fraud Detection Upgrade', teamId: '
 const paused: Initiative = { id: 'pa', name: 'Paused One', teamId: 't1', status: 'On Hold', phases: plan(50_000) };
 const never: Initiative = { id: 'nv', name: 'Never Opened', teamId: 't1', status: 'Active' };
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
-const file = (content: unknown, sha: string) => json({ content: btoa(JSON.stringify(content)), sha });
 let initiatives: Initiative[] = [];
 const scope = cacheScope(defaultBrandPack.github);
 const DAY = 86_400_000;
@@ -46,31 +43,16 @@ const seenAs = (initiative: Initiative, estimate: number, daysAgo: number): Seen
 };
 const seenNow = (initiative: Initiative): SeenRecord => seenRecord(initiative, keyFigureSnapshot(initiative, process, people, data), Date.now());
 
+const served = fakeOnDemand((fake) => seedFiles(fake, { dataset: baseline.datasetFlags, roles: baseline.roles, countries: baseline.countries, teams, people, memberships: [], initiatives }));
+
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.scrollIntoView = () => {};
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
-  vi.stubGlobal(
-    'fetch',
-    contentsBacked(vi.fn(async (url: string) => {
-      if (new URL(url).pathname.endsWith('/contents/')) return rootListing();
-      if (url.includes('/contents/dataset.json')) return file(baseline.datasetFlags, 'd');
-      if (url.includes('/contents/roles.json')) return file(baseline.roles, 'r');
-      if (url.includes('/contents/countries.json')) return file(baseline.countries, 'c');
-      if (url.includes('/contents/teams.json')) return file(teams, 't');
-      if (url.includes('/contents/people.json')) return file(people, 'p');
-      if (url.includes('/contents/memberships.json')) return file([], 'm');
-      const match = /\/contents\/initiatives\/(.+)\.json$/.exec(new URL(url).pathname);
-      if (match) {
-        const found = initiatives.find((i) => i.id === match[1]);
-        return found ? file(found, `sha-${match[1]}`) : json({ message: 'Not Found' }, 404);
-      }
-      if (url.includes('/contents/initiatives')) return json(initiatives.map((i) => ({ name: `${i.id}.json`, path: `initiatives/${i.id}.json`, sha: `sha-${i.id}`, type: 'file' })));
-      return json({ message: 'Not Found' }, 404);
-    })),
-  );
+  vi.stubGlobal('fetch', served.fetch);
 });
 afterAll(() => vi.unstubAllGlobals());
+beforeEach(() => served.reset());
 afterEach(async () => {
   cleanup();
   resetSessionFilters();
