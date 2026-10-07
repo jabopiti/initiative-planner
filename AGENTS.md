@@ -41,7 +41,10 @@ One slice at a time from `/backlog`, reading only the spec sections its
 `spec_sections` frontmatter cites. Acceptance criteria = definition of
 done; verify each before marking complete. Merging to `main` deploys
 (`.github/workflows/deploy.yml`), so a slice is done on its `Slice <id>:`
-commit; slice files carry no separate delivery gate.
+commit; slice files carry no separate delivery gate. A shipped slice's
+file moves to `backlog/done/`. Don't read `backlog/done/` unless the user
+asks: it is build history, and its old acceptance criteria describe
+screens later slices changed — the spec and the code describe today's app.
 
 ## Order of work
 1. Bug: reproduce first (failing test, `curl`, console) and name the

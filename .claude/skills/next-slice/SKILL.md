@@ -22,7 +22,7 @@ on it is done, treat the spike as done.
 
 If `$ARGUMENTS` names a slice, take it (say if it isn't eligible, or in
 progress on another branch). Otherwise the user picks — even when only one
-is eligible — with your recommendation from the build plan in
+is eligible — with your recommendation from the open slices in
 `backlog/slices-overview.md`. Never offer a slice marked IN PROGRESS: another
 session has it. Mention the slice's `recommended_model` so they can switch;
 don't switch it yourself.
