@@ -12,28 +12,23 @@ import {
   type DatasetFlags,
   type Initiative,
   type Membership,
-  type PhasePlan,
   type Person,
   type Role,
   type Team,
 } from '../data/types';
-import { allocationRefusal, trackedYears, type Period } from '../data/cost';
-import { formatDateEn, formatMonthEn } from '../data/dates';
-import { periodMonthsEn } from '../data/period';
+import { trackedYears, type Period } from '../data/cost';
 import { countriesRolledForward, peopleRolledForward } from '../data/rates';
 import { localToday } from '../data/dates';
 import { duplicateInitiative, type DuplicateResult } from '../data/duplicate';
-import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
+import { buildDefaultPlan } from '../data/defaultPlan';
 import { FROZEN_PHASE_FIELDS, frozenPaths, hasPassedGate, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
 import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
-import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
+import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
 import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, GithubApiError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
 import { GithubClient, type CommitOnHeadArgs, type CommitResult } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { WriteBudget } from '../github/writeBudget';
-import { activeMembership } from '../data/teamMembers';
-import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
 import { distinctEntities, FileWriter, renderMessage, type JointPart, type CommitMessage, type CommitNote, type DeleteResult, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
@@ -41,8 +36,9 @@ import { MASTER_FILES, parseDataFile, validateDataset, validateRecords } from '.
 import { PullSource, pulledFile, type Pulled, type WrittenFile } from './PullSource';
 import { RateLimitTracker } from './RateLimitTracker';
 import { WriteQueue } from './WriteQueue';
+import { InitiativeEditCommands, insertAt, type AddAllocationResult, type CopyAllocationsResult, type CostItemChange } from './InitiativeEditCommands';
 import { ReferenceDataCommands } from './ReferenceDataCommands';
-import { note as entityNote, personName, teamName, allocationWords, costItemWords } from './commitWords';
+import { note as entityNote, teamName } from './commitWords';
 
 export type { ReadOnlyState } from '../github/errors';
 
@@ -146,12 +142,7 @@ export type ResetResult = 'reset' | { failed: ReadOnlyState };
 /** New people (§5.5) take these; country and role default to the last values used. */
 import type { NewPersonInput } from './ReferenceDataCommands';
 export type { NewPersonInput } from './ReferenceDataCommands';
-
-/** What Copy from <previous phase> did: how many allocations were added and who was skipped (§5.11). */
-export type CopyAllocationsResult = { copied: number; skipped: Person[] };
-
-/** Why an allocation wasn't added (§7.2), in words the page can show as is. */
-export type AddAllocationResult = { ok: true; allocation: Allocation } | { ok: false; reason?: string };
+export type { AddAllocationResult, CopyAllocationsResult, CostItemChange } from './InitiativeEditCommands';
 
 /** What a team change did, kept by the page for the 10 seconds it can be undone (§5.11). */
 export interface TeamChange {
@@ -159,22 +150,6 @@ export interface TeamChange {
   toTeamId: string;
   removed: RemovedAllocation[];
 }
-
-/** `item` put back at `index` (or last, when the list has since shrunk): where an Undo restores a removed list item. */
-function insertAt<T>(list: T[], item: T, index: number): T[] {
-  const next = [...list];
-  next.splice(Math.min(index, next.length), 0, item);
-  return next;
-}
-
-/** One change to a cost item, of the one field the commit note names. */
-export type CostItemChange = { label: string } | { amount: number } | { timing: 'spread' } | { timing: 'month'; month: string } | { month: string };
-
-/** The phase lists whose items are removed with an Undo (§5.11). */
-type PhaseList = 'allocations' | 'costItems';
-
-/** A phase list's items as the caller knows them; `list` says which, so the one cast is here. */
-const itemsOf = <T extends { id: string }>(plan: PhasePlan | undefined, list: PhaseList): T[] => (plan?.[list] ?? []) as unknown as T[];
 
 type Listener = () => void;
 
@@ -243,6 +218,7 @@ export class Repository {
   private tintTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly source: PullSource;
   private readonly refData: ReferenceDataCommands;
+  private readonly edits: InitiativeEditCommands;
 
   constructor(
     private readonly brand: BrandPack,
@@ -262,6 +238,16 @@ export class Repository {
       commitMemberships: (next, n) => this.commitMemberships(next, n),
       jointly: (action) => this.jointly(action),
       markRatesReviewed: (words) => this.markRatesReviewed(words),
+      money: (amount) => this.money(amount),
+    });
+    this.edits = new InitiativeEditCommands({
+      getState: this.getState,
+      brand,
+      editableInitiative: (id) => this.editableInitiative(id),
+      phaseLabel: (phaseId) => this.phaseLabel(phaseId),
+      replaceInitiative: (next) => this.replaceInitiative(next),
+      schedule: (id, next, note) => this.initiativeWriters.get(id)?.schedule(next, note),
+      noteLostEdits: (id, phaseIds) => this.noteLostEdits(id, phaseIds),
       money: (amount) => this.money(amount),
     });
     this.source = new PullSource(this.github, brand.github.dataBranch);
@@ -1146,10 +1132,6 @@ export class Repository {
     this.countriesWriter?.schedule(next, note);
   }
 
-  private personName(id: string): string {
-    return personName(this.state, id);
-  }
-
   private teamName(id: string): string {
     return teamName(this.state, id);
   }
@@ -1233,48 +1215,6 @@ export class Repository {
     if (this.writerStatus.delete(FILE_PATHS.initiative(id))) this.publishStatus();
   }
 
-  /** Rename an initiative in place (§5.4). An empty name is refused (returns false) and the old one stays. */
-  renameInitiative(initiativeId: string, name: string): boolean {
-    const initiative = this.editableInitiative(initiativeId);
-    const trimmed = name.trim();
-    if (!initiative || !trimmed) return false;
-    if (trimmed === initiative.name) return true;
-    const next: Initiative = { ...initiative, name: trimmed };
-    this.replaceInitiative(next);
-    this.initiativeWriters.get(initiativeId)?.schedule(
-      next,
-      entityNote('initiative', initiativeId, 'name', initiative.name, trimmed, (f, t) => `${f}: renamed to ${t}`),
-    );
-    return true;
-  }
-
-  /** Set or clear the initiative's description in place (§5.4). Trimmed; empty clears it. */
-  setDescription(initiativeId: string, text: string): boolean {
-    const initiative = this.editableInitiative(initiativeId);
-    if (!initiative) return false;
-    const trimmed = text.trim();
-    if (trimmed === (initiative.description ?? '')) return true;
-    const next: Initiative = { ...initiative, description: trimmed };
-    if (!trimmed) delete next.description;
-    this.replaceInitiative(next);
-    this.initiativeWriters.get(initiativeId)?.schedule(
-      next,
-      entityNote('initiative', initiativeId, 'description', initiative.description, next.description, () => `${initiative.name}: description changed`),
-    );
-    return true;
-  }
-
-  /** Set or clear (`undefined`) the initiative's owner in place (§5.4). */
-  setOwner(initiativeId: string, ownerId: string | undefined): void {
-    const initiative = this.editableInitiative(initiativeId);
-    if (!initiative || ownerId === initiative.ownerId) return;
-    const next: Initiative = { ...initiative, ownerId };
-    if (ownerId === undefined) delete next.ownerId;
-    this.replaceInitiative(next);
-    const words = (_: unknown, to: string | undefined) => (to ? `${initiative.name}: owner set to ${this.personName(to)}` : `${initiative.name}: owner cleared`);
-    this.initiativeWriters.get(initiativeId)?.schedule(next, entityNote('initiative', initiativeId, 'ownerId', initiative.ownerId, ownerId, words));
-  }
-
   /**
    * The initiative, unless it is missing or frozen (§8.4): every edit starts here, so a Closed or Cancelled
    * initiative refuses it in the data layer, not only in the page. Notes and actuals bypass it on purpose.
@@ -1288,318 +1228,78 @@ export class Repository {
     return this.brand.process.find((p) => p.id === phaseId)?.label ?? phaseId;
   }
 
-  /** Apply one edit to a phase's plan (§5.4: edited in place) and schedule its commit under `note`. */
-  private editPhase<T>(
-    initiativeId: string,
-    phaseId: string,
-    change: (plan: PhasePlan) => PhasePlan,
-    note: { field: string; from: T | undefined; to: T | undefined; words: (from: T | undefined, to: T | undefined, initiativeName: string, phase: string) => string },
-    /** Only a recorded actual is still accepted on a frozen initiative or phase (§8.4). An Undo is refused
-     * silently on a frozen phase, as its offer is withdrawn once the phase freezes (§5.11); any other edit the
-     * freeze overtook is reported in the phase (§8.1). */
-    { allowFrozen = false, undo = false }: { allowFrozen?: boolean; undo?: boolean } = {},
-  ): boolean {
-    const initiative = allowFrozen ? this.state.initiatives.find((i) => i.id === initiativeId) : this.editableInitiative(initiativeId);
-    if (!initiative) return false;
-    if (!allowFrozen && isPhaseFrozen(initiative, phaseId)) {
-      if (!undo) this.noteLostEdits(initiative.id, [phaseId]);
-      return false;
-    }
-    const plan = initiative.phases?.[phaseId] ?? { allocations: [] };
-    // The first edit to the plan ends the suggestion: from here on the dates are the user's (§8.2).
-    const next: Initiative = { ...initiative, phases: { ...initiative.phases, [phaseId]: change(plan) } };
-    delete next.defaultPlan;
-    this.replaceInitiative(next);
-    const name = initiative.name;
-    this.initiativeWriters
-      .get(initiativeId)
-      ?.schedule(next, entityNote('initiative', initiativeId, `${phaseId}:${note.field}`, note.from, note.to, (f, t) => note.words(f, t, name, this.phaseLabel(phaseId))));
-    return true;
-  }
-
-  /**
-   * Set a phase's whole period at once (§9.11 period picker, saved on Done): one write and one commit, "Payments API:
-   * Development period set to Apr–Sep". An `undefined` end clears it, and any dates are accepted: an inverted period
-   * only warns (§7.2). Nothing is written when neither date changes.
-   */
-  setPhasePeriod(initiativeId: string, phaseId: string, period: Period): void {
-    const plan = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId];
-    const before = { startDate: plan?.startDate, endDate: plan?.endDate };
-    if (before.startDate === period.startDate && before.endDate === period.endDate) return;
-    const to = { startDate: period.startDate, endDate: period.endDate };
-    this.editPhase<Period>(
-      initiativeId,
-      phaseId,
-      (current) => {
-        const next = { ...current };
-        for (const which of ['startDate', 'endDate'] as const) {
-          if (to[which] === undefined) delete next[which];
-          else next[which] = to[which];
-        }
-        return next;
-      },
-      {
-        field: 'period',
-        from: before,
-        to,
-        words: (_, after, name, phase) => {
-          const { startDate, endDate } = after ?? {};
-          if (startDate && endDate) return `${name}: ${phase} period set to ${periodMonthsEn(startDate, endDate)}`;
-          if (startDate) return `${name}: ${phase} start date set to ${formatDateEn(startDate)}, no end date`;
-          if (endDate) return `${name}: ${phase} end date set to ${formatDateEn(endDate)}, no start date`;
-          return `${name}: ${phase} period cleared`;
-        },
-      },
-    );
-  }
-
-  /** Move a phase's end date a month later (§5.11 Extend on overrun), keeping its allocations; later phases do not move. */
-  extendPhase(initiativeId: string, phaseId: string): void {
-    const endDate = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.endDate;
-    if (!endDate) return;
-    const next = extendByOneMonth(endDate);
-    this.editPhase<string>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, endDate: next }),
-      { field: 'endDate', from: endDate, to: next, words: (_, to, name, phase) => `${name}: ${phase} extended to ${formatDateEn(to as string)}` },
-    );
-  }
-
-  /**
-   * Allocate a person to a phase (§5.4). Only the initiative team's members can be allocated
-   * (§7.2), and a refusal says why. Allocation % is `allocationPct` when the caller has worked out what fits (the
-   * phase picker passes the person's free capacity, §5.11), else the person's Team FTE % on the team.
-   */
-  addAllocation(initiativeId: string, phaseId: string, personId: string, allocationPct?: number): AddAllocationResult {
-    const initiative = this.editableInitiative(initiativeId);
-    const person = this.state.people.find((p) => p.id === personId);
-    const team = initiative && this.state.teams.find((t) => t.id === initiative.teamId);
-    if (!initiative || !person || !team) return { ok: false, reason: 'That person or initiative could not be found.' };
-    // Refused by a freeze, which the phase itself reports (§8.1), so no reason here.
-    if (isPhaseFrozen(initiative, phaseId)) {
-      this.noteLostEdits(initiative.id, [phaseId]);
-      return { ok: false };
-    }
-
-    const reason = allocationRefusal(person, team, this.state.memberships);
-    if (reason) return { ok: false, reason };
-    if (initiative.phases?.[phaseId]?.allocations.some((a) => a.personId === personId)) {
-      return { ok: false, reason: `${person.name} is already allocated to this phase.` };
-    }
-
-    const membership = activeMembership(personId, team.id, this.state.memberships);
-    const allocation: Allocation = { id: newId(), personId, allocationPct: allocationPct ?? membership?.teamFtePct ?? 0 };
-    this.editPhase<Allocation>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, allocations: [...plan.allocations, allocation] }),
-      { field: `allocations:${allocation.id}`, from: undefined, to: allocation, words: this.describeItem('allocations') },
-    );
-    return { ok: true, allocation };
-  }
-
-  /**
-   * Copy the previous costed phase's allocations into an empty phase in one commit (§5.11): each active team member
-   * with the same Allocation %. Nothing is written when the phase has people already, is frozen, or nobody can be copied.
-   */
-  copyAllocations(initiativeId: string, phaseId: string, fromPhaseId: string): CopyAllocationsResult | null {
-    const initiative = this.editableInitiative(initiativeId);
-    const team = initiative && this.state.teams.find((t) => t.id === initiative.teamId);
-    if (!initiative || !team || isPhaseFrozen(initiative, phaseId)) return null;
-    if ((initiative.phases?.[phaseId]?.allocations.length ?? 0) > 0) return null;
-
-    const { copy, skipped } = planCopy(copySource(initiative, fromPhaseId), team, this.state.people, this.state.memberships);
-    if (copy.length === 0) return { copied: 0, skipped };
-    const allocations: Allocation[] = copy.map((c) => ({ id: newId(), ...c }));
-    const fromLabel = this.phaseLabel(fromPhaseId);
-    this.editPhase<Allocation[]>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, allocations }),
-      {
-        field: 'allocations:copied',
-        from: undefined,
-        to: allocations,
-        words: (_, to, name, phase) => `${name}: ${to?.length} ${to?.length === 1 ? 'person' : 'people'} copied to ${phase} from ${fromLabel}`,
-      },
-    );
-    return { copied: allocations.length, skipped };
-  }
-
-  updateAllocation(initiativeId: string, phaseId: string, allocationId: string, allocationPct: number): void {
-    const allocation = this.state.initiatives
-      .find((i) => i.id === initiativeId)
-      ?.phases?.[phaseId]?.allocations.find((a) => a.id === allocationId);
-    if (!allocation) return;
-    this.editPhase<Allocation>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, allocations: plan.allocations.map((a) => (a.id === allocationId ? { ...a, allocationPct } : a)) }),
-      { field: `allocations:${allocationId}`, from: allocation, to: { ...allocation, allocationPct }, words: this.describeItem('allocations') },
-    );
-  }
-
-  /**
-   * Remove an item from a phase's list; its position comes back so an Undo can put it where it was (§5.11).
-   */
-  private removeFromList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, itemId: string): { item: T; index: number } | null {
-    const items = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
-    const index = items.findIndex((item) => item.id === itemId);
-    if (index < 0) return null;
-    const item = items[index];
-    const removed = this.editPhase<T>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, [list]: itemsOf<T>(plan, list).filter((other) => other.id !== itemId) }),
-      { field: `${list}:${itemId}`, from: item, to: undefined, words: this.describeItem(list) },
-    );
-    return removed ? { item, index } : null;
-  }
-
-  /** Undo of {@link removeFromList}: the same item, same id, back in its place, as a normal edit. Nothing happens when it is already there again. */
-  private restoreToList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, item: T, index: number): void {
-    const present = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
-    if (present.some((other) => other.id === item.id)) return;
-    this.editPhase<T>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, [list]: insertAt(itemsOf<T>(plan, list), item, index) }),
-      { field: `${list}:${item.id}`, from: undefined, to: item, words: this.describeItem(list) },
-      { undo: true },
-    );
-  }
-
-  /** Remove an allocation; the position comes back so an Undo can put it where it was (§5.11). */
-  removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
-    const removed = this.removeFromList<Allocation>('allocations', initiativeId, phaseId, allocationId);
-    return removed && { allocation: removed.item, index: removed.index };
-  }
-
-  /** Undo of {@link removeAllocation}: the same allocation, same id, back in its place, as a normal edit. */
-  restoreAllocation(initiativeId: string, phaseId: string, allocation: Allocation, index: number): void {
-    this.restoreToList('allocations', initiativeId, phaseId, allocation, index);
-  }
-
-  /**
-   * A phase list item's net change in plain words (§10.3): added, removed, or what changed in it. The person or label
-   * is the one the item was saved under, so the message never names a state that was not saved.
-   */
-  private describeItem(list: PhaseList): (from: unknown, to: unknown, name: string, phase: string) => string {
-    const lookups = { personName: (id: string) => this.personName(id), money: (amount: number) => this.money(amount) };
-    return (list === 'allocations' ? allocationWords(lookups) : costItemWords(lookups)) as (from: unknown, to: unknown, name: string, phase: string) => string;
-  }
-
   /** An amount as a commit message reads it, in the deployment's currency (§9.7). */
   private money(amount: number): string {
     return `${this.brand.currencySymbol}${amount.toLocaleString('en', { maximumFractionDigits: 2 })}`;
   }
 
-  /** Add a cost item to a phase (§5.4); it is one commit, made once the draft row is complete. */
+  // In-place edits to an initiative and its phase plans: see InitiativeEditCommands.
+  renameInitiative(initiativeId: string, name: string): boolean {
+    return this.edits.renameInitiative(initiativeId, name);
+  }
+
+  setDescription(initiativeId: string, text: string): boolean {
+    return this.edits.setDescription(initiativeId, text);
+  }
+
+  setOwner(initiativeId: string, ownerId: string | undefined): void {
+    return this.edits.setOwner(initiativeId, ownerId);
+  }
+
+  setPhasePeriod(initiativeId: string, phaseId: string, period: Period): void {
+    return this.edits.setPhasePeriod(initiativeId, phaseId, period);
+  }
+
+  extendPhase(initiativeId: string, phaseId: string): void {
+    return this.edits.extendPhase(initiativeId, phaseId);
+  }
+
+  addAllocation(initiativeId: string, phaseId: string, personId: string, allocationPct?: number): AddAllocationResult {
+    return this.edits.addAllocation(initiativeId, phaseId, personId, allocationPct);
+  }
+
+  copyAllocations(initiativeId: string, phaseId: string, fromPhaseId: string): CopyAllocationsResult | null {
+    return this.edits.copyAllocations(initiativeId, phaseId, fromPhaseId);
+  }
+
+  updateAllocation(initiativeId: string, phaseId: string, allocationId: string, allocationPct: number): void {
+    return this.edits.updateAllocation(initiativeId, phaseId, allocationId, allocationPct);
+  }
+
+  removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
+    return this.edits.removeAllocation(initiativeId, phaseId, allocationId);
+  }
+
+  restoreAllocation(initiativeId: string, phaseId: string, allocation: Allocation, index: number): void {
+    return this.edits.restoreAllocation(initiativeId, phaseId, allocation, index);
+  }
+
   addCostItem(initiativeId: string, phaseId: string, draft: Omit<CostItem, 'id'>): CostItem | null {
-    const item: CostItem = { id: newId(), ...draft };
-    const added = this.editPhase<CostItem>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, costItems: [...(plan.costItems ?? []), item] }),
-      { field: `costItems:${item.id}`, from: undefined, to: item, words: this.describeItem('costItems') },
-    );
-    return added ? item : null;
+    return this.edits.addCostItem(initiativeId, phaseId, draft);
   }
 
-  /** Change a cost item's label, amount or timing; the commit note names the one field changed. */
   updateCostItem(initiativeId: string, phaseId: string, itemId: string, change: CostItemChange): void {
-    const item = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.costItems?.find((c) => c.id === itemId);
-    if (!item) return;
-    this.editPhase<CostItem>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, costItems: (plan.costItems ?? []).map((c) => (c.id === itemId ? { ...c, ...change } : c)) }),
-      { field: `costItems:${itemId}`, from: item, to: { ...item, ...change }, words: this.describeItem('costItems') },
-    );
+    return this.edits.updateCostItem(initiativeId, phaseId, itemId, change);
   }
 
-  /** Remove a cost item; the position comes back so an Undo can put it where it was (§5.11). */
   removeCostItem(initiativeId: string, phaseId: string, itemId: string): { item: CostItem; index: number } | null {
-    return this.removeFromList<CostItem>('costItems', initiativeId, phaseId, itemId);
+    return this.edits.removeCostItem(initiativeId, phaseId, itemId);
   }
 
-  /** Undo of {@link removeCostItem}. */
   restoreCostItem(initiativeId: string, phaseId: string, item: CostItem, index: number): void {
-    this.restoreToList('costItems', initiativeId, phaseId, item, index);
+    return this.edits.restoreCostItem(initiativeId, phaseId, item, index);
   }
 
-  /**
-   * Record a month's actual for a phase (§7.3): the estimate confirmed as-is, or an override — either way a
-   * single act, and recordable again later to correct it (§6).
-   */
   setActual(initiativeId: string, phaseId: string, month: string, amount: number): void {
-    const before = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.actualMonths?.[month];
-    this.editPhase<number>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, actualMonths: { ...plan.actualMonths, [month]: amount } }),
-      {
-        field: `actual:${month}`,
-        from: before,
-        to: amount,
-        words: (_, to, name, phase) => `${name}: ${phase} actual for ${formatMonthEn(month)} recorded (${this.brand.currencySymbol}${Math.round(to as number)})`,
-      },
-      { allowFrozen: true },
-    );
+    return this.edits.setActual(initiativeId, phaseId, month, amount);
   }
 
-  /** A checklist item's name, for the commit note, as its gate defines it. */
-  private checklistItemName(phaseId: string, itemId: string): string {
-    return this.brand.process.find((p) => p.id === phaseId)?.exitGate.checklistItems.find((i) => i.id === itemId)?.name ?? 'checklist item';
-  }
-
-  /**
-   * Set a checklist item's status and note together (§5.4, §8.1): Incomplete and Complete commit as soon as
-   * they're clicked; Tentative is saved together with its (required) note in one act.
-   */
   setChecklistItem(initiativeId: string, phaseId: string, itemId: string, status: ChecklistStatus, note: string): void {
-    const initiative = this.editableInitiative(initiativeId);
-    if (!initiative) return;
-    const before = initiative.checklist?.[phaseId]?.[itemId];
-    this.writeChecklistItem(initiative, phaseId, itemId, { status, note }, '', before, { status, note }, (name, item, _, to) =>
-      `${name}: "${item}" set to ${to ? to.status[0].toUpperCase() + to.status.slice(1) : 'Incomplete'}`,
-    );
+    return this.edits.setChecklistItem(initiativeId, phaseId, itemId, status, note);
   }
 
-  /**
-   * Change a checklist item's note alone, keeping its status (§8.4): the one checklist edit a Closed or Cancelled
-   * initiative still accepts. Trimmed; a Tentative item's note is required, so clearing it is refused (false).
-   */
   setChecklistNote(initiativeId: string, phaseId: string, itemId: string, note: string): boolean {
-    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
-    if (!initiative) return false;
-    const entry = initiative.checklist?.[phaseId]?.[itemId];
-    const status = entry?.status ?? 'incomplete';
-    const trimmed = note.trim();
-    if (status === 'tentative' && !trimmed) return false;
-    if (trimmed === (entry?.note ?? '')) return true;
-    this.writeChecklistItem(initiative, phaseId, itemId, { status, note: trimmed }, ':note', entry?.note ?? '', trimmed, (name, item) => `${name}: note on "${item}" changed`);
-    return true;
-  }
-
-  /** Write one checklist entry and schedule its commit; `fieldSuffix` keeps a note-only change its own field (§10.3). */
-  private writeChecklistItem<T>(
-    initiative: Initiative,
-    phaseId: string,
-    itemId: string,
-    entry: { status: ChecklistStatus; note: string },
-    fieldSuffix: string,
-    from: T | undefined,
-    to: T,
-    words: (initiativeName: string, itemName: string, from: T | undefined, to: T | undefined) => string,
-  ): void {
-    const next = withChecklistItem(initiative, phaseId, itemId, entry.status, entry.note);
-    this.replaceInitiative(next);
-    const name = initiative.name;
-    this.initiativeWriters
-      .get(initiative.id)
-      ?.schedule(next, entityNote('initiative', initiative.id, `checklist:${phaseId}:${itemId}${fieldSuffix}`, from, to, (f, t) => words(name, this.checklistItemName(phaseId, itemId), f, t)));
+    return this.edits.setChecklistNote(initiativeId, phaseId, itemId, note);
   }
 
   /**
