@@ -2,6 +2,22 @@
 
 Interactive version: https://claude.ai/artifact/N1ACd6uWpcDXFLUTz8QW74 (private). Reviewed 2 Oct 2026 on build `a083d76`. 31 findings: 0 P0, 10 P1, 16 P2, 5 P3.
 
+> **Status (7 Oct 2026): resolved.** This review is a historical record. All 31 findings were taken into backlog slices and delivered; the open backlog is empty. Where each one went (from the slices' change summaries, archived in `backlog/done/`):
+>
+> | Slice | Findings |
+> |---|---|
+> | 046 | F04 (theme control) |
+> | 049 | F26 |
+> | 052 | F14 |
+> | 055 | F01, F03, F10, F18, F21, F22, F23, F24, F28, F29, F31 |
+> | 056 | F05, F06, F07, F08, F09 |
+> | 057 | F04 (look and feel), F12, F19, F20 |
+> | 058 | F11, F13, F16, F17, F25, F27, F30 |
+> | 061 | F02 |
+> | 061b | F15 |
+>
+> The findings below describe the app as of build `a083d76` (2 Oct), not today's.
+
 I clicked through every screen in §5 at 1440px and 1280px, ran the main flows end to end, used the keyboard, ran axe, and looked at every state I could trigger. The app's behaviour is sound and closely follows the spec. Most problems are about layout and visual consistency: clipped fields, unlabelled icons, a detail page that uses half the window, and no theme control. No P0 issues were found.
 
 ## How it was checked
