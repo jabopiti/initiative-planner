@@ -37,9 +37,10 @@ import { PullSource, pulledFile, type Pulled, type WrittenFile } from './PullSou
 import { commitJointly } from './commitJointly';
 import { RateLimitTracker } from './RateLimitTracker';
 import { WriteQueue } from './WriteQueue';
-import { InitiativeEditCommands, insertAt, type AddAllocationResult, type CopyAllocationsResult, type CostItemChange } from './InitiativeEditCommands';
+import { InitiativeEditCommands, type AddAllocationResult, type CopyAllocationsResult, type CostItemChange } from './InitiativeEditCommands';
 import { ReferenceDataCommands } from './ReferenceDataCommands';
 import { note as entityNote, teamName } from './commitWords';
+import { insertAt } from './insertAt';
 
 export type { ReadOnlyState } from '../github/errors';
 
@@ -976,7 +977,7 @@ export class Repository {
   }
 
   /** Marks the rates reviewed (§5.2) unless they already are. */
-  markRatesReviewed(words: string): void {
+  private markRatesReviewed(words: string): void {
     const flags = this.state.datasetFlags;
     if (!flags || flags.ratesReviewed || !this.flagsWriter) return;
     const next = { ...flags, ratesReviewed: true };
@@ -1096,10 +1097,6 @@ export class Repository {
   private commitCountries(next: Country[], note?: CommitNote): void {
     this.setState({ countries: next });
     this.countriesWriter?.schedule(next, note);
-  }
-
-  private teamName(id: string): string {
-    return teamName(this.state, id);
   }
 
   private commitRoles(next: Role[], note?: CommitNote): void {
@@ -1455,7 +1452,7 @@ export class Repository {
     const words = (from: ReturnType<typeof state> | undefined, to: ReturnType<typeof state> | undefined) => {
       const lost = (from?.allocations ?? 0) - (to?.allocations ?? 0);
       const tail = lost > 0 ? `, ${allocationCount(lost)} removed` : lost < 0 ? `, ${allocationCount(-lost)} restored` : '';
-      return `${subject} from ${this.teamName(from?.teamId as string)} to ${this.teamName(to?.teamId as string)}${tail}`;
+      return `${subject} from ${teamName(this.state, from?.teamId as string)} to ${teamName(this.state, to?.teamId as string)}${tail}`;
     };
     this.commitAtOnce(next.id, next, entityNote('initiative', next.id, 'team', state(before), state(next), words));
   }

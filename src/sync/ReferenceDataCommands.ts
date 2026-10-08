@@ -7,6 +7,7 @@ import type { Country, CountryYearRateRecord, Membership, Person, Role, Team } f
 import type { CommitNote } from './FileWriter';
 import type { RepositoryState } from './Repository';
 import { countryWords, membershipWords, note, personName, personWords, roleWords, teamName, teamWords } from './commitWords';
+import { insertAt } from './insertAt';
 import { sameValue } from './merge';
 
 export interface NewPersonInput {
@@ -62,7 +63,7 @@ export class ReferenceDataCommands {
   }
 
   /** New country (§5.9): its one day rate copied to every tracked year, working days prefilled with weekdays. */
-  createCountry(input: { name: string; code: string; dayRate: number }, today: Date = new Date()): Country {
+  createCountry(input: { name: string; code: string; dayRate: number }, today: Date): Country {
     const country: Country = { id: newId(), name: input.name, code: input.code, active: true, ratesByYear: newCountryRates(input.dayRate, trackedYears(today)) };
     this.host.commitCountries([...this.state.countries, country], note('country', country.id, 'record', undefined, country, countryWords));
     return country;
@@ -290,9 +291,7 @@ export class ReferenceDataCommands {
     if (this.state.memberships.some((m) => m.id === membership.id || (m.personId === membership.personId && m.teamId === membership.teamId))) {
       return { ok: false, message: `Can't undo: ${person.name} is on ${team.name} again.` };
     }
-    const next = [...this.state.memberships];
-    next.splice(Math.min(index, next.length), 0, membership);
-    this.host.commitMemberships(next, this.membershipNote(membership.id, undefined, membership));
+    this.host.commitMemberships(insertAt(this.state.memberships, membership, index), this.membershipNote(membership.id, undefined, membership));
     return { ok: true };
   }
 }

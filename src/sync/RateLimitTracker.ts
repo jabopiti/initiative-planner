@@ -25,7 +25,7 @@ export class RateLimitTracker {
     const [remaining, limit, reset] = HEADERS.map((name) => Number(headers.get(name)));
     // Number(null) is 0, so every header must be present, not just parse.
     const complete = HEADERS.every((name) => headers.has(name));
-    if (!complete || !Number.isFinite(remaining) || !Number.isFinite(limit) || !Number.isFinite(reset)) return;
+    if (!complete || ![remaining, limit, reset].every(Number.isFinite)) return;
     if (this.current?.remaining === remaining && this.current.limit === limit && this.current.resetsAt === reset * 1000) return;
     this.current = { remaining, limit, resetsAt: reset * 1000 };
     for (const listener of this.listeners) listener();

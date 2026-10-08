@@ -10,6 +10,7 @@ import { copySource, planCopy } from '../data/copyAllocations';
 import { withChecklistItem } from '../data/gate';
 import type { Allocation, ChecklistStatus, CostItem, Initiative, PhasePlan, Person } from '../data/types';
 import type { CommitNote } from './FileWriter';
+import { insertAt } from './insertAt';
 import type { RepositoryState } from './Repository';
 import { allocationWords, costItemWords, note as entityNote, personName } from './commitWords';
 
@@ -18,13 +19,6 @@ export type CopyAllocationsResult = { copied: number; skipped: Person[] };
 
 /** Why an allocation wasn't added (§7.2), in words the page can show as is. */
 export type AddAllocationResult = { ok: true; allocation: Allocation } | { ok: false; reason?: string };
-
-/** `item` put back at `index` (or last, when the list has since shrunk): where an Undo restores a removed list item. */
-export function insertAt<T>(list: T[], item: T, index: number): T[] {
-  const next = [...list];
-  next.splice(Math.min(index, next.length), 0, item);
-  return next;
-}
 
 /** How a phase list item is put into words: before, after, the initiative's name, the phase's label. */
 type ItemWords<T> = (from: T | undefined, to: T | undefined, initiativeName: string, phase: string) => string;
@@ -68,6 +62,10 @@ export class InitiativeEditCommands {
     return this.host.getState();
   }
 
+  private planOf(initiativeId: string, phaseId: string): PhasePlan | undefined {
+    return this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId];
+  }
+
   /** Rename an initiative in place (§5.4). An empty name is refused (returns false) and the old one stays. */
   renameInitiative(initiativeId: string, name: string): boolean {
     const initiative = this.host.editableInitiative(initiativeId);
@@ -76,8 +74,7 @@ export class InitiativeEditCommands {
     if (trimmed === initiative.name) return true;
     const next: Initiative = { ...initiative, name: trimmed };
     this.host.replaceInitiative(next);
-    this.host.schedule(initiativeId, 
-      next,
+    this.host.schedule(initiativeId, next,
       entityNote('initiative', initiativeId, 'name', initiative.name, trimmed, (f, t) => `${f}: renamed to ${t}`),
     );
     return true;
@@ -92,8 +89,7 @@ export class InitiativeEditCommands {
     const next: Initiative = { ...initiative, description: trimmed };
     if (!trimmed) delete next.description;
     this.host.replaceInitiative(next);
-    this.host.schedule(initiativeId, 
-      next,
+    this.host.schedule(initiativeId, next,
       entityNote('initiative', initiativeId, 'description', initiative.description, next.description, () => `${initiative.name}: description changed`),
     );
     return true;
@@ -143,7 +139,7 @@ export class InitiativeEditCommands {
    * only warns (§7.2). Nothing is written when neither date changes.
    */
   setPhasePeriod(initiativeId: string, phaseId: string, period: Period): void {
-    const plan = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId];
+    const plan = this.planOf(initiativeId, phaseId);
     const before = { startDate: plan?.startDate, endDate: plan?.endDate };
     if (before.startDate === period.startDate && before.endDate === period.endDate) return;
     const to = { startDate: period.startDate, endDate: period.endDate };
@@ -175,7 +171,7 @@ export class InitiativeEditCommands {
 
   /** Move a phase's end date a month later (§5.11 Extend on overrun), keeping its allocations; later phases do not move. */
   extendPhase(initiativeId: string, phaseId: string): void {
-    const endDate = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.endDate;
+    const endDate = this.planOf(initiativeId, phaseId)?.endDate;
     if (!endDate) return;
     const next = extendByOneMonth(endDate);
     this.editPhase<string>(
@@ -264,7 +260,7 @@ export class InitiativeEditCommands {
    * Remove an item from a phase's list; its position comes back so an Undo can put it where it was (§5.11).
    */
   private removeFromList<T extends { id: string }>(list: PhaseList, words: ItemWords<T>, initiativeId: string, phaseId: string, itemId: string): { item: T; index: number } | null {
-    const items = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
+    const items = itemsOf<T>(this.planOf(initiativeId, phaseId), list);
     const index = items.findIndex((item) => item.id === itemId);
     if (index < 0) return null;
     const item = items[index];
@@ -279,7 +275,7 @@ export class InitiativeEditCommands {
 
   /** Undo of {@link removeFromList}: the same item, same id, back in its place, as a normal edit. Nothing happens when it is already there again. */
   private restoreToList<T extends { id: string }>(list: PhaseList, words: ItemWords<T>, initiativeId: string, phaseId: string, item: T, index: number): void {
-    const present = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
+    const present = itemsOf<T>(this.planOf(initiativeId, phaseId), list);
     if (present.some((other) => other.id === item.id)) return;
     this.editPhase<T>(
       initiativeId,
@@ -325,7 +321,7 @@ export class InitiativeEditCommands {
 
   /** Change a cost item's label, amount or timing; the commit note names the one field changed. */
   updateCostItem(initiativeId: string, phaseId: string, itemId: string, change: CostItemChange): void {
-    const item = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.costItems?.find((c) => c.id === itemId);
+    const item = this.planOf(initiativeId, phaseId)?.costItems?.find((c) => c.id === itemId);
     if (!item) return;
     this.editPhase<CostItem>(
       initiativeId,
@@ -350,7 +346,7 @@ export class InitiativeEditCommands {
    * single act, and recordable again later to correct it (§6).
    */
   setActual(initiativeId: string, phaseId: string, month: string, amount: number): void {
-    const before = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.actualMonths?.[month];
+    const before = this.planOf(initiativeId, phaseId)?.actualMonths?.[month];
     this.editPhase<number>(
       initiativeId,
       phaseId,
