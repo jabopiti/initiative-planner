@@ -248,7 +248,10 @@ fixes:
 - **A process identity** — an id and a **structure version**, so a dataset
   is never read by a build whose process structure disagrees with it (§3,
   Versioning and migration).
-- **Branding**: product name, logo, favicon and page title, the
+- **Branding**: product name, logo, favicon and page title (the logo and
+  favicon are image files kept in the brand-pack folder and served with the
+  build; the logo is decorative, shown beside the product name in the top bar
+  and above the Connect heading, one file for both themes), the
   **typeface** (a family name, its font files kept in the brand-pack folder
   and served with the build, never fetched from a third party, and a
   fallback stack), the **team colours** (six categorical colours, each for
