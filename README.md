@@ -129,7 +129,7 @@ Live and under active development. All planned slices are delivered. The deploye
 | [`backlog/slices-overview.md`](./backlog/slices-overview.md) | The open backlog; delivered slices are archived in `backlog/done/` |
 | [`backlog/example-data.md`](./backlog/example-data.md) | Seed data (process, roles, countries, branding) |
 | [`docs/history/`](./docs/history) | The prototype, its engine audit and the GitHub spike findings |
-| [`docs/ux-review-2026-10.md`](./docs/ux-review-2026-10.md) | The October 2026 UX review |
+| [`docs/ux-review-2026-10.md`](./docs/ux-review-2026-10.md) | The October 2026 UX review (historical; all findings delivered) |
 | [`AGENTS.md`](./AGENTS.md) | Instructions for AI coding agents working in this repo |
 | [`SECURITY.md`](./SECURITY.md) | How to report a vulnerability |
 
