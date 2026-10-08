@@ -49,8 +49,9 @@ export function brandColoursPlugin(brand: BrandPack, brandDir: string): Plugin {
       handler(html) {
         const title = brand.pageTitle.replace(/&/g, '&amp;').replace(/</g, '&lt;');
         const titleTag = /<title>[^<]*<\/title>/;
-        if (!titleTag.test(html)) this.error('Brand pack: index.html has no <title> element for the page title and favicon');
-        return html.replace(titleTag, `<link rel="icon" href="${url(brand.favicon.path)}" />\n    <title>${title}</title>`);
+        if (!titleTag.test(html)) throw new Error('Brand pack: index.html has no <title> element for the page title and favicon');
+        // A function replacer, so a `$&` in the title is not read as a substitution pattern.
+        return html.replace(titleTag, () => `<link rel="icon" href="${url(brand.favicon.path)}" />\n    <title>${title}</title>`);
       },
     },
     load(id) {

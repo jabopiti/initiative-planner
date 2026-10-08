@@ -62,4 +62,12 @@ describe('brandColoursPlugin (§9.5, §10.7)', () => {
     expect(html).toContain('<title>Plans &amp; &lt;Bets></title>');
     expect(call(plugin.load, call(plugin.resolveId, 'virtual:brand-assets'))).toContain("from '/brand/logo.svg'");
   });
+
+  it('keeps a "$&" in the page title literal, and refuses an index.html without a title (§2)', () => {
+    const plugin = brandColoursPlugin({ ...defaultBrandPack, pageTitle: 'Plans $& Bets' }, brandDir);
+    call(plugin.configResolved, { root: resolve(__dirname, '../..') });
+    const handler = (plugin.transformIndexHtml as { handler: (html: string) => string }).handler;
+    expect(handler('<head><title>x</title></head>')).toContain('<title>Plans $&amp; Bets</title>');
+    expect(() => handler('<head></head>')).toThrow(/no <title>/);
+  });
 });
