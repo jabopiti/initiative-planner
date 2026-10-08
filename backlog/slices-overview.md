@@ -9,7 +9,6 @@ is done and what happens to its file.
 
 | ID | Title | Depends on | Note |
 |---|---|---|---|
-| 067 | Brand pack build checks | 066 | §10.7: bands, process definition, example dataset |
 | 069 | Brand pack logo and favicon | 066 | §2, §9.1: logo and favicon in `brand/` |
 
 ## Delivered slices

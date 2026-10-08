@@ -34,6 +34,12 @@ describe('brandColoursPlugin (§9.5, §10.7)', () => {
     expect(() => call(brandColoursPlugin({ ...defaultBrandPack, typeface }, brandDir).buildStart)).toThrow(/typeface file fonts\/missing\.woff2 not found/);
   });
 
+  it('stops the build on overlapping approval bands, with the colour and font problems (§7.4, §10.7)', () => {
+    const [light, standard, elevated] = defaultBrandPack.approvalTracks;
+    const approvalTracks = [{ ...light, upperBound: 60_000 }, standard, elevated];
+    expect(() => call(brandColoursPlugin({ ...defaultBrandPack, approvalTracks }, brandDir).buildStart)).toThrow(/Brand pack:\n {2}approvalTracks\[light\] overlaps approvalTracks\[standard\]/);
+  });
+
   it('serves the font files from the build itself, never a third party (§10.9)', () => {
     const plugin = brandColoursPlugin(defaultBrandPack, brandDir);
     call(plugin.configResolved, { root: resolve(__dirname, '../..') });

@@ -18,8 +18,9 @@ export interface GateDef {
   checklistItems: ChecklistItemDef[];
 }
 
-/** The fixed set of Lucide icons a brand pack picks a phase's icon from (§9.10). */
-export type PhaseIconName = 'search' | 'clipboard-check' | 'hammer' | 'rocket';
+/** The fixed set of Lucide icons a brand pack picks a phase's icon from (§9.10); the build checks a pack against it. */
+export const PHASE_ICON_NAMES = ['search', 'clipboard-check', 'hammer', 'rocket'] as const;
+export type PhaseIconName = (typeof PHASE_ICON_NAMES)[number];
 
 export interface PhaseDef {
   id: string;
@@ -142,6 +143,8 @@ export interface CountryBaseline {
  * it is loaded in, so it never goes stale. A phase runs from the first day of `fromMonth` to the last of `toMonth`.
  */
 export interface ExampleDataset {
+  /** The process this dataset was written for; the build refuses a pack whose own identity differs (§2, §10.7). */
+  processIdentity: ProcessIdentity;
   teams: { key: string; name: string }[];
   people: { key: string; name: string; role: string; country: string; team: string }[];
   initiatives: {

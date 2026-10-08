@@ -37,10 +37,10 @@ half-defined phase or an example dataset for another process.
 
 ## Acceptance criteria
 
-- [ ] Given each failure above in a fixture pack, then the validator reports
+- [x] Given each failure above in a fixture pack, then the validator reports
       it with entity and field (unit test per check).
-- [ ] Given the default pack, then the validator passes and the build runs.
-- [ ] Given an overlapping band in `brand/`, then `npm run build` exits
+- [x] Given the default pack, then the validator passes and the build runs.
+- [x] Given an overlapping band in `brand/`, then `npm run build` exits
       non-zero and prints the message.
 
 ## Flags and compromises
@@ -67,3 +67,13 @@ None.
 - **Messages:** one `Brand pack:` error listing every problem, each naming the
   entity and field, e.g. `approvalTracks[standard] overlaps approvalTracks[elevated]`,
   `process[validation].exitGate.label is empty`.
+- **Default pack item copy:** the ten checklist items get a description, as the
+  check requires. They show in the gate checklist panel and the Process
+  section, and are frozen into gate snapshots, so they are kept short (about
+  35-40 characters) to stay inside the §3 volume budget:
+  'Problem written down and agreed.', 'Backers have seen the problem and
+  goal.', 'Costs, benefits and return signed off.', 'Estimate reviewed by
+  someone else.', 'Approach confirmed buildable by the team.', 'Agreed
+  acceptance tests have passed.', 'Findings resolved or accepted.', 'Steps,
+  owners and a way back agreed.', 'Support period over, no critical issues.',
+  'Lessons written down for the next time.'
