@@ -1,7 +1,7 @@
 /**
  * Icon set (§9.10): generic icons are thin re-exports of Lucide (shadcn/ui's
- * default), sized to match the app's 18px icon convention. LogoMark is the
- * brand mark (§2), not a Tabler/Lucide glyph, so it stays hand-drawn.
+ * default), sized to match the app's 18px icon convention. The brand
+ * logo is a file in the brand pack (§2), not an icon.
  */
 import { Archive, ArchiveRestore, Ban, CalendarClock, CalendarDays, ChartPie, Check, ChevronDown, ChevronLeft, ChevronRight, Circle, CircleCheck, Copy, CirclePause, ClipboardCheck, Hammer, CircleDashed, ClipboardList, Flame, Ellipsis, Gauge, Info, Lock, Pause, Pencil, Play, Plus, RefreshCw, Rocket, RotateCcw, Search, SkipForward, Trash2, TrendingUp, TriangleAlert, User, UserMinus, Users, X, type LucideIcon } from 'lucide-react';
 import type { SVGProps } from 'react';
@@ -76,28 +76,6 @@ export const EscalatedIcon = iconWrapper(TrendingUp);
 export const OverdueIcon = iconWrapper(CalendarClock);
 export const DueIcon = iconWrapper(ClipboardList);
 export const ReadyIcon = iconWrapper(Rocket);
-
-export function LogoMark(props: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="22"
-      height="22"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      {...props}
-    >
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
-    </svg>
-  );
-}
 
 /** The icon a brand pack names for a phase (§2, §9.10). */
 const PHASE_ICONS: Record<PhaseIconName, ReturnType<typeof iconWrapper>> = {

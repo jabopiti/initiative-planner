@@ -9,7 +9,6 @@ is done and what happens to its file.
 
 | ID | Title | Depends on | Note |
 |---|---|---|---|
-| 069 | Brand pack logo and favicon | 066 | §2, §9.1: logo and favicon in `brand/` |
 
 ## Delivered slices
 

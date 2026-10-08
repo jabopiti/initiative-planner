@@ -26,6 +26,9 @@ const spainRates: CountryYearRates[] = [
 
 export const defaultBrandPack: BrandPack = {
   productName: 'Initiative Planner',
+  pageTitle: 'Initiative Planner',
+  logo: { path: 'logo.svg' },
+  favicon: { path: 'favicon.svg' },
   currencySymbol: '€',
 
   processIdentity: {

@@ -7,10 +7,22 @@ import { PHASE_ICON_NAMES, type BrandPack } from './types';
  * A gap between bands is allowed: a total no band covers resolves to No approval track (§7.4).
  */
 export function checkBrandPack(pack: BrandPack): string[] {
-  return [...checkApprovalTracks(pack), ...checkProcess(pack), ...checkExampleDataset(pack)];
+  return [...checkBranding(pack), ...checkApprovalTracks(pack), ...checkProcess(pack), ...checkExampleDataset(pack)];
 }
 
 const blank = (value: string | undefined) => !value?.trim();
+
+const IMAGE_TYPES = ['svg', 'png', 'ico', 'webp'];
+
+function checkBranding({ pageTitle, logo, favicon }: Pick<BrandPack, 'pageTitle' | 'logo' | 'favicon'>): string[] {
+  const failures: string[] = [];
+  if (blank(pageTitle)) failures.push('pageTitle is empty');
+  for (const [field, image] of [['logo', logo], ['favicon', favicon]] as const) {
+    const type = image.path.split('.').pop()?.toLowerCase();
+    if (!type || !IMAGE_TYPES.includes(type)) failures.push(`${field}.path ${image.path || '(empty)'} is not one of ${IMAGE_TYPES.map((t) => `.${t}`).join(', ')}`);
+  }
+  return failures;
+}
 
 function checkApprovalTracks({ approvalTracks }: Pick<BrandPack, 'approvalTracks'>): string[] {
   const failures: string[] = [];

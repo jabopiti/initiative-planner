@@ -159,8 +159,18 @@ export interface ExampleDataset {
   }[];
 }
 
+/** An image file kept in the brand folder and served with the build (§2); `path` is relative to that folder. */
+export interface BrandImage {
+  path: string;
+}
+
 export interface BrandPack {
   productName: string;
+  /** The browser tab's title (§2), apart from the product name shown in the app. */
+  pageTitle: string;
+  /** Shown beside the product name in the top bar and above the Connect heading; one file for both themes. */
+  logo: BrandImage;
+  favicon: BrandImage;
   currencySymbol: string;
   process: PhaseDef[];
   approvalTracks: ApprovalTrackDef[];

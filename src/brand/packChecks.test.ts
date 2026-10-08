@@ -19,6 +19,16 @@ describe('checkBrandPack (§2, §7.4, §10.7)', () => {
     expect(checkBrandPack(base)).toEqual([]);
   });
 
+  describe('branding', () => {
+    it('reports an empty page title and a logo or favicon that is not an image file', () => {
+      expect(checkBrandPack({ ...base, pageTitle: ' ', logo: { path: 'logo.txt' }, favicon: { path: '' } })).toEqual([
+        'pageTitle is empty',
+        'logo.path logo.txt is not one of .svg, .png, .ico, .webp',
+        'favicon.path (empty) is not one of .svg, .png, .ico, .webp',
+      ]);
+    });
+  });
+
   describe('approval bands', () => {
     it('reports two bands that overlap, by id', () => {
       expect(checkBrandPack(withTracks([track('light', 0, 60_000), track('standard', 50_000, 200_000)]))).toEqual([

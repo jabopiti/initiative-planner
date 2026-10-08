@@ -34,12 +34,12 @@ shows the logo where the product name appears and serves the favicon.
 
 ## Acceptance criteria
 
-- [ ] Given a pack with a logo and favicon, then the build serves both and the
+- [x] Given a pack with a logo and favicon, then the build serves both and the
       page title is the pack's.
-- [ ] Given a missing logo or favicon file, then the build fails naming it.
-- [ ] Given the logo, then it is decorative (empty alt) beside the visible
+- [x] Given a missing logo or favicon file, then the build fails naming it.
+- [x] Given the logo, then it is decorative (empty alt) beside the visible
       product name, which is its text alternative, and passes the axe scans.
-- [ ] Given the strict CSP, then `npm run test:e2e` reports no violation.
+- [x] Given the strict CSP, then `npm run test:e2e` reports no violation.
 
 ## Flags and compromises
 

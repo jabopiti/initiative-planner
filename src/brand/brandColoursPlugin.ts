@@ -7,6 +7,8 @@ import { checkBrandPack } from './packChecks';
 import type { BrandPack } from './types';
 
 const ID = 'virtual:brand-colours.css';
+const ASSETS_ID = 'virtual:brand-assets';
+const ASSETS_RESOLVED = `\0${ASSETS_ID}`;
 // The `.css` suffix keeps the resolved id on Vite's CSS pipeline, so the build emits it into the stylesheet.
 const RESOLVED = `\0${ID}`;
 
@@ -19,6 +21,8 @@ const RESOLVED = `\0${ID}`;
  */
 export function brandColoursPlugin(brand: BrandPack, brandDir: string): Plugin {
   let root = process.cwd();
+  // Root-relative URLs, which Vite resolves against the project root and emits as hashed assets.
+  const url = (path: string) => `/${relative(root, resolve(brandDir, path)).split('\\').join('/')}`;
   return {
     name: 'brand-colours',
     configResolved(config) {
@@ -26,16 +30,29 @@ export function brandColoursPlugin(brand: BrandPack, brandDir: string): Plugin {
     },
     buildStart() {
       const failures = [...checkBrandColours(brand.colours, brand.teamColours), ...checkBrandPack(brand)];
-      const missing = brand.typeface.files.filter((f) => !existsSync(resolve(brandDir, f.path))).map((f) => `typeface file ${f.path} not found in ${brandDir}`);
+      const missing = [
+        ...brand.typeface.files.map((f) => ['typeface file', f.path]),
+        ['logo', brand.logo.path],
+        ['favicon', brand.favicon.path],
+      ]
+        .filter(([, path]) => !existsSync(resolve(brandDir, path)))
+        .map(([what, path]) => `${what} ${path} not found in ${brandDir}`);
       if (failures.length || missing.length) this.error(`Brand pack:\n${[...failures, ...missing].map((f) => `  ${f}`).join('\n')}`);
     },
     resolveId(id) {
-      return id === ID ? RESOLVED : undefined;
+      return id === ID ? RESOLVED : id === ASSETS_ID ? ASSETS_RESOLVED : undefined;
+    },
+    // The tab's title and favicon come from the pack; `pre` so Vite then hashes the favicon like any asset in the page.
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        const title = brand.pageTitle.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        return html.replace(/<title>[^<]*<\/title>/, `<link rel="icon" href="${url(brand.favicon.path)}" />\n    <title>${title}</title>`);
+      },
     },
     load(id) {
+      if (id === ASSETS_RESOLVED) return `import logo from '${url(brand.logo.path)}';\nexport const logoUrl = logo;`;
       if (id !== RESOLVED) return undefined;
-      // Root-relative URLs, which Vite resolves against the project root and emits as hashed assets.
-      const url = (path: string) => `/${relative(root, resolve(brandDir, path)).split('\\').join('/')}`;
       return `${typefaceCss(brand.typeface, url)}\n${coloursCss(brand.colours, brand.teamColours)}`;
     },
   };

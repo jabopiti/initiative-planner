@@ -47,4 +47,19 @@ describe('brandColoursPlugin (§9.5, §10.7)', () => {
     expect(css).toContain("url('/brand/fonts/geist-latin-wght-normal.woff2')");
     expect(css).not.toMatch(/https?:/);
   });
+
+  it('stops the build when the logo or favicon file is missing, naming it (§2)', () => {
+    const pack = { ...defaultBrandPack, logo: { path: 'missing-logo.svg' }, favicon: { path: 'missing-favicon.ico' } };
+    expect(() => call(brandColoursPlugin(pack, brandDir).buildStart)).toThrow(/logo missing-logo\.svg not found[\s\S]*favicon missing-favicon\.ico not found/);
+  });
+
+  it("puts the pack's page title and favicon into the page, and serves the logo from the build (§2, §10.9)", () => {
+    const plugin = brandColoursPlugin({ ...defaultBrandPack, pageTitle: 'Plans & <Bets>' }, brandDir);
+    call(plugin.configResolved, { root: resolve(__dirname, '../..') });
+    const handler = (plugin.transformIndexHtml as { handler: (html: string) => string }).handler;
+    const html = handler('<head>\n<title>Initiative Planner</title>\n</head>');
+    expect(html).toContain('<link rel="icon" href="/brand/favicon.svg" />');
+    expect(html).toContain('<title>Plans &amp; &lt;Bets></title>');
+    expect(call(plugin.load, call(plugin.resolveId, 'virtual:brand-assets'))).toContain("from '/brand/logo.svg'");
+  });
 });
