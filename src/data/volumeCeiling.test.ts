@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { buildBaselineDataset } from './baseline';
 import { addMonths } from './defaultPlan';
 import { passGate } from './gate';

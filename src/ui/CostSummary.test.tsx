@@ -1,6 +1,6 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import type { BrandPack } from '../brand/types';
 import { buildBaselineDataset } from '../data/baseline';
 import { formatPeriod } from '../data/dates';

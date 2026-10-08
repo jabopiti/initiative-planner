@@ -91,7 +91,7 @@ Each deployment is its own copy of this repository. You change only the brand pa
 > [!IMPORTANT]
 > Serve the app from its own domain, for example a custom domain in the Pages settings. Browser storage is shared across a whole `<account>.github.io` origin, so there the app turns off "Remember me".
 
-The brand pack is currently one file, [`src/brand/defaultBrand.ts`](./src/brand/defaultBrand.ts); splitting it into a per-fork folder is planned. The full model is in [spec §2 and §10.7](./docs/spec.md).
+The brand pack lives in one folder, [`brand/`](./brand): the pack file `brand.ts`, the example dataset and the fonts. A fork edits only that folder. The full model is in [spec §2 and §10.7](./docs/spec.md).
 
 ## Run it locally
 

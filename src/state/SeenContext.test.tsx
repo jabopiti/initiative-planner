@@ -1,7 +1,7 @@
 import { act, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cacheScope, SeenCache } from '../cache/db';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import type { SeenRecord } from '../data/seen';
 import { BrandProvider } from './BrandContext';
 import { SeenProvider } from './SeenContext';

@@ -7,3 +7,8 @@ interface ImportMetaEnv {
 
 /** Package version and short commit, injected at build time (vite.config.ts); shown in Settings → About. */
 declare const __BUILD_VERSION__: string;
+
+/** The brand pack's logo as a served, hashed URL (brandColoursPlugin). */
+declare module 'virtual:brand-assets' {
+  export const logoUrl: string;
+}

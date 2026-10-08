@@ -1,5 +1,5 @@
 import exampleDataset from './exampleDataset.json';
-import type { BrandPack, CountryYearRates } from './types';
+import type { BrandPack, CountryYearRates } from '../src/brand/types';
 
 /**
  * The brand pack for this deployment (jabopiti/initiative-planner). Values
@@ -26,6 +26,9 @@ const spainRates: CountryYearRates[] = [
 
 export const defaultBrandPack: BrandPack = {
   productName: 'Initiative Planner',
+  pageTitle: 'Initiative Planner',
+  logo: { path: 'logo.svg' },
+  favicon: { path: 'favicon.svg' },
   currencySymbol: '€',
 
   processIdentity: {
@@ -55,8 +58,8 @@ export const defaultBrandPack: BrandPack = {
         requiresEstimates: false,
         skippable: true,
         checklistItems: [
-          { id: 'g1-problem-statement', name: 'Problem statement validated', description: '' },
-          { id: 'g1-stakeholders-aligned', name: 'Stakeholders aligned', description: '' },
+          { id: 'g1-problem-statement', name: 'Problem statement validated', description: 'Problem written down and agreed.' },
+          { id: 'g1-stakeholders-aligned', name: 'Stakeholders aligned', description: 'Backers have seen the problem and goal.' },
         ],
       },
     },
@@ -74,9 +77,9 @@ export const defaultBrandPack: BrandPack = {
         requiresEstimates: true,
         skippable: true,
         checklistItems: [
-          { id: 'g2-business-case', name: 'Business case approved', description: '' },
-          { id: 'g2-cost-estimate', name: 'Cost estimate reviewed', description: '' },
-          { id: 'g2-technical-feasibility', name: 'Technical feasibility confirmed', description: '' },
+          { id: 'g2-business-case', name: 'Business case approved', description: 'Costs, benefits and return signed off.' },
+          { id: 'g2-cost-estimate', name: 'Cost estimate reviewed', description: 'Estimate reviewed by someone else.' },
+          { id: 'g2-technical-feasibility', name: 'Technical feasibility confirmed', description: 'Approach confirmed buildable by the team.' },
         ],
       },
     },
@@ -94,9 +97,9 @@ export const defaultBrandPack: BrandPack = {
         requiresEstimates: true,
         skippable: false,
         checklistItems: [
-          { id: 'g3-acceptance-testing', name: 'Acceptance testing passed', description: '' },
-          { id: 'g3-security-review', name: 'Security review completed', description: '' },
-          { id: 'g3-rollout-plan', name: 'Rollout plan approved', description: '' },
+          { id: 'g3-acceptance-testing', name: 'Acceptance testing passed', description: 'Agreed acceptance tests have passed.' },
+          { id: 'g3-security-review', name: 'Security review completed', description: 'Findings resolved or accepted.' },
+          { id: 'g3-rollout-plan', name: 'Rollout plan approved', description: 'Steps, owners and a way back agreed.' },
         ],
       },
     },
@@ -113,8 +116,8 @@ export const defaultBrandPack: BrandPack = {
         requiresEstimates: false,
         skippable: false,
         checklistItems: [
-          { id: 'g4-hypercare', name: 'Hypercare period completed', description: '' },
-          { id: 'g4-lessons-learned', name: 'Lessons learned documented', description: '' },
+          { id: 'g4-hypercare', name: 'Hypercare period completed', description: 'Support period over, no critical issues.' },
+          { id: 'g4-lessons-learned', name: 'Lessons learned documented', description: 'Lessons written down for the next time.' },
         ],
       },
     },

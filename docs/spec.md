@@ -248,7 +248,10 @@ fixes:
 - **A process identity** — an id and a **structure version**, so a dataset
   is never read by a build whose process structure disagrees with it (§3,
   Versioning and migration).
-- **Branding**: product name, logo, favicon and page title, the
+- **Branding**: product name, logo, favicon and page title (the logo and
+  favicon are image files kept in the brand-pack folder and served with the
+  build; the logo is decorative, shown beside the product name in the top bar
+  and above the Connect heading, one file for both themes), the
   **typeface** (a family name, its font files kept in the brand-pack folder
   and served with the build, never fetched from a third party, and a
   fallback stack), the **team colours** (six categorical colours, each for
@@ -270,8 +273,9 @@ fixes:
   People, teams and initiatives start empty. It is loaded only when no
   dataset exists anywhere (§3), never in place of a damaged or foreign one.
 - An **example dataset** of people, teams and initiatives, which the user
-  can load from the Danger zone (§5.9). It is a plain data file that matches
-  the build's process identity, and its dates are stored relative to the
+  can load from the Danger zone (§5.9). It is a plain data file that states the
+  process identity it was written for, which must equal the build's, and uses
+  only phases, roles, countries and teams the build defines; its dates are stored relative to the
   month it is loaded so it never goes stale.
 
 ### Editable by the user
