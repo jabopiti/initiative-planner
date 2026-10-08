@@ -9,62 +9,42 @@ import {
   type Allocation,
   type CostItem,
   type Country,
-  type CountryYearRateRecord,
   type DatasetFlags,
   type Initiative,
   type Membership,
-  type PhasePlan,
   type Person,
   type Role,
   type Team,
 } from '../data/types';
-import { allocationRefusal, trackedYears, type Period } from '../data/cost';
-import { formatDateEn, formatMonthEn, monthKey } from '../data/dates';
-import { periodMonthsEn } from '../data/period';
-import { countriesRolledForward, newCountryRates, peopleRolledForward, weekdaysByMonth } from '../data/rates';
+import { trackedYears, type Period } from '../data/cost';
+import { countriesRolledForward, peopleRolledForward } from '../data/rates';
 import { localToday } from '../data/dates';
 import { duplicateInitiative, type DuplicateResult } from '../data/duplicate';
-import { buildDefaultPlan, extendByOneMonth } from '../data/defaultPlan';
+import { buildDefaultPlan } from '../data/defaultPlan';
 import { FROZEN_PHASE_FIELDS, frozenPaths, hasPassedGate, isInitiativeFrozen, isPhaseFrozen } from '../data/frozen';
 import { startAtPhase as evaluateStartAtPhase } from '../data/startingPhase';
-import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, withChecklistItem, type GateRecorded } from '../data/gate';
+import { currentPhaseId, passGate as evaluatePassGate, reopenGate as evaluateReopenGate, skipGate as evaluateSkipGate, type GateRecorded } from '../data/gate';
 import type { ChecklistStatus, InitiativeStatus } from '../data/types';
-import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, GithubApiError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
-import { FILES_PER_QUERY, GithubClient, TRUNCATED, type BranchHead, type CommitLink, type CommitOnHeadArgs, type CommitResult, type GetFileResult } from '../github/client';
+import { AUTOMATIC_RETRY_CAUSES, DamagedDataError, REFUSED_DATASET_CAUSES, toReadOnlyState, type ReadOnlyState } from '../github/errors';
+import { GithubClient, type CommitOnHeadArgs, type CommitResult } from '../github/client';
 import { checkToken, type TokenCheckResult } from '../auth/validateToken';
 import { WriteBudget } from '../github/writeBudget';
-import { unclaimedCapacityPct } from '../data/capacity';
-import { activeMembership } from '../data/teamMembers';
-import { copySource, planCopy } from '../data/copyAllocations';
 import { allocationCount, planTeamChange, type RemovedAllocation, type TeamChangePlan } from '../data/teamChange';
-import { distinctEntities, FileWriter, renderMessage, type JointPart, type CommitMessage, type CommitNote, type DeleteResult, type EntityKind, type FileConflict, type Received, type WriteStatus } from './FileWriter';
+import { FileWriter, type CommitMessage, type CommitNote, type DeleteResult, type FileConflict, type Received, type WriteStatus } from './FileWriter';
 import { mergeDocument, pathKey, sameValue, type Path } from './merge';
 import { MASTER_FILES, parseDataFile, validateDataset, validateRecords } from './validateDataset';
+import { PullSource, pulledFile, type Pulled, type WrittenFile } from './PullSource';
+import { commitJointly } from './commitJointly';
+import { RateLimitTracker } from './RateLimitTracker';
 import { WriteQueue } from './WriteQueue';
-
-/** A file a commit of this client's wrote, with its version. */
-type WrittenFile = CommitResult['written'][number];
-
-/**
- * A commit of this client's own (§10.2), recorded by the commit it sits on. `written` holds what a many-file commit
- * (§5.9's Reset or Load) wrote, with the versions computed locally (§10.3), for a pull to apply as it is; `saved` names
- * the files a single save or a joint commit wrote, already on screen; `deleted` the files it removed.
- */
-interface OwnCommit {
-  sha: string;
-  written: WrittenFile[];
-  saved: string[];
-  deleted: string[];
-}
+import { InitiativeEditCommands, type AddAllocationResult, type CopyAllocationsResult, type CostItemChange } from './InitiativeEditCommands';
+import { ReferenceDataCommands, type MasterFile } from './ReferenceDataCommands';
+import { note as entityNote, teamName } from './commitWords';
+import { insertAt } from './insertAt';
 
 export type { ReadOnlyState } from '../github/errors';
 
-/** GitHub's request budget for the hour, from the latest response's headers (§5.9); `resetsAt` is epoch milliseconds. */
-export interface RateLimit {
-  remaining: number;
-  limit: number;
-  resetsAt: number;
-}
+export type { RateLimit } from './RateLimitTracker';
 
 export interface RepositoryState {
   status: 'loading' | 'ready';
@@ -135,18 +115,6 @@ export const PULL_INTERVAL_MS = 5 * 60 * 1000;
 export const FOCUS_PULL_MIN_GAP_MS = 15 * 1000;
 /** After a failed pull, or one that had to leave a file alone, the next attempt comes this soon. */
 export const PULL_RETRY_MS = 30 * 1000;
-/** How many reads a pull runs at once, each up to {@link FILES_PER_QUERY} files (§10.2). */
-const PULL_READS_AT_ONCE = 8;
-
-/** A file a pull read: its text, which the cache keeps, and what it says, parsed once. A file that is not JSON fails the read. */
-interface PulledFile {
-  raw: string;
-  sha: string;
-  value: unknown;
-  /** Written by this client's own commit: nothing it changes is "updated by others" (§9.9). */
-  own: boolean;
-}
-
 /** The commit message deleting an initiative (§10.3). */
 const deletedMessage = (initiative: Initiative): CommitMessage => ({
   subject: `${initiative.name}: deleted`,
@@ -171,36 +139,12 @@ export type LoadExampleResult = 'loaded' | 'not-empty' | { failed: ReadOnlyState
 /** How Reset ended (§5.9): reset, or failed with the cause. */
 export type ResetResult = 'reset' | { failed: ReadOnlyState };
 
-const pulledFile = (path: string, { content, sha }: { content: string; sha: string }, own = false): PulledFile => ({
-  raw: content,
-  sha,
-  value: parseDataFile(path, content),
-  own,
-});
-
-/** Everything one pull found: the files it read, and the versions on screen it compared them with. */
-interface Pulled {
-  head: BranchHead | null;
-  files: Map<string, PulledFile>;
-  /** Which paths the repository lists, with their versions: an initiative not in it has been removed. */
-  listing: Map<string, string>;
-  /** The version each path had on screen when the pull compared, so a save that lands meanwhile is not undone. */
-  compared: Map<string, string>;
-}
 
 
 /** New people (§5.5) take these; country and role default to the last values used. */
-export interface NewPersonInput {
-  name: string;
-  countryId: string;
-  roleId: string;
-}
-
-/** What Copy from <previous phase> did: how many allocations were added and who was skipped (§5.11). */
-export type CopyAllocationsResult = { copied: number; skipped: Person[] };
-
-/** Why an allocation wasn't added (§7.2), in words the page can show as is. */
-export type AddAllocationResult = { ok: true; allocation: Allocation } | { ok: false; reason?: string };
+import type { NewPersonInput } from './ReferenceDataCommands';
+export type { NewPersonInput } from './ReferenceDataCommands';
+export type { AddAllocationResult, CopyAllocationsResult, CostItemChange } from './InitiativeEditCommands';
 
 /** What a team change did, kept by the page for the 10 seconds it can be undone (§5.11). */
 export interface TeamChange {
@@ -208,22 +152,6 @@ export interface TeamChange {
   toTeamId: string;
   removed: RemovedAllocation[];
 }
-
-/** `item` put back at `index` (or last, when the list has since shrunk): where an Undo restores a removed list item. */
-function insertAt<T>(list: T[], item: T, index: number): T[] {
-  const next = [...list];
-  next.splice(Math.min(index, next.length), 0, item);
-  return next;
-}
-
-/** One change to a cost item, of the one field the commit note names. */
-export type CostItemChange = { label: string } | { amount: number } | { timing: 'spread' } | { timing: 'month'; month: string } | { month: string };
-
-/** The phase lists whose items are removed with an Undo (§5.11). */
-type PhaseList = 'allocations' | 'costItems';
-
-/** A phase list's items as the caller knows them; `list` says which, so the one cast is here. */
-const itemsOf = <T extends { id: string }>(plan: PhasePlan | undefined, list: PhaseList): T[] => (plan?.[list] ?? []) as unknown as T[];
 
 type Listener = () => void;
 
@@ -290,22 +218,40 @@ export class Repository {
   /** Why the last delete failed (§9.9): shown in the read-only banner until a pull succeeds. */
   private deleteFailure: ReadOnlyState | null = null;
   private tintTimer: ReturnType<typeof setTimeout> | null = null;
-  /** This client's own commits, by the commit each sits on (§10.2): a pull whose head they lead to from the last
-   * complete pull's reads nothing, and one that reads anyway takes what they wrote rather than downloading it again
-   * (§10.3). Kept for this page's lifetime only, and only those that lead on from the last complete pull. */
-  private readonly ownCommits = new Map<string, OwnCommit>();
-  private readonly recordSave = (paths: string[], { sha, parent }: CommitLink): void =>
-    void this.ownCommits.set(parent, { sha, written: [], saved: paths, deleted: [] });
+  private readonly source: PullSource;
+  private readonly refData: ReferenceDataCommands;
+  private readonly edits: InitiativeEditCommands;
 
   constructor(
     private readonly brand: BrandPack,
     private token: string,
+    /** Today, for everything dated by when it happens; each call that takes a date can still be given one. */
+    private readonly clock: () => Date = () => new Date(),
   ) {
     this.writeBudget = new WriteBudget(brand.github.apiBaseUrl);
-    this.github = new GithubClient(brand.github, () => this.token, (headers) => this.noteRateLimit(headers), {
+    this.github = new GithubClient(brand.github, () => this.token, (headers) => this.rateLimits.note(headers), {
       budget: this.writeBudget,
       onPause: () => this.rearmRetry(),
     });
+    this.refData = new ReferenceDataCommands({
+      getState: this.getState,
+      commit: (file, next, n) => this.commitFile(file, next, n),
+      commitMemberships: (next, n) => this.commitMemberships(next, n),
+      jointly: (action) => this.jointly(action),
+      markRatesReviewed: (words) => this.markRatesReviewed(words),
+      money: (amount) => this.money(amount),
+    });
+    this.edits = new InitiativeEditCommands({
+      getState: this.getState,
+      brand,
+      editableInitiative: (id) => this.editableInitiative(id),
+      phaseLabel: (phaseId) => this.phaseLabel(phaseId),
+      replaceInitiative: (next) => this.replaceInitiative(next),
+      schedule: (id, next, note) => this.initiativeWriters.get(id)?.schedule(next, note),
+      noteLostEdits: (id, phaseIds) => this.noteLostEdits(id, phaseIds),
+      money: (amount) => this.money(amount),
+    });
+    this.source = new PullSource(this.github, brand.github.dataBranch);
     this.cache = new FileCache(cacheScope(brand.github));
   }
 
@@ -467,135 +413,15 @@ export class Repository {
   }
 
   /** What changed in the repository since what is on screen: null when nothing did, else the files that did. */
-  private async fetchPull(): Promise<Pulled | null> {
-    const branch = this.brand.github.dataBranch;
-    // While the dataset is refused, the head on screen is no proof the repository is fine: the owner may restore it by
-    // moving the branch back to exactly that commit, so the pull reads and validates it again rather than stop here.
-    const unchangedEndsPull = this.state.status === 'ready' && this.datasetRefusal === null;
-    const head = await this.github.getBranchHead({ branch, etag: unchangedEndsPull ? (this.meta?.etag ?? null) : null });
-    if (head === 'not-modified') return null;
-    if (head && this.meta && unchangedEndsPull && head.sha === this.meta.head) return null;
-    // Moved only through this client's own commits: nothing is listed or read (§10.2). What single saves wrote is on
-    // screen and in the cache already, so only the head is recorded; what a many-file commit wrote is applied as it is.
-    const own = head && this.meta && unchangedEndsPull ? this.ownCommitsTo(this.meta.head, head.sha) : null;
-    if (head && own) {
-      if (own.some((commit) => commit.written.length > 0 || commit.deleted.length > 0)) return { head, ...this.ownPull(own) };
-      this.remember({ head, files: new Map() }, true);
-      return null;
-    }
-
-    // Listing and files are read at the head just checked, so they are one commit's snapshot: validation across
-    // files (§3 Damaged data) never sees half of another user's change, such as a membership without its person.
-    let at = head?.sha ?? branch;
-    // Files this client's own commits wrote: not read again at the version the listing gives.
-    const written = new Map([...this.ownCommits.values()].flatMap((commit) => commit.written.map((file): [string, WrittenFile] => [file.path, file])));
-    let listing = await this.listDataset(at);
-    if (!listing.has(FILE_PATHS.datasetFlags)) {
-      // No dataset anywhere: the first write-capable client creates it (§3). Never over a dataset that has any file
-      // left, nor one already on screen: that dataset is damaged, and the owner restores it (§3 Damaged data).
-      if (listing.size > 0 || this.state.status === 'ready') throw new DamagedDataError(FILE_PATHS.datasetFlags, 'is missing');
-      for (const file of await this.bootstrapBaseline(branch)) written.set(file.path, file);
-      at = branch;
-      listing = await this.listDataset(at);
-      if (!listing.has(FILE_PATHS.datasetFlags)) throw new DamagedDataError(FILE_PATHS.datasetFlags, 'is missing');
-    }
-
-    const compared = this.knownShas();
-    const changed = [...listing].filter(([path, sha]) => compared.get(path) !== sha).map(([path]) => path);
-    const files = new Map<string, PulledFile>();
-    const keep = (path: string, file: GetFileResult | null) => file && files.set(path, pulledFile(path, file));
-    const toRead: string[] = [];
-    for (const path of changed) {
-      const own = written.get(path);
-      if (own && own.sha === listing.get(path)) files.set(path, pulledFile(path, own, true));
-      else toRead.push(path);
-    }
-    // About a hundred files per GraphQL query; those too large for it are read on their own afterwards (§10.2).
-    const batches = Array.from({ length: Math.ceil(toRead.length / FILES_PER_QUERY) }, (_, i) => toRead.slice(i * FILES_PER_QUERY, (i + 1) * FILES_PER_QUERY));
-    const tooLarge: string[] = [];
-    const worker = async () => {
-      for (let batch = batches.shift(); batch !== undefined; batch = batches.shift()) {
-        for (const [path, file] of await this.github.readFiles({ ref: at, paths: batch })) {
-          if (file === TRUNCATED) tooLarge.push(path);
-          else keep(path, file);
-        }
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(PULL_READS_AT_ONCE, batches.length) }, worker));
-    await Promise.all(tooLarge.map(async (path) => keep(path, await this.github.getFile({ path, branch: at }))));
-    return { head: head ?? null, files, listing, compared };
-  }
-
-  /** This client's own commits from commit `from` on, in order, as far as they go. */
-  private ownCommitsFrom(from: string): [string, OwnCommit][] {
-    const chain: [string, OwnCommit][] = [];
-    for (let at = from, next = this.ownCommits.get(at); next !== undefined && chain.length < this.ownCommits.size; at = next.sha, next = this.ownCommits.get(at)) {
-      chain.push([at, next]);
-    }
-    return chain;
-  }
-
-  /** Keeps only the own commits that lead on from `head`: no later pull starts from a commit before it. */
-  private forgetCommitsBefore(head: string): void {
-    const ahead = this.ownCommitsFrom(head);
-    this.ownCommits.clear();
-    for (const [parent, commit] of ahead) this.ownCommits.set(parent, commit);
-  }
-
-  /** This client's own commits from commit `from` to commit `to`, in order; null when they don't lead there. */
-  private ownCommitsTo(from: string, to: string): OwnCommit[] | null {
-    const chain = this.ownCommitsFrom(from).map(([, commit]) => commit);
-    const last = chain.findIndex((commit) => commit.sha === to);
-    return last < 0 ? null : chain.slice(0, last + 1);
-  }
-
-  /** The pull made of what this client's own commits recorded rather than read: what a many-file commit wrote, over the versions on screen. */
-  private ownPull(chain: OwnCommit[]): Omit<Pulled, 'head'> {
-    const compared = this.knownShas();
-    const listing = new Map(compared);
-    const files = new Map<string, PulledFile>();
-    for (const commit of chain) {
-      for (const file of commit.written) {
-        files.set(file.path, pulledFile(file.path, file, true));
-        listing.set(file.path, file.sha);
-      }
-      // A later save's content is on screen already, at the version it holds.
-      for (const path of commit.saved) {
-        files.delete(path);
-        const sha = compared.get(path);
-        if (sha === undefined) listing.delete(path);
-        else listing.set(path, sha);
-      }
-      for (const path of commit.deleted) {
-        files.delete(path);
-        listing.delete(path);
-      }
-    }
-    return { files, listing, compared };
-  }
-
-  /** The master files and the initiative files the repository lists, by path, with their versions (§10.2). */
-  private async listDataset(ref: string): Promise<Map<string, string>> {
-    // `ref` is the data branch, or one commit of it. One request lists every file, unless there are too many for it.
-    const tree = await this.github.listTree({ ref });
-    if (tree.truncated) return this.listDatasetByFolder(ref);
-    const listing = new Map<string, string>();
-    for (const entry of tree.entries) {
-      if (entry.type === 'blob' && (MASTER_FILES.includes(entry.path) || /^initiatives\/[^/]+\.json$/.test(entry.path))) listing.set(entry.path, entry.sha);
-    }
-    return listing;
-  }
-
-  /** {@link listDataset} by the two folders, for a tree too large for one listing. */
-  private async listDatasetByFolder(branch: string): Promise<Map<string, string>> {
-    const [root, initiatives] = await Promise.all([
-      this.github.listDirectory({ path: '', branch }),
-      this.github.listDirectory({ path: 'initiatives', branch }),
-    ]);
-    const listing = new Map<string, string>();
-    for (const entry of root) if (entry.type === 'file' && MASTER_FILES.includes(entry.path)) listing.set(entry.path, entry.sha);
-    for (const entry of initiatives) if (entry.name.endsWith('.json')) listing.set(entry.path, entry.sha);
-    return listing;
+  private fetchPull(): Promise<Pulled | null> {
+    return this.source.fetch({
+      unchangedEndsPull: this.state.status === 'ready' && this.datasetRefusal === null,
+      ready: this.state.status === 'ready',
+      meta: () => this.meta,
+      knownShas: () => this.knownShas(),
+      bootstrapBaseline: (branch) => this.bootstrapBaseline(branch),
+      recordHead: (head) => this.remember({ head, files: new Map() }, true),
+    });
   }
 
   /** The writer of each master file that has one, by path. */
@@ -725,7 +551,7 @@ export class Repository {
     this.cache.commitPull(kept, meta).then(
       (recorded) => {
         this.meta = recorded ? meta : null;
-        if (meta) this.forgetCommitsBefore(meta.head);
+        if (meta) this.source.forgetBefore(meta.head);
       },
       (error) => {
         // The cache is a local convenience: losing it only means the next open pulls everything.
@@ -778,7 +604,7 @@ export class Repository {
    * that a country or a custom role has no entry for gets one (a system write, §3). Idempotent — nothing missing
    * is no write — and two clients doing it at once write the same values, which merge without a conflict.
    */
-  keepTrackedYears(today: () => Date = () => new Date()): () => void {
+  keepTrackedYears(today: () => Date = this.clock): () => void {
     this.rolloverToday = today;
     if (this.state.status === 'ready') this.rollForward();
     return () => {
@@ -790,12 +616,12 @@ export class Repository {
     if (!this.rolloverToday || this.state.status !== 'ready') return;
     const tracked = trackedYears(this.rolloverToday());
     // A system write over the whole file (§3), not an edit of one country or person: it notes the dataset.
-    const note = () => this.note('dataset', 'rates', 'rollover', undefined, tracked, () => `Rates copied into ${tracked[tracked.length - 1]}`);
+    const rolloverNote = () => entityNote('dataset', 'rates', 'rollover', undefined, tracked, () => `Rates copied into ${tracked[tracked.length - 1]}`);
     this.jointly(() => {
       const countries = countriesRolledForward(this.state.countries, tracked);
-      if (countries) this.commitCountries(countries, note());
+      if (countries) this.commitFile('countries', countries, rolloverNote());
       const people = peopleRolledForward(this.state.people, tracked);
-      if (people) this.commitPeople(people, note());
+      if (people) this.commitFile('people', people, rolloverNote());
     });
   }
 
@@ -838,28 +664,12 @@ export class Repository {
     void this.allWriters().find(([path]) => path === file)?.[1].retry();
   }
 
-  private rateLimit: RateLimit | null = null;
-  private readonly rateLimitListeners = new Set<Listener>();
+  private readonly rateLimits = new RateLimitTracker();
 
   /** The budget the latest response reported (§5.9), or null before any response carried it. */
-  getRateLimit = (): RateLimit | null => this.rateLimit;
+  readonly getRateLimit = this.rateLimits.get;
 
-  subscribeRateLimit = (listener: Listener): (() => void) => {
-    this.rateLimitListeners.add(listener);
-    return () => this.rateLimitListeners.delete(listener);
-  };
-
-  private noteRateLimit(headers: Headers): void {
-    const remaining = Number(headers.get('x-ratelimit-remaining'));
-    const limit = Number(headers.get('x-ratelimit-limit'));
-    const reset = Number(headers.get('x-ratelimit-reset'));
-    // Number(null) is 0, so every header must be present, not just parse.
-    const complete = ['x-ratelimit-remaining', 'x-ratelimit-limit', 'x-ratelimit-reset'].every((name) => headers.has(name));
-    if (!complete || !Number.isFinite(remaining) || !Number.isFinite(limit) || !Number.isFinite(reset)) return;
-    if (this.rateLimit?.remaining === remaining && this.rateLimit.limit === limit && this.rateLimit.resetsAt === reset * 1000) return;
-    this.rateLimit = { remaining, limit, resetsAt: reset * 1000 };
-    for (const listener of this.rateLimitListeners) listener();
-  }
+  readonly subscribeRateLimit = this.rateLimits.subscribe;
 
   /**
    * How many edits would be lost by dropping this session (§5.9 Disconnect): fields whose save failed, plus a file
@@ -1063,7 +873,7 @@ export class Repository {
       initial,
       onStatus: this.statusOf(path),
       onSchedule: () => this.writtenByAction?.add(path),
-      onCommitted: (commit) => this.recordSave([path], commit),
+      onCommitted: (commit) => this.source.recordSave([path], commit),
       onCacheFull: this.onCacheFull,
       onConflict: this.onConflict,
       onConflictClosed: this.onConflictClosed,
@@ -1099,7 +909,7 @@ export class Repository {
       creationFailure: 'Could not create the initiative.',
       onStatus: this.statusOf(path),
       onSchedule: () => this.writtenByAction?.add(path),
-      onCommitted: (commit) => this.recordSave([path], commit),
+      onCommitted: (commit) => this.source.recordSave([path], commit),
       onCacheFull: this.onCacheFull,
       onConflict: this.onConflict,
       onConflictClosed: this.onConflictClosed,
@@ -1163,136 +973,90 @@ export class Repository {
     return result.written;
   }
 
-  /** New role (§5.9): created from a name, abbreviation and cost factor, active. */
-  createRole(input: { name: string; abbreviation: string; costFactor: number }): Role {
-    const role: Role = { id: newId(), ...input, active: true };
-    this.commitRoles([...this.state.roles, role], this.note('role', role.id, 'record', undefined, role, (f, t) => this.describeRole(f, t)));
-    return role;
-  }
-
-  /** In-place edit from the Roles table (§5.9): name, abbreviation, cost factor, or deactivate/reactivate; roles are never deleted (§9.3). */
-  updateRole(id: string, patch: Partial<Omit<Role, 'id'>>): void {
-    const current = this.state.roles.find((r) => r.id === id);
-    if (!current) return;
-    const next = { ...current, ...patch };
-    if ((Object.keys(patch) as (keyof typeof patch)[]).every((key) => next[key] === current[key])) return;
-    this.commitRoles(
-      this.state.roles.map((r) => (r.id === id ? next : r)),
-      this.note('role', id, 'record', current, next, (f, t) => this.describeRole(f, t)),
-    );
-  }
-
-  /** The net change of a role, in plain words (§10.3); the subject is the name it was saved under. */
-  private describeRole(from: Role | undefined, to: Role | undefined): string {
-    if (!from) return `Roles: ${to?.name} added`;
-    if (!to) return `Roles: ${from.name} removed`;
-    const parts: string[] = [];
-    if (to.name !== from.name) parts.push(`renamed to ${to.name}`);
-    if (to.abbreviation !== from.abbreviation) parts.push(`abbreviation set to ${to.abbreviation}`);
-    if (to.costFactor !== from.costFactor) parts.push(`cost factor set to ${to.costFactor}`);
-    if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
-    return `Roles: ${from.name} ${parts.join(', ') || 'updated'}`;
-  }
-
-  /** New country (§5.9): its one day rate copied to every tracked year, working days prefilled with weekdays. */
-  createCountry(input: { name: string; code: string; dayRate: number }, today: Date = new Date()): Country {
-    const country: Country = { id: newId(), name: input.name, code: input.code, active: true, ratesByYear: newCountryRates(input.dayRate, trackedYears(today)) };
-    this.commitCountries([...this.state.countries, country], this.note('country', country.id, 'record', undefined, country, (f, t) => this.describeCountry(f, t)));
-    return country;
-  }
-
-  /** Rename, recode, deactivate or reactivate a country; countries are never deleted (§9.3). */
-  updateCountry(id: string, patch: Partial<Pick<Country, 'name' | 'code' | 'active'>>): void {
-    const current = this.state.countries.find((c) => c.id === id);
-    if (!current) return;
-    const next = { ...current, ...patch };
-    if (next.name === current.name && next.code === current.code && next.active === current.active) return;
-    this.commitCountries(
-      this.state.countries.map((c) => (c.id === id ? next : c)),
-      this.note('country', id, 'record', current, next, (f, t) => this.describeCountry(f, t)),
-    );
-  }
-
-  private describeCountry(from: Country | undefined, to: Country | undefined): string {
-    if (!from) return `Countries: ${to?.name} added`;
-    if (!to) return `Countries: ${from.name} removed`;
-    const parts: string[] = [];
-    if (to.name !== from.name) parts.push(`renamed to ${to.name}`);
-    if (to.code !== from.code) parts.push(`code set to ${to.code}`);
-    if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
-    return `Countries: ${from.name} ${parts.join(', ') || 'updated'}`;
-  }
-
-  /** A country's day rate for one year (§5.9, §7.2). Any rate edit also marks the rates reviewed (§5.2). */
-  setCountryDayRate(id: string, year: number, dayRate: number): void {
-    this.editYear(id, year, `dayRate:${year}`, (r) => r.dayRate, (r) => ({ ...r, dayRate }), (name, to) => `${name}: ${year} day rate set to ${this.money(to as number)}`);
-  }
-
-  /** One month's working days for one year of a country (`month` 0-based). */
-  setCountryWorkingDays(id: string, year: number, month: number, days: number): void {
-    const key = monthKey(year, month);
-    this.editYear(
-      id,
-      year,
-      `workingDays:${key}`,
-      (r) => r.workingDaysByMonth[month],
-      (r) => ({ ...r, workingDaysByMonth: r.workingDaysByMonth.map((d, i) => (i === month ? days : d)) }),
-      (name, to) => `${name}: working days in ${formatMonthEn(key)} set to ${to}`,
-    );
-  }
-
-  /** Reset to weekdays: all twelve months of one year back to their weekday counts. */
-  resetCountryWorkingDays(id: string, year: number): void {
-    this.editYear(
-      id,
-      year,
-      `workingDays:${year}`,
-      (r) => r.workingDaysByMonth,
-      (r) => ({ ...r, workingDaysByMonth: weekdaysByMonth(year) }),
-      (name) => `${name}: working days in ${year} reset to weekdays`,
-    );
-  }
-
-  /**
-   * One year entry of one country: `set` makes the edit, `get` reads the value the commit note names (§10.3),
-   * and `words` phrases it with the country's name. No write when that value is unchanged.
-   */
-  private editYear(
-    id: string,
-    year: number,
-    field: string,
-    get: (record: CountryYearRateRecord) => unknown,
-    set: (record: CountryYearRateRecord) => CountryYearRateRecord,
-    words: (name: string, to: unknown) => string,
-  ): void {
-    const country = this.state.countries.find((c) => c.id === id);
-    const record = country?.ratesByYear.find((r) => r.year === year);
-    if (!country || !record) return;
-    const next = set(record);
-    if (sameValue(get(next), get(record))) return;
-    const updated = { ...country, ratesByYear: country.ratesByYear.map((r) => (r.year === year ? next : r)) };
-    // The first rate edit also marks the rates reviewed: both files in one commit (§10.3).
-    this.jointly(() => {
-      this.commitCountries(
-        this.state.countries.map((c) => (c.id === id ? updated : c)),
-        this.note('country', id, field, get(record), get(next), (_, to) => words(country.name, to)),
-      );
-      this.markRatesReviewed('Rates marked as reviewed');
-    });
-  }
-
-  /** Rates are correct (§5.9): confirms the rates without editing them, which clears Review rates (§5.2). */
-  confirmRates(): void {
-    this.markRatesReviewed('Rates confirmed as correct');
-  }
-
   /** Marks the rates reviewed (§5.2) unless they already are. */
   private markRatesReviewed(words: string): void {
     const flags = this.state.datasetFlags;
     if (!flags || flags.ratesReviewed || !this.flagsWriter) return;
     const next = { ...flags, ratesReviewed: true };
     this.setState({ datasetFlags: next });
-    this.flagsWriter.schedule(next, this.note('dataset', 'flags', 'ratesReviewed', false, true, () => words));
+    this.flagsWriter.schedule(next, entityNote('dataset', 'flags', 'ratesReviewed', false, true, () => words));
+  }
+
+  // Reference data (roles, countries, teams, people, memberships): see ReferenceDataCommands.
+  removeMembership(id: string): { membership: Membership; index: number } | null {
+    return this.refData.removeMembership(id);
+  }
+
+  restoreMembership(membership: Membership, index: number): { ok: true } | { ok: false; message: string } {
+    return this.refData.restoreMembership(membership, index);
+  }
+
+  createRole(input: { name: string; abbreviation: string; costFactor: number }): Role {
+    return this.refData.createRole(input);
+  }
+
+  updateRole(id: string, patch: Partial<Omit<Role, 'id'>>): void {
+    return this.refData.updateRole(id, patch);
+  }
+
+  createCountry(input: { name: string; code: string; dayRate: number }, today: Date = this.clock()): Country {
+    return this.refData.createCountry(input, today);
+  }
+
+  updateCountry(id: string, patch: Partial<Pick<Country, 'name' | 'code' | 'active'>>): void {
+    return this.refData.updateCountry(id, patch);
+  }
+
+  setCountryDayRate(id: string, year: number, dayRate: number): void {
+    return this.refData.setCountryDayRate(id, year, dayRate);
+  }
+
+  setCountryWorkingDays(id: string, year: number, month: number, days: number): void {
+    return this.refData.setCountryWorkingDays(id, year, month, days);
+  }
+
+  resetCountryWorkingDays(id: string, year: number): void {
+    return this.refData.resetCountryWorkingDays(id, year);
+  }
+
+  confirmRates(): void {
+    return this.refData.confirmRates();
+  }
+
+  teamNameRefusal(name: string, exceptId?: string): string | null {
+    return this.refData.teamNameRefusal(name, exceptId);
+  }
+
+  createTeam(name: string): Team {
+    return this.refData.createTeam(name);
+  }
+
+  createPersonInTeam(input: NewPersonInput, teamId: string): Person {
+    return this.refData.createPersonInTeam(input, teamId);
+  }
+
+  createPerson(input: NewPersonInput): Person {
+    return this.refData.createPerson(input);
+  }
+
+  updateTeam(id: string, patch: Partial<Pick<Team, 'name' | 'active'>>): void {
+    return this.refData.updateTeam(id, patch);
+  }
+
+  updatePerson(id: string, patch: Partial<Omit<Person, 'id'>>): void {
+    return this.refData.updatePerson(id, patch);
+  }
+
+  addMembership(personId: string, teamId: string, requestedPct?: number, allowOver = false): Membership | null {
+    return this.refData.addMembership(personId, teamId, requestedPct, allowOver);
+  }
+
+  updateMembership(id: string, patch: Partial<Pick<Membership, 'teamFtePct' | 'active'>>, allowOver = false): void {
+    return this.refData.updateMembership(id, patch, allowOver);
+  }
+
+  updateMemberships(changes: ({ id: string } & Partial<Pick<Membership, 'teamFtePct' | 'active'>>)[], allowOver = false): void {
+    return this.refData.updateMemberships(changes, allowOver);
   }
 
   /** The files the action {@link jointly} runs has written so far; null outside one. */
@@ -1313,289 +1077,29 @@ export class Repository {
     if (written.size > 1) this.commitJointly([...written]);
   }
 
-  /**
-   * One commit of the files' pending edits (§10.3). It goes ahead only while every file is still at the version its
-   * edit was made on, read at the head the commit is pinned to, and is made again on a new head when another commit
-   * lands first; otherwise each file saves on its own and merges with the newer version as any save does (§10.5).
-   */
   private commitJointly(paths: string[]): void {
-    void this.firstPullDone.then(() =>
-      this.queue.run(async () => {
-        const writers = paths.map((path) => this.allWriters().find(([p]) => p === path)?.[1]);
-        const parts: [FileWriter<unknown>, JointPart<unknown>][] = [];
-        for (const writer of writers) {
-          const part = writer?.takeJoint();
-          if (writer && part) parts.push([writer, part]);
-        }
-        // Each file given back saves on its own.
-        const giveBack = () => {
-          for (const [writer, part] of parts) writer.jointReturned(part);
-        };
-        if (parts.length < paths.length) {
-          giveBack();
-          for (const writer of writers) if (writer && !parts.some(([taken]) => taken === writer)) void writer.flush();
-          return;
-        }
-        const message = renderMessage({
-          subject: [...new Set(parts.map(([, part]) => part.message.subject))].join('; '),
-          entities: distinctEntities(parts.flatMap(([, part]) => part.message.entities)),
-        });
-        const files = parts.map(([, part]) => ({ path: part.path, content: part.content }));
-        try {
-          const result = await this.github.commitOnHead({
-            branch: this.brand.github.dataBranch,
-            message,
-            build: async (at) => {
-              const root = await this.github.listDirectory({ path: '', branch: at });
-              const unchanged = parts.every(([, part]) => root.find((entry) => entry.path === part.path)?.sha === part.sha);
-              return unchanged ? { files, deletes: [] } : null;
-            },
-          });
-          if (result === 'stopped') return giveBack();
-          parts.forEach(([writer, part], i) => writer.jointLanded(part, result.written[i].sha));
-          if (result.parent) this.recordSave(paths, { sha: result.commitSha, parent: result.parent });
-        } catch (error) {
-          // The branch kept moving, or its head can't be read: each file saves on its own, as it would without this commit.
-          if (error instanceof GithubApiError && (error.cause_ === 'conflict' || error.cause_ === 'not-found')) return giveBack();
-          const cause = toReadOnlyState(error, 'Something went wrong saving this change.');
-          for (const [writer, part] of parts) writer.jointFailed(part, cause);
-        }
-      }),
+    commitJointly(
+      {
+        github: this.github,
+        queue: this.queue,
+        branch: this.brand.github.dataBranch,
+        ready: this.firstPullDone,
+        writerOf: (path) => new Map(this.allWriters()).get(path),
+        recordSave: this.source.recordSave,
+      },
+      paths,
     );
   }
 
-  private commitCountries(next: Country[], note?: CommitNote): void {
-    this.setState({ countries: next });
-    this.countriesWriter?.schedule(next, note);
-  }
-
-  /** A note for one field of one entity: what it was before the edit and what it is now (§10.3); `undefined` is "did not exist". */
-  private note<T>(kind: EntityKind, id: string, field: string, from: T | undefined, to: T | undefined, words: (from: T | undefined, to: T | undefined) => string): CommitNote {
-    return { entity: { kind, id }, field, from, to, words: words as CommitNote['words'] };
-  }
-
-  /** Why a team name is refused (§5.8): empty, or another team already has it (case-insensitive). */
-  teamNameRefusal(name: string, exceptId?: string): string | null {
-    const trimmed = name.trim();
-    if (!trimmed) return 'Enter a name.';
-    const taken = this.state.teams.find((t) => t.id !== exceptId && t.name.trim().toLowerCase() === trimmed.toLowerCase());
-    return taken ? `A team named ${taken.name} already exists.` : null;
-  }
-
-  /** New team (§5.7): created from a name only. Callers ask `teamNameRefusal` first; a refused name here is a bug. */
-  createTeam(name: string): Team {
-    const refusal = this.teamNameRefusal(name);
-    if (refusal) throw new Error(refusal);
-    const team: Team = { id: newId(), name: name.trim(), active: true };
-    this.commitTeams([...this.state.teams, team], this.note('team', team.id, 'record', undefined, team, (f, t) => this.describeTeam(f, t)));
-    return team;
-  }
-
-  /** A new person added straight to a team (§5.8): the person and the membership in one commit (§10.3). */
-  createPersonInTeam(input: NewPersonInput, teamId: string): Person {
-    let person!: Person;
-    this.jointly(() => {
-      person = this.createPerson(input);
-      this.addMembership(person.id, teamId);
-    });
-    return person;
-  }
-
-  /** New person (§5.5): Capacity % defaults to 100, active. */
-  createPerson(input: NewPersonInput): Person {
-    const person: Person = {
-      id: newId(),
-      name: input.name,
-      countryId: input.countryId,
-      roleId: input.roleId,
-      capacityPct: 100,
-      active: true,
+  private commitFile<K extends MasterFile>(file: K, next: RepositoryState[K], note?: CommitNote): void {
+    this.setState({ [file]: next } as Pick<RepositoryState, K>);
+    const writers: { [K in MasterFile]: FileWriter<RepositoryState[K]> | null } = {
+      roles: this.rolesWriter,
+      countries: this.countriesWriter,
+      teams: this.teamsWriter,
+      people: this.peopleWriter,
     };
-    this.commitPeople([...this.state.people, person], this.note('person', person.id, 'record', undefined, person, (f, t) => this.describePerson(f, t)));
-    return person;
-  }
-
-  /** Rename, deactivate or reactivate a team (§5.8, §9.3): teams are never deleted, so the record stays. */
-  updateTeam(id: string, patch: Partial<Pick<Team, 'name' | 'active'>>): void {
-    const current = this.state.teams.find((t) => t.id === id);
-    if (!current) return;
-    if (patch.name !== undefined && this.teamNameRefusal(patch.name, id)) return;
-    const next = { ...current, ...patch, ...(patch.name !== undefined && { name: patch.name.trim() }) };
-    if (next.name === current.name && next.active === current.active) return;
-    this.commitTeams(
-      this.state.teams.map((t) => (t.id === id ? next : t)),
-      this.note('team', id, 'record', current, next, (f, t) => this.describeTeam(f, t)),
-    );
-  }
-
-  private describeTeam(from: Team | undefined, to: Team | undefined): string {
-    if (!from) return `${to?.name}: team created`;
-    if (to && to.name !== from.name) return `${from.name}: team renamed to ${to.name}`;
-    return `${from.name}: team ${to?.active ? 'reactivated' : 'deactivated'}`;
-  }
-
-  /** In-place edit from the person panel (§5.6): no save button, so every change commits. */
-  updatePerson(id: string, patch: Partial<Omit<Person, 'id'>>): void {
-    const current = this.state.people.find((p) => p.id === id);
-    if (!current) return;
-    const next = { ...current, ...patch };
-    this.commitPeople(
-      this.state.people.map((p) => (p.id === id ? next : p)),
-      this.note('person', id, 'record', current, next, (f, t) => this.describePerson(f, t)),
-    );
-  }
-
-  /** The net change of a person, in plain words (§10.3): one subject, the name it was saved under, then each change. */
-  private describePerson(from: Person | undefined, to: Person | undefined): string {
-    if (!from) return `${to?.name}: person added`;
-    if (!to) return `${from.name}: person removed`;
-    const parts: string[] = [];
-    if (to.name !== from.name) parts.push(`renamed to ${to.name}`);
-    if (to.countryId !== from.countryId) {
-      parts.push(`country set to ${this.state.countries.find((c) => c.id === to.countryId)?.name ?? 'unknown'}`);
-    }
-    if (to.roleId !== from.roleId) {
-      parts.push(`role set to ${this.state.roles.find((r) => r.id === to.roleId)?.name ?? 'unknown'}`);
-    }
-    parts.push(...this.describeCustomRoleChange(from, to));
-    if (to.capacityPct !== from.capacityPct) parts.push(`capacity set to ${to.capacityPct}%`);
-    if (to.active !== from.active) parts.push(to.active ? 'reactivated' : 'deactivated');
-    return `${from.name}: ${parts.join(', ') || 'updated'}`;
-  }
-
-  private describeCustomRoleChange(current: Person, next: Person): string[] {
-    const before = current.customRole;
-    const after = next.customRole;
-    if (!after) return [];
-    const parts: string[] = [];
-    if (after.active && !before?.active) parts.push(`custom role set to ${after.label.trim() || 'Custom role'}`);
-    if (!after.active && before?.active) {
-      parts.push(`back to standard role ${this.state.roles.find((r) => r.id === next.roleId)?.name ?? 'unknown'}`);
-    }
-    if (before && after.label !== before.label) parts.push(`custom role renamed to ${after.label.trim() || 'Custom role'}`);
-    if (before && after.costFactor !== before.costFactor) parts.push(`custom role cost factor set to ${after.costFactor}`);
-    const years = new Set([...(before?.dayRatesByYear ?? []), ...after.dayRatesByYear].map((r) => r.year));
-    for (const year of [...years].sort()) {
-      const was = before?.dayRatesByYear.find((r) => r.year === year)?.dayRate;
-      const now = after.dayRatesByYear.find((r) => r.year === year)?.dayRate;
-      if (was === now) continue;
-      parts.push(now === undefined ? `${year} custom day rate cleared` : `${year} custom day rate set to ${now}`);
-    }
-    return parts;
-  }
-
-  /**
-   * Add a person to a team (§5.6, §5.8). Team FTE % defaults to the person's
-   * unclaimed capacity; a requested value is capped at it unless `allowOver`
-   * (the team detail, where the over-capacity warning is visible).
-   */
-  addMembership(personId: string, teamId: string, requestedPct?: number, allowOver = false): Membership | null {
-    const person = this.state.people.find((p) => p.id === personId);
-    if (!person) return null;
-    const existing = this.state.memberships.find((m) => m.personId === personId && m.teamId === teamId);
-    if (existing?.active) return existing;
-    if (existing) {
-      // Rejoining (§5.6): the same record comes back, keeping its Team FTE % unless the person no longer has room.
-      this.updateMembership(existing.id, { active: true, teamFtePct: existing.teamFtePct });
-      return this.state.memberships.find((m) => m.id === existing.id) ?? null;
-    }
-    const unclaimed = unclaimedCapacityPct(person, this.state.memberships);
-    const teamFtePct = requestedPct === undefined ? unclaimed : allowOver ? requestedPct : Math.min(requestedPct, unclaimed);
-    const membership: Membership = { id: newId(), personId, teamId, teamFtePct, active: true };
-    this.commitMemberships([...this.state.memberships, membership], this.membershipNote(membership.id, undefined, membership));
-    return membership;
-  }
-
-  /** Edit a membership's Team FTE %; `allowOver` is set only by the team detail (§5.6). */
-  updateMembership(id: string, patch: Partial<Pick<Membership, 'teamFtePct' | 'active'>>, allowOver = false): void {
-    this.updateMemberships([{ id, ...patch }], allowOver);
-  }
-
-  /**
-   * Edit several memberships as one edit, a note each (§10.3): a split bar divider moves Team FTE % from one team to
-   * the next (§5.6). Unless `allowOver`, each Team FTE % is capped at what the person has unclaimed; lowered values go
-   * first, so the room they free counts for the raised ones.
-   */
-  updateMemberships(changes: ({ id: string } & Partial<Pick<Membership, 'teamFtePct' | 'active'>>)[], allowOver = false): void {
-    const before = new Map(this.state.memberships.map((m) => [m.id, m]));
-    const rise = (c: (typeof changes)[number]) => (c.teamFtePct ?? 0) - (before.get(c.id)?.teamFtePct ?? 0);
-    let next = this.state.memberships;
-    for (const { id, ...patch } of [...changes].sort((x, y) => rise(x) - rise(y))) {
-      next = next.map((m) => {
-        if (m.id !== id) return m;
-        const person = this.state.people.find((p) => p.id === m.personId);
-        const capped = patch.teamFtePct === undefined || allowOver || !person ? patch : { ...patch, teamFtePct: Math.min(patch.teamFtePct, unclaimedCapacityPct(person, next, id)) };
-        return { ...m, ...capped };
-      });
-    }
-    const notes = this.state.memberships.flatMap((m, i) => (next[i] !== m ? [this.membershipNote(m.id, m, next[i])] : []));
-    if (notes.length > 0) this.commitMemberships(next, notes);
-  }
-
-  /** A membership's note; the person and team are named as they are now, since a removal leaves no record to ask. */
-  private membershipNote(id: string, from: Membership | undefined, to: Membership | undefined): CommitNote {
-    const of = (m: Membership | undefined) => (m ? { who: this.personName(m.personId), where: this.teamName(m.teamId) } : undefined);
-    const names = of(from ?? to) as { who: string; where: string };
-    const note = this.note('membership', id, 'record', from, to, (f, t) => {
-      if (!f) return `added to ${names.where} at ${t?.teamFtePct}%`;
-      if (!t) return `removed from ${names.where}`;
-      const parts: string[] = [];
-      const rejoined = !f.active && t.active;
-      if (rejoined) parts.push(`rejoined ${names.where}`);
-      if (t.teamFtePct !== f.teamFtePct) parts.push(rejoined ? `Team FTE % set to ${t.teamFtePct}%` : `Team FTE % on ${names.where} set to ${t.teamFtePct}%`);
-      if (f.active && !t.active) parts.push(`deactivated on ${names.where}`);
-      return parts.join(', ') || 'updated';
-    });
-    return { ...note, subject: names.who };
-  }
-
-  private personName(id: string): string {
-    return this.state.people.find((p) => p.id === id)?.name ?? 'Unknown person';
-  }
-
-  private teamName(id: string): string {
-    return this.state.teams.find((t) => t.id === id)?.name ?? 'unknown team';
-  }
-
-  /** Memberships are removable (§9.3); nothing points at them. The record and position come back for an Undo (§5.11). */
-  removeMembership(id: string): { membership: Membership; index: number } | null {
-    const index = this.state.memberships.findIndex((m) => m.id === id);
-    if (index < 0) return null;
-    const membership = this.state.memberships[index];
-    this.commitMemberships(
-      this.state.memberships.filter((m) => m.id !== id),
-      this.membershipNote(id, membership, undefined),
-    );
-    return { membership, index };
-  }
-
-  /** Undo of {@link removeMembership}: the same record back in its place, or why it can't be (§5.11). */
-  restoreMembership(membership: Membership, index: number): { ok: true } | { ok: false; message: string } {
-    const person = this.state.people.find((p) => p.id === membership.personId);
-    const team = this.state.teams.find((t) => t.id === membership.teamId);
-    if (!person || !team) return { ok: false, message: "Can't undo: the person or team is no longer there." };
-    if (this.state.memberships.some((m) => m.id === membership.id || (m.personId === membership.personId && m.teamId === membership.teamId))) {
-      return { ok: false, message: `Can't undo: ${person.name} is on ${team.name} again.` };
-    }
-    const next = [...this.state.memberships];
-    next.splice(Math.min(index, next.length), 0, membership);
-    this.commitMemberships(next, this.membershipNote(membership.id, undefined, membership));
-    return { ok: true };
-  }
-
-  private commitRoles(next: Role[], note?: CommitNote): void {
-    this.setState({ roles: next });
-    this.rolesWriter?.schedule(next, note);
-  }
-
-  private commitTeams(next: Team[], note?: CommitNote): void {
-    this.setState({ teams: next });
-    this.teamsWriter?.schedule(next, note);
-  }
-
-  private commitPeople(next: Person[], note?: CommitNote): void {
-    this.setState({ people: next });
-    this.peopleWriter?.schedule(next, note);
+    writers[file]?.schedule(next, note);
   }
 
   private commitMemberships(next: Membership[], note?: CommitNote | CommitNote[]): void {
@@ -1608,7 +1112,7 @@ export class Repository {
    * file is its writer's first save, so edits never go to a missing writer. `id` is the draft's, kept
    * across retries so a failed creation is the same file when it is tried again.
    */
-  async createInitiative(name: string, teamId: string, today: string = localToday(), id: string = newId()): Promise<Initiative> {
+  async createInitiative(name: string, teamId: string, today: string = localToday(this.clock()), id: string = newId()): Promise<Initiative> {
     const phases = buildDefaultPlan(this.brand.process, today);
     const hasPlan = Object.keys(phases).length > 0;
     const initiative: Initiative = { id, name, teamId, status: 'Active', ...(hasPlan && { phases, defaultPlan: true }) };
@@ -1620,7 +1124,7 @@ export class Repository {
    * commit "<copy>: created from <name>". Returns the copy with the people left out of its allocations, or null when
    * the initiative is not there. Throws like a failed creation when the file could not be saved.
    */
-  async duplicateInitiative(id: string, today: string = localToday()): Promise<DuplicateResult | null> {
+  async duplicateInitiative(id: string, today: string = localToday(this.clock())): Promise<DuplicateResult | null> {
     const source = this.state.initiatives.find((i) => i.id === id);
     if (!source) return null;
     // The source's own edits are committed first (§10.3), so its file and the copy agree.
@@ -1643,7 +1147,7 @@ export class Repository {
     this.setState({ initiatives: [...this.state.initiatives, initiative] });
 
     const writer = this.createInitiativeWriter(initiative, null);
-    writer.schedule(initiative, this.note('initiative', id, 'record', undefined, initiative, () => message));
+    writer.schedule(initiative, entityNote('initiative', id, 'record', undefined, initiative, () => message));
     if ((await writer.flush()) !== 'saved') {
       // No file exists, so nothing would ever save edits to it: take it back out rather than leave a page that only looks saved.
       this.initiativeWriters.delete(id);
@@ -1662,48 +1166,6 @@ export class Repository {
     if (this.writerStatus.delete(FILE_PATHS.initiative(id))) this.publishStatus();
   }
 
-  /** Rename an initiative in place (§5.4). An empty name is refused (returns false) and the old one stays. */
-  renameInitiative(initiativeId: string, name: string): boolean {
-    const initiative = this.editableInitiative(initiativeId);
-    const trimmed = name.trim();
-    if (!initiative || !trimmed) return false;
-    if (trimmed === initiative.name) return true;
-    const next: Initiative = { ...initiative, name: trimmed };
-    this.replaceInitiative(next);
-    this.initiativeWriters.get(initiativeId)?.schedule(
-      next,
-      this.note('initiative', initiativeId, 'name', initiative.name, trimmed, (f, t) => `${f}: renamed to ${t}`),
-    );
-    return true;
-  }
-
-  /** Set or clear the initiative's description in place (§5.4). Trimmed; empty clears it. */
-  setDescription(initiativeId: string, text: string): boolean {
-    const initiative = this.editableInitiative(initiativeId);
-    if (!initiative) return false;
-    const trimmed = text.trim();
-    if (trimmed === (initiative.description ?? '')) return true;
-    const next: Initiative = { ...initiative, description: trimmed };
-    if (!trimmed) delete next.description;
-    this.replaceInitiative(next);
-    this.initiativeWriters.get(initiativeId)?.schedule(
-      next,
-      this.note('initiative', initiativeId, 'description', initiative.description, next.description, () => `${initiative.name}: description changed`),
-    );
-    return true;
-  }
-
-  /** Set or clear (`undefined`) the initiative's owner in place (§5.4). */
-  setOwner(initiativeId: string, ownerId: string | undefined): void {
-    const initiative = this.editableInitiative(initiativeId);
-    if (!initiative || ownerId === initiative.ownerId) return;
-    const next: Initiative = { ...initiative, ownerId };
-    if (ownerId === undefined) delete next.ownerId;
-    this.replaceInitiative(next);
-    const words = (_: unknown, to: string | undefined) => (to ? `${initiative.name}: owner set to ${this.personName(to)}` : `${initiative.name}: owner cleared`);
-    this.initiativeWriters.get(initiativeId)?.schedule(next, this.note('initiative', initiativeId, 'ownerId', initiative.ownerId, ownerId, words));
-  }
-
   /**
    * The initiative, unless it is missing or frozen (§8.4): every edit starts here, so a Closed or Cancelled
    * initiative refuses it in the data layer, not only in the page. Notes and actuals bypass it on purpose.
@@ -1717,335 +1179,78 @@ export class Repository {
     return this.brand.process.find((p) => p.id === phaseId)?.label ?? phaseId;
   }
 
-  /** Apply one edit to a phase's plan (§5.4: edited in place) and schedule its commit under `note`. */
-  private editPhase<T>(
-    initiativeId: string,
-    phaseId: string,
-    change: (plan: PhasePlan) => PhasePlan,
-    note: { field: string; from: T | undefined; to: T | undefined; words: (from: T | undefined, to: T | undefined, initiativeName: string, phase: string) => string },
-    /** Only a recorded actual is still accepted on a frozen initiative or phase (§8.4). An Undo is refused
-     * silently on a frozen phase, as its offer is withdrawn once the phase freezes (§5.11); any other edit the
-     * freeze overtook is reported in the phase (§8.1). */
-    { allowFrozen = false, undo = false }: { allowFrozen?: boolean; undo?: boolean } = {},
-  ): boolean {
-    const initiative = allowFrozen ? this.state.initiatives.find((i) => i.id === initiativeId) : this.editableInitiative(initiativeId);
-    if (!initiative) return false;
-    if (!allowFrozen && isPhaseFrozen(initiative, phaseId)) {
-      if (!undo) this.noteLostEdits(initiative.id, [phaseId]);
-      return false;
-    }
-    const plan = initiative.phases?.[phaseId] ?? { allocations: [] };
-    // The first edit to the plan ends the suggestion: from here on the dates are the user's (§8.2).
-    const next: Initiative = { ...initiative, phases: { ...initiative.phases, [phaseId]: change(plan) } };
-    delete next.defaultPlan;
-    this.replaceInitiative(next);
-    const name = initiative.name;
-    this.initiativeWriters
-      .get(initiativeId)
-      ?.schedule(next, this.note('initiative', initiativeId, `${phaseId}:${note.field}`, note.from, note.to, (f, t) => note.words(f, t, name, this.phaseLabel(phaseId))));
-    return true;
-  }
-
-  /**
-   * Set a phase's whole period at once (§9.11 period picker, saved on Done): one write and one commit, "Payments API:
-   * Development period set to Apr–Sep". An `undefined` end clears it, and any dates are accepted: an inverted period
-   * only warns (§7.2). Nothing is written when neither date changes.
-   */
-  setPhasePeriod(initiativeId: string, phaseId: string, period: Period): void {
-    const plan = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId];
-    const before = { startDate: plan?.startDate, endDate: plan?.endDate };
-    if (before.startDate === period.startDate && before.endDate === period.endDate) return;
-    const to = { startDate: period.startDate, endDate: period.endDate };
-    this.editPhase<Period>(
-      initiativeId,
-      phaseId,
-      (current) => {
-        const next = { ...current };
-        for (const which of ['startDate', 'endDate'] as const) {
-          if (to[which] === undefined) delete next[which];
-          else next[which] = to[which];
-        }
-        return next;
-      },
-      {
-        field: 'period',
-        from: before,
-        to,
-        words: (_, after, name, phase) => {
-          const { startDate, endDate } = after ?? {};
-          if (startDate && endDate) return `${name}: ${phase} period set to ${periodMonthsEn(startDate, endDate)}`;
-          if (startDate) return `${name}: ${phase} start date set to ${formatDateEn(startDate)}, no end date`;
-          if (endDate) return `${name}: ${phase} end date set to ${formatDateEn(endDate)}, no start date`;
-          return `${name}: ${phase} period cleared`;
-        },
-      },
-    );
-  }
-
-  /** Move a phase's end date a month later (§5.11 Extend on overrun), keeping its allocations; later phases do not move. */
-  extendPhase(initiativeId: string, phaseId: string): void {
-    const endDate = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.endDate;
-    if (!endDate) return;
-    const next = extendByOneMonth(endDate);
-    this.editPhase<string>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, endDate: next }),
-      { field: 'endDate', from: endDate, to: next, words: (_, to, name, phase) => `${name}: ${phase} extended to ${formatDateEn(to as string)}` },
-    );
-  }
-
-  /**
-   * Allocate a person to a phase (§5.4). Only the initiative team's members can be allocated
-   * (§7.2), and a refusal says why. Allocation % is `allocationPct` when the caller has worked out what fits (the
-   * phase picker passes the person's free capacity, §5.11), else the person's Team FTE % on the team.
-   */
-  addAllocation(initiativeId: string, phaseId: string, personId: string, allocationPct?: number): AddAllocationResult {
-    const initiative = this.editableInitiative(initiativeId);
-    const person = this.state.people.find((p) => p.id === personId);
-    const team = initiative && this.state.teams.find((t) => t.id === initiative.teamId);
-    if (!initiative || !person || !team) return { ok: false, reason: 'That person or initiative could not be found.' };
-    // Refused by a freeze, which the phase itself reports (§8.1), so no reason here.
-    if (isPhaseFrozen(initiative, phaseId)) {
-      this.noteLostEdits(initiative.id, [phaseId]);
-      return { ok: false };
-    }
-
-    const reason = allocationRefusal(person, team, this.state.memberships);
-    if (reason) return { ok: false, reason };
-    if (initiative.phases?.[phaseId]?.allocations.some((a) => a.personId === personId)) {
-      return { ok: false, reason: `${person.name} is already allocated to this phase.` };
-    }
-
-    const membership = activeMembership(personId, team.id, this.state.memberships);
-    const allocation: Allocation = { id: newId(), personId, allocationPct: allocationPct ?? membership?.teamFtePct ?? 0 };
-    this.editPhase<Allocation>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, allocations: [...plan.allocations, allocation] }),
-      { field: `allocations:${allocation.id}`, from: undefined, to: allocation, words: this.describeItem('allocations') },
-    );
-    return { ok: true, allocation };
-  }
-
-  /**
-   * Copy the previous costed phase's allocations into an empty phase in one commit (§5.11): each active team member
-   * with the same Allocation %. Nothing is written when the phase has people already, is frozen, or nobody can be copied.
-   */
-  copyAllocations(initiativeId: string, phaseId: string, fromPhaseId: string): CopyAllocationsResult | null {
-    const initiative = this.editableInitiative(initiativeId);
-    const team = initiative && this.state.teams.find((t) => t.id === initiative.teamId);
-    if (!initiative || !team || isPhaseFrozen(initiative, phaseId)) return null;
-    if ((initiative.phases?.[phaseId]?.allocations.length ?? 0) > 0) return null;
-
-    const { copy, skipped } = planCopy(copySource(initiative, fromPhaseId), team, this.state.people, this.state.memberships);
-    if (copy.length === 0) return { copied: 0, skipped };
-    const allocations: Allocation[] = copy.map((c) => ({ id: newId(), ...c }));
-    const fromLabel = this.phaseLabel(fromPhaseId);
-    this.editPhase<Allocation[]>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, allocations }),
-      {
-        field: 'allocations:copied',
-        from: undefined,
-        to: allocations,
-        words: (_, to, name, phase) => `${name}: ${to?.length} ${to?.length === 1 ? 'person' : 'people'} copied to ${phase} from ${fromLabel}`,
-      },
-    );
-    return { copied: allocations.length, skipped };
-  }
-
-  updateAllocation(initiativeId: string, phaseId: string, allocationId: string, allocationPct: number): void {
-    const allocation = this.state.initiatives
-      .find((i) => i.id === initiativeId)
-      ?.phases?.[phaseId]?.allocations.find((a) => a.id === allocationId);
-    if (!allocation) return;
-    this.editPhase<Allocation>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, allocations: plan.allocations.map((a) => (a.id === allocationId ? { ...a, allocationPct } : a)) }),
-      { field: `allocations:${allocationId}`, from: allocation, to: { ...allocation, allocationPct }, words: this.describeItem('allocations') },
-    );
-  }
-
-  /**
-   * Remove an item from a phase's list; its position comes back so an Undo can put it where it was (§5.11).
-   */
-  private removeFromList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, itemId: string): { item: T; index: number } | null {
-    const items = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
-    const index = items.findIndex((item) => item.id === itemId);
-    if (index < 0) return null;
-    const item = items[index];
-    const removed = this.editPhase<T>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, [list]: itemsOf<T>(plan, list).filter((other) => other.id !== itemId) }),
-      { field: `${list}:${itemId}`, from: item, to: undefined, words: this.describeItem(list) },
-    );
-    return removed ? { item, index } : null;
-  }
-
-  /** Undo of {@link removeFromList}: the same item, same id, back in its place, as a normal edit. Nothing happens when it is already there again. */
-  private restoreToList<T extends { id: string }>(list: PhaseList, initiativeId: string, phaseId: string, item: T, index: number): void {
-    const present = itemsOf<T>(this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId], list);
-    if (present.some((other) => other.id === item.id)) return;
-    this.editPhase<T>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, [list]: insertAt(itemsOf<T>(plan, list), item, index) }),
-      { field: `${list}:${item.id}`, from: undefined, to: item, words: this.describeItem(list) },
-      { undo: true },
-    );
-  }
-
-  /** Remove an allocation; the position comes back so an Undo can put it where it was (§5.11). */
-  removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
-    const removed = this.removeFromList<Allocation>('allocations', initiativeId, phaseId, allocationId);
-    return removed && { allocation: removed.item, index: removed.index };
-  }
-
-  /** Undo of {@link removeAllocation}: the same allocation, same id, back in its place, as a normal edit. */
-  restoreAllocation(initiativeId: string, phaseId: string, allocation: Allocation, index: number): void {
-    this.restoreToList('allocations', initiativeId, phaseId, allocation, index);
-  }
-
-  /**
-   * A phase list item's net change in plain words (§10.3): added, removed, or what changed in it. The person or label
-   * is the one the item was saved under, so the message never names a state that was not saved.
-   */
-  private describeItem(list: PhaseList): (from: unknown, to: unknown, name: string, phase: string) => string {
-    return (from, to, name, phase) => {
-      if (list === 'allocations') {
-        const [before, after] = [from as Allocation | undefined, to as Allocation | undefined];
-        const who = this.personName((before ?? after)?.personId as string);
-        if (!before) return `${name}: ${who} added to ${phase} at ${after?.allocationPct}%`;
-        if (!after) return `${name}: ${who} removed from ${phase}`;
-        return `${name}: ${who} set to ${after.allocationPct}% in ${phase}`;
-      }
-      const [before, after] = [from as CostItem | undefined, to as CostItem | undefined];
-      if (!before) return `${name}: ${after?.label} added to ${phase} at ${this.money(after?.amount as number)}`;
-      if (!after) return `${name}: ${before.label} removed from ${phase}`;
-      const parts: string[] = [];
-      if (after.label !== before.label) parts.push(`renamed to ${after.label}`);
-      if (after.amount !== before.amount) parts.push(`amount set to ${this.money(after.amount)}`);
-      if (after.timing !== before.timing || after.month !== before.month) {
-        parts.push(after.timing === 'spread' || !after.month ? 'spread over the phase' : `timed to ${formatMonthEn(after.month)}`);
-      }
-      return `${name}: ${phase} cost item ${before.label} ${parts.join(', ') || 'updated'}`;
-    };
-  }
-
   /** An amount as a commit message reads it, in the deployment's currency (§9.7). */
   private money(amount: number): string {
     return `${this.brand.currencySymbol}${amount.toLocaleString('en', { maximumFractionDigits: 2 })}`;
   }
 
-  /** Add a cost item to a phase (§5.4); it is one commit, made once the draft row is complete. */
+  // In-place edits to an initiative and its phase plans: see InitiativeEditCommands.
+  renameInitiative(initiativeId: string, name: string): boolean {
+    return this.edits.renameInitiative(initiativeId, name);
+  }
+
+  setDescription(initiativeId: string, text: string): boolean {
+    return this.edits.setDescription(initiativeId, text);
+  }
+
+  setOwner(initiativeId: string, ownerId: string | undefined): void {
+    return this.edits.setOwner(initiativeId, ownerId);
+  }
+
+  setPhasePeriod(initiativeId: string, phaseId: string, period: Period): void {
+    return this.edits.setPhasePeriod(initiativeId, phaseId, period);
+  }
+
+  extendPhase(initiativeId: string, phaseId: string): void {
+    return this.edits.extendPhase(initiativeId, phaseId);
+  }
+
+  addAllocation(initiativeId: string, phaseId: string, personId: string, allocationPct?: number): AddAllocationResult {
+    return this.edits.addAllocation(initiativeId, phaseId, personId, allocationPct);
+  }
+
+  copyAllocations(initiativeId: string, phaseId: string, fromPhaseId: string): CopyAllocationsResult | null {
+    return this.edits.copyAllocations(initiativeId, phaseId, fromPhaseId);
+  }
+
+  updateAllocation(initiativeId: string, phaseId: string, allocationId: string, allocationPct: number): void {
+    return this.edits.updateAllocation(initiativeId, phaseId, allocationId, allocationPct);
+  }
+
+  removeAllocation(initiativeId: string, phaseId: string, allocationId: string): { allocation: Allocation; index: number } | null {
+    return this.edits.removeAllocation(initiativeId, phaseId, allocationId);
+  }
+
+  restoreAllocation(initiativeId: string, phaseId: string, allocation: Allocation, index: number): void {
+    return this.edits.restoreAllocation(initiativeId, phaseId, allocation, index);
+  }
+
   addCostItem(initiativeId: string, phaseId: string, draft: Omit<CostItem, 'id'>): CostItem | null {
-    const item: CostItem = { id: newId(), ...draft };
-    const added = this.editPhase<CostItem>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, costItems: [...(plan.costItems ?? []), item] }),
-      { field: `costItems:${item.id}`, from: undefined, to: item, words: this.describeItem('costItems') },
-    );
-    return added ? item : null;
+    return this.edits.addCostItem(initiativeId, phaseId, draft);
   }
 
-  /** Change a cost item's label, amount or timing; the commit note names the one field changed. */
   updateCostItem(initiativeId: string, phaseId: string, itemId: string, change: CostItemChange): void {
-    const item = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.costItems?.find((c) => c.id === itemId);
-    if (!item) return;
-    this.editPhase<CostItem>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, costItems: (plan.costItems ?? []).map((c) => (c.id === itemId ? { ...c, ...change } : c)) }),
-      { field: `costItems:${itemId}`, from: item, to: { ...item, ...change }, words: this.describeItem('costItems') },
-    );
+    return this.edits.updateCostItem(initiativeId, phaseId, itemId, change);
   }
 
-  /** Remove a cost item; the position comes back so an Undo can put it where it was (§5.11). */
   removeCostItem(initiativeId: string, phaseId: string, itemId: string): { item: CostItem; index: number } | null {
-    return this.removeFromList<CostItem>('costItems', initiativeId, phaseId, itemId);
+    return this.edits.removeCostItem(initiativeId, phaseId, itemId);
   }
 
-  /** Undo of {@link removeCostItem}. */
   restoreCostItem(initiativeId: string, phaseId: string, item: CostItem, index: number): void {
-    this.restoreToList('costItems', initiativeId, phaseId, item, index);
+    return this.edits.restoreCostItem(initiativeId, phaseId, item, index);
   }
 
-  /**
-   * Record a month's actual for a phase (§7.3): the estimate confirmed as-is, or an override — either way a
-   * single act, and recordable again later to correct it (§6).
-   */
   setActual(initiativeId: string, phaseId: string, month: string, amount: number): void {
-    const before = this.state.initiatives.find((i) => i.id === initiativeId)?.phases?.[phaseId]?.actualMonths?.[month];
-    this.editPhase<number>(
-      initiativeId,
-      phaseId,
-      (plan) => ({ ...plan, actualMonths: { ...plan.actualMonths, [month]: amount } }),
-      {
-        field: `actual:${month}`,
-        from: before,
-        to: amount,
-        words: (_, to, name, phase) => `${name}: ${phase} actual for ${formatMonthEn(month)} recorded (${this.brand.currencySymbol}${Math.round(to as number)})`,
-      },
-      { allowFrozen: true },
-    );
+    return this.edits.setActual(initiativeId, phaseId, month, amount);
   }
 
-  /** A checklist item's name, for the commit note, as its gate defines it. */
-  private checklistItemName(phaseId: string, itemId: string): string {
-    return this.brand.process.find((p) => p.id === phaseId)?.exitGate.checklistItems.find((i) => i.id === itemId)?.name ?? 'checklist item';
-  }
-
-  /**
-   * Set a checklist item's status and note together (§5.4, §8.1): Incomplete and Complete commit as soon as
-   * they're clicked; Tentative is saved together with its (required) note in one act.
-   */
   setChecklistItem(initiativeId: string, phaseId: string, itemId: string, status: ChecklistStatus, note: string): void {
-    const initiative = this.editableInitiative(initiativeId);
-    if (!initiative) return;
-    const before = initiative.checklist?.[phaseId]?.[itemId];
-    this.writeChecklistItem(initiative, phaseId, itemId, { status, note }, '', before, { status, note }, (name, item, _, to) =>
-      `${name}: "${item}" set to ${to ? to.status[0].toUpperCase() + to.status.slice(1) : 'Incomplete'}`,
-    );
+    return this.edits.setChecklistItem(initiativeId, phaseId, itemId, status, note);
   }
 
-  /**
-   * Change a checklist item's note alone, keeping its status (§8.4): the one checklist edit a Closed or Cancelled
-   * initiative still accepts. Trimmed; a Tentative item's note is required, so clearing it is refused (false).
-   */
   setChecklistNote(initiativeId: string, phaseId: string, itemId: string, note: string): boolean {
-    const initiative = this.state.initiatives.find((i) => i.id === initiativeId);
-    if (!initiative) return false;
-    const entry = initiative.checklist?.[phaseId]?.[itemId];
-    const status = entry?.status ?? 'incomplete';
-    const trimmed = note.trim();
-    if (status === 'tentative' && !trimmed) return false;
-    if (trimmed === (entry?.note ?? '')) return true;
-    this.writeChecklistItem(initiative, phaseId, itemId, { status, note: trimmed }, ':note', entry?.note ?? '', trimmed, (name, item) => `${name}: note on "${item}" changed`);
-    return true;
-  }
-
-  /** Write one checklist entry and schedule its commit; `fieldSuffix` keeps a note-only change its own field (§10.3). */
-  private writeChecklistItem<T>(
-    initiative: Initiative,
-    phaseId: string,
-    itemId: string,
-    entry: { status: ChecklistStatus; note: string },
-    fieldSuffix: string,
-    from: T | undefined,
-    to: T,
-    words: (initiativeName: string, itemName: string, from: T | undefined, to: T | undefined) => string,
-  ): void {
-    const next = withChecklistItem(initiative, phaseId, itemId, entry.status, entry.note);
-    this.replaceInitiative(next);
-    const name = initiative.name;
-    this.initiativeWriters
-      .get(initiative.id)
-      ?.schedule(next, this.note('initiative', initiative.id, `checklist:${phaseId}:${itemId}${fieldSuffix}`, from, to, (f, t) => words(name, this.checklistItemName(phaseId, itemId), f, t)));
+    return this.edits.setChecklistNote(initiativeId, phaseId, itemId, note);
   }
 
   /**
@@ -2053,7 +1258,7 @@ export class Repository {
    * exited phase is frozen if costed, the gate record is written, and the initiative moves on (or Closes, on
    * the final gate).
    */
-  passGate(initiativeId: string, takenAt: string = localToday()): { ok: true } | { ok: false; blockers: string[] } {
+  passGate(initiativeId: string, takenAt: string = localToday(this.clock())): { ok: true } | { ok: false; blockers: string[] } {
     const initiative = this.editableInitiative(initiativeId);
     if (!initiative) return { ok: false, blockers: ['This initiative could not be found.'] };
     const result = evaluatePassGate(this.brand.process, initiative, this.state.people, this.state, this.brand.approvalTracks, takenAt);
@@ -2079,7 +1284,7 @@ export class Repository {
    * starting-phase skip on every gate behind it, the default plan re-chained from `today`, in one commit
    * "<name>: starts at <phase>".
    */
-  startAtPhase(initiativeId: string, phaseId: string, reason: string, today: string = localToday()): { ok: true } | { ok: false; reason: string } {
+  startAtPhase(initiativeId: string, phaseId: string, reason: string, today: string = localToday(this.clock())): { ok: true } | { ok: false; reason: string } {
     const initiative = this.editableInitiative(initiativeId);
     if (!initiative) return { ok: false, reason: 'This initiative could not be found.' };
     const result = evaluateStartAtPhase(this.brand.process, initiative, phaseId, reason, today);
@@ -2090,7 +1295,7 @@ export class Repository {
     const name = initiative.name;
     const from = { phase: this.phaseLabel(currentPhaseId(initiative, this.brand.process)), phases: initiative.phases };
     const to = { phase: result.phase.label, phases: result.initiative.phases };
-    this.initiativeWriters.get(initiativeId)?.schedule(result.initiative, this.note('initiative', initiativeId, 'startingPhase', from, to, (_, t) => `${name}: starts at ${t?.phase}`));
+    this.initiativeWriters.get(initiativeId)?.schedule(result.initiative, entityNote('initiative', initiativeId, 'startingPhase', from, to, (_, t) => `${name}: starts at ${t?.phase}`));
     return { ok: true };
   }
 
@@ -2098,7 +1303,7 @@ export class Repository {
   private commitGateOutcome(name: string, result: GateRecorded, what: string): void {
     const { initiative, phase, record } = result;
     this.replaceInitiative(initiative);
-    this.commitAtOnce(initiative.id, initiative, this.note('initiative', initiative.id, `gate:${phase.id}`, 'open', record.outcome, () => `${name}: ${phase.exitGate.label} ${what}`));
+    this.commitAtOnce(initiative.id, initiative, entityNote('initiative', initiative.id, `gate:${phase.id}`, 'open', record.outcome, () => `${name}: ${phase.exitGate.label} ${what}`));
   }
 
   /**
@@ -2129,7 +1334,7 @@ export class Repository {
     if (!result) return;
     this.replaceInitiative(result.initiative);
     const [name, gateLabel] = [initiative.name, result.phase.exitGate.label];
-    this.commitAtOnce(initiativeId, result.initiative, this.note('initiative', initiativeId, `gate:${result.phase.id}`, result.record.outcome, 'open', () => `${name}: ${gateLabel} reopened`));
+    this.commitAtOnce(initiativeId, result.initiative, entityNote('initiative', initiativeId, `gate:${result.phase.id}`, result.record.outcome, 'open', () => `${name}: ${gateLabel} reopened`));
   }
 
   /** Put an Active initiative On Hold (§8.4): a plain status change, one click and no reason. A no-op for any other status. */
@@ -2157,7 +1362,7 @@ export class Repository {
     if (!initiative || !from.includes(initiative.status)) return;
     const next: Initiative = { ...initiative, status: to };
     this.replaceInitiative(next);
-    this.commitAtOnce(initiativeId, next, this.note('initiative', initiativeId, 'status', initiative.status, to, () => words(initiative.name)));
+    this.commitAtOnce(initiativeId, next, entityNote('initiative', initiativeId, 'status', initiative.status, to, () => words(initiative.name)));
   }
 
   /**
@@ -2235,9 +1440,9 @@ export class Repository {
     const words = (from: ReturnType<typeof state> | undefined, to: ReturnType<typeof state> | undefined) => {
       const lost = (from?.allocations ?? 0) - (to?.allocations ?? 0);
       const tail = lost > 0 ? `, ${allocationCount(lost)} removed` : lost < 0 ? `, ${allocationCount(-lost)} restored` : '';
-      return `${subject} from ${this.teamName(from?.teamId as string)} to ${this.teamName(to?.teamId as string)}${tail}`;
+      return `${subject} from ${teamName(this.state, from?.teamId as string)} to ${teamName(this.state, to?.teamId as string)}${tail}`;
     };
-    this.commitAtOnce(next.id, next, this.note('initiative', next.id, 'team', state(before), state(next), words));
+    this.commitAtOnce(next.id, next, entityNote('initiative', next.id, 'team', state(before), state(next), words));
   }
 
   /**
@@ -2301,7 +1506,7 @@ export class Repository {
    * loaded" (§10.3), after every edit waiting to be saved has been. It never overwrites: it stops when the data
    * branch, read at the head the commit builds on, has any person, team, membership or initiative.
    */
-  async loadExampleData(today: Date = new Date()): Promise<LoadExampleResult> {
+  async loadExampleData(today: Date = this.clock()): Promise<LoadExampleResult> {
     if (this.datasetRefusal) return { failed: this.datasetRefusal };
     await this.flushPending();
     const result = await this.commitDataset('Example data loaded', 'Something went wrong loading the example data.', async (at) => {
@@ -2369,7 +1574,7 @@ export class Repository {
     } catch (error) {
       return { failed: toReadOnlyState(error, failureText) };
     }
-    if (result !== 'stopped' && result.parent) this.ownCommits.set(result.parent, { sha: result.commitSha, written: result.written, saved: [], deleted: result.deleted });
+    if (result !== 'stopped' && result.parent) this.source.recordMany(result.parent, result.commitSha, result.written, result.deleted);
     // A pull already running may have read the branch before the commit: the one after it brings the commit in.
     await this.pulling;
     await this.pull();
