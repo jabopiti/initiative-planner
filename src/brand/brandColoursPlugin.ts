@@ -30,14 +30,15 @@ export function brandColoursPlugin(brand: BrandPack, brandDir: string): Plugin {
     },
     buildStart() {
       const failures = [...checkBrandColours(brand.colours, brand.teamColours), ...checkBrandPack(brand)];
-      const missing = [
+      const files = [
         ...brand.typeface.files.map((f) => ['typeface file', f.path]),
         ['logo', brand.logo.path],
         ['favicon', brand.favicon.path],
-      ]
-        .filter(([, path]) => !existsSync(resolve(brandDir, path)))
-        .map(([what, path]) => `${what} ${path} not found in ${brandDir}`);
-      if (failures.length || missing.length) this.error(`Brand pack:\n${[...failures, ...missing].map((f) => `  ${f}`).join('\n')}`);
+      ];
+      for (const [what, path] of files) {
+        if (!existsSync(resolve(brandDir, path))) failures.push(`${what} ${path} not found in ${brandDir}`);
+      }
+      if (failures.length) this.error(`Brand pack:\n${failures.map((f) => `  ${f}`).join('\n')}`);
     },
     resolveId(id) {
       return id === ID ? RESOLVED : id === ASSETS_ID ? ASSETS_RESOLVED : undefined;
@@ -47,11 +48,13 @@ export function brandColoursPlugin(brand: BrandPack, brandDir: string): Plugin {
       order: 'pre',
       handler(html) {
         const title = brand.pageTitle.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-        return html.replace(/<title>[^<]*<\/title>/, `<link rel="icon" href="${url(brand.favicon.path)}" />\n    <title>${title}</title>`);
+        const titleTag = /<title>[^<]*<\/title>/;
+        if (!titleTag.test(html)) this.error('Brand pack: index.html has no <title> element for the page title and favicon');
+        return html.replace(titleTag, `<link rel="icon" href="${url(brand.favicon.path)}" />\n    <title>${title}</title>`);
       },
     },
     load(id) {
-      if (id === ASSETS_RESOLVED) return `import logo from '${url(brand.logo.path)}';\nexport const logoUrl = logo;`;
+      if (id === ASSETS_RESOLVED) return `export { default as logoUrl } from '${url(brand.logo.path)}';`;
       if (id !== RESOLVED) return undefined;
       return `${typefaceCss(brand.typeface, url)}\n${coloursCss(brand.colours, brand.teamColours)}`;
     },

@@ -14,7 +14,7 @@ const blank = (value: string | undefined) => !value?.trim();
 
 const IMAGE_TYPES = ['svg', 'png', 'ico', 'webp'];
 
-function checkBranding({ pageTitle, logo, favicon }: Pick<BrandPack, 'pageTitle' | 'logo' | 'favicon'>): string[] {
+function checkBranding({ pageTitle, logo, favicon }: BrandPack): string[] {
   const failures: string[] = [];
   if (blank(pageTitle)) failures.push('pageTitle is empty');
   for (const [field, image] of [['logo', logo], ['favicon', favicon]] as const) {
@@ -24,7 +24,7 @@ function checkBranding({ pageTitle, logo, favicon }: Pick<BrandPack, 'pageTitle'
   return failures;
 }
 
-function checkApprovalTracks({ approvalTracks }: Pick<BrandPack, 'approvalTracks'>): string[] {
+function checkApprovalTracks({ approvalTracks }: BrandPack): string[] {
   const failures: string[] = [];
   const name = (i: number) => `approvalTracks[${approvalTracks[i].id}]`;
   const ids = new Set<string>();
@@ -48,7 +48,7 @@ function checkApprovalTracks({ approvalTracks }: Pick<BrandPack, 'approvalTracks
   return failures;
 }
 
-function checkProcess({ process }: Pick<BrandPack, 'process'>): string[] {
+function checkProcess({ process }: BrandPack): string[] {
   const failures: string[] = [];
   const seen = new Set<string>();
   const claim = (id: string, where: string) => {
