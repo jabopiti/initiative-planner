@@ -38,7 +38,7 @@ import { commitJointly } from './commitJointly';
 import { RateLimitTracker } from './RateLimitTracker';
 import { WriteQueue } from './WriteQueue';
 import { InitiativeEditCommands, type AddAllocationResult, type CopyAllocationsResult, type CostItemChange } from './InitiativeEditCommands';
-import { ReferenceDataCommands } from './ReferenceDataCommands';
+import { ReferenceDataCommands, type MasterFile } from './ReferenceDataCommands';
 import { note as entityNote, teamName } from './commitWords';
 import { insertAt } from './insertAt';
 
@@ -235,10 +235,7 @@ export class Repository {
     });
     this.refData = new ReferenceDataCommands({
       getState: this.getState,
-      commitRoles: (next, n) => this.commitRoles(next, n),
-      commitCountries: (next, n) => this.commitCountries(next, n),
-      commitTeams: (next, n) => this.commitTeams(next, n),
-      commitPeople: (next, n) => this.commitPeople(next, n),
+      commit: (file, next, n) => this.commitFile(file, next, n),
       commitMemberships: (next, n) => this.commitMemberships(next, n),
       jointly: (action) => this.jointly(action),
       markRatesReviewed: (words) => this.markRatesReviewed(words),
@@ -622,9 +619,9 @@ export class Repository {
     const rolloverNote = () => entityNote('dataset', 'rates', 'rollover', undefined, tracked, () => `Rates copied into ${tracked[tracked.length - 1]}`);
     this.jointly(() => {
       const countries = countriesRolledForward(this.state.countries, tracked);
-      if (countries) this.commitCountries(countries, rolloverNote());
+      if (countries) this.commitFile('countries', countries, rolloverNote());
       const people = peopleRolledForward(this.state.people, tracked);
-      if (people) this.commitPeople(people, rolloverNote());
+      if (people) this.commitFile('people', people, rolloverNote());
     });
   }
 
@@ -1087,31 +1084,22 @@ export class Repository {
         queue: this.queue,
         branch: this.brand.github.dataBranch,
         ready: this.firstPullDone,
-        writerOf: (path) => this.allWriters().find(([p]) => p === path)?.[1],
+        writerOf: (path) => new Map(this.allWriters()).get(path),
         recordSave: this.source.recordSave,
       },
       paths,
     );
   }
 
-  private commitCountries(next: Country[], note?: CommitNote): void {
-    this.setState({ countries: next });
-    this.countriesWriter?.schedule(next, note);
-  }
-
-  private commitRoles(next: Role[], note?: CommitNote): void {
-    this.setState({ roles: next });
-    this.rolesWriter?.schedule(next, note);
-  }
-
-  private commitTeams(next: Team[], note?: CommitNote): void {
-    this.setState({ teams: next });
-    this.teamsWriter?.schedule(next, note);
-  }
-
-  private commitPeople(next: Person[], note?: CommitNote): void {
-    this.setState({ people: next });
-    this.peopleWriter?.schedule(next, note);
+  private commitFile<K extends MasterFile>(file: K, next: RepositoryState[K], note?: CommitNote): void {
+    this.setState({ [file]: next } as Pick<RepositoryState, K>);
+    const writers: { [K in MasterFile]: FileWriter<RepositoryState[K]> | null } = {
+      roles: this.rolesWriter,
+      countries: this.countriesWriter,
+      teams: this.teamsWriter,
+      people: this.peopleWriter,
+    };
+    writers[file]?.schedule(next, note);
   }
 
   private commitMemberships(next: Membership[], note?: CommitNote | CommitNote[]): void {

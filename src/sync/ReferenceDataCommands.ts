@@ -16,13 +16,14 @@ export interface NewPersonInput {
   roleId: string;
 }
 
+/** The master files of reference data that are plain lists of records. */
+export type MasterFile = 'roles' | 'countries' | 'teams' | 'people';
+
 /** What the reference-data commands need of the repository they edit: its state and the one place each file is written. */
 export interface ReferenceDataHost {
   getState: () => RepositoryState;
-  commitRoles: (next: Role[], note?: CommitNote) => void;
-  commitCountries: (next: Country[], note?: CommitNote) => void;
-  commitTeams: (next: Team[], note?: CommitNote) => void;
-  commitPeople: (next: Person[], note?: CommitNote) => void;
+  /** Puts the file's next records on screen and saves them with the note for the commit message. */
+  commit: <K extends MasterFile>(file: K, next: RepositoryState[K], note?: CommitNote) => void;
   commitMemberships: (next: Membership[], note?: CommitNote | CommitNote[]) => void;
   /** Runs an action that may write several files, as one commit (§10.3). */
   jointly: (action: () => void) => void;
@@ -46,7 +47,7 @@ export class ReferenceDataCommands {
   /** New role (§5.9): created from a name, abbreviation and cost factor, active. */
   createRole(input: { name: string; abbreviation: string; costFactor: number }): Role {
     const role: Role = { id: newId(), ...input, active: true };
-    this.host.commitRoles([...this.state.roles, role], note('role', role.id, 'record', undefined, role, roleWords));
+    this.host.commit('roles', [...this.state.roles, role], note('role', role.id, 'record', undefined, role, roleWords));
     return role;
   }
 
@@ -56,7 +57,7 @@ export class ReferenceDataCommands {
     if (!current) return;
     const next = { ...current, ...patch };
     if ((Object.keys(patch) as (keyof typeof patch)[]).every((key) => next[key] === current[key])) return;
-    this.host.commitRoles(
+    this.host.commit('roles', 
       this.state.roles.map((r) => (r.id === id ? next : r)),
       note('role', id, 'record', current, next, roleWords),
     );
@@ -65,7 +66,7 @@ export class ReferenceDataCommands {
   /** New country (§5.9): its one day rate copied to every tracked year, working days prefilled with weekdays. */
   createCountry(input: { name: string; code: string; dayRate: number }, today: Date): Country {
     const country: Country = { id: newId(), name: input.name, code: input.code, active: true, ratesByYear: newCountryRates(input.dayRate, trackedYears(today)) };
-    this.host.commitCountries([...this.state.countries, country], note('country', country.id, 'record', undefined, country, countryWords));
+    this.host.commit('countries', [...this.state.countries, country], note('country', country.id, 'record', undefined, country, countryWords));
     return country;
   }
 
@@ -75,7 +76,7 @@ export class ReferenceDataCommands {
     if (!current) return;
     const next = { ...current, ...patch };
     if (next.name === current.name && next.code === current.code && next.active === current.active) return;
-    this.host.commitCountries(
+    this.host.commit('countries', 
       this.state.countries.map((c) => (c.id === id ? next : c)),
       note('country', id, 'record', current, next, countryWords),
     );
@@ -131,7 +132,7 @@ export class ReferenceDataCommands {
     const updated = { ...country, ratesByYear: country.ratesByYear.map((r) => (r.year === year ? next : r)) };
     // The first rate edit also marks the rates reviewed: both files in one commit (§10.3).
     this.host.jointly(() => {
-      this.host.commitCountries(
+      this.host.commit('countries', 
         this.state.countries.map((c) => (c.id === id ? updated : c)),
         note('country', id, field, get(record), get(next), (_, to) => words(country.name, to)),
       );
@@ -157,7 +158,7 @@ export class ReferenceDataCommands {
     const refusal = this.teamNameRefusal(name);
     if (refusal) throw new Error(refusal);
     const team: Team = { id: newId(), name: name.trim(), active: true };
-    this.host.commitTeams([...this.state.teams, team], note('team', team.id, 'record', undefined, team, teamWords));
+    this.host.commit('teams', [...this.state.teams, team], note('team', team.id, 'record', undefined, team, teamWords));
     return team;
   }
 
@@ -181,7 +182,7 @@ export class ReferenceDataCommands {
       capacityPct: 100,
       active: true,
     };
-    this.host.commitPeople([...this.state.people, person], note('person', person.id, 'record', undefined, person, this.personWords()));
+    this.host.commit('people', [...this.state.people, person], note('person', person.id, 'record', undefined, person, this.personWords()));
     return person;
   }
 
@@ -192,7 +193,7 @@ export class ReferenceDataCommands {
     if (patch.name !== undefined && this.teamNameRefusal(patch.name, id)) return;
     const next = { ...current, ...patch, ...(patch.name !== undefined && { name: patch.name.trim() }) };
     if (next.name === current.name && next.active === current.active) return;
-    this.host.commitTeams(
+    this.host.commit('teams', 
       this.state.teams.map((t) => (t.id === id ? next : t)),
       note('team', id, 'record', current, next, teamWords),
     );
@@ -203,7 +204,7 @@ export class ReferenceDataCommands {
     const current = this.state.people.find((p) => p.id === id);
     if (!current) return;
     const next = { ...current, ...patch };
-    this.host.commitPeople(
+    this.host.commit('people', 
       this.state.people.map((p) => (p.id === id ? next : p)),
       note('person', id, 'record', current, next, this.personWords()),
     );
