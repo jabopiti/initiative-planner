@@ -270,8 +270,9 @@ fixes:
   People, teams and initiatives start empty. It is loaded only when no
   dataset exists anywhere (§3), never in place of a damaged or foreign one.
 - An **example dataset** of people, teams and initiatives, which the user
-  can load from the Danger zone (§5.9). It is a plain data file that matches
-  the build's process identity, and its dates are stored relative to the
+  can load from the Danger zone (§5.9). It is a plain data file that states the
+  process identity it was written for, which must equal the build's, and uses
+  only phases, roles, countries and teams the build defines; its dates are stored relative to the
   month it is loaded so it never goes stale.
 
 ### Editable by the user

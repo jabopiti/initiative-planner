@@ -49,5 +49,21 @@ None.
 
 ## Decided in review (pre-implementation)
 
-Open, to settle in review: exact band rule (§7.4 on gaps vs overlaps) and
-the wording of each build message.
+- **Bands (§7.4):** only overlaps are forbidden; a gap resolves to "No approval
+  track", so gaps are not reported. Bounds are lower-inclusive,
+  upper-exclusive, so touching bands are fine. Also reported: a band whose
+  lower bound is not below its upper bound, and duplicate band ids. Severity is
+  not checked.
+- **Example dataset:** it carries `processIdentity` (`id`, `structureVersion`)
+  in `brand/exampleDataset.json` and the `ExampleDataset` type, and the build
+  requires it to equal the pack's. The build also checks that every phase id
+  (`phases` keys, `passedGates`), role abbreviation, country name and team key
+  the dataset uses exists in the pack. `docs/spec.md` §2 says so.
+- **Icons:** the allowed names are one exported list in `src/brand/types.ts`;
+  `PhaseIconName` derives from it, and the validator checks against it.
+- **Required fields:** an empty string is missing. A costed phase needs a
+  default duration above 0. Phase, gate and checklist-item ids are unique
+  across the whole pack.
+- **Messages:** one `Brand pack:` error listing every problem, each naming the
+  entity and field, e.g. `approvalTracks[standard] overlaps approvalTracks[elevated]`,
+  `process[validation].exitGate.label is empty`.
