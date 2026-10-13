@@ -162,6 +162,7 @@ serves, or a section that serves no job, is a gap.
 | 9 | Administrator | When rolling out, I want to set up the repository, rates and first teams quickly, so that people can plan from day one. | §2, §3, §5.2 |
 | 10 | Administrator | When rates change, I want to update them once, so that open plans follow and recorded figures stay frozen. | §5.9, §7.2, §8.1 |
 | 11 | Everyone | When something goes wrong, I want clear messages and safe recovery, so that no data is lost. | §3 |
+| 12 | Initiative owner | When I report on an initiative, I want a prompt that turns its current state into slides in our company's layout, so that I do not rebuild them by hand. | §9.12, §5.4 |
 
 ### Non-goals (explicitly out of scope)
 
@@ -187,9 +188,9 @@ serves, or a section that serves no job, is a gap.
   standalone page. Finding available capacity across teams is out of scope.
 - Dataset export and import. The repository dataset is the single source of
   truth and its commit history is the backup (§3). Data leaves the tool only
-  through table copy (§9.2).
-- Print and PDF output. Table copy (§9.2) is the only output route; browser
-  print behaviour is not supported.
+  through copy: table copy (§9.2) and prompt copy (§9.12).
+- Print and PDF output. Copy (§9.2, §9.12) is the only output route;
+  browser print behaviour is not supported.
 - Multiple currencies or currency conversion. One currency per deployment
   (§2); country rates are entered in it.
 - Offline editing or queued changes. Without sync the tool is read-only
@@ -198,6 +199,9 @@ serves, or a section that serves no job, is a gap.
   (§8.5).
 - Integrations with other systems (HR, finance, ticketing) and any public
   API.
+- Calling an AI service. The tool builds prompts the user pastes into an AI
+  tool of their own choosing (§9.12); it never sends data to one, and it
+  names no AI vendor or product.
 - Approval workflow. Approvers, sign-off and routing happen outside the
   tool, which records the outcome (§1).
 - Localisation. The UI is English only; number and date formats follow the
@@ -269,6 +273,9 @@ fixes:
 
   Every text and background pairing of these roles, and every team colour,
   must meet the contrast rule in §9.5.
+- **Prompt templates** (§9.12): the text of each prompt the tool copies,
+  with named slots where the tool fills in data. The core ships a default
+  for each; a brand pack may replace any of them.
 - The **fresh-install baseline**: placeholder roles, countries and rates.
   People, teams and initiatives start empty. It is loaded only when no
   dataset exists anywhere (§3), never in place of a damaged or foreign one.
@@ -825,8 +832,10 @@ on this page and fills in everything else.
 
 Initiative-level actions live in an **Actions menu** in the header, which is
 available in every status: Put on hold / Resume, Cancel, Duplicate (§5.11),
-Reopen (§8.3) and Delete (only if no gate was passed, §9.3). Skipping a gate
-is a secondary action next to Pass gate in the magic bar.
+Reopen (§8.3), Delete (only if no gate was passed, §9.3), and the two slide
+prompts, **Copy status slide prompt** and **Copy gate slide prompt** (§9.12).
+Skipping a gate is a secondary action next to Pass gate in the magic bar.
+**Copy for AI** (§9.12) sits beside the cost summary's Copy table.
 
 #### The magic bar (sticky bottom bar)
 
@@ -1755,7 +1764,8 @@ table (§5.3), the People table (§5.5), the team's capacity grid (§5.8), and,
 on an initiative, its cost summary and phase costs (§5.4). It copies what is
 currently shown, with the active filters and sort applied, as both plain
 text and rich HTML, so it lands as cells in a spreadsheet or as a table in a
-document. Print and PDF are not supported, so copy is the only output route.
+document. Print and PDF are not supported, so copy is the only output route;
+the prompts of §9.12 are copied the same way, as plain text only.
 In the plain-text copy, a text cell starting with `=`, `+`, `-` or `@` is
 prefixed with an apostrophe so a spreadsheet reads it as text, not a formula
 (§10.9); numeric cells (amounts, percentages, signed deviations) are never
@@ -2093,6 +2103,93 @@ example €4.2M and €210k, no space) with the full amount in a tooltip; tables
 and copy (§9.2) show full amounts. Deviation always shows its sign, and
 overspend uses the Warning colour (§9.8).
 
+### 9.12 Prompts for AI tools
+
+The tool helps people use AI tools for reporting and questions without
+calling one itself: it builds a **prompt** from the data on screen and
+copies it to the clipboard, and the user pastes it into whatever AI tool
+they use (§1, Non-goals). Nothing is sent anywhere else, so prompts fit the
+no-backend and GitHub-only rules (§2, §10.9). A prompt is copied as plain
+text, written in Markdown; it is not a table, so the rich HTML and the
+formula prefix of §9.2 do not apply.
+
+**Prompts.** The initiative page (§5.4) offers three:
+
+- **Copy for AI**, beside the cost summary's Copy table: the whole
+  initiative as data, with the tool's terms explained, for asking an AI
+  tool questions about it ("why is this escalated?", "what drives the
+  cost?").
+- **Copy status slide prompt**, in the Actions menu: asks for one slide on
+  where the initiative stands: its phases on a timeline, the grand
+  estimate against what it was approved at, deviation and approval track.
+- **Copy gate slide prompt**, in the Actions menu: asks for one slide on
+  the current gate: what is complete, what is open, what is Tentative and
+  why, and what was carried forward. It is offered while the initiative
+  has a current gate (Active or On Hold), not on a Closed or Cancelled one.
+
+The status and gate slides are copied separately, so the gate slide can go
+into a gate review on its own.
+
+**Templates.** Each prompt is built from a **prompt template** (§2): plain
+text with **named slots**, written `{{slot}}`, where the tool puts data.
+The core ships a default template for each prompt, and a brand pack may
+replace any of them, so a deployment's slides follow its own layout and
+wording; that is how reports stay consistent across everyone who uses
+the build. Templates are fixed at build time; they are not edited in
+Settings or per user (§1, Working rules: simple over configurable). The
+user can still change the copied text before pasting it.
+
+A template has no logic: no conditions, loops or expressions, so it needs
+nothing the CSP forbids (§10.9). Text outside slots is copied as written.
+A slot may appear more than once, or not at all. A `{{name}}` that is not
+one of the slots below fails the build, as an invalid brand pack does
+(§2).
+
+**Slots.** Each slot becomes a Markdown block (a heading, then lines or a
+table) with the values the page shows, formatted as on screen (§9.7), in
+full amounts, never compact (§9.11):
+
+- `{{initiative}}`: name, description, team, owner, status, current phase
+  with its period, and approval track, marked when escalated (§7.4).
+- `{{timeline}}`: every phase in process order with its state (done,
+  current, ahead, skipped with its reason), period and cost; non-costed
+  phases say so.
+- `{{costs}}`: grand estimate, approved at (gate and amount), the
+  difference since, deviation, recorded actuals to date, and the approval
+  tracks with their bounds and requirement text.
+- `{{plan}}`: per costed phase, its allocations (who, Allocation %, cost),
+  its cost items (label, amount, timing) and its months' estimate and
+  actual, a closed month without a recorded actual marked as using the
+  estimate (§7.3). A frozen phase shows its snapshot (§8.1).
+- `{{gate}}`: the current gate's "X of Y complete", the estimates
+  requirement when it has one, each checklist item with its status and
+  note, the items carried forward with the gate they came from, and the
+  gate's state (Ready, Due, Overrun, §8.5). On a Closed or Cancelled
+  initiative it reads that there is no current gate.
+- `{{attention}}`: the initiative's Needs attention items (§8.5), or that
+  there are none.
+- `{{terms}}`: short definitions of the terms the other blocks use (§4,
+  §11) and the build's phase and gate descriptions, so an AI tool reads
+  the figures as the tool means them.
+- `{{today}}`: today's date.
+- `{{product}}`: the product name from the brand pack.
+
+**People.** By default a prompt names no one: the owner and every
+allocated person appear by role (a custom role by its label), with the
+same role told apart by number ("Developer 1", "Developer 2"). An
+**Include names** option adds their names. It is off by default, and the
+choice is remembered in this browser only (§10.4), never synced. Free text
+users typed (descriptions, notes, cost item labels, skip reasons) is
+copied as written, so it is not scrubbed of names.
+
+**Data, not instructions.** Typed text is placed in a prompt as data and
+never interpreted by the tool. The default templates tell the AI tool that
+the data blocks are information to report on, not instructions to follow.
+A brand pack that replaces a template should keep that.
+
+When a copy succeeds, a short confirmation names what was copied; when the
+clipboard refuses, the error says so and nothing else changes (§9.9).
+
 ---
 
 ## 10. Technical decisions
@@ -2328,8 +2425,9 @@ match the process identity (§2).
   approval tracks (§7.4).
 - Automated checks in the build: colour contrast (§9.5), the storage size
   test (§3), migration from every earlier schema and process structure
-  version (§3), merge and conflict cases (§3, §10.5), and automated
-  accessibility checks of the main screens (§9.5).
+  version (§3), merge and conflict cases (§3, §10.5), prompt template
+  slots (§9.12), and automated accessibility checks of the main screens
+  (§9.5).
 - A small set of end-to-end tests of the main flows: creating and planning
   an initiative, passing a gate, a same-field conflict, and read-only
   mode.
@@ -2354,8 +2452,10 @@ a code change.
   the console or an error message (§10.9); that every outbound request
   goes to the configured GitHub host; that user-entered text (names,
   descriptions, notes, labels) is always escaped, using injection
-  payloads; and that a malformed or hostile dataset (including keys such
-  as `__proto__`) is reported as damaged data (§3) and never executed or
+  payloads; that a copied prompt (§9.12) carries such payloads verbatim
+  as data and that, with Include names off, it contains no person's
+  name; and that a malformed or hostile dataset (including keys such as
+  `__proto__`) is reported as damaged data (§3) and never executed or
   merged.
 - **Pipeline:** workflow actions are pinned to a commit, and the workflow
   has only the permissions it needs.
@@ -2397,7 +2497,9 @@ third-party scripts, and its dependencies are audited in the build (§10.1).
 | Needs attention | The ranked list of current-gate states worth a look, for Active initiatives (§8.5) |
 | Magic bar | The sticky bottom bar on the initiative detail view (§5.4) |
 | Process identity | The process id plus its structure version; a dataset must match it (§2, §3) |
-| Brand pack | The build-time configuration folder that fixes the process, approval tracks, branding, GitHub location and fresh-install baseline (§2) |
+| Brand pack | The build-time configuration folder that fixes the process, approval tracks, branding, GitHub location, prompt templates and fresh-install baseline (§2) |
+| Prompt template | Brand-pack text for a copied prompt, with named slots the tool fills from the data on screen (§9.12) |
+| Copy for AI | Copies an initiative's data as Markdown, with the tool's terms, for asking an AI tool about it (§9.12) |
 | Fresh-install baseline | Placeholder roles, countries and rates; people, teams and initiatives start empty (§2) |
 | Working days | A country's working days in each month of a year, prefilled with the weekdays and edited as a number (§6, §7.1) |
 | Starting phase | The phase an untouched initiative is placed in when its work predates the tool; earlier gates are recorded as skipped (§8.2) |
