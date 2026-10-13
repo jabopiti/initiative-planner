@@ -4,11 +4,14 @@ import type { Plugin } from 'vite';
 import { coloursCss, typefaceCss } from './coloursCss';
 import { checkBrandColours } from './contrast';
 import { checkBrandPack } from './packChecks';
+import { loadPrompts, type LoadedPrompts } from '../prompts/brandPrompts';
 import type { BrandPack } from './types';
 
 const ID = 'virtual:brand-colours.css';
 const ASSETS_ID = 'virtual:brand-assets';
 const ASSETS_RESOLVED = `\0${ASSETS_ID}`;
+const PROMPTS_ID = 'virtual:brand-prompts';
+const PROMPTS_RESOLVED = `\0${PROMPTS_ID}`;
 // The `.css` suffix keeps the resolved id on Vite's CSS pipeline, so the build emits it into the stylesheet.
 const RESOLVED = `\0${ID}`;
 
@@ -18,9 +21,13 @@ const RESOLVED = `\0${ID}`;
  * definition or example dataset break the structural rules (§9.5, §10.7, packChecks.ts): the build stops, and the dev
  * server shows the same error, naming every problem. `brandDir` is the brand folder the typeface's
  * file paths are relative to; the font files are bundled from there, so no font is fetched from a third party (§10.9).
+ * It also serves the prompt templates (§9.12) as `virtual:brand-prompts`, refusing one that names an unknown slot.
  */
 export function brandColoursPlugin(brand: BrandPack, brandDir: string): Plugin {
   let root = process.cwd();
+  let prompts: LoadedPrompts | undefined;
+  // The core's default prompt templates (§9.12), used where the pack names none.
+  const loadPackPrompts = () => (prompts = loadPrompts(brand, brandDir, resolve(root, 'src/prompts/defaults')));
   // Root-relative URLs, which Vite resolves against the project root and emits as hashed assets.
   const url = (path: string) => `/${relative(root, resolve(brandDir, path)).split('\\').join('/')}`;
   return {
@@ -29,7 +36,8 @@ export function brandColoursPlugin(brand: BrandPack, brandDir: string): Plugin {
       root = config.root;
     },
     buildStart() {
-      const failures = [...checkBrandColours(brand.colours, brand.teamColours), ...checkBrandPack(brand)];
+      const failures = [...checkBrandColours(brand.colours, brand.teamColours), ...checkBrandPack(brand), ...loadPackPrompts().failures];
+      for (const file of prompts!.files) this.addWatchFile(file);
       const files = [
         ...brand.typeface.files.map((f) => ['typeface file', f.path]),
         ['logo', brand.logo.path],
@@ -41,7 +49,7 @@ export function brandColoursPlugin(brand: BrandPack, brandDir: string): Plugin {
       if (failures.length) this.error(`Brand pack:\n${failures.map((f) => `  ${f}`).join('\n')}`);
     },
     resolveId(id) {
-      return id === ID ? RESOLVED : id === ASSETS_ID ? ASSETS_RESOLVED : undefined;
+      return id === ID ? RESOLVED : id === ASSETS_ID ? ASSETS_RESOLVED : id === PROMPTS_ID ? PROMPTS_RESOLVED : undefined;
     },
     // The tab's title and favicon come from the pack; `pre` so Vite then hashes the favicon like any asset in the page.
     transformIndexHtml: {
@@ -55,6 +63,8 @@ export function brandColoursPlugin(brand: BrandPack, brandDir: string): Plugin {
       },
     },
     load(id) {
+      // Read again on each load, so an edited template reaches the dev server without a restart.
+      if (id === PROMPTS_RESOLVED) return `export default ${JSON.stringify(loadPackPrompts().templates)};`;
       if (id === ASSETS_RESOLVED) return `export { default as logoUrl } from '${url(brand.logo.path)}';`;
       if (id !== RESOLVED) return undefined;
       return `${typefaceCss(brand.typeface, url)}\n${coloursCss(brand.colours, brand.teamColours)}`;

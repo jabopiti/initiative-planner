@@ -91,7 +91,7 @@ Each deployment is its own copy of this repository. You change only the brand pa
 > [!IMPORTANT]
 > Serve the app from its own domain, for example a custom domain in the Pages settings. Browser storage is shared across a whole `<account>.github.io` origin, so there the app turns off "Remember me".
 
-The brand pack lives in one folder, [`brand/`](./brand): the pack file `brand.ts`, the example dataset and the fonts. A fork edits only that folder. The full model is in [spec §2 and §10.7](./docs/spec.md).
+The brand pack lives in one folder, [`brand/`](./brand): the pack file `brand.ts`, the example dataset and the fonts. A fork edits only that folder. To change the prompt Copy for AI copies, put a Markdown file in `brand/prompts/` and name it under `prompts` in `brand.ts`; start from the [default template](./src/prompts/defaults/copy-for-ai.md). Its slots are listed in [spec §9.12](./docs/spec.md). The full model is in [spec §2 and §10.7](./docs/spec.md).
 
 ## Run it locally
 

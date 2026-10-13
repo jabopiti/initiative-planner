@@ -167,6 +167,9 @@ export const defaultBrandPack: BrandPack = {
 
   exampleDataset,
 
+  // Prompt templates (§9.12): none named, so the core's defaults in src/prompts/defaults are used. To use your own,
+  // add a Markdown file here and name it, e.g. `prompts: { copyForAi: { path: 'prompts/copy-for-ai.md' } }`.
+
   colours: {
     // Neutral roles: zinc greys in light, graphite in dark (slice 057), so the accent is the only colour that isn't a state.
     surfacePage: { light: 'oklch(0.975 0.002 286)', dark: 'oklch(0.17 0.004 286)' },

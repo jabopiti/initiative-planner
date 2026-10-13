@@ -12,3 +12,9 @@ declare const __BUILD_VERSION__: string;
 declare module 'virtual:brand-assets' {
   export const logoUrl: string;
 }
+
+/** The prompt templates (§9.12): the brand pack's where it names one, the core's defaults otherwise (brandColoursPlugin). */
+declare module 'virtual:brand-prompts' {
+  const templates: Record<import('./prompts/template').PromptKind, string>;
+  export default templates;
+}
