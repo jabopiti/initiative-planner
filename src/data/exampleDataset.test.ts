@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { buildBaselineDataset } from './baseline';
 import { buildExampleData } from './exampleDataset';
 import { currentPhaseId } from './gate';

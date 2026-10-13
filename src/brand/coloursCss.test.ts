@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { coloursCss, cssVar, typefaceCss } from './coloursCss';
-import { defaultBrandPack } from './defaultBrand';
+import { defaultBrandPack } from '@brand';
 
 describe('coloursCss (§9.1, §10.1)', () => {
   it('turns every colour role into a custom property for light (:root) and dark (.dark)', () => {
@@ -36,9 +36,9 @@ describe('coloursCss (§9.1, §10.1)', () => {
 
 describe('typefaceCss (§2, §9.8)', () => {
   it('declares one @font-face per brand-folder file, served from the given URL, and the family with its fallback', () => {
-    const css = typefaceCss(defaultBrandPack.typeface, (path) => `/src/brand/${path}`);
+    const css = typefaceCss(defaultBrandPack.typeface, (path) => `/brand/${path}`);
     expect(css.match(/@font-face/g)).toHaveLength(2);
-    expect(css).toContain("src: url('/src/brand/fonts/geist-latin-wght-normal.woff2') format('woff2');");
+    expect(css).toContain("src: url('/brand/fonts/geist-latin-wght-normal.woff2') format('woff2');");
     expect(css).toContain('font-weight: 100 900;');
     expect(css).toContain("--font-brand: 'Geist', system-ui,");
   });

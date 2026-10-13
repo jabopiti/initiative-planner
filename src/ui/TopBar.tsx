@@ -4,7 +4,7 @@ import { GlobalSearch } from './GlobalSearch';
 import { NewInitiativeControl } from './NewInitiativeControl';
 import { SyncIndicator } from './SyncIndicator';
 import { ThemeControl } from './ThemeControl';
-import { LogoMark } from './icons';
+import { BrandLogo } from './BrandLogo';
 import { pageContainerClass } from './Page';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -26,7 +26,7 @@ export function TopBar({ route }: { route: string }) {
       {/* The bar spans the window; its content lines up with the page container below (§9.8). */}
       <div className={`${pageContainerClass} flex items-center gap-6 py-2.5`}>
         <a href="#/portfolio" className="flex shrink-0 items-center gap-2 font-medium text-text-primary no-underline">
-          <LogoMark />
+          <BrandLogo size={22} />
           {brand.productName}
         </a>
 

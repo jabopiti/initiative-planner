@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import type { BrandPack } from '../brand/types';
 import type { Country, Initiative, Membership, Person, Role, Team } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';

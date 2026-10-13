@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { FILE_PATHS, type Initiative } from '../data/types';
 import { BrandProvider } from '../state/BrandContext';
 import { ConflictUiProvider, useConflictUi, useFieldConflict } from '../state/ConflictUi';

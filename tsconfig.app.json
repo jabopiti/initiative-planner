@@ -16,7 +16,8 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@brand": ["./brand/brand.ts"]
     },
 
     "strict": true,
@@ -26,5 +27,5 @@
     "noUncheckedSideEffectImports": true,
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src"]
+  "include": ["src", "brand"]
 }

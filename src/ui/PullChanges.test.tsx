@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider, useRepository } from '../state/DataContext';
 import { CHANGE_TINT_MS } from '../sync/Repository';

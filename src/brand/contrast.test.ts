@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkBrandColours, contrastRatio, parseOklch } from './contrast';
-import { defaultBrandPack } from './defaultBrand';
+import { defaultBrandPack } from '@brand';
 import type { BrandColours } from './types';
 
 const teams = defaultBrandPack.teamColours;

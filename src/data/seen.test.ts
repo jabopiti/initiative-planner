@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Initiative } from './types';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { buildBaselineDataset } from './baseline';
 import { changedInitiatives, fingerprint, formatSince, keyFigureSnapshot, hasChangedSince, previousFigures, seenRecord, type KeyFigureSnapshot } from './seen';
 

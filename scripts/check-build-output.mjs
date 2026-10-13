@@ -4,7 +4,7 @@ import { checkBuildOutput } from './buildOutput.mjs';
 
 const apiBaseUrl = brandValue('apiBaseUrl');
 if (!apiBaseUrl) {
-  console.error('Could not read apiBaseUrl from src/brand/defaultBrand.ts.');
+  console.error('Could not read apiBaseUrl from brand/brand.ts.');
   process.exit(1);
 }
 

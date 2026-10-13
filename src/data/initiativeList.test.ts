@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { activeFilterCount, attentionRank, filterRows, initiativeRows, NO_FILTERS, NONE, ownerLabel } from './initiativeList';
 import type { Initiative, Person, Team } from './types';
 

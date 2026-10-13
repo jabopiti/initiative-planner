@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { planTeamChange } from './teamChange';
 import type { Country, Initiative, Membership, Person, Role } from './types';
 

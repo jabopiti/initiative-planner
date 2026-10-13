@@ -1,6 +1,6 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { BrandProvider } from '../state/BrandContext';
 import { RepositoryProvider, useRepository } from '../state/DataContext';
 import { COMMIT_QUIET_MS } from '../sync/FileWriter';

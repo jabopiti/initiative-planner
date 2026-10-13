@@ -1,4 +1,5 @@
 {
+  "processIdentity": { "id": "initiative-planner-core", "structureVersion": 1 },
   "teams": [
     { "key": "platform", "name": "Platform" },
     { "key": "growth", "name": "Growth" }

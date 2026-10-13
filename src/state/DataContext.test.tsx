@@ -1,6 +1,6 @@
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import type { Repository } from '../sync/Repository';
 import { fakeGithub, seedDataset } from '../sync/testing/fakeGithub';
 import { BrandProvider } from './BrandContext';
