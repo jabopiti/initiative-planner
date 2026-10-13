@@ -9,6 +9,8 @@ is done and what happens to its file.
 
 | ID | Title | Depends on | Note |
 |---|---|---|---|
+| 070 | Copy for AI: prompt templates in the brand pack, the initiative's data as Markdown | 066, 067 | Sets the prompt pattern (§9.12) |
+| 071 | Status and gate slide prompts in the initiative's Actions menu | 070 | |
 
 ## Delivered slices
 
