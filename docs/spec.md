@@ -274,8 +274,9 @@ fixes:
   Every text and background pairing of these roles, and every team colour,
   must meet the contrast rule in §9.5.
 - **Prompt templates** (§9.12): the text of each prompt the tool copies,
-  with named slots where the tool fills in data. The core ships a default
-  for each; a brand pack may replace any of them.
+  with named slots where the tool fills in data, each a Markdown file in
+  the brand pack's `prompts` folder. The core ships a default for each; a
+  brand pack may replace any of them.
 - The **fresh-install baseline**: placeholder roles, countries and rates.
   People, teams and initiatives start empty. It is loaded only when no
   dataset exists anywhere (§3), never in place of a damaged or foreign one.
@@ -835,7 +836,10 @@ available in every status: Put on hold / Resume, Cancel, Duplicate (§5.11),
 Reopen (§8.3), Delete (only if no gate was passed, §9.3), and the two slide
 prompts, **Copy status slide prompt** and **Copy gate slide prompt** (§9.12).
 Skipping a gate is a secondary action next to Pass gate in the magic bar.
-**Copy for AI** (§9.12) sits beside the cost summary's Copy table.
+**Copy for AI** (§9.12) sits beside the cost summary's Copy table, as an
+icon (sparkles) that opens a small menu: Copy for AI and the Include names
+checkbox. With no costed phase in the process, it sits in the Current
+phase tile instead.
 
 #### The magic bar (sticky bottom bar)
 
@@ -2177,8 +2181,12 @@ full amounts, never compact (§9.11):
 **People.** By default a prompt names no one: the owner and every
 allocated person appear by role (a custom role by its label), with the
 same role told apart by number ("Developer 1", "Developer 2"). An
-**Include names** option adds their names. It is off by default, and the
-choice is remembered in this browser only (§10.4), never synced. Free text
+**Include names** option adds their names ("Mara Voss (Product
+Manager)"). It is off by default, and the choice is remembered in this
+browser only (§10.4), never synced; it applies to every prompt. A person
+keeps one label throughout a prompt, the owner numbered first, then in the
+order people first appear; a frozen phase uses the role its snapshot
+recorded. Free text
 users typed (descriptions, notes, cost item labels, skip reasons) is
 copied as written, so it is not scrubbed of names.
 
@@ -2187,8 +2195,9 @@ never interpreted by the tool. The default templates tell the AI tool that
 the data blocks are information to report on, not instructions to follow.
 A brand pack that replaces a template should keep that.
 
-When a copy succeeds, a short confirmation names what was copied; when the
-clipboard refuses, the error says so and nothing else changes (§9.9).
+When a copy succeeds, a toast names what was copied ("Copied Checkout
+Redesign for AI"); when the clipboard refuses, a toast says "Couldn't copy.
+Your browser blocked clipboard access." and nothing else changes (§9.9).
 
 ---
 
@@ -2350,6 +2359,8 @@ tab counts its own.
 The Portfolio's **Dismiss for now** on the Getting started strip (§5.2) is kept in
 session storage, never synced; if session storage cannot be used, the
 dismissal lasts for the page's lifetime.
+The prompts' **Include names** choice (§9.12) is kept in local storage,
+never synced; if local storage cannot be used, it is off on each load.
 
 ### 10.5 Merging
 

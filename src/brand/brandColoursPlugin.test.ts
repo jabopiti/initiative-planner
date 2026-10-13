@@ -7,6 +7,7 @@ const ctx = {
   error: (msg: string): never => {
     throw new Error(msg);
   },
+  addWatchFile: () => {},
 };
 const brandDir = resolve(__dirname, '../../brand');
 const call = (hook: unknown, ...args: unknown[]) => (hook as (...a: unknown[]) => unknown).call(ctx, ...args);
@@ -69,5 +70,17 @@ describe('brandColoursPlugin (§9.5, §10.7)', () => {
     const handler = (plugin.transformIndexHtml as { handler: (html: string) => string }).handler;
     expect(handler('<head><title>x</title></head>')).toContain('<title>Plans $&amp; Bets</title>');
     expect(() => handler('<head></head>')).toThrow(/no <title>/);
+  });
+
+  it("serves the prompt templates, the core's default where the pack names none (§9.12)", () => {
+    const plugin = brandColoursPlugin(defaultBrandPack, brandDir);
+    call(plugin.configResolved, { root: resolve(__dirname, '../..') });
+    const module = call(plugin.load, call(plugin.resolveId, 'virtual:brand-prompts')) as string;
+    expect(module).toMatch(/^export default \{"copyForAi":"I'm asking about an initiative planned in \{\{product\}\}/);
+  });
+
+  it('stops the build on a prompt template naming an unknown slot (§9.12)', () => {
+    const pack = { ...defaultBrandPack, prompts: { copyForAi: { path: 'missing-prompt.md' } } };
+    expect(() => call(brandColoursPlugin(pack, brandDir).buildStart)).toThrow(/prompts\.copyForAi \(missing-prompt\.md\) not found/);
   });
 });

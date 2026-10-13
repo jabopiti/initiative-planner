@@ -31,7 +31,7 @@ function escalatedReason(initiative: Initiative, process: PhaseDef[], people: Pe
 }
 
 /** Overrun (§8.1, §8.5): the current phase is past its own estimated end date, whether or not its gate is otherwise ready. */
-function overrunReason(initiative: Initiative, process: PhaseDef[], phaseId: string, today: string): string | null {
+export function overrunReason(initiative: Initiative, process: PhaseDef[], phaseId: string, today: string): string | null {
   const phase = process.find((p) => p.id === phaseId)!;
   if (!gateOverdue(initiative, phase, today)) return null;
   const endDate = initiative.phases![phaseId].endDate!;
@@ -67,7 +67,7 @@ export function overdueActualMonths(initiative: Initiative, phase: PhaseDef, tod
  * phase is Overrun instead, so in practice this is the end date itself. The first open requirement (a blocker before
  * a Tentative item) is kept, not just its text, so the strip can jump straight to it (§5.2) without re-deriving it.
  */
-function dueReason(initiative: Initiative, process: PhaseDef[], phaseId: string, today: string, requirements: GateRequirement[]): { text: string; openItem: GateRequirement } | null {
+export function dueReason(initiative: Initiative, process: PhaseDef[], phaseId: string, today: string, requirements: GateRequirement[]): { text: string; openItem: GateRequirement } | null {
   const phase = process.find((p) => p.id === phaseId)!;
   const plan = initiative.phases?.[phaseId];
   if (!phase.costed || !plan?.endDate || plan.endDate > today) return null;
@@ -77,7 +77,7 @@ function dueReason(initiative: Initiative, process: PhaseDef[], phaseId: string,
 }
 
 /** Ready (§8.5): nothing left blocking the current gate — a warning-only gate (Tentative items) reads as Ready too before its end date, matching the magic bar (§5.4). */
-function readyReason(requirements: GateRequirement[]): string | null {
+export function readyReason(requirements: GateRequirement[]): string | null {
   return requirements.every((r) => r.state !== 'blocker') ? READY_MESSAGE : null;
 }
 

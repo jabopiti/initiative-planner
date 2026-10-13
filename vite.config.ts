@@ -70,6 +70,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**'],
+      // The default prompt templates (§9.12) are Markdown the build reads, not code.
+      exclude: ['src/**/*.md'],
       reporter: ['text-summary', 'json-summary'],
       // A ratchet just under the measured 93.4 / 87.5 / 92.9 / 95.4 (statements / branches / functions / lines):
       // `npm run test:coverage` fails if a change lowers coverage. Raise these as coverage grows, never lower them.

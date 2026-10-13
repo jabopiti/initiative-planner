@@ -3,6 +3,8 @@
  * modelled here — anything else can be added when something reads it.
  */
 
+import type { PromptKind } from '../prompts/template';
+
 export interface ChecklistItemDef {
   id: string;
   name: string;
@@ -164,6 +166,11 @@ export interface BrandImage {
   path: string;
 }
 
+/** A text file kept in the brand folder and read by the build (§2); `path` is relative to that folder. */
+export interface BrandFile {
+  path: string;
+}
+
 export interface BrandPack {
   productName: string;
   /** The browser tab's title (§2), apart from the product name shown in the app. */
@@ -185,4 +192,6 @@ export interface BrandPack {
     countries: CountryBaseline[];
   };
   exampleDataset: ExampleDataset;
+  /** Prompt templates (§9.12) that replace the core's defaults, each a Markdown file; a prompt left out uses the default. */
+  prompts?: Partial<Record<PromptKind, BrandFile>>;
 }

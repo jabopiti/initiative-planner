@@ -10,6 +10,7 @@ import type { KeyFigureSnapshot } from '../data/seen';
 import type { Initiative } from '../data/types';
 import { BulletBar } from './BulletBar';
 import { CopyButton } from './CopyButton';
+import { CopyForAiMenu } from './CopyForAiMenu';
 import type { CopyTableData } from './copyTable';
 import { formatAmount, formatSignedAmount } from './formatAmount';
 import { cardClass, ghostCardClass } from './cardClass';
@@ -64,8 +65,8 @@ const Sub = ({ children, className }: { children: ReactNode; className?: string 
  * The initiative's cost summary as four key figures under the header (§5.4): Grand estimate (with its bullet bar, and
  * what it was last approved at once a costed gate has passed), Deviation, the current phase with its period, and the
  * current gate's "X of Y complete". Figures roll to a new value and tint briefly (slice 059). Copy sits in the Grand
- * estimate tile and copies the cost summary and the phase costs (§9.2). With no costed phase in the process, only the
- * phase and gate tiles show.
+ * estimate tile and copies the cost summary and the phase costs (§9.2), beside Copy for AI (§9.12). With no costed
+ * phase in the process, only the phase and gate tiles show, and Copy for AI moves to the phase tile.
  */
 export function CostSummary({ initiative, previous = {} }: { initiative: Initiative; previous?: Partial<KeyFigureSnapshot> }) {
   const { process, currencySymbol, approvalTracks } = useBrand();
@@ -113,7 +114,15 @@ export function CostSummary({ initiative, previous = {} }: { initiative: Initiat
       </h2>
       {costedPhases.length > 0 && (
         <>
-          <Tile label="Grand estimate" action={<CopyButton getData={getData} noun={['line', 'lines']} iconLabel="Copy cost summary" />}>
+          <Tile
+            label="Grand estimate"
+            action={
+              <>
+                <CopyForAiMenu initiative={initiative} />
+                <CopyButton getData={getData} noun={['line', 'lines']} iconLabel="Copy cost summary" />
+              </>
+            }
+          >
             <Figure>
               <WithPrevious previous={previous.estimate === undefined ? undefined : formatAmount(previous.estimate, currencySymbol)}>
                 <Rolled value={estimate} format={(n) => formatAmount(n, currencySymbol)} />
@@ -154,7 +163,8 @@ export function CostSummary({ initiative, previous = {} }: { initiative: Initiat
           </Tile>
         </>
       )}
-      <Tile label="Current phase">
+      {/* Copy for AI sits with Copy cost summary; with no costed phase there is no such tile, so it moves here (§5.4). */}
+      <Tile label="Current phase" action={costedPhases.length === 0 && <CopyForAiMenu initiative={initiative} />}>
         {closed ? (
           <>
             <Figure>
