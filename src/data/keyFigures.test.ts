@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ApprovalTrackDef } from '../brand/types';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { bulletBands, bulletScaleMax, recordedActuals, scalePct } from './keyFigures';
 import type { Initiative } from './types';
 

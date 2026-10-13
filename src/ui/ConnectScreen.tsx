@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { BrandLogo } from './BrandLogo';
 import { cardClass } from './cardClass';
 
 const MESSAGE_STYLES: Record<TokenCheckResult['outcome'], string> = {
@@ -69,7 +70,8 @@ export function ConnectScreen({ onConnected }: { onConnected: (token: string, re
   return (
     <main className="mx-auto flex w-full max-w-connect flex-col gap-4 px-4 py-12">
       <section className={`${panelClass} border-2 border-brand-accent`} aria-labelledby="connect-heading">
-        <h1 id="connect-heading" className="m-0 mb-1 text-display">
+        <BrandLogo size={36} />
+        <h1 id="connect-heading" className="m-0 mb-1 mt-2 text-display">
           Connect to {brand.productName}
         </h1>
         <p className="m-0 mb-5 text-text-secondary">Paste your GitHub token to continue.</p>

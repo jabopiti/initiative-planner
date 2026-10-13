@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import type { Allocation, CostItem, CustomRole, Initiative, Membership, Person, PhasePlan, Role, Team } from '../data/types';
 import { getAtPath, type Path } from '../sync/merge';
 import { describeConflict, type ConflictContext } from './describeConflict';

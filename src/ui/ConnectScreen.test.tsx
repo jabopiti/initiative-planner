@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { BrandProvider } from '../state/BrandContext';
 import { ConnectScreen } from './ConnectScreen';
 
@@ -31,6 +31,16 @@ async function submitToken(token = 'a-token') {
   await user.type(screen.getByLabelText('GitHub token'), token);
   await user.click(screen.getByRole('button', { name: 'Connect' }));
 }
+
+describe('ConnectScreen — brand logo (§2)', () => {
+  it('shows the logo as a decorative image above the heading, which names the product', () => {
+    renderConnectScreen();
+    const heading = screen.getByRole('heading', { name: 'Connect to Initiative Planner' });
+    const logo = heading.closest('section')!.querySelector('img')!;
+    expect(logo).toHaveAttribute('alt', '');
+    expect(logo.getAttribute('src')).toMatch(/^data:image\/svg\+xml|logo[^/]*\.svg/);
+  });
+});
 
 describe('ConnectScreen — checked-token outcomes (§5.10)', () => {
   it('a working token shows "Connected as <user>" and calls onConnected', async () => {

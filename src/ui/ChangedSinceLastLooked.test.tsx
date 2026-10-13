@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cacheScope, SeenCache } from '../cache/db';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { buildBaselineDataset } from '../data/baseline';
 import { formatSince, keyFigureSnapshot, seenRecord, type SeenRecord } from '../data/seen';
 import type { Initiative, Person, Team } from '../data/types';

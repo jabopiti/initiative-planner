@@ -12,7 +12,7 @@ if (!token) {
 
 const [owner, repo, branch, api] = [pick('owner'), pick('repo'), pick('dataBranch'), pick('apiBaseUrl')];
 if (!owner || !repo || !branch || !api || branch === 'main') {
-  console.error('Could not determine a safe target from src/brand/defaultBrand.ts.');
+  console.error('Could not determine a safe target from brand/brand.ts.');
   process.exit(1);
 }
 

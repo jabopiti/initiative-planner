@@ -4,7 +4,7 @@ import { FILES_PER_QUERY, gitBlobSha, GithubClient, graphqlUrl, REQUEST_TIMEOUT_
 import { WriteQueue } from '../sync/WriteQueue';
 import { GithubApiError } from './errors';
 import type { WriteBudget } from './writeBudget';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { fakeGithub } from '../sync/testing/fakeGithub';
 
 const location: GithubLocation = {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { activeLoads } from './capacity';
 import { allocatablePeople, freeCapacityByPerson } from './personLoad';
 import type { Initiative, Membership, Person, Team } from './types';

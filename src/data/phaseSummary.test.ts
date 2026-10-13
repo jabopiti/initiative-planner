@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import { nextStepPhase, overlapWithPrevious, phaseSummary, planningGap } from './phaseSummary';
 import type { Country, Initiative, PhasePlan, Person, Role } from './types';
 

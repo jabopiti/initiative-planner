@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import type { Country, Membership, Person } from '../data/types';
 import { commitWindow } from './FileWriter';
 import { Repository } from './Repository';

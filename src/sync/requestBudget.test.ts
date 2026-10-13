@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { defaultBrandPack } from '../brand/defaultBrand';
+import { defaultBrandPack } from '@brand';
 import type { Initiative, Person, Team } from '../data/types';
 import { Repository } from './Repository';
 import { fakeGithub, initiative, person, seedDataset, type Fake } from './testing/fakeGithub';
