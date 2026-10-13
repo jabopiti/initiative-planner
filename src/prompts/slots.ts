@@ -31,8 +31,8 @@ export interface PromptData {
 const UNKNOWN_PERSON = 'Unknown person';
 const STATUS: Record<ChecklistStatus, string> = { incomplete: 'Incomplete', tentative: 'Tentative', complete: 'Complete' };
 
-/** A table cell: a pipe would end the cell, a line break the row. */
-const cell = (text: string) => text.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+/** A table cell: a pipe would end the cell, a line break the row; a backslash is escaped first, so one typed before a pipe can't undo its escape. */
+const cell = (text: string) => text.replace(/[\\|]/g, '\\$&').replace(/\r?\n/g, ' ');
 
 /** Typed text under a list item, line for line, indented so a line break stays inside the item. */
 const indented = (text: string) => text.replace(/\r?\n/g, '\n  ');
