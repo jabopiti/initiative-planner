@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { fakeGithub } from './support/fakeGithub';
-import { connect, createInitiative, createTeam, FAKE_TOKEN, watchCspViolations } from './support/session';
+import { connect, createInitiative, createTeam, FAKE_TOKEN, loadExampleData, watchCspViolations } from './support/session';
 
 // The main flows §10.8 names beyond creating and planning: passing a gate, a same-field conflict, read-only mode.
 
@@ -91,4 +91,27 @@ test('first run: the welcome card is the one way to create a team, and Teams ope
   await expect(create).toBeFocused();
   await expect(create).toHaveClass(/ring-brand-accent/);
   await expect(create).not.toHaveClass(/ring-brand-accent/, { timeout: 5000 });
+});
+
+test('Copy for AI copies the initiative as a prompt, by role, without a network request (§9.12)', async ({ page }) => {
+  const csp = watchCspViolations(page);
+  await fakeGithub(page).install();
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await connect(page);
+  await loadExampleData(page);
+  await page.getByRole('link', { name: 'Checkout Redesign' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Checkout Redesign', level: 1 })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+
+  const requests: string[] = [];
+  page.on('request', (request) => requests.push(request.url()));
+  await page.getByRole('button', { name: 'Copy for AI' }).click();
+  await page.getByRole('menuitem', { name: 'Copy for AI' }).click();
+  await expect(page.getByText('Copied Checkout Redesign for AI')).toBeVisible();
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  expect(text).toContain('## Initiative: Checkout Redesign');
+  expect(text).toContain('| Developer 1 | 100% |');
+  expect(text).not.toContain('Mara Voss');
+  expect(requests).toEqual([]);
+  expect(csp).toEqual([]);
 });

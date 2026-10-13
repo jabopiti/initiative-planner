@@ -184,3 +184,17 @@ describe('Key figure motion (slice 059, §9.5)', () => {
     expect(deviation.className).not.toMatch(/(?<!motion-safe:)animate-/);
   });
 });
+
+describe('Copy for AI placement (§5.4, §9.12)', () => {
+  it('sits beside Copy cost summary in the Grand estimate tile', () => {
+    show(named('Checkout Redesign'));
+    expect(within(tile('Grand estimate')).getByRole('button', { name: 'Copy for AI' })).toBeInTheDocument();
+    expect(within(tile('Current phase')).queryByRole('button', { name: 'Copy for AI' })).toBeNull();
+  });
+
+  it('moves to the Current phase tile when the process costs no phase', () => {
+    show(named('Checkout Redesign'), { ...defaultBrandPack, process: process.map((p) => ({ ...p, costed: false })) });
+    expect(screen.queryByText('Grand estimate')).toBeNull();
+    expect(within(tile('Current phase')).getByRole('button', { name: 'Copy for AI' })).toBeInTheDocument();
+  });
+});

@@ -64,6 +64,14 @@ for (const colorScheme of ['light', 'dark'] as const) test(`the app screens have
   await createInitiative(page, 'Checkout Redesign', 'Platform');
   await expectNoViolations(page); // initiative detail, with the team roster's chip
 
+  // Copy for AI's toast (§9.12); the scan above covers its button. The open menu itself is not scanned: Radix portals
+  // it outside the landmarks, which the best-practice region rule flags for every dropdown menu.
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.getByRole('button', { name: 'Copy for AI' }).click();
+  await page.getByRole('menuitem', { name: 'Copy for AI' }).click();
+  await expect(page.getByText('Copied Checkout Redesign for AI')).toBeVisible();
+  await expectNoViolations(page); // Copy for AI toast
+
   // An allocation row with its load bar (§5.4, §9.5), added from the roster.
   await page.getByRole('button', { name: /^Add Mara Voss/ }).first().click();
   await expect(page.getByRole('slider', { name: 'Allocation % for Mara Voss' }).first()).toBeVisible();

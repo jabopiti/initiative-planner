@@ -59,8 +59,10 @@ everyone.
   Error: "Couldn't copy. Your browser blocked clipboard access." 071's
   slide prompts use the same toasts and the same Include names choice.
 - **Templates are Markdown files:** `brand/prompts/copy-for-ai.md`,
-  imported by `brand/brand.ts` into `prompts.copyForAi`; the core defaults
-  are Markdown files in `src/prompts/`. A missing entry uses the default.
+  named by `brand/brand.ts` as `prompts.copyForAi` (a path, like the logo:
+  the build plugin reads it, since `vite.config` loads `brand.ts` before
+  Vite's `?raw` imports exist); the core defaults are Markdown files in
+  `src/prompts/defaults/`. A missing entry uses the default.
 - **Slots** are written exactly `{{name}}`; any other `{{word}}` fails the
   build, naming the template and the slot.
 - **People:** one label per person throughout the prompt; the owner is
@@ -109,32 +111,32 @@ everyone.
 
 ## Acceptance criteria
 
-- [ ] Given an initiative, when Copy for AI is chosen, then the clipboard
+- [x] Given an initiative, when Copy for AI is chosen, then the clipboard
       holds plain text built from the `copyForAi` template, each slot
       replaced by its Markdown block, and a confirmation shows.
-- [ ] Given a process with no costed phase, then Copy for AI sits in the
+- [x] Given a process with no costed phase, then Copy for AI sits in the
       Current phase tile.
-- [ ] Given a brand pack whose template uses an unknown slot, then the
+- [x] Given a brand pack whose template uses an unknown slot, then the
       build fails, naming the template and the slot.
-- [ ] Given a brand pack without a `copyForAi` template, then the core
+- [x] Given a brand pack without a `copyForAi` template, then the core
       default is used.
-- [ ] Given Include names off, then no person's name appears in the
+- [x] Given Include names off, then no person's name appears in the
       prompt; the owner and allocated people appear by role, and repeats
       of a role are numbered.
-- [ ] Given Include names on, then their names appear, and the choice
+- [x] Given Include names on, then their names appear, and the choice
       survives a reload in the same browser and is not synced.
-- [ ] Given a passed gate, then that phase's block shows its frozen
+- [x] Given a passed gate, then that phase's block shows its frozen
       snapshot, not today's people and rates.
-- [ ] Given amounts and dates, then they are formatted per §9.7, in full
+- [x] Given amounts and dates, then they are formatted per §9.7, in full
       amounts.
-- [ ] Given a description or note holding an injection payload or a
+- [x] Given a description or note holding an injection payload or a
       `{{slot}}`-like string, then it is copied verbatim and not filled in.
-- [ ] Given the clipboard refuses, then an error says so and nothing else
+- [x] Given the clipboard refuses, then an error says so and nothing else
       changes.
-- [ ] Given a Closed or Cancelled initiative, then Copy for AI still works
+- [x] Given a Closed or Cancelled initiative, then Copy for AI still works
       and the gate block says there is no current gate.
-- [ ] Given copying, then no network request is made.
-- [ ] Given the e2e axe scan of the initiative page, then the button and
+- [x] Given copying, then no network request is made.
+- [x] Given the e2e axe scan of the initiative page, then the button and
       the confirmation pass in both themes.
 
 ## Flags and compromises
